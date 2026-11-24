@@ -20,18 +20,22 @@
 """
 
 # Regenerates the two QuorumPath favicons shipped by the `favicon` module: `favicon.ico` (16,
-# 32 and 48 pixels) and `favicon.svg`, which is the same mark as vector art with a dark-scheme
-# variant. The mark is a navy "path" running from the left edge to the halo of a red token
-# (a filled disc with a translucent halo ring) sitting at the end of the path, drawn beneath
-# the halo — the small-size counterpart of the application logo in `modules/homepage/.../media/default/logo-light.svg`.
+# 32 and 48 pixels) and `favicon.svg`, which is the same mark as vector art. The mark is a QP
+# monogram built around the logo's token: a thin navy Q (a ring, plus a tail running right along
+# the baseline) enclosing a solid crimson P. The P is a filled disc, the token, with a stem running
+# down the Q's lower left and a little below the baseline. Above the baseline, the notch between
+# the stem and the Q's outer curve is filled red too, so the P's foot reaches along the baseline to
+# where the Q's tail begins. A clear gap separates the disc from the ring, and a translucent white
+# keyline runs round the whole mark. See the README next to this script for the details.
 #
-# The favicon is not a scaled copy of that logo: at 16-48 pixels the logo's hairlines
-# disappear, so weights are tuned per size (see GEOMETRY) and the artwork is rasterized here
-# rather than converted from the SVG. Everything below is the standard library only — no
-# Pillow, no ImageMagick — because a 32bpp .ico is just bottom-up BMP data behind a small
-# directory, and the mark is two circles and a thick segment, which anti-alias cleanly from
-# supersampled coverage. The .svg is emitted from the same geometry table, so the two cannot
-# drift apart.
+# Keep the ring a contrasting colour: a red or pink ring around the red disc reads as the
+# "recording" indicator that browsers and Teams show in a tab.
+#
+# Everything is described in DESIGN units (the 48-unit grid the mark was drawn on) and placed per
+# size by GEOMETRY. Everything below is the standard library only — no Pillow, no ImageMagick —
+# because a 32bpp .ico is just bottom-up BMP data behind a small directory, and the mark is a ring,
+# a disc, two bars and two curved corners, which anti-alias cleanly from supersampled coverage.
+# The .svg is emitted from the same tables, so the two cannot drift apart.
 #
 # Run from the repository root:
 #   python3 tools/dev/favicon/generate_favicon.py
@@ -42,6 +46,7 @@
 # data directory, or post the files over the existing nodes, to see the change.
 
 import argparse
+import math
 import os
 import struct
 import zlib
@@ -50,35 +55,66 @@ CONTENT_DIR = os.path.join("modules", "favicon", "src", "main", "resources", "SL
 DEFAULT_TARGET = os.path.join(CONTENT_DIR, "favicon.ico")
 DEFAULT_SVG_TARGET = os.path.join(CONTENT_DIR, "favicon.svg")
 
-# Brand colours, shared with the logo: navy path, red token, and the same 45% halo opacity.
+# Brand colours, shared with the logo: navy Q, crimson P (the logo's token red). A favicon cannot
+# tell a light tab strip from a dark one (`prefers-color-scheme` follows the system, not the
+# browser's theme), and navy vanishes on a dark one, so the mark sits on a white keyline instead.
+# The keyline is mostly transparent: on a light tab it all but disappears, and on a dark one it
+# reads as a soft grey rather than a glaring white.
 NAVY = (0x19, 0x29, 0x58)
 RED = (0xC0, 0x23, 0x3C)
-RING_OPACITY = 0.45
-# The dark-scheme palette of `logo-dark.svg`, used by the .svg favicon only: the navy path
-# would vanish against a dark tab strip, and the halo needs a little more presence there. The
-# token keeps the same red in both schemes, exactly as the logo does.
-NAVY_DARK = (0xA3, 0xA9, 0xBC)
-RING_OPACITY_DARK = 0.6
+WHITE = (0xFF, 0xFF, 0xFF)
+KEYLINE_OPACITY = 0.33
 
 SIZES = (16, 32, 48)
-# The vector favicon reuses the 48px geometry: the largest set of weights, hence the one least
-# compromised by pixel-snapping, and the closest to the logo's own proportions.
 SVG_SIZE = 48
 
-# Per-size geometry, in device pixels. The mark is always centred on cy = size / 2, an exact
-# pixel boundary, so an even path thickness lands squarely on two rows instead of straddling
-# four at half coverage.
-#   t      : path thickness
-#   r_out  : outer radius of the halo ring; 0 disables the halo
-#   stroke : halo ring stroke width
-#   r_dot  : radius of the filled token
-#   margin : ink-free border kept at the left and right edges
-# At 16px the halo is dropped: a sub-pixel ring at 45% opacity only muddies the token at that
-# size, so the token alone carries the mark, pixel-snapped (r 4 about cy 8) to stay round.
+# The mark, in design units. The Q's ring and the P's disc share a centre.
+DESIGN = {
+    "center_x": 19.5,
+    "center_y": 24.0,
+    "q_r_out": 15.5,      # outer radius of the Q's ring; the baseline is center_y + q_r_out
+    "q_stroke": 2.5,      # weight of the Q's ring, and the height of its tail
+    "tail": 19.0,         # length of the Q's tail, measured from the centre line
+    "gap": 3.0,           # clear space between the P's disc and the inside of the Q's ring
+    "stem": 6.0,          # width of the P's stem; its left edge is tangent to the disc
+    "foot_radius": 3.0,   # rounding of the foot's outer corner, tangent to the stem and its end
+    "descender": 3.5,     # how far the P's stem drops below the baseline; the tail runs as far past the ring
+}
+
+# Ink extent in design units: from the Q's left edge to the end of its tail, and from the top of
+# the Q to the end of the P's stem. The mark is scaled so this box fits between the margins.
+BASELINE = DESIGN["center_y"] + DESIGN["q_r_out"]
+INK_LEFT = DESIGN["center_x"] - DESIGN["q_r_out"]
+INK_RIGHT = DESIGN["center_x"] + DESIGN["tail"]
+INK_TOP = DESIGN["center_y"] - DESIGN["q_r_out"]
+INK_BOTTOM = BASELINE + DESIGN["descender"]
+
+# Per-size placement and weights, all optional except margin and keyline.
+#   margin   : border kept at the left and right edges, in device pixels; the mark is scaled so
+#              its width fills the rest, and centred
+#   keyline  : width of the white keyline round the mark, in device pixels; it must fit in the
+#              margin, less the half pixel the mark may be shifted by (see below)
+#   scale    : device pixels per design unit, overriding the margin-derived scale, for sizes where
+#              the Q's radius has to land on a whole or half pixel
+#   q_stroke : the Q's weight, in design units, if it is tuned at this size
+#   gap      : the disc-to-ring gap, in design units, if it is tuned at this size; the P's disc
+#              takes whatever radius is left inside the ring and the gap
+# After scaling, the whole mark is shifted by under half a pixel so that the baseline and the
+# P stem's left edge, the long straight edges, land on pixel boundaries, and the tail is trimmed
+# or extended by under half a pixel so that its end does too; see layout().
+#
+# 16px is hand-hinted. At the design weights the ring would be under a pixel wide and the gap
+# under 1.2, so both blur and the tab shows a red dot in a smudge: the recording indicator. Instead
+# the Q's outer radius is exactly 6.5 pixels about a pixel-centred point, and the ring and the gap
+# are each exactly one pixel, so the tab shows a crisp navy ring, a clean pixel of clearance and a
+# 9-pixel disc. Keep both at a pixel or more if this is retuned. That leaves exactly one pixel
+# round the mark for the keyline, with no room for the half-pixel shift: the hinting puts every
+# edge on a pixel boundary already.
+HINT_16 = 6.5 / DESIGN["q_r_out"]
 GEOMETRY = {
-    16: {"t": 2.0, "r_out": 0.0, "stroke": 0.00, "r_dot": 4.00, "margin": 1.0},
-    32: {"t": 2.0, "r_out": 10.7, "stroke": 1.70, "r_dot": 6.30, "margin": 1.3},
-    48: {"t": 4.0, "r_out": 16.0, "stroke": 2.60, "r_dot": 9.40, "margin": 2.0},
+    16: {"margin": 1.0, "keyline": 1.0, "scale": HINT_16, "q_stroke": 1.0 / HINT_16, "gap": 1.0 / HINT_16},
+    32: {"margin": 2.0, "keyline": 1.5},
+    48: {"margin": 3.5, "keyline": 3.0},
 }
 
 # Samples per axis per pixel, i.e. 64 coverage samples with the default. Cheap enough at these
@@ -87,90 +123,129 @@ SUPERSAMPLING = 8
 
 
 def layout(size):
-    # Turn a GEOMETRY entry into the placement the artwork is actually drawn from. Shared by
-    # the rasterizer and the .svg writer so the two renderings cannot disagree.
+    # Turn a GEOMETRY entry into the scale and offset that map design units onto device pixels,
+    # plus the weights to draw with. Shared by the rasterizer and the .svg writer so the two
+    # renderings cannot disagree.
     geometry = GEOMETRY[size]
-    placement = {
-        "thickness": geometry["t"],
-        "r_out": geometry["r_out"],
-        "stroke": geometry["stroke"],
-        "r_dot": geometry["r_dot"],
-        "center_y": size / 2.0,
-        # The widest ink around the token — halo if there is one, otherwise the disc — sets the inset.
-        "center_x": size - geometry["margin"] - max(geometry["r_out"], geometry["r_dot"]),
-        # The round cap keeps the left ink at the margin.
-        "path_start": geometry["margin"] + geometry["t"] / 2.0,
-    }
-    # As in the logo, the path ends on the halo, flat, just inside the ring's outer edge: far enough
-    # in that the straight end cannot leave a sliver of gap against the curve, no further, so it
-    # never runs into the token. Without a halo (16px) it ends at the token's centre.
-    if geometry["r_out"] > 0:
-        placement["path_end"] = placement["center_x"] - geometry["r_out"] + geometry["stroke"] / 4.0
-    else:
-        placement["path_end"] = placement["center_x"]
-    return placement
+    scale = geometry.get("scale", (size - 2.0 * geometry["margin"]) / (INK_RIGHT - INK_LEFT))
+    q_stroke = geometry.get("q_stroke", DESIGN["q_stroke"])
+    gap = geometry.get("gap", DESIGN["gap"])
+    p_radius = DESIGN["q_r_out"] - q_stroke - gap
+    offset_x = size / 2.0 - (INK_LEFT + INK_RIGHT) / 2.0 * scale
+    offset_y = size / 2.0 - (INK_TOP + INK_BOTTOM) / 2.0 * scale
+    # Snap the two long straight edges: a baseline or stem edge that straddles a pixel renders as
+    # a soft half-coverage row or column, which at 16px is a large share of the stroke.
+    stem_left = (DESIGN["center_x"] - p_radius) * scale + offset_x
+    baseline = BASELINE * scale + offset_y
+    offset_x += round(stem_left) - stem_left
+    offset_y += round(baseline) - baseline
+    # The end of the tail and the bottom of the P's stem are straight edges too. Trim or extend each
+    # one slightly so that it ends on a pixel boundary.
+    tail_end = (DESIGN["center_x"] + DESIGN["tail"]) * scale + offset_x
+    tail = (round(tail_end) - offset_x) / scale - DESIGN["center_x"]
+    stem_end = INK_BOTTOM * scale + offset_y
+    descender = (round(stem_end) - offset_y) / scale - BASELINE
+    return {"scale": scale, "offset_x": offset_x, "offset_y": offset_y,
+            "q_stroke": q_stroke, "p_radius": p_radius, "tail": tail, "descender": descender,
+            "keyline": geometry["keyline"] / scale}
 
 
-def coverage_masks(size):
-    # Compute per-pixel coverage in [0, 1] for each of the three shapes, by point-sampling
-    # their analytic definitions on a SUPERSAMPLING x SUPERSAMPLING grid inside every pixel.
-    placement = layout(size)
-    thickness, r_out, stroke, r_dot = (
-        placement["thickness"], placement["r_out"], placement["stroke"], placement["r_dot"],
+def keyline_boxes(p_radius, tail, descender, keyline):
+    # Below the Q's ring, the keyline is two rounded boxes: one round the Q's tail and one round the
+    # P's stem, each a keyline's width bigger than what it surrounds. Each box is given as
+    # (left, top, right, bottom), followed by the radii of its corners, clockwise from the top left.
+    # The bottom left corner of the stem's box is rounded like the P's foot.
+    cx, stem_left = DESIGN["center_x"], DESIGN["center_x"] - p_radius
+    tail_top = BASELINE - DESIGN["q_stroke"] - keyline
+    return (
+        ((stem_left - keyline, tail_top, cx + tail + keyline, BASELINE + keyline), (keyline,) * 4),
+        ((stem_left - keyline, tail_top, stem_left + DESIGN["stem"] + keyline, BASELINE + descender + keyline),
+         (keyline, keyline, keyline, DESIGN["foot_radius"] + keyline)),
     )
-    center_x, center_y = placement["center_x"], placement["center_y"]
-    path_start, path_end = placement["path_start"], placement["path_end"]
-    half_thickness = thickness / 2.0
-    r_in = r_out - stroke
 
-    path = [[0.0] * size for _ in range(size)]
-    ring = [[0.0] * size for _ in range(size)]
-    dot = [[0.0] * size for _ in range(size)]
-    step = 1.0 / SUPERSAMPLING
-    samples = float(SUPERSAMPLING * SUPERSAMPLING)
-    for pixel_y in range(size):
-        for pixel_x in range(size):
-            in_path = in_ring = in_dot = 0
-            for sub_y in range(SUPERSAMPLING):
-                y = pixel_y + (sub_y + 0.5) * step
-                dy = y - center_y
-                for sub_x in range(SUPERSAMPLING):
-                    x = pixel_x + (sub_x + 0.5) * step
-                    # A round cap at path_start, a flat end at path_end.
-                    nearest_x = max(x, path_start)
-                    if x <= path_end and (x - nearest_x) ** 2 + dy * dy <= half_thickness ** 2:
-                        in_path += 1
-                    distance2 = (x - center_x) ** 2 + dy * dy
-                    if distance2 <= r_dot ** 2:
-                        in_dot += 1
-                    elif r_in ** 2 <= distance2 <= r_out ** 2:
-                        in_ring += 1
-            path[pixel_y][pixel_x] = in_path / samples
-            ring[pixel_y][pixel_x] = in_ring / samples
-            dot[pixel_y][pixel_x] = in_dot / samples
-    return path, ring, dot
+
+def in_rounded_box(u, v, box, radii):
+    left, top, right, bottom = box
+    if not (left <= u <= right and top <= v <= bottom):
+        return False
+    corners = ((left + radii[0], top + radii[0], radii[0]), (right - radii[1], top + radii[1], radii[1]),
+               (right - radii[2], bottom - radii[2], radii[2]), (left + radii[3], bottom - radii[3], radii[3]))
+    for index, (round_x, round_y, radius) in enumerate(corners):
+        # In the square around a rounded corner, the point must also be inside the corner's circle.
+        beyond_x = u < round_x if index in (0, 3) else u > round_x
+        beyond_y = v < round_y if index in (0, 1) else v > round_y
+        if beyond_x and beyond_y and (u - round_x) ** 2 + (v - round_y) ** 2 > radius ** 2:
+            return False
+    return True
+
+
+def classify(u, v, q_stroke, p_radius, tail, descender, keyline):
+    # Which ink covers the design-space point (u, v): "red", "navy", "white" or None. The P is
+    # drawn over the Q, and both over the keyline; deciding per sample, rather than compositing
+    # anti-aliased layers, keeps the seams between them free of a blended fringe.
+    cx, cy = DESIGN["center_x"], DESIGN["center_y"]
+    q_r_out, foot = DESIGN["q_r_out"], DESIGN["foot_radius"]
+    baseline = BASELINE
+    dx, dy = u - cx, v - cy
+    distance2 = dx * dx + dy * dy
+    stem_left = cx - p_radius
+    stem_right = stem_left + DESIGN["stem"]
+    stem_end = baseline + descender
+    if distance2 <= p_radius ** 2:
+        return "red"
+    if cy <= v <= stem_end:
+        in_stem = stem_left <= u <= stem_right
+        # The half serif: the notch between the stem and the Q's outer curve, above the baseline.
+        in_serif = stem_right < u <= cx and v <= baseline and distance2 >= q_r_out ** 2
+        # The foot's outer corner is rounded off by a circle tangent to the stem and its end.
+        corner_x, corner_y = stem_left + foot, stem_end - foot
+        in_cut = u < corner_x and v > corner_y and (u - corner_x) ** 2 + (v - corner_y) ** 2 > foot ** 2
+        if (in_stem or in_serif) and not in_cut:
+            return "red"
+    if (q_r_out - q_stroke) ** 2 <= distance2 <= q_r_out ** 2:
+        return "navy"
+    if cx <= u <= cx + tail and baseline - q_stroke <= v <= baseline:
+        return "navy"
+    if distance2 <= (q_r_out + keyline) ** 2:
+        return "white"
+    boxes = keyline_boxes(p_radius, tail, descender, keyline)
+    if any(in_rounded_box(u, v, box, radii) for box, radii in boxes):
+        return "white"
+    return None
 
 
 def render(size):
-    # Composite the mark into a size x size grid of straight-alpha RGBA tuples.
-    path, ring, dot = coverage_masks(size)
+    # Rasterize the mark into a size x size grid of straight-alpha RGBA tuples, by point-sampling
+    # the shapes on a SUPERSAMPLING x SUPERSAMPLING grid inside every pixel.
+    placement = layout(size)
+    scale, offset_x, offset_y = placement["scale"], placement["offset_x"], placement["offset_y"]
+    q_stroke, p_radius, tail = placement["q_stroke"], placement["p_radius"], placement["tail"]
+    descender, keyline = placement["descender"], placement["keyline"]
+    step = 1.0 / SUPERSAMPLING
+    samples = float(SUPERSAMPLING * SUPERSAMPLING)
     image = []
-    for y in range(size):
+    for pixel_y in range(size):
         row = []
-        for x in range(size):
-            # The path goes down first, so the halo's translucent ring is drawn over its tip, as
-            # in the logo. The token always sits on top.
-            layers = ((NAVY, path[y][x]), (RED, ring[y][x] * RING_OPACITY), (RED, dot[y][x]))
-            red = green = blue = alpha = 0.0
-            for (source_red, source_green, source_blue), source_alpha in layers:
-                if source_alpha <= 0:
-                    continue
-                out_alpha = source_alpha + alpha * (1 - source_alpha)
-                red = (source_red * source_alpha + red * alpha * (1 - source_alpha)) / out_alpha
-                green = (source_green * source_alpha + green * alpha * (1 - source_alpha)) / out_alpha
-                blue = (source_blue * source_alpha + blue * alpha * (1 - source_alpha)) / out_alpha
-                alpha = out_alpha
-            row.append((int(round(red)), int(round(green)), int(round(blue)), int(round(alpha * 255))))
+        for pixel_x in range(size):
+            hits = {"red": 0, "navy": 0, "white": 0}
+            for sub_y in range(SUPERSAMPLING):
+                v = (pixel_y + (sub_y + 0.5) * step - offset_y) / scale
+                for sub_x in range(SUPERSAMPLING):
+                    u = (pixel_x + (sub_x + 0.5) * step - offset_x) / scale
+                    ink = classify(u, v, q_stroke, p_radius, tail, descender, keyline)
+                    if ink:
+                        hits[ink] += 1
+            weights = (hits["red"], hits["navy"], hits["white"] * KEYLINE_OPACITY)
+            covered = sum(weights)
+            if not covered:
+                row.append((0, 0, 0, 0))
+                continue
+            # Straight alpha: the colour is the mix of the inks present, weighted by coverage and
+            # opacity, and the alpha is their total.
+            colour = tuple(
+                int(round(sum(weight * channel for weight, channel in zip(weights, channels)) / covered))
+                for channels in zip(RED, NAVY, WHITE))
+            row.append(colour + (int(round(covered / samples * 255)),))
         image.append(row)
     return image
 
@@ -214,7 +289,7 @@ def hex_colour(colour):
 
 def number(value):
     # Trim trailing zeros so the markup stays readable: 24.0 becomes "24", 8.15 stays "8.15".
-    text = "{:.4f}".format(value).rstrip("0").rstrip(".")
+    text = "{:.3f}".format(value).rstrip("0").rstrip(".")
     return text or "0"
 
 
@@ -237,85 +312,90 @@ SVG_LICENSE = """<!--
    limitations under the License.
 -->"""
 
-# Light-scheme colours and the full-size geometry stay on the shapes as presentation
-# attributes, so a renderer that ignores the stylesheet still gets the mark right; the
-# stylesheet carries only the two overrides. Braces are doubled for str.format.
-#
-# The second override matters more than it looks. Wherever the .svg is supported the browser
-# uses it for the tab too, rasterizing it at 16px on a 1x display — and a faithful copy of the
-# 48px artwork does not survive that: the halo turns into a pink blob and the sub-pixel path
-# goes grey and soft. Media queries inside an SVG resolve against the viewport it is being
-# drawn into, so `max-width` lets the vector switch to the tuned 16px mark (GEOMETRY[16],
-# scaled into this viewBox) exactly when it is drawn tab-sized. Browser support for width
-# queries in the favicon path is not universal; where it is ignored the result is simply the
-# faithful mark at every size, which is the same trade-off any single-artwork SVG favicon
-# makes. The .ico remains the guaranteed-crisp 16px rendering for browsers that prefer it.
+# Colours and geometry are presentation attributes on the shapes, and there is no stylesheet at
+# all: no colour-scheme or size-dependent media queries, and no CSS geometry
+# (`d: path()`, `cx`, `r`), which only some browsers honour. One artwork serves every size; the
+# .ico carries the hand-tuned 16px rendering for browsers that prefer it.
 SVG_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 {license}
 <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" xmlns="http://www.w3.org/2000/svg" role="img">
   <title>QuorumPath</title>
-  <style>
-    @media (prefers-color-scheme: dark) {{
-      .path {{ fill: {navy_dark}; }}
-      .halo {{ opacity: {halo_opacity_dark}; }}
-    }}
-    @media (max-width: {small_breakpoint}px) {{
-      .halo {{ display: none; }}
-      .path {{ d: path("{small_path}"); }}
-      .token {{ cx: {small_center_x}; r: {small_r_dot}; }}
-    }}
-  </style>
-  <path class="path" d="{path}" fill="{navy}"/>
-  <circle class="halo" cx="{center_x}" cy="{center_y}" r="{r_halo}" fill="none" stroke="{red}"\
- stroke-width="{stroke}" opacity="{halo_opacity}"/>
-  <circle class="token" cx="{center_x}" cy="{center_y}" r="{r_dot}" fill="{red}"/>
+  <path fill="{white}" fill-opacity="{keyline_opacity}" d="{keyline}"/>
+  <path fill="{navy}" d="{q}"/>
+  <path fill="{red}" d="{p}"/>
 </svg>
 """
 
 
-def path_outline(placement, scale):
-    # The path as a filled outline, since a stroke cannot have a round cap at one end and a flat
-    # one at the other: the left end is a half-circle, the right end is cut square.
-    half = placement["thickness"] * scale / 2.0
-    start = placement["path_start"] * scale
-    end = placement["path_end"] * scale
-    center_y = placement["center_y"] * scale
-    return "M {start} {top} A {half} {half} 0 0 0 {start} {bottom} H {end} V {top} Z".format(
-        start=number(start), end=number(end), half=number(half),
-        top=number(center_y - half), bottom=number(center_y + half))
-
-
 def svg_markup():
-    # The vector twin of the raster icon, drawn from the same placement and in the same order
-    # as render(): path, then halo over its tip, then the token.
+    # The vector twin of the raster icon, drawn from the same placement: the keyline, the Q (ring
+    # and tail) over it, then the P (disc, stem, half serif and rounded foot). All are emitted as
+    # filled outlines under the non-zero rule, so each is a single filled path.
     placement = layout(SVG_SIZE)
-    # The tab-sized override is the smallest tuned size, scaled up into this viewBox.
-    small_size = min(SIZES)
-    small = layout(small_size)
-    scale = float(SVG_SIZE) / small_size
+    scale, offset_x, offset_y = placement["scale"], placement["offset_x"], placement["offset_y"]
+    q_stroke, p_radius, tail = placement["q_stroke"], placement["p_radius"], placement["tail"]
+    descender, keyline = placement["descender"], placement["keyline"]
+
+    def x(u):
+        return number(u * scale + offset_x)
+
+    def y(v):
+        return number(v * scale + offset_y)
+
+    def length(d):
+        return number(d * scale)
+
+    def circle(u, v, r, clockwise):
+        # A full circle as two half arcs, starting at its leftmost point. An outer edge runs
+        # clockwise and the hole inside it the other way; the bars run clockwise too, which lets
+        # them overlap a ring or the disc without punching through it.
+        sweep = 1 if clockwise else 0
+        return "M {x0} {y0} A {r} {r} 0 1 {s} {x1} {y0} A {r} {r} 0 1 {s} {x0} {y0} Z".format(
+            x0=x(u - r), x1=x(u + r), y0=y(v), r=length(r), s=sweep)
+
+    cx, cy = DESIGN["center_x"], DESIGN["center_y"]
+    q_r_out, foot = DESIGN["q_r_out"], DESIGN["foot_radius"]
+    baseline = cy + q_r_out
+
+    q_path = " ".join((
+        circle(cx, cy, q_r_out, True),
+        circle(cx, cy, q_r_out - q_stroke, False),
+        "M {} {} H {} V {} H {} Z".format(x(cx), y(baseline - q_stroke), x(cx + tail), y(baseline), x(cx)),
+    ))
+
+    # The stem, half serif and foot are one outline: down the stem's right edge to the Q's outer
+    # curve, along that curve to the Q's lowest point, back left along the baseline to the stem,
+    # down to its end, round the foot's corner and up the stem's left edge.
+    stem_left = cx - p_radius
+    stem_right = stem_left + DESIGN["stem"]
+    stem_end = baseline + descender
+    curve_y = cy + math.sqrt(q_r_out ** 2 - (cx - stem_right) ** 2)
+    stem = ("M {l} {top} H {r} V {cy_} A {rad} {rad} 0 0 0 {cx_} {base} H {r} V {end} H {fx} "
+            "A {f} {f} 0 0 1 {l} {fy} Z").format(
+        l=x(stem_left), r=x(stem_right), top=y(cy), cy_=y(curve_y), rad=length(q_r_out),
+        cx_=x(cx), base=y(baseline), end=y(stem_end), fx=x(stem_left + foot), f=length(foot),
+        fy=y(stem_end - foot))
+    p_path = " ".join((circle(cx, cy, p_radius, True), stem))
+
+    def rounded_box(box, radii):
+        # Drawn clockwise, starting where the top left corner's rounding ends.
+        left, top, right, bottom = box
+        top_left, top_right, bottom_right, bottom_left = radii
+        return ("M {} {} H {} A {r1} {r1} 0 0 1 {} {} V {} A {r2} {r2} 0 0 1 {} {} H {} "
+                "A {r3} {r3} 0 0 1 {} {} V {} A {r0} {r0} 0 0 1 {} {} Z").format(
+            x(left + top_left), y(top), x(right - top_right), x(right), y(top + top_right),
+            y(bottom - bottom_right), x(right - bottom_right), y(bottom), x(left + bottom_left),
+            x(left), y(bottom - bottom_left), y(top + top_left), x(left + top_left), y(top),
+            r0=length(top_left), r1=length(top_right), r2=length(bottom_right), r3=length(bottom_left))
+
+    # The keyline is the disc round the ring plus the rounded boxes below it, all clockwise.
+    keyline_path = " ".join([circle(cx, cy, q_r_out + keyline, True)] + [
+        rounded_box(box, radii) for box, radii in keyline_boxes(p_radius, tail, descender, keyline)])
+
     return SVG_TEMPLATE.format(
-        license=SVG_LICENSE,
-        size=SVG_SIZE,
-        navy=hex_colour(NAVY),
-        navy_dark=hex_colour(NAVY_DARK),
-        red=hex_colour(RED),
-        halo_opacity=number(RING_OPACITY),
-        halo_opacity_dark=number(RING_OPACITY_DARK),
-        center_x=number(placement["center_x"]),
-        center_y=number(placement["center_y"]),
-        path=path_outline(placement, 1.0),
-        r_dot=number(placement["r_dot"]),
-        # A stroked circle straddles its radius, so the ring's centreline sits half a stroke
-        # inside the outer radius the raster geometry describes.
-        r_halo=number(placement["r_out"] - placement["stroke"] / 2.0),
-        stroke=number(placement["stroke"]),
-        # Halfway between the two tuned sizes: 16px viewports take the small mark, 32px ones
-        # (a 2x tab, where the full artwork holds up) keep the faithful one.
-        small_breakpoint=number((small_size + 32) / 2.0),
-        small_path=path_outline(small, scale),
-        small_center_x=number(small["center_x"] * scale),
-        small_r_dot=number(small["r_dot"] * scale),
-    )
+        license=SVG_LICENSE, size=SVG_SIZE,
+        white=hex_colour(WHITE), keyline_opacity=number(KEYLINE_OPACITY), navy=hex_colour(NAVY),
+        red=hex_colour(RED), keyline=keyline_path, q=q_path, p=p_path)
 
 
 def write_svg(path):
@@ -347,14 +427,16 @@ def write_png(path, image, scale=1):
 
 def ascii_map(image):
     # A terminal-readable rendering: uppercase for (nearly) opaque pixels, lowercase for
-    # anti-aliased edges, R for the red token or halo, N for the navy path. Handy for checking
-    # that the path and the token land on whole pixels.
+    # anti-aliased edges, R for the crimson P, N for the navy Q, and w for the keyline, which is
+    # never opaque. Handy for checking that the ring, the gap and the baseline land on whole pixels.
     lines = []
     for y, row in enumerate(image):
         line = ""
-        for red, _green, _blue, alpha in row:
+        for red, green, _blue, alpha in row:
             if alpha < 10:
                 line += "."
+            elif green > 150:
+                line += "w"
             elif red > 120:
                 line += "R" if alpha > 200 else "r"
             else:
@@ -379,7 +461,7 @@ def main():
     write_ico(arguments.out, images)
     print("Wrote {} ({})".format(arguments.out, ", ".join("{0}x{0}".format(size) for size in SIZES)))
     write_svg(arguments.svg_out)
-    print("Wrote {} (vector, with a dark-scheme variant)".format(arguments.svg_out))
+    print("Wrote {} (vector)".format(arguments.svg_out))
 
     if arguments.preview_dir:
         if not os.path.isdir(arguments.preview_dir):
