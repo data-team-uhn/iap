@@ -47,7 +47,7 @@ export function PanelBody({ children, follow, noScrollbar }: {
     body.current?.querySelector(".Mui-selected")?.scrollIntoView({ block: "nearest" });
   }, [follow]);
   return (
-    <Box ref={body} sx={{ flex: 1, minHeight: 0, overflowY: "auto", maskImage: fadeEdges(edges),
+    <Box ref={body} data-panel-body sx={{ flex: 1, minHeight: 0, overflowY: "auto", maskImage: fadeEdges(edges),
       ...noScrollbar ? { scrollbarWidth: "none" } : {} }}>
       {children}
     </Box>

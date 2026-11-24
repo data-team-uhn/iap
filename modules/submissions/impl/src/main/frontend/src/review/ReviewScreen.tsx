@@ -18,6 +18,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
+import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
 import ChatBubbleOutlineOutlined from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
@@ -43,6 +45,7 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
+  type Theme,
 } from "@mui/material";
 
 import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
@@ -79,7 +82,7 @@ import { groupShortName, isMine, NOTE_KINDS, notesAbout, parseGroups, parseRevie
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
-import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
+import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser, useMyGroups } from "./useCurrentUser";
 
@@ -218,6 +221,20 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
   // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
   const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 320, isWidth);
+  // The contents entry being read, and, when it has scrolled out of the list, the edge it left by, where a copy of it
+  // stays pinned
+  const [ readEntry, setReadEntry ] = useState<HTMLElement | null>(null);
+  const [ pinned, setPinned ] = useState<"above" | "below">();
+  useEffect(() => {
+    const root = readEntry?.closest<HTMLElement>("[data-panel-body]");
+    if (!readEntry || !root) {
+      return undefined;
+    }
+    const observer = new IntersectionObserver(([ seen ]) => setPinned(seen.isIntersecting ? undefined
+      : seen.boundingClientRect.top < (seen.rootBounds?.top ?? 0) ? "above" : "below"), { root });
+    observer.observe(readEntry);
+    return () => observer.disconnect();
+  }, [ readEntry ]);
   const [ dialog, setDialog ] = useState<"letter" | "board" | "approve" | "sentLetter">();
   // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
   // beside a document, which needs the width
@@ -345,6 +362,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       setTimeout(() => document.getElementById(`question-${target}`)?.scrollIntoView({ behavior: "smooth" }), 50);
     } else {
       window.scrollTo({ top: 0 });
+      document.querySelector("[data-form-scroller]")?.scrollTo({ top: 0 });
     }
   };
 
@@ -657,6 +675,62 @@ export default function ReviewScreen({ path }: { path: string }) {
   const contradicted = new Set(risks.flatMap(risk => risk.mismatches.map(one => one.question))).size;
   const shownDocument = current ? data.documents.get(current.name) : undefined;
 
+  // A contents entry: navigation, so it looks it, names in the link colour, a tint under the pointer, and the one
+  // being read marked by a bar down its side, on the white of the page it is the tab of
+  const entrySx = (dimmed: boolean) => (theme: Theme) => ({
+    borderRadius: 0, py: 0.75, mb: 0.25, alignItems: "flex-start",
+    borderInlineStart: "3px solid", borderColor: "transparent",
+    "& .requirement-name": { color: "primary.main", fontWeight: "fontWeightMedium" },
+    ...dimmed ? { opacity: 0.5 } : {},
+    "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) },
+    "& .requirement-go": { opacity: 0, transition: theme.transitions.create("opacity") },
+    "&:hover .requirement-go, &:focus-visible .requirement-go": { opacity: 1 },
+    "&&.Mui-selected, &&.Mui-selected:hover": {
+      bgcolor: "background.paper", borderColor: "primary.main",
+    },
+    "&.Mui-selected .requirement-name": { fontWeight: "fontWeightBold" },
+  });
+  // The entry being read, pinned to the edge of the list it scrolled out by, apart from the list by a shadow and an
+  // arrow pointing where it is, which a click scrolls back to; it stays the tab of the page
+  const pinnedEntry = current && pinned && (
+    <Box sx={theme => ({ position: "relative", zIndex: 1, boxShadow: theme.shadows[3] })}>
+      <ListItemButton
+        selected aria-label={`${current.label}, scroll the contents to it`}
+        onClick={() => readEntry?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
+        sx={theme => ({ ...entrySx(false)(theme), mb: 0, alignItems: "center" })}
+      >
+        <ListItemText primary={<span className="requirement-name">{current.label}</span>}
+          slotProps={{ primary: { variant: "body2" } }} sx={{ my: 0.25 }} />
+        {pinned === "above"
+          ? <ArrowUpwardOutlined fontSize="small" sx={{ color: "text.secondary", ml: 1 }} />
+          : <ArrowDownwardOutlined fontSize="small" sx={{ color: "text.secondary", ml: 1 }} />}
+      </ListItemButton>
+    </Box>
+  );
+  // Which kinds of notes are shown, for the whole submission: the contents' counts, what the page marks, and the notes
+  // listed beside it
+  const notesBar = (
+    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", flexShrink: 0 }}
+      role="group" aria-label="Which notes to show, in the whole submission">
+      <Typography variant="body2" sx={{ color: "text.secondary", mr: 0.5 }}>Show notes</Typography>
+      {NOTE_KINDS.map(info => (
+        <Chip
+          key={info.kind}
+          size="small"
+          label={info.label}
+          variant="outlined"
+          onClick={() => toggleKind(info.kind)}
+          aria-pressed={shown.has(info.kind)}
+          icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
+          // Shown, softly tinted in its colour as a tag is; hidden, plain grey, so it reads as off
+          sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
+            ...shown.has(info.kind) ? kindChip(theme, info.mark)
+              : { borderColor: "divider", color: "text.disabled" } })}
+        />
+      ))}
+    </Stack>
+  );
+
   const rail = narrow ? (
     <TextField
       select fullWidth size="small" label="Requirement" value={current?.name ?? ""}
@@ -677,23 +751,9 @@ export default function ReviewScreen({ path }: { path: string }) {
         const found = hitCount(requirement);
         return (
           <ListItemButton
-            key={requirement.name}
+            key={requirement.name} ref={requirement.name === current?.name ? setReadEntry : undefined}
             selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-            // Navigation, so it looks it: names in the link colour, a tint under the pointer, and the one being read
-            // marked by a bar down its side
-            sx={theme => ({
-              borderRadius: 0, py: 0.75, mb: 0.25, alignItems: "flex-start",
-              borderInlineStart: "3px solid", borderColor: "transparent",
-              "& .requirement-name": { color: "primary.main", fontWeight: "fontWeightMedium" },
-              ...found === 0 ? { opacity: 0.5 } : {},
-              "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) },
-              "& .requirement-go": { opacity: 0, transition: theme.transitions.create("opacity") },
-              "&:hover .requirement-go, &:focus-visible .requirement-go": { opacity: 1 },
-              "&&.Mui-selected, &&.Mui-selected:hover": {
-                bgcolor: "background.paper", borderColor: "primary.main",
-              },
-              "&.Mui-selected .requirement-name": { fontWeight: "fontWeightBold" },
-            })}
+            sx={entrySx(found === 0)}
           >
             <ListItemText
               primary={
@@ -771,187 +831,174 @@ export default function ReviewScreen({ path }: { path: string }) {
           </Typography>
         )}
       </Stack>
-      <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
-        {/* The page runs at least as far down as the contents beside it, so whichever requirement is being read,
-            its tab meets the page */}
-        {railOpen || narrow ? (
+      {/* On a wide screen, the workspace fills the window under the app bar: the notes shown above everything they
+          apply to, then the panels side by side, each as tall as the others, scrolling on its own */}
+      <Stack sx={{ gap: 1.5, height: { md: PANEL_HEIGHT } }}>
+        {notesBar}
+        <Stack direction={{ xs: "column", md: "row" }}
+          sx={{ gap: 1.5, alignItems: { xs: "flex-start", md: "stretch" }, flex: { md: 1 }, minHeight: { md: 0 } }}>
+          {railOpen || narrow ? (
           // Part of the frame, tinted like the app bar; the requirement being read is a tab of the white page beside it
-          <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0,
-            ...narrow ? {} : { ...panelPlacement, display: "flex", flexDirection: "column" },
-            overflow: "hidden", bgcolor: { md: "background.tinted" }, boxShadow: { md: "none" },
-            mr: { md: -1.5 }, borderTopRightRadius: { md: 0 }, borderBottomRightRadius: { md: 0 },
-            borderRight: { md: "none" } }}>
-            <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
-              <Typography variant="panelTitle" sx={{ flex: 1 }}>Submission contents</Typography>
-              {!narrow && (
-                <Tooltip title="Fold away" disableInteractive>
-                  <IconButton size="small" aria-label="Fold the contents away" onClick={() => setRailOpen(false)}>
-                    <ChevronLeftOutlined />
-                  </IconButton>
+            <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0,
+              ...narrow ? {} : { display: "flex", flexDirection: "column" },
+              overflow: "hidden", bgcolor: { md: "background.tinted" }, boxShadow: { md: "none" },
+              mr: { md: -1.5 }, borderTopRightRadius: { md: 0 }, borderBottomRightRadius: { md: 0 },
+              borderRight: { md: "none" } }}>
+              <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
+                <Typography variant="panelTitle" sx={{ flex: 1 }}>Submission contents</Typography>
+                {!narrow && (
+                  <Tooltip title="Fold away" disableInteractive>
+                    <IconButton size="small" aria-label="Fold the contents away" onClick={() => setRailOpen(false)}>
+                      <ChevronLeftOutlined />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Stack>
+              <ToggleButtonGroup
+                exclusive fullWidth size="small" value={focused ? "focused" : "all"} aria-label="What to show"
+                onChange={(_event, value: string | null) => value && setFocused(value === "focused")}
+                sx={{ px: 1.5, pb: 1, "& .MuiToggleButton-root": { py: 0.25, textTransform: "none" } }}
+              >
+                <Tooltip describeChild disableInteractive title={myGroupLabel ? `Only what the ${groupShortName(myGroupLabel)} review covers`
+                  : "Only what your review covers"}>
+                  <ToggleButton value="focused">Focused</ToggleButton>
                 </Tooltip>
-              )}
-            </Stack>
-            <ToggleButtonGroup
-              exclusive fullWidth size="small" value={focused ? "focused" : "all"} aria-label="What to show"
-              onChange={(_event, value: string | null) => value && setFocused(value === "focused")}
-              sx={{ px: 1.5, pb: 1, "& .MuiToggleButton-root": { py: 0.25, textTransform: "none" } }}
-            >
-              <Tooltip describeChild disableInteractive title={myGroupLabel ? `Only what the ${groupShortName(myGroupLabel)} review covers`
-                : "Only what your review covers"}>
-                <ToggleButton value="focused">Focused</ToggleButton>
-              </Tooltip>
-              <Tooltip describeChild disableInteractive title="The whole submission, including the parts that concern other reviewer groups">
-                <ToggleButton value="all">All</ToggleButton>
-              </Tooltip>
-            </ToggleButtonGroup>
-            {narrow ? rail : <PanelBody follow={current?.name} noScrollbar>{rail}</PanelBody>}
-          </Paper>
-        ) : (
-          // Folded, it still says what it is
-          <Paper sx={{ width: 48, py: 1, flexShrink: 0, ...panelPlacement, display: "flex",
-            flexDirection: "column", alignItems: "center", gap: 1 }}>
-            <Tooltip title="Show the contents" placement="right" disableInteractive>
-              <IconButton size="small" aria-label="Show the submission contents" onClick={() => setRailOpen(true)}>
-                <ChevronRightOutlined />
-              </IconButton>
-            </Tooltip>
-            <Typography
-              variant="caption"
-              sx={{ writingMode: "vertical-rl", transform: "rotate(180deg)", color: "text.secondary", whiteSpace: "nowrap" }}
-            >
-              Submission contents
-            </Typography>
-          </Paper>
-        )}
-        {/* At least as tall as the panels, so the contents' tab always meets it; a document fills it exactly */}
-        {/* A form gets more room around its questions than a document, whose viewer brings its own */}
-        <GroupLabels.Provider value={groupLabels}>
-          <ReviewerTopics.Provider value={reviewerTopics}>
-            <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%", alignSelf: { md: "stretch" },
-              ...current && isFormRequirement(current) ? { px: { md: 4 }, py: { md: 3 } } : {},
-              minHeight: { md: PANEL_HEIGHT },
-              ...!narrow && current && isDocumentRequirement(current)
-                ? { height: PANEL_HEIGHT, display: "flex", flexDirection: "column" } : {},
-              ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
-              {current && (
-                <>
-                  <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, rowGap: 1, flexWrap: "wrap", mb: 0.5 }}>
-                    <Typography variant="h6" component="h2" sx={{ mr: "auto" }}>{current.label}</Typography>
-                    {/* Over the notes they filter: on the right, where a document lists its notes */}
-                    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", justifyContent: "flex-end" }}
-                      role="group" aria-label="Which notes to show">
-                      <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
-                      {NOTE_KINDS.map(info => (
-                        <Chip
-                          key={info.kind}
-                          size="small"
-                          label={info.label}
-                          variant="outlined"
-                          onClick={() => toggleKind(info.kind)}
-                          aria-pressed={shown.has(info.kind)}
-                          icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
-                          // Shown, softly tinted in its colour as a tag is; hidden, plain grey, so it reads as off
-                          sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
-                            ...shown.has(info.kind) ? kindChip(theme, info.mark)
-                              : { borderColor: "divider", color: "text.disabled" } })}
-                        />
-                      ))}
-                    </Stack>
-                  </Stack>
-                  {isFormRequirement(current) && (
-                    <SearchContext.Provider value={searchContext}>
-                      <FormReview
-                        items={current.items} data={data} groups={focused ? othersGroups : groups}
-                        myGroups={myGroups} shown={shown}
-                        onEvidence={openEvidence} actions={actions}
-                        notesWidth={notesWidth} onNotesWidth={setNotesWidth}
-                        selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
-                      />
-                    </SearchContext.Provider>
-                  )}
-                  {isDocumentRequirement(current) && shownDocument && (
-                    <Box sx={{ mt: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                      <DocumentReview
-                        key={current.name}
-                        document={shownDocument} data={data} shown={shown} selected={mark.id}
-                        onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
-                        actions={actions} questionLabel={questionLabel}
-                        search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
-                        notesWidth={notesWidth} onNotesWidth={setNotesWidth}
-                        onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
-                      />
-                    </Box>
-                  )}
-                </>
-              )}
-              {dialog === "letter" && (
-                <LetterDialog
-                  open submission={text(submission["@path"])} issueCount={myIssues.length}
-                  draft={draftLetter(letterInput)}
-                  onSend={sendLetter} onClose={() => setDialog(undefined)}
-                />
-              )}
-              {dialog === "sentLetter" && lastLetter && (
-                <SentLetter letter={lastLetter} onClose={() => setDialog(undefined)} />
-              )}
-              {dialog === "approve" && (
-                <ConfirmActionDialog
-                  title={`Approve ${text(submission.identifier)}?`} confirmLabel="Approve" workingLabel="Approving…"
-                  onConfirm={() => decide("approved", suggestions.length > 0
-                    ? approvalLetter({ ...letterInput, issues: suggestions }) : undefined)}
-                  onClose={() => setDialog(undefined)}
-                >
-                  {unconsidered + aiOpen + contradicted === 0 ? (
-                    <DialogContentText sx={{ mb: 1 }}>
-                      Every risk is marked as considered, and nothing the AI raised is still open.
-                    </DialogContentText>
-                  ) : (
-                    <>
-                      <DialogContentText>Still open in your review</DialogContentText>
-                      <Box component="ul" sx={{ mt: 0.5, mb: 1, pl: 3, color: "text.secondary" }}>
-                        {unconsidered > 0 && (
-                          <li>{`${unconsidered} of your ${risks.length} risks aren't marked as considered.`}</li>
-                        )}
-                        {aiOpen > 0 && <li>{aiOpen === 1 ? "1 concern" : `${aiOpen} concerns`} the AI raised, not
-                          made into issues or dismissed.</li>}
-                        {contradicted > 0 && <li>{contradicted === 1 ? "1 answer" : `${contradicted} answers`} the
-                          protocol contradicts.</li>}
-                      </Box>
-                    </>
-                  )}
-                  {suggestions.length > 0 && (
-                    <DialogContentText sx={{ mb: 1 }}>
-                      Your {suggestions.length === 1 ? "suggestion goes" : `${suggestions.length} suggestions go`} to
-                      the study team with the approval.
-                    </DialogContentText>
-                  )}
-                  <DialogContentText>An approval cannot be taken back.</DialogContentText>
-                </ConfirmActionDialog>
-              )}
-              {dialog === "board" && (
-                <EscalateDialog
-                  open title={text(submission.title)} identifier={text(submission.identifier)} pi={text(submission.pi)}
-                  summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
-                  parts={listed.map(one => ({ name: one.name, label: one.label }))}
-                  issues={myIssues} about={about}
-                  onClose={() => setDialog(undefined)}
-                />
-              )}
-
+                <Tooltip describeChild disableInteractive title="The whole submission, including the parts that concern other reviewer groups">
+                  <ToggleButton value="all">All</ToggleButton>
+                </Tooltip>
+              </ToggleButtonGroup>
+              {!narrow && pinned === "above" && pinnedEntry}
+              {narrow ? rail : <PanelBody follow={current?.name} noScrollbar>{rail}</PanelBody>}
+              {!narrow && pinned === "below" && pinnedEntry}
             </Paper>
-            <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
-              <ReviewPanel
-                identifier={text(submission.identifier)} risks={risks} unfiled={unfiled} issueCount={myIssues.length}
-                notes={generalNotes}
-                countdown={<Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />}
-                others={othersRaised} about={about} waitingSince={waitingSince}
-                doing={{ ...doing, decision: reviewActions }}
-                open={issuesOpen ?? !(current && isDocumentRequirement(current))}
-                onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
-              />
-            </Box>
-          </ReviewerTopics.Provider>
-        </GroupLabels.Provider>
+          ) : (
+          // Folded, it still says what it is
+            <Paper sx={{ width: 48, py: 1, flexShrink: 0, display: "flex",
+              flexDirection: "column", alignItems: "center", gap: 1 }}>
+              <Tooltip title="Show the contents" placement="right" disableInteractive>
+                <IconButton size="small" aria-label="Show the submission contents" onClick={() => setRailOpen(true)}>
+                  <ChevronRightOutlined />
+                </IconButton>
+              </Tooltip>
+              <Typography
+                variant="caption"
+                sx={{ writingMode: "vertical-rl", transform: "rotate(180deg)", color: "text.secondary", whiteSpace: "nowrap" }}
+              >
+                Submission contents
+              </Typography>
+            </Paper>
+          )}
+          {/* As tall as the panels, so the contents' tab always meets it; its notes go down its right edge, so it keeps no
+            room there or under them. A form gets more room around its questions than a document, whose viewer brings
+            its own */}
+          <GroupLabels.Provider value={groupLabels}>
+            <ReviewerTopics.Provider value={reviewerTopics}>
+              <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%",
+                ...current && isFormRequirement(current) ? { pl: { md: 4 }, pt: { md: 3 } } : {},
+                ...narrow ? {} : { pr: 0, pb: 0, height: "100%", display: "flex", flexDirection: "column",
+                  overflow: "hidden" },
+                ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
+                {current && (
+                  <>
+                    <Typography variant="h6" component="h2" sx={{ mb: 0.5, pr: { md: 2 } }}>{current.label}</Typography>
+                    {isFormRequirement(current) && (
+                      <Box sx={{ flex: { md: 1 }, minHeight: { md: 0 } }}>
+                        <SearchContext.Provider value={searchContext}>
+                          <FormReview
+                            items={current.items} data={data} groups={focused ? othersGroups : groups}
+                            myGroups={myGroups} shown={shown}
+                            onEvidence={openEvidence} actions={actions}
+                            notesWidth={notesWidth} onNotesWidth={setNotesWidth}
+                            selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
+                          />
+                        </SearchContext.Provider>
+                      </Box>
+                    )}
+                    {isDocumentRequirement(current) && shownDocument && (
+                      <Box sx={{ mt: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                        <DocumentReview
+                          key={current.name}
+                          document={shownDocument} data={data} shown={shown} selected={mark.id}
+                          onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
+                          actions={actions} questionLabel={questionLabel}
+                          search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
+                          notesWidth={notesWidth} onNotesWidth={setNotesWidth}
+                          onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
+                        />
+                      </Box>
+                    )}
+                  </>
+                )}
+                {dialog === "letter" && (
+                  <LetterDialog
+                    open submission={text(submission["@path"])} issueCount={myIssues.length}
+                    draft={draftLetter(letterInput)}
+                    onSend={sendLetter} onClose={() => setDialog(undefined)}
+                  />
+                )}
+                {dialog === "sentLetter" && lastLetter && (
+                  <SentLetter letter={lastLetter} onClose={() => setDialog(undefined)} />
+                )}
+                {dialog === "approve" && (
+                  <ConfirmActionDialog
+                    title={`Approve ${text(submission.identifier)}?`} confirmLabel="Approve" workingLabel="Approving…"
+                    onConfirm={() => decide("approved", suggestions.length > 0
+                      ? approvalLetter({ ...letterInput, issues: suggestions }) : undefined)}
+                    onClose={() => setDialog(undefined)}
+                  >
+                    {unconsidered + aiOpen + contradicted === 0 ? (
+                      <DialogContentText sx={{ mb: 1 }}>
+                        Every risk is marked as considered, and nothing the AI raised is still open.
+                      </DialogContentText>
+                    ) : (
+                      <>
+                        <DialogContentText>Still open in your review</DialogContentText>
+                        <Box component="ul" sx={{ mt: 0.5, mb: 1, pl: 3, color: "text.secondary" }}>
+                          {unconsidered > 0 && (
+                            <li>{`${unconsidered} of your ${risks.length} risks aren't marked as considered.`}</li>
+                          )}
+                          {aiOpen > 0 && <li>{aiOpen === 1 ? "1 concern" : `${aiOpen} concerns`} the AI raised, not
+                            made into issues or dismissed.</li>}
+                          {contradicted > 0 && <li>{contradicted === 1 ? "1 answer" : `${contradicted} answers`} the
+                            protocol contradicts.</li>}
+                        </Box>
+                      </>
+                    )}
+                    {suggestions.length > 0 && (
+                      <DialogContentText sx={{ mb: 1 }}>
+                        Your {suggestions.length === 1 ? "suggestion goes" : `${suggestions.length} suggestions go`} to
+                        the study team with the approval.
+                      </DialogContentText>
+                    )}
+                    <DialogContentText>An approval cannot be taken back.</DialogContentText>
+                  </ConfirmActionDialog>
+                )}
+                {dialog === "board" && (
+                  <EscalateDialog
+                    open title={text(submission.title)} identifier={text(submission.identifier)}
+                    pi={text(submission.pi)}
+                    summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
+                    parts={listed.map(one => ({ name: one.name, label: one.label }))}
+                    issues={myIssues} about={about}
+                    onClose={() => setDialog(undefined)}
+                  />
+                )}
+
+              </Paper>
+              <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", flexShrink: 0 }}>
+                <ReviewPanel
+                  identifier={text(submission.identifier)} risks={risks} unfiled={unfiled} issueCount={myIssues.length}
+                  notes={generalNotes}
+                  countdown={<Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />}
+                  others={othersRaised} about={about} waitingSince={waitingSince}
+                  doing={{ ...doing, decision: reviewActions }}
+                  open={issuesOpen ?? !(current && isDocumentRequirement(current))}
+                  onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
+                />
+              </Box>
+            </ReviewerTopics.Provider>
+          </GroupLabels.Provider>
+        </Stack>
       </Stack>
     </Stack>
   );

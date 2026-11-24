@@ -50,7 +50,7 @@ import IssuesGrid from "./IssuesGrid";
 import NoteCard, { Thread } from "./NoteCard";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
-import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
+import { PanelBody } from "./sidePanel";
 
 // An answer the protocol contradicts, by the extracted answer read from it
 export interface Mismatch {
@@ -163,7 +163,7 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
 
   return (
     // Part of the frame, tinted like the contents on the other side of the page
-    <Paper sx={{ width: 320, display: "flex", flexDirection: "column", height: PANEL_HEIGHT,
+    <Paper sx={{ width: 320, display: "flex", flexDirection: "column", height: "100%",
       bgcolor: "background.tinted", boxShadow: "none" }}>
       <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75 }}>
         <Typography variant="panelTitle" sx={{ flex: 1 }}>Review</Typography>
@@ -990,7 +990,7 @@ function Folded({ issueCount, onToggle, decision }: {
   decision: ReviewDoing["decision"];
 }) {
   return (
-    <Paper sx={{ width: 48, py: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+    <Paper sx={{ width: 48, py: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
       bgcolor: "background.tinted", boxShadow: "none" }}>
       <Tooltip disableInteractive title="Show the review" placement="left">
         <IconButton size="small" aria-label="Show the review" onClick={onToggle}>

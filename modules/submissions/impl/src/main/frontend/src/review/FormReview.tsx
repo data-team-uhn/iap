@@ -39,7 +39,6 @@ import { GroupChip } from "./people";
 import { groupShortName, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
-import { panelPlacement } from "./sidePanel";
 
 // How wide the form must be for a question's notes to go beside it, as a document's are beside its pages, rather
 // than under it; their width is the reader's, set on the whole form; and the gap between, in spacing units
@@ -418,14 +417,15 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
     ]);
     return (
       <FormNotes.Provider value={listing}>
-        <Box ref={form} sx={{ display: "flex", alignItems: "flex-start" }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>{body}</Box>
+        {/* The questions scroll on their own; the notes go down the page's right edge, as tall as it */}
+        <Box ref={form} sx={{ display: "flex", height: "100%", minHeight: 0 }}>
+          <Box data-form-scroller sx={{ flex: 1, minWidth: 0, overflowY: "auto", pr: 1, pb: 3 }}>{body}</Box>
           {onNotesWidth ? (
             <SplitHandle
               width={width} onWidth={onNotesWidth} container={() => form.current} min={NOTES_MIN_WIDTH}
-              reserve={QUESTIONS_MIN_WIDTH} label="Resize the notes" sx={() => ({ alignSelf: "stretch", mx: 0.5 })}
+              reserve={QUESTIONS_MIN_WIDTH} label="Resize the notes" sx={() => ({ alignSelf: "stretch" })}
             />
-          ) : <Box sx={{ width: 24 }} />}
+          ) : <Box sx={{ width: 16 }} />}
           <FormNoteList
             entries={entries} selected={selected} onSelect={onSelect} width={width} data={data} actions={actions}
             onEvidence={onEvidence} onDraftDone={() => {
@@ -438,7 +438,8 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
     );
   }
   return (
-    <Box ref={form} sx={{ containerType: "inline-size", position: "relative", [NOTES_WIDTH]: `${width}px` }}>
+    <Box ref={form} data-form-scroller sx={{ containerType: "inline-size", position: "relative",
+      [NOTES_WIDTH]: `${width}px`, height: { md: "100%" }, overflowY: { md: "auto" }, pr: { md: 4 }, pb: { md: 3 } }}>
       {body}
       {/* Down the gap between the questions and their notes, where they sit side by side */}
       {onNotesWidth && (
@@ -459,10 +460,13 @@ interface ListEntry {
   note?: ReviewNote;
 }
 
-// Whether an element is out of the window, under the frame above the page or below its bottom
+// Whether an element is out of what scrolls it, the form's own scroller, or the window on a narrow screen
 function outOfView(element: HTMLElement): boolean {
   const box = element.getBoundingClientRect();
-  return box.bottom < 96 || box.top > window.innerHeight;
+  const scroller = element.closest<HTMLElement>("[data-form-scroller]");
+  const { top, bottom } = scroller && scroller.scrollHeight > scroller.clientHeight
+    ? scroller.getBoundingClientRect() : { top: 96, bottom: window.innerHeight };
+  return box.bottom < top || box.top > bottom;
 }
 
 // A note not selected, cut short past some lines and faded where it is; a click anywhere on it selects it, as its
@@ -519,7 +523,9 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
   const position = ids.indexOf(selected ?? "") + 1;
   const total = count === 1 ? "1 note" : `${count} notes`;
   return (
-    <Box sx={{ ...panelPlacement, width, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+    // On the contents' tint, as a panel of its own beside the page, as tall as the page
+    <Box sx={{ width, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column", minHeight: 0,
+      bgcolor: "background.tinted", px: 0.5, pt: 0.5 }}>
       {entries.length > 0 ? (
         <StepControls
           position={position} count={entries.length} itemName="note"
