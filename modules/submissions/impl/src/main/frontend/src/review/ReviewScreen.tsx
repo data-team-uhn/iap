@@ -780,9 +780,9 @@ export default function ReviewScreen({ path }: { path: string }) {
                       {COUNTED_KINDS.map(kind => {
                         const many = counted.filter(note => note.kind === kind).length;
                         return many > 0 && (
-                          // Each a small card of its kind, as its notes are, to stand out on the contents' tint
+                          // Each on its kind's tint, as its notes are, to stand out on the contents' own
                           <Box component="span" key={kind}
-                            sx={theme => ({ ...passageCard(theme, kindInfo(kind).mark, 0.5), borderInlineStartWidth: 3,
+                            sx={theme => ({ ...passageCard(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
                               display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
                               color: `${kindInfo(kind).mark}.main` })}>
                             <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
