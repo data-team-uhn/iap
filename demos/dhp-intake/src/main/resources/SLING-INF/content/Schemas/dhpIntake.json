@@ -7,10 +7,22 @@
     "tags": ["active"],
     "jcr:reference:workflow": "/Workflows/dhpIntake/v1",
     "description": "Ask the Digital Health Platform for patient data for a research study.",
+    "proposal": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "research proposal",
+      "description": "Optional. Upload your research proposal or protocol, as a PDF or Word document, and the study information and dates below are filled in from it for you to check.",
+      "acceptedFileTypes": [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword"
+      ],
+      "required": false
+    },
     "intake": {
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Intake questionnaire",
       "description": "The data your study needs, and how you will look after it.",
+      "documents": [ "proposal" ],
       "study": {
         "jcr:primaryType": "sch:Section",
         "title": "Study information",
@@ -19,52 +31,68 @@
           "jcr:primaryType": "sch:Question",
           "text": "What is the title of your study?",
           "dataType": "text",
-          "minAnswers": 1
+          "minAnswers": 1,
+          "purpose": "The title of the research plan, and how the request is known",
+          "extractionPrompt": "Find the study's full title, as given on the cover page or at the head of the synopsis. Quote it exactly, without the word 'Title' or a protocol number."
         },
         "piName": {
           "jcr:primaryType": "sch:Question",
           "text": "Who is the Principal Investigator?",
           "dataType": "text",
-          "minAnswers": 1
+          "minAnswers": 1,
+          "purpose": "Who is accountable for the study and its data",
+          "extractionPrompt": "Find the name of the principal or lead investigator, usually on the cover page, the study team page or the signature page. Give the person's name only, with any degree such as Dr. or PhD as written."
         },
         "piTitle": {
           "jcr:primaryType": "sch:Question",
           "text": "What is the Principal Investigator's title?",
           "description": "For example: Scientist, Toronto General Hospital Research Institute.",
           "dataType": "text",
-          "minAnswers": 1
+          "minAnswers": 1,
+          "purpose": "The Principal Investigator's position, as the research plan states it",
+          "extractionPrompt": "Find the principal investigator's position and institution, as stated next to their name, for example 'Scientist, Toronto General Hospital Research Institute'. Give only what the document states."
         },
         "piContact": {
           "jcr:primaryType": "sch:Question",
           "text": "How can we reach the Principal Investigator?",
           "description": "Their department address, email and phone number.",
           "dataType": "text",
-          "minAnswers": 1
+          "minAnswers": 1,
+          "purpose": "Reaching the Principal Investigator about the request",
+          "extractionPrompt": "Find the principal investigator's contact details: department address, email address and phone number, as given in the document. Give whichever of these it states, on one line."
         },
         "coInvestigators": {
           "jcr:primaryType": "sch:Question",
           "text": "Who are the co-investigators?",
           "description": "The name and role of each. Leave this blank if there are none.",
-          "dataType": "text"
+          "dataType": "text",
+          "purpose": "Everyone else on the study team who works with the data",
+          "extractionPrompt": "List the co-investigators or sub-investigators named in the study team, each with their role when it is stated, separated by semicolons. Leave out the principal investigator. If the document names none, report that the answer was not found."
         },
         "background": {
           "jcr:primaryType": "sch:Question",
           "text": "What are the background and objectives of your study?",
           "description": "A short summary of why the study is being done and what it aims to find out.",
           "dataType": "text",
-          "minAnswers": 1
+          "minAnswers": 1,
+          "purpose": "Why the study is being done, as the research plan summarizes it",
+          "extractionPrompt": "Summarize the study's background and its primary objective in two or three sentences, from the background, rationale and objectives sections."
         },
         "analysis": {
           "jcr:primaryType": "sch:Question",
           "text": "How will you analyze the data?",
           "description": "Briefly describe your statistical analysis or methodology.",
-          "dataType": "text"
+          "dataType": "text",
+          "purpose": "Whether the data asked for fits the analysis planned",
+          "extractionPrompt": "Summarize the planned statistical analysis or methodology in one or two sentences, from the statistics, analysis or methods section."
         },
         "references": {
           "jcr:primaryType": "sch:Question",
           "text": "Which references support your study?",
           "description": "Protocol or literature references, if any.",
-          "dataType": "text"
+          "dataType": "text",
+          "purpose": "The sources the research plan cites",
+          "extractionPrompt": "List up to five of the main references the document cites, each in short form (first author, year, title), separated by semicolons. If it has no reference list, report that the answer was not found."
         }
       },
       "dataSource": {
@@ -491,14 +519,18 @@
           "text": "Start date: what is the earliest date to include?",
           "description": "This cannot be in the future.",
           "dataType": "date",
-          "minAnswers": 1
+          "minAnswers": 1,
+          "purpose": "The earliest records the data pull includes",
+          "extractionPrompt": "Find the start of the period whose patient records the study reviews or collects, such as the first admission or visit date of a retrospective chart review. This is the period of the data, not when the study itself runs. If the document gives only a month or a year, report that the answer was not found."
         },
         "endDate": {
           "jcr:primaryType": "sch:Question",
           "text": "End date: what is the latest date to include?",
           "description": "This must be on or after the start date.",
           "dataType": "date",
-          "minAnswers": 1
+          "minAnswers": 1,
+          "purpose": "The latest records the data pull includes",
+          "extractionPrompt": "Find the end of the period whose patient records the study reviews or collects. This is the period of the data, not when the study itself ends. If the document gives only a month or a year, report that the answer was not found."
         },
         "frequency": {
           "jcr:primaryType": "sch:Question",

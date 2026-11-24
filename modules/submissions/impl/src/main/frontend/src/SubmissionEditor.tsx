@@ -24,7 +24,7 @@ import ErrorBoundary from "@iap/frontend-commons/components/ErrorBoundary";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { areDocumentsSent, getStartingStep, getStep } from "./intake";
+import { UPLOAD_STEP, areDocumentsSent, getStartingStep, getStep } from "./intake";
 import IntakeSteps from "./IntakeSteps";
 import {
   getRequirementComponent,
@@ -36,7 +36,6 @@ import {
   type FormQuestion,
   type SubmissionForm,
   fetchForm,
-  isDocumentRequirement,
   isFormRequirement,
   reviewExtraction,
   saveAnswer,
@@ -208,7 +207,7 @@ function SubmissionEditor({ path, reading = false, onSaving = ignoreSave, onChan
             path={path}
             requirement={requirement}
             disabled={!form.editable || reading
-              || (inSteps && isDocumentRequirement(requirement) && areDocumentsSent(form))}
+              || (inSteps && getStep(requirement) === UPLOAD_STEP && areDocumentsSent(form))}
             reading={reading}
             states={states}
             onAnswered={answered}

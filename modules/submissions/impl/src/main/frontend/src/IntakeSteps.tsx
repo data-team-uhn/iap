@@ -22,12 +22,12 @@ import { Alert, Button, Stack, Typography } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { COMPLETE_STEP, UPLOAD_STEP, describeWhyNotNext } from "./intake";
+import { COMPLETE_STEP, UPLOAD_STEP, describeWhyNotNext, getNextStep, getPreviousStep } from "./intake";
 import { type SubmissionForm, runMainExtraction, sendDocuments } from "./submissionForm";
 
 // The steps of a request whose documents a model reads, around the requirements of the step shown.
-// Next on the uploads sends them to be read; Next on the confirmation reads the rest out of them.
-// Back only moves between the steps.
+// Next on the uploads sends them to be read; Next on the confirmation reads the rest out of them. With no
+// optional document uploaded, Next skips to the rest and sends nothing. Back only moves between the steps.
 function IntakeSteps({ path, form, step, reading, onStep, onChanged, children }: {
   path: string;
   form: SubmissionForm;
@@ -43,12 +43,17 @@ function IntakeSteps({ path, form, step, reading, onStep, onChanged, children }:
   const whyNotNext = describeWhyNotNext(form, step, reading);
 
   const goOn = () => {
+    const next = getNextStep(form, step);
+    if (next === COMPLETE_STEP && step === UPLOAD_STEP) {
+      onStep(next);
+      return;
+    }
     setBusy(true);
     setError(undefined);
     const action = step === UPLOAD_STEP ? sendDocuments(doFetch, path) : runMainExtraction(doFetch, path);
     action
       .then(() => {
-        onStep(step + 1);
+        onStep(next);
         onChanged();
       }, (e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setBusy(false));
@@ -60,7 +65,9 @@ function IntakeSteps({ path, form, step, reading, onStep, onChanged, children }:
       {error && <Alert severity="error">{error}</Alert>}
       <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "flex-end" }}>
         { step < COMPLETE_STEP && whyNotNext && <Typography variant="description">{whyNotNext}</Typography> }
-        { step > UPLOAD_STEP && <Button disabled={busy} onClick={() => onStep(step - 1)}>Back</Button> }
+        { step > UPLOAD_STEP && (
+          <Button disabled={busy} onClick={() => onStep(getPreviousStep(form, step))}>Back</Button>
+        ) }
         { step < COMPLETE_STEP && (
           <Button variant="contained" disabled={busy || whyNotNext !== undefined} onClick={goOn}>Next</Button>
         ) }
