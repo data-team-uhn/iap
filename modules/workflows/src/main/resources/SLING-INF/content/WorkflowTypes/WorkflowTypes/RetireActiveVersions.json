@@ -1,0 +1,16 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Retire Active Versions",
+  "description": "Retires the active versions of the workflow this request is about.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "retireActiveVersions",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"retireActiveVersions\"}",
+  "subject": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Subject",
+    "description": "Which resource the handler works on: \"created\" for what the execution created, if anything, or else the event's target (the default); \"target\" for the event's target even after a creation.",
+    "xmlLocation": "attribute"
+  }
+}

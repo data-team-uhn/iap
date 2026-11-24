@@ -7,10 +7,30 @@
   "xmlElement": "bpmn:endEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
   "jcrNodeType": "wf:EndEvent",
-  "properties": [
-    "{https://iap.uhndata.io/bpmn}recipients=recipients[]",
-    "{https://iap.uhndata.io/bpmn}template=template",
-    "{https://iap.uhndata.io/bpmn}urgency=urgency",
-    "{https://iap.uhndata.io/bpmn}subject=subject"
-  ]
+  "recipients": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Recipients",
+    "description": "The principals - users or groups - told, or a reference such as \"@creator\" for the one who started the workflow.",
+    "dataType": "principal",
+    "maxValues": 0,
+    "xmlLocation": "attribute"
+  },
+  "template": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Template",
+    "description": "The path of the notification template that says it, e.g. \"/libs/iap/notificationTemplates/timeOffApproved\".",
+    "xmlLocation": "attribute"
+  },
+  "urgency": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Urgency",
+    "description": "How soon people are told, e.g. \"immediate\".",
+    "xmlLocation": "attribute"
+  },
+  "subject": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Subject",
+    "description": "Which resource the notification is about: \"created\" for what the execution created, if anything, or else the event's target (the default); \"target\" for the event's target even after a creation.",
+    "xmlLocation": "attribute"
+  }
 }

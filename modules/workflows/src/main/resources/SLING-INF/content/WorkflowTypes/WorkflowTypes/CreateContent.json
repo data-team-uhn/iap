@@ -1,0 +1,26 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Content",
+  "description": "Creates new content of the type the request names inside the item this request is about. Later steps act on the new content. The type must be one listed here that the item can hold.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createContent\"}",
+  "nameFrom": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name taken from",
+    "description": "The fields of the request the new content is named after. If multiple, the first one holding text is used. If there is no provided text it is named after its type.",
+    "maxValues": 0
+  },
+  "namePattern": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name pattern",
+    "description": "A pattern (regular expression) that a requested name must match. Left blank, any valid name is allowed."
+  },
+  "nameHint": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name hint",
+    "description": "A description of what the pattern allows."
+  }
+}

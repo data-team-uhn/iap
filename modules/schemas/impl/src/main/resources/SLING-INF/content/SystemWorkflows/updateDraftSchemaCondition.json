@@ -40,7 +40,7 @@
       "handler": "replaceContent",
       "child": "cond:condition",
       "nodeTypes": ["cond:ConditionGroup", "cond:SingleCondition", "cond:ConditionOperand"],
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ReplaceContent",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

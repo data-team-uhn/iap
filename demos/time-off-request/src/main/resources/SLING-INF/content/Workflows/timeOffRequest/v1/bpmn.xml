@@ -42,8 +42,10 @@
       <bpmn:outgoing>toApproval</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toApproval" sourceRef="fillIn" targetRef="markSubmitted" />
-    <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:replaceExisting="true" iap:tag="submitted"
-        name="Mark it as submitted">
+    <bpmn:serviceTask id="markSubmitted" name="Mark it as submitted">
+      <bpmn:extensionElements>
+        <iap:addTag tag="submitted" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toUrgency</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -61,9 +63,11 @@
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toRecordReview" sourceRef="approveRequest" targetRef="recordReview" />
     <!-- The decision is written down before the gateway routes on it, so that it is recorded whichever way the
-         request goes. iap:requirement names the approval it answers, since a schema may ask for several. -->
-    <bpmn:serviceTask id="recordReview" name="Write the decision down" iap:handler="recordReview"
-        iap:requirement="approval">
+         request goes. The requirement names the approval it answers, since a schema may ask for several. -->
+    <bpmn:serviceTask id="recordReview" name="Write the decision down">
+      <bpmn:extensionElements>
+        <iap:recordReview requirement="approval" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRecordReview</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -126,22 +130,34 @@
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="markRejected" />
-    <bpmn:serviceTask id="markApproved" iap:handler="addTag" iap:replaceExisting="true" iap:tag="approved" name="Mark it as approved">
+    <bpmn:serviceTask id="markApproved" name="Mark it as approved">
+      <bpmn:extensionElements>
+        <iap:addTag tag="approved" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toApproved</bpmn:incoming>
       <bpmn:outgoing>approvedTagged</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="approvedTagged" sourceRef="markApproved" targetRef="requestApproved" />
-    <bpmn:serviceTask id="markRejected" iap:handler="addTag" iap:replaceExisting="true" iap:tag="rejected" name="Mark it as refused">
+    <bpmn:serviceTask id="markRejected" name="Mark it as refused">
+      <bpmn:extensionElements>
+        <iap:addTag tag="rejected" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRejected</bpmn:incoming>
       <bpmn:outgoing>rejectedTagged</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="rejectedTagged" sourceRef="markRejected" targetRef="requestRejected" />
-    <bpmn:serviceTask id="markOverdue" iap:handler="addTag" iap:replaceExisting="true" iap:tag="overdue" name="Mark it as overdue">
+    <bpmn:serviceTask id="markOverdue" name="Mark it as overdue">
+      <bpmn:extensionElements>
+        <iap:addTag tag="overdue" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toReminded</bpmn:incoming>
       <bpmn:outgoing>overdueTagged</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="overdueTagged" sourceRef="markOverdue" targetRef="reminded" />
-    <bpmn:serviceTask id="markExpired" iap:handler="addTag" iap:replaceExisting="true" iap:tag="expired" name="Mark it as expired">
+    <bpmn:serviceTask id="markExpired" name="Mark it as expired">
+      <bpmn:extensionElements>
+        <iap:addTag tag="expired" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toExpired</bpmn:incoming>
       <bpmn:outgoing>expiredTagged</bpmn:outgoing>
     </bpmn:serviceTask>

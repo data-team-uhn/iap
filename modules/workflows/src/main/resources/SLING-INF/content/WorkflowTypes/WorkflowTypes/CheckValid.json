@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Check Valid",
+  "description": "Stops the workflow unless the item passes every validity check that applies to it. All problems are reported together.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "checkValid",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"checkValid\"}"
+}

@@ -46,7 +46,10 @@
       <bpmn:messageEventDefinition id="returnToDraftRequested" messageRef="returnToDraftMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMove" sourceRef="requested" targetRef="move" />
-    <bpmn:serviceTask id="move" iap:handler="addTag" iap:replaceExisting="true" iap:tag="draft" name="Return the version to a draft">
+    <bpmn:serviceTask id="move" name="Return the version to a draft">
+      <bpmn:extensionElements>
+        <iap:addTag tag="draft" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

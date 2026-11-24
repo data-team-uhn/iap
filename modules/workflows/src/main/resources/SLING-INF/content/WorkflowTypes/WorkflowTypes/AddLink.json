@@ -1,0 +1,33 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Add Link",
+  "description": "Links the item this step works on (the one an earlier step created, or else the one this request is about) to provided item. If the request leaves the To field empty, no link is made.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "addLink",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"addLink\"}",
+  "to": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "To",
+    "description": "The request entry holding the path of the content to link to, e.g. \"source\".",
+    "minValues": 1
+  },
+  "linkType": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Link type",
+    "description": "The type of the link, e.g. \"copiedFrom\".",
+    "minValues": 1
+  },
+  "linkLabel": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Link label",
+    "description": "A label for the link."
+  },
+  "subject": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Subject",
+    "description": "Which resource the handler works on: \"created\" for what the execution created, if anything, or else the event's target (the default); \"target\" for the event's target even after a creation.",
+    "xmlLocation": "attribute"
+  }
+}

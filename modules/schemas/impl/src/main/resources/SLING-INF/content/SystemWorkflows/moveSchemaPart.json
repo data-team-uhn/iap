@@ -39,7 +39,7 @@
       "label": "Move the part",
       "handler": "moveContent",
       "within": "sch/SchemaVersion",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MoveContent",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

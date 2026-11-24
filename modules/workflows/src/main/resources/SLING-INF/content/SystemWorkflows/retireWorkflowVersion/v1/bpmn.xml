@@ -63,7 +63,10 @@
       <bpmn:messageEventDefinition id="retireRequested" messageRef="retireMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMove" sourceRef="requested" targetRef="move" />
-    <bpmn:serviceTask id="move" iap:handler="addTag" iap:replaceExisting="true" iap:tag="retired" name="Retire the version">
+    <bpmn:serviceTask id="move" name="Retire the version">
+      <bpmn:extensionElements>
+        <iap:addTag tag="retired" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

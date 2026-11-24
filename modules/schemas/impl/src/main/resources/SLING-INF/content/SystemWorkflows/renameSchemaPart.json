@@ -39,7 +39,7 @@
       "label": "Rename the part",
       "handler": "renameContent",
       "namePattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/RenameContent",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

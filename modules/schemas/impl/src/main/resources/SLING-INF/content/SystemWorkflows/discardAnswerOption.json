@@ -38,7 +38,7 @@
       "elementId": "delete",
       "label": "Delete the option",
       "handler": "delete",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/Delete",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

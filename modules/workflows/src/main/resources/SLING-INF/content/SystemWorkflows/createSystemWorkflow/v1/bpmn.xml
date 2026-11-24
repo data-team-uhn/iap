@@ -31,7 +31,10 @@
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:entityType="wf:WorkflowDefinition" iap:handler="createEntity" name="Create the system workflow">
+    <bpmn:serviceTask id="create" name="Create the system workflow">
+      <bpmn:extensionElements>
+        <iap:createEntity entityType="wf:WorkflowDefinition" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toCreate</bpmn:incoming>
       <bpmn:outgoing>toAddVersion</bpmn:outgoing>
     </bpmn:serviceTask>

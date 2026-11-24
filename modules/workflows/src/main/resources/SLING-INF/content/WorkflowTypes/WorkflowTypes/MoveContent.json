@@ -1,0 +1,15 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Move Content",
+  "description": "Moves the item this request is about under the parent the request names, or reorders it within its current parent.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "moveContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"moveContent\"}",
+  "within": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Must stay within",
+    "description": "The type of the nearest enclosing item that content may not be moved out of, e.g. \"sch/SchemaVersion\". Left blank, content may move anywhere."
+  }
+}

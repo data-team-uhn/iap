@@ -41,6 +41,7 @@
             <Include-Resource>{maven-resources}</Include-Resource>
             <Sling-Initial-Content>
               SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
+              SLING-INF/content/WorkflowTypes;path:=/WorkflowTypes;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/apps/iap/ExtensionPoints/;path:=/apps/iap/ExtensionPoints/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>

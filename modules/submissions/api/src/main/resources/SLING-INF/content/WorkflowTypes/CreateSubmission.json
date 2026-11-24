@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Submission",
+  "description": "Starts a new submission, tagged draft, for the schema version the request names (schemaVersion), keeping a reference to that version.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createSubmission",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createSubmission\"}"
+}

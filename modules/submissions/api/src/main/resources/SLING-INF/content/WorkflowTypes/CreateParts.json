@@ -1,0 +1,16 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Parts",
+  "description": "Creates an empty document or answer for each requirement. It acts on the submission an earlier step created, or else on the item this request is about.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createParts",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createParts\"}",
+  "subject": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Subject",
+    "description": "Which resource the handler works on: \"created\" for what the execution created, if anything, or else the event's target (the default); \"target\" for the event's target even after a creation.",
+    "xmlLocation": "attribute"
+  }
+}

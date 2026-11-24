@@ -54,6 +54,7 @@
             <Sling-Initial-Content>
               SLING-INF/content/libs/metric/Homepage/;path:=/libs/metric/Homepage/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/metric/Metric/;path:=/libs/metric/Metric/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/WorkflowTypes;path:=/WorkflowTypes;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

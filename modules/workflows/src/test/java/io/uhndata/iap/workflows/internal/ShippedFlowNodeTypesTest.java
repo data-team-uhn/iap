@@ -19,17 +19,18 @@ package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import jakarta.json.Json;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
-import jakarta.json.JsonString;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Unit tests for the flow-node types the module ships: which attributes of a diagram's element are kept on the node it
@@ -40,22 +41,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ShippedFlowNodeTypesTest
 {
-    private static final String PERFORMERS = "{https://iap.uhndata.io/bpmn}performers=performers[]";
-
     @Test
     void keepsWhoMaySendTheMessageACatchingEventWaitsFor() throws IOException
     {
-        assertTrue(listCopiedProperties("MessageIntermediateCatchEvent").contains(PERFORMERS));
+        final JsonObject performers = readEntry("MessageIntermediateCatchEvent").getJsonObject("performers");
+        assertEquals("principal", performers.getString("dataType"));
+        assertEquals("attribute", performers.getString("xmlLocation"));
     }
 
-    private static List<String> listCopiedProperties(final String type) throws IOException
+    @Test
+    void keepsWhichResourceEachHandlerActingOnOneWorksOn()
+    {
+        assertAll(Stream.of("AddTag", "RemoveTag", "AddLink", "CopyContent", "ReplaceContent", "UpdateContent",
+            "SaveProperties", "StartWorkflow", "CreateWorkflowVersion", "RetireActiveVersions", "SaveWorkflowDiagram")
+            .map(type -> (Executable) () -> assertEquals("attribute",
+                readEntry(type).getJsonObject("subject").getString("xmlLocation"), type)));
+    }
+
+    private static JsonObject readEntry(final String type) throws IOException
     {
         try (InputStream entry = Objects.requireNonNull(ShippedFlowNodeTypesTest.class.getResourceAsStream(
             "/SLING-INF/content/WorkflowTypes/WorkflowTypes/" + type + ".json"), "The vocabulary ships the type");
             JsonReader reader = Json.createReader(entry)) {
-            return reader.readObject().getJsonArray("properties").getValuesAs(JsonString.class).stream()
-                .map(JsonString::getString)
-                .collect(Collectors.toList());
+            return reader.readObject();
         }
     }
 }

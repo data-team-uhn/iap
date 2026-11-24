@@ -37,7 +37,7 @@
       "elementId": "check",
       "label": "Check it can run",
       "handler": "checkValid",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CheckValid",
       "toMove": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMove",
@@ -51,7 +51,7 @@
       "handler": "addTag",
       "tag": "trial",
       "replaceExisting": true,
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/AddTag",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",
