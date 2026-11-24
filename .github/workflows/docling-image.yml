@@ -1,0 +1,115 @@
+name: Docling Image Build
+
+# The Docling image is several gigabytes of Python wheels and model weights, too heavy to build
+# for every pull request. It builds when a pull request changes something that goes into the
+# image, and on request from the Actions tab.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # What the build context holds once .dockerignore is applied, and this file. A change to the
+    # Python tests, the docs or the pom cannot change the image, and the main build already
+    # runs the tests that need no Docling.
+    paths:
+      - modules/documents/processing/Dockerfile
+      - modules/documents/processing/.dockerignore
+      - modules/documents/processing/requirements.txt
+      - modules/documents/processing/src/main/python/**
+      - .github/workflows/docling-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      IMAGE: iap/docling:ci
+
+    steps:
+      # The image does not fit in the space a runner starts with: torch alone brings the CUDA
+      # libraries, and the weights come on top. These are toolchains no step here uses.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The same context and Dockerfile as `mvn install -Pdocker`: the module's two ignore files
+      # list the same patterns
+      - name: Build the image
+        run: |
+          docker build --tag "$IMAGE" modules/documents/processing
+          docker image ls "$IMAGE"
+
+      # The tests that skip without Docling, which the main build never installs, run here
+      # against the Docling the image ships. The import comes first because a failed one would
+      # make both files skip and pass.
+      - name: Run the tests that need Docling
+        run: |
+          docker run --rm --entrypoint sh \
+            --volume "$PWD/modules/documents/processing:/module:ro" --workdir /module \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            "$IMAGE" -c 'python -c "import docling" \
+              && pip install --user --quiet pytest \
+              && python -m pytest -p no:cacheprovider -ra \
+                src/test/python/test_docling_config.py src/test/python/test_docling_runtime.py'
+
+      # Converts a real document with no network at all, which is how the image must work in
+      # production: a missing model weight fails here rather than on a deployment's first upload.
+      # The PDF comes from the image's own LibreOffice, so the check needs no fixture file.
+      - name: Convert a document offline
+        run: |
+          docs=$(mktemp -d)
+          printf 'Docling image check\n\nThe quick brown fox converts offline.\n' > "$docs/sample.txt"
+          container_options=(--network none --user "$(id -u):$(id -g)" --env HOME=/tmp
+            --volume "$docs:/shared-docs")
+
+          # A profile directory of its own, as the daemon gives LibreOffice: the user ID has no account in
+          # the image, and LibreOffice cannot set up a default profile without one
+          docker run --rm "${container_options[@]}" --entrypoint soffice "$IMAGE" \
+            --headless -env:UserInstallation=file:///tmp/libreoffice-profile \
+            --convert-to pdf --outdir /shared-docs /shared-docs/sample.txt
+          test -s "$docs/sample.pdf"
+
+          docker run --detach --name docling --init "${container_options[@]}" "$IMAGE"
+          # /health answers 503 until the workers have loaded their models
+          for _ in $(seq 60); do
+            if [ "$(docker inspect --format '{{.State.Running}}' docling)" != true ]; then
+              echo "The daemon exited before it was ready"
+              exit 1
+            fi
+            if docker exec docling curl -fsS http://127.0.0.1:18765/health; then
+              break
+            fi
+            sleep 10
+          done
+          echo
+          docker exec docling curl -fsS http://127.0.0.1:18765/health
+
+          response=$(docker exec docling curl -fsS --max-time 600 -X POST \
+            'http://127.0.0.1:18765/parse?path=/shared-docs/sample.pdf')
+          markdown=$(python3 -c '
+          import json, sys
+          summary = json.load(sys.stdin)
+          if summary.get("ok") is not True:
+              sys.exit(f"The conversion failed: {summary}")
+          print(summary["markdown_path"])' <<< "$response")
+          grep -F 'quick brown fox' "$docs/${markdown#/shared-docs/}"
+
+      - name: Show the daemon's log on failure
+        if: failure()
+        run: docker logs docling || true

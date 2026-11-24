@@ -23,7 +23,8 @@ here is the plumbing around Docling rather than Docling itself: shared-docs path
 health reporting, the parse-slot semaphore, and the batch-abandon path that runs when a page
 batch fails.
 
-Because this file skips in CI, nothing that can be tested without Docling belongs here. The
+Because this file skips in the main build, and runs only where the image is built
+(docling-image.yml), nothing that can be tested without Docling belongs here. The
 request guards were moved to :mod:`daemon_utils` for exactly that reason; see
 ``test_daemon_utils.py``. What remains are the tests that genuinely need the daemon.
 """
