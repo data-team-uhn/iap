@@ -2,9 +2,10 @@
 
 Unit tests for the document-processing Python code in `../main/python`.
 
-Most of the suite runs anywhere, with no heavy dependencies. `test_docling_runtime.py`
-needs `docling` itself and skips via `importorskip` when it is absent, so a plain
-`python -m pytest` is always safe to run.
+Most of the suite runs anywhere, with no heavy dependencies. `test_docling_runtime.py` and
+`test_docling_config.py` need `docling` itself and skip via `importorskip` when it is absent,
+so a plain `python -m pytest` is always safe to run. The main build installs no Docling, so
+those two run inside the image, where `.github/workflows/docling-image.yml` builds it.
 
 Production shape (what these tests exercise pieces of): Java stages an upload under
 `IAP_SHARED_DOCS` (default `/shared-docs`); the Docling daemon runs
@@ -43,7 +44,7 @@ name regardless of where pytest is launched. `pytest.ini` limits collection to
 `src/test/python`.
 
 Requires `pytest`, `psutil` and `pypdf` on the interpreter used. `docling` is optional;
-without it `test_docling_runtime.py` skips.
+without it `test_docling_runtime.py` and `test_docling_config.py` skip.
 
 ## From the Maven build
 

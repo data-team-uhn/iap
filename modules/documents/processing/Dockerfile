@@ -41,8 +41,8 @@
 #     --cpus=4 --memory=8g iap/docling
 
 # Pinned by digest, for the reason requirements.txt gives for pinning the Python packages:
-# the layer below bakes model weights, CI never builds this image, and a floating tag lets the
-# same commit produce materially different images. The tag moved with every CPython patch
+# the layer below bakes model weights, and a floating tag lets the same commit produce
+# materially different images. The tag moved with every CPython patch
 # release and every rebuild of the base layer. Re-pin deliberately; the tag stays for
 # readability.
 #
@@ -84,8 +84,8 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Pinned in requirements.txt rather than inline: the layer below bakes model weights whose
-# contents depend on the docling version, and CI never builds this image, so an unbounded
-# range let the same commit produce materially different images with nothing to catch it.
+# contents depend on the docling version, so an unbounded range let the same commit produce
+# materially different images.
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 

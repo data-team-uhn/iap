@@ -24,9 +24,9 @@ the ones that keep memory bounded (``layout_batch_size``, ``table_batch_size``,
 ``settings.perf.*``) are exactly the ones whose loss would show up as an OOM-killed worker
 rather than an error.
 
-Nothing else catches that: CI installs no Docling on purpose, CI never builds the image, and
-the requirements pin is bumped by hand. These assertions are the check that makes
-requirements.txt's "bump deliberately, then rebuild to confirm" workflow mean something.
+Nothing else catches that, and the requirements pin is bumped by hand. The main build installs
+no Docling on purpose, so these run where the image is built (docling-image.yml), against the
+Docling it ships.
 
 Needs the Docling *package* but none of its weights, so it is fast wherever Docling is present.
 """

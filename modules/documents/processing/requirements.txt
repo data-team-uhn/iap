@@ -19,10 +19,10 @@
 # The Dockerfile used to install "docling>=2.115" with no upper bound, so the same commit
 # built on two days could produce two different images. That is worse here than in most
 # projects: the next layer runs docling's download_models(), so the *model weights* baked
-# into the image change with the library version, and CI never builds this image
-# (pull-request-build.yml has no -Pdocker), so nothing catches the drift before a deploy.
+# into the image change with the library version.
 #
-# Bump these deliberately, in a commit of their own, and rebuild the image to confirm:
+# Bump these deliberately, in a commit of their own. The pull request then builds the image
+# and converts a document with it (docling-image.yml); to check the version by hand:
 #
 #   docker build -t iap/docling modules/documents/processing
 #   docker run --rm --entrypoint python iap/docling \
