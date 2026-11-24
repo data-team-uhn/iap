@@ -26,7 +26,7 @@ import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard, { NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
+import NoteCard, { DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
@@ -131,8 +131,11 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     return BRIEF_KINDS.has(note.kind) ? { quote: 0, details: 4 } : { quote: 0 };
   }, [ notes ]);
 
-  // Each note headed by what it is, when and by whom; the draft by the passage it is about
+  // Each note headed by what it is, when and by whom; the draft as a new note, over the passage it is about
   const markHeading = useCallback((mark: Mark) => {
+    if (mark.id === DRAFT) {
+      return <DraftHeading />;
+    }
     const note = notes.find(one => one.id === mark.id);
     return note && <NoteHeading note={note} />;
   }, [ notes ]);

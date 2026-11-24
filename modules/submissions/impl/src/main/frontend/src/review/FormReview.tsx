@@ -34,7 +34,7 @@ import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges"
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard, { NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
+import NoteCard, { DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { GroupChip } from "./people";
 import { groupShortName, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
@@ -568,6 +568,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
               <Box component="li" key={DRAFT} ref={place(DRAFT)}
                 sx={theme => ({ ...passageCard(theme, "draft", 0.5), flexShrink: 0, px: 1.5, py: 1.25, outline: "2px solid",
                   outlineColor: getSelectedOutline(theme, "draft"), outlineOffset: "-2px" })}>
+                <Box sx={{ mb: 1 }}><DraftHeading /></Box>
                 <Composer
                   kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
                   onCancel={onDraftDone}

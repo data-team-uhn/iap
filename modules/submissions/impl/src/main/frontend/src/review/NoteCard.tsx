@@ -18,13 +18,13 @@
 
 import { useContext, useState, type ReactNode } from "react";
 
-import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 
 import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
+import NoteKindIcon from "./noteIcons";
 import { GroupChip, GroupLabels, PersonName } from "./people";
 import RemoveButton from "./RemoveButton";
 import { kindInfo, type ReviewNote } from "./reviewData";
@@ -47,6 +47,18 @@ const BY_THE_AI = new Set<ReviewNote["kind"]>([ "aiIssue", "evidence" ]);
 
 // A note's heading where a list heads each note, as beside a document: what kind it is, when it was written and by
 // whom, where these say something; the AI's notes are its own and undated, and the reader's notes to self theirs
+const headingIcon = (mark: string) => ({ fontSize: "0.9rem", color: `${mark}.main`, verticalAlign: "-0.15em", mr: 0.5 });
+
+// The heading of a note being written, before it is any kind: a pencil, and what it is
+export function DraftHeading() {
+  return (
+    <Typography variant="caption" component="div">
+      <NoteKindIcon kind="draft" sx={headingIcon("draft")} />
+      <Box component="span" sx={{ color: "draft.main", fontWeight: "fontWeightBold" }}>New note</Box>
+    </Typography>
+  );
+}
+
 export function NoteHeading({ note }: { note: ReviewNote }) {
   const info = kindInfo(note.kind);
   const byTheAi = BY_THE_AI.has(note.kind);
@@ -56,9 +68,7 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
   const dot = "\u00a0· ";
   return (
     <Typography variant="caption" component="div">
-      {byTheAi && (
-        <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, verticalAlign: "-0.15em", mr: 0.5 }} />
-      )}
+      <NoteKindIcon kind={note.kind} sx={headingIcon(info.mark)} />
       <Box component="span" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>{info.single}</Box>
       {written && <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}>{written}</Box></>}
       {!byTheAi && note.kind !== "note" && (
@@ -194,9 +204,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       {!headed && (
         <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 28 }}>
           {/* What the AI says carries its mark */}
-          {(note.kind === "aiIssue" || note.kind === "evidence") && (
-            <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
-          )}
+          <NoteKindIcon kind={note.kind} sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
           <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
             {info.single}
           </Typography>
@@ -276,9 +284,7 @@ export function NoteSummary({ note, headed = false }: { note: ReviewNote; headed
   return (
     <Box sx={{ px: 1.5, pb: 1 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 24 }}>
-        {!headed && note.kind === "aiIssue" && (
-          <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
-        )}
+        {!headed && <NoteKindIcon kind={note.kind} sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />}
         {!headed && (
           <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
             {info.single}

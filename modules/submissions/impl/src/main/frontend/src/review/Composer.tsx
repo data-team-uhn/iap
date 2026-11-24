@@ -18,14 +18,13 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import { Button, Chip, Divider, MenuItem, Stack, TextField, type Theme } from "@mui/material";
 
 import type { PassageKind } from "@iap/documents-pdf-viewer/marksModel";
 import { chipStyle } from "@iap/frontend-commons/chipStyle";
 import { loadTagDefinitions, type TagDefinition } from "@iap/tags/tagDefinitions";
 
+import NoteKindIcon from "./noteIcons";
 import { kindInfo, SEVERITIES, type NoteKind, type Topic } from "./reviewData";
 
 // A chip for a kind of note chosen, styled as a tag of its colour is: a soft tint, a readable shade of the colour for
@@ -103,12 +102,13 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
             return (
               <Chip
                 key={one} size="small" label={choice} role="radio" aria-checked={kind === one}
-                icon={kind === one ? <CheckCircleOutlined /> : <CircleOutlined />}
+                icon={<NoteKindIcon kind={one} />}
                 variant="outlined" onClick={() => setKind(one)}
                 // The chosen one cannot be unchosen, so it does not answer the pointer
+                // Its kind's icon on each; the one chosen tinted in its colour, the others grey, as the notes shown are
                 sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
                   ...kind === one ? { ...kindChip(theme, mark), cursor: "default" }
-                    : { borderColor: kindChip(theme, mark).borderColor } })}
+                    : { borderColor: "divider", color: "text.secondary" } })}
               />
             );
           })}
