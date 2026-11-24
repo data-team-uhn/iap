@@ -20,7 +20,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
-import ChatBubbleOutlineOutlined from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
@@ -73,11 +72,12 @@ import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, disagrees, GroupChips, type ReviewActions } from "./FormReview";
 import LetterDialog, { SentLetter } from "./LetterDialog";
+import NoteKindIcon from "./noteIcons";
 import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
-import { groupShortName, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, raiseAsIssue,
+import { groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, raiseAsIssue,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import { SearchContext } from "./SearchHighlight";
@@ -140,6 +140,9 @@ function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => v
 // and those that do not are said under the answer anyway; and other reviewers' issues, which are theirs to pursue
 const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind)
   .filter(kind => kind !== "evidence" && kind !== "otherIssue");
+
+// The kinds of notes a contents entry counts, what the reviewer acts on first
+const COUNTED_KINDS: NoteKind[] = [ "issue", "aiIssue", "discussion", "note", "otherIssue", "evidence" ];
 
 // A width in pixels, as one kept in the browser should be
 const isWidth = (value: unknown): value is number => typeof value === "number" && value > 0;
@@ -748,7 +751,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   ) : (
     <List dense disablePadding aria-label="Requirements">
       {listed.map(requirement => {
-        const count = notesOf(requirement).filter(note => shown.has(note.kind)).length;
+        const counted = notesOf(requirement).filter(note => shown.has(note.kind));
         // While searching, how many times it has the terms instead, and greyed out when none
         const found = hitCount(requirement);
         return (
@@ -769,6 +772,22 @@ export default function ReviewScreen({ path }: { path: string }) {
               }
               secondary={<>
                 {requirement.name === current?.name && requirement.description}
+                {/* How many notes of each kind shown, on a line of their own so the name keeps the row's width */}
+                {!terms && counted.length > 0 && (
+                  <Tooltip title={countText(counted)} placement="right">
+                    <Box component="span" sx={{ display: "flex", flexWrap: "wrap", columnGap: 1, mt: 0.25 }}>
+                      {COUNTED_KINDS.map(kind => {
+                        const many = counted.filter(note => note.kind === kind).length;
+                        return many > 0 && (
+                          <Box component="span" key={kind}
+                            sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, color: `${kindInfo(kind).mark}.main` }}>
+                            <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </Tooltip>
+                )}
                 {!focused && (
                   <Box component="span" sx={{ display: "block", mt: 0.25 }}>
                     <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
@@ -784,14 +803,6 @@ export default function ReviewScreen({ path }: { path: string }) {
                   <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "text.secondary" }}>
                     <SearchOutlined sx={{ fontSize: "0.9rem" }} />
                     <Typography variant="caption">{found}</Typography>
-                  </Stack>
-                </Tooltip>
-              )}
-              {!terms && count > 0 && (
-                <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "text.secondary" }}>
-                    <ChatBubbleOutlineOutlined sx={{ fontSize: "0.9rem" }} />
-                    <Typography variant="caption">{count}</Typography>
                   </Stack>
                 </Tooltip>
               )}
