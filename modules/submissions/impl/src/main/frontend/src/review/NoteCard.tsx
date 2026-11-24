@@ -51,17 +51,20 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
   const info = kindInfo(note.kind);
   const byTheAi = BY_THE_AI.has(note.kind);
   const written = byTheAi ? "" : whenExactly(note.created);
+  // Wrapped as words are, between the date and the name, each kept whole, and each dot with what comes before it,
+  // so no line starts with one
+  const dot = "\u00a0· ";
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
-      {byTheAi && <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main` }} />}
-      <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
-        {info.single}
-      </Typography>
-      {written && <Typography variant="caption">· {written}</Typography>}
-      {!byTheAi && note.kind !== "note" && (
-        <Typography variant="caption">· <PersonName user={note.author} /></Typography>
+    <Typography variant="caption" component="div">
+      {byTheAi && (
+        <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, verticalAlign: "-0.15em", mr: 0.5 }} />
       )}
-    </Stack>
+      <Box component="span" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>{info.single}</Box>
+      {written && <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}>{written}</Box></>}
+      {!byTheAi && note.kind !== "note" && (
+        <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}><PersonName user={note.author} /></Box></>
+      )}
+    </Typography>
   );
 }
 
