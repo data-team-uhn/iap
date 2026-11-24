@@ -1272,10 +1272,11 @@ describe("EntityDataGrid", () => {
     await user.click(screen.getByRole("button", { name: /columns/i }));
     await flushRender();
 
-    expect(await screen.findByText("Columns", {}, { timeout: 10_000 })).toBeInTheDocument();
+    // The sheet's heading: closing it hands focus back to the toolbar button, whose tooltip also reads "Columns"
+    expect(await screen.findByRole("heading", { name: "Columns" }, { timeout: 10_000 })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => {
-      expect(screen.queryByText("Columns")).toBeNull();
+      expect(screen.queryByRole("heading", { name: "Columns" })).toBeNull();
     });
   });
 });
