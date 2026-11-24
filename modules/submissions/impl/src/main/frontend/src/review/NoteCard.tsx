@@ -65,11 +65,11 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
   );
 }
 
-// One of a note's fields, named before its value, the name quieter, as a form names its fields
+// One of a note's fields, named before its value, "Severity: Medium", the name quieter and smaller than the value
 function Field({ label, chip = false, children }: { label: string; chip?: boolean; children: ReactNode }) {
   return (
     <Box sx={{ display: "inline-flex", alignItems: chip ? "center" : "baseline", gap: 0.75, minWidth: 0 }}>
-      <Typography variant="caption" sx={{ color: "text.secondary", flexShrink: 0 }}>{label}</Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary", flexShrink: 0 }}>{label}:</Typography>
       {children}
     </Box>
   );
@@ -82,7 +82,7 @@ function FieldRows({ rows }: { rows: [ string, ReactNode ][] }) {
       alignItems: "baseline" }}>
       {rows.map(([ label, value ]) => (
         <Box key={label} sx={{ display: "contents" }}>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>{label}</Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>{label}:</Typography>
           <Typography variant="body2" component="div">{value}</Typography>
         </Box>
       ))}
@@ -215,7 +215,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       {/* Each field named, so the chips and the risk are not left to be guessed */}
       <Stack sx={{ gap: 0.5, mb: 0.5 }}>
         <Chips note={note} />
-        {note.topic && <Field label="Topic"><Typography variant="caption">{note.topic}</Typography></Field>}
+        {note.topic && <Field label="Topic"><Typography variant="body2">{note.topic}</Typography></Field>}
       </Stack>
       {!headed && (
         <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
