@@ -18,6 +18,7 @@
 
 import { renderHook, waitFor } from "@testing-library/react";
 
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { indexQuestions } from "@iap/schemas/schemaVersionTreeModel";
 import { useOptionsFrom } from "@iap/schemas/useOptionsFrom";
 
@@ -40,16 +41,14 @@ describe("useOptionsFrom", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("loads the items each path gives once, and none where they cannot be read", async () => {
-    const fetch = vi.fn((url: string) => {
+    const fetch = stubFetch(({ url }) => {
       if (url.startsWith("/Gone")) {
         return Promise.reject(new TypeError("offline"));
       }
-      const body = url.startsWith("/Categories")
-        ? { "@path": "/Categories", "retro": { "@path": "/Categories/retro", "label": "Retrospective" } } : {};
-      const response = { ok: url.startsWith("/Categories"), status: 404, url, json: () => Promise.resolve(body) };
-      return Promise.resolve(response as unknown as Response);
+      return url.startsWith("/Categories")
+        ? jsonResponse({ "@path": "/Categories", "retro": { "@path": "/Categories/retro", "label": "Retrospective" } })
+        : jsonResponse({}, 404);
     });
-    vi.stubGlobal("fetch", fetch);
 
     const { result, unmount } = renderHook(() => useOptionsFrom(indexQuestions(version)));
 

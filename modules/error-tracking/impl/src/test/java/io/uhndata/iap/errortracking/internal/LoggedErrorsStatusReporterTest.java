@@ -42,6 +42,7 @@ import io.uhndata.iap.errortracking.models.LoggedFailure;
 import io.uhndata.iap.errortracking.models.LoggedProblem;
 import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.utils.DateUtils;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -74,7 +75,7 @@ class LoggedErrorsStatusReporterTest
         this.context.create().resource("/LoggedErrors",
             "sling:resourceType", LoggedErrorsHomepage.RESOURCE_TYPE);
         this.reporter = new LoggedErrorsStatusReporter();
-        TestResolvers.inject(this.reporter, this.context.resourceResolver());
+        TestResolvers.inject(this.reporter, TestResolverFactory.serving(this.context.resourceResolver()));
     }
 
     @Test
@@ -486,7 +487,7 @@ class LoggedErrorsStatusReporterTest
     void reportsItsOwnFailureToRead() throws ReflectiveOperationException
     {
         final LoggedErrorsStatusReporter broken = new LoggedErrorsStatusReporter();
-        TestResolvers.inject(broken, null);
+        TestResolvers.inject(broken, TestResolverFactory.withoutServiceUser());
 
         final StatusReport report = broken.report(false);
 
@@ -499,7 +500,7 @@ class LoggedErrorsStatusReporterTest
     void doesNotLeakWhyItCouldNotReadToAReaderWhoIsNotAdmin() throws ReflectiveOperationException
     {
         final LoggedErrorsStatusReporter broken = new LoggedErrorsStatusReporter();
-        TestResolvers.inject(broken, null);
+        TestResolvers.inject(broken, TestResolverFactory.withoutServiceUser());
 
         final StatusReport report = broken.report(true);
 

@@ -24,6 +24,7 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { forgetWorkflowHomepages } from "@iap/workflows/useWorkflowHomepages";
 import WorkflowConsole from "@iap/workflows/WorkflowConsole";
 
@@ -52,8 +53,6 @@ vi.mock("@iap/workflows/WorkflowEditor", () => ({
   },
 }));
 
-type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
-
 const HOMEPAGES = {
   homepages: [
     { path: "/Workflows", title: "Workflows" },
@@ -64,10 +63,7 @@ const HOMEPAGES = {
 beforeEach(() => {
   forgetWorkflowHomepages();
   editorMounts.length = 0;
-  // The url matters: the session guard reads it to tell an answer from a login page served in its place
-  vi.stubGlobal("fetch", vi.fn<FetchStub>(url => Promise.resolve({
-    ok: true, status: 200, url, json: () => Promise.resolve(HOMEPAGES),
-  } as unknown as Response)));
+  stubFetch(() => jsonResponse(HOMEPAGES));
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -162,11 +158,7 @@ describe("WorkflowConsole", () => {
   it("offers to ask again when the homepages could not be listed, rather than saying a URL names nothing", async () => {
     // Whether a URL names a workflow depends on the homepages, so without them it cannot be told
     const user = userEvent.setup();
-    vi.stubGlobal("fetch", vi.fn<FetchStub>(url => Promise.resolve({
-      ok: true, status: 200, url, json: () => Promise.resolve(HOMEPAGES),
-    } as unknown as Response)).mockResolvedValueOnce({
-      ok: false, status: 503, url: "/Workflows.homepages.json", json: () => Promise.resolve({}),
-    } as unknown as Response));
+    stubFetch(() => jsonResponse(HOMEPAGES)).mockResolvedValueOnce(jsonResponse({}, 503));
     renderAt("/admin/workflows/SystemWorkflows/review");
 
     expect(await screen.findByText("The workflow homepages could not be listed")).toBeInTheDocument();

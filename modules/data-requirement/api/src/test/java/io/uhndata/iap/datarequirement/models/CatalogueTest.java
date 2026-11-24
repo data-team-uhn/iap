@@ -28,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -53,7 +54,7 @@ class CatalogueTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, Catalogue.class, CatalogueVersion.class);
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
     }
 
     @Test

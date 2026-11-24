@@ -28,7 +28,6 @@ import javax.jcr.Value;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -40,9 +39,10 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -94,12 +94,11 @@ class UpdateContentHandlerTest
     @Test
     void namesTheContentAsEditedForTheHistory() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext updating = context(Map.of("patch", "{\"note\": \"A note\"}"));
+        final RecordingTaskContext updating = context(Map.of("patch", "{\"note\": \"A note\"}"));
 
         this.handler.execute(updating);
 
-        Mockito.verify(updating).recordRole(Mockito.argThat(resource -> "/item".equals(resource.getPath())),
-            Mockito.eq("edited"));
+        assertEquals(List.of(new RecordedRole("/item", "edited")), updating.getRoles());
     }
 
     @Test
@@ -269,8 +268,8 @@ class UpdateContentHandlerTest
     void refusesToLeaveNewContentWithoutAMandatoryField() throws RepositoryException
     {
         this.fixture.session().getNode("/box").addNode("fresh", "test:Item");
-        final WorkflowTaskContext task = context(Map.of("patch", "{\"note\": \"No title\"}"));
-        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource("/box/fresh"));
+        final WorkflowTaskContext task = context(this.context.resourceResolver().getResource("/box/fresh"),
+            Map.of("patch", "{\"note\": \"No title\"}"));
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(task));
     }
@@ -308,8 +307,7 @@ class UpdateContentHandlerTest
         final Node node = Mockito.mock(Node.class);
         Mockito.when(host.adaptTo(Node.class)).thenReturn(node);
         Mockito.when(node.getMixinNodeTypes()).thenThrow(new RepositoryException("gone"));
-        final WorkflowTaskContext task = context(Map.of("patch", "{}"));
-        Mockito.when(task.getTarget()).thenReturn(host);
+        final WorkflowTaskContext task = context(host, Map.of("patch", "{}"));
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(task));
     }
@@ -329,14 +327,13 @@ class UpdateContentHandlerTest
         this.fixture.session().save();
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload)
+    private RecordingTaskContext context(final Map<String, Object> payload)
     {
-        final ResourceResolver resolver = this.context.resourceResolver();
-        final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
-        Mockito.when(task.getEvent()).thenReturn(new WorkflowEvent("update", payload));
-        Mockito.when(task.getActivity()).thenReturn(this.fixture.activity());
-        Mockito.when(task.getResourceResolver()).thenReturn(resolver);
-        Mockito.when(task.getTarget()).thenReturn(resolver.getResource("/item"));
-        return task;
+        return context(this.context.resourceResolver().getResource("/item"), payload);
+    }
+
+    private RecordingTaskContext context(final Resource target, final Map<String, Object> payload)
+    {
+        return this.fixture.task(target, "update", this.fixture.activity(), payload).build();
     }
 }

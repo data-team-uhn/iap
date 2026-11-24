@@ -41,6 +41,7 @@ import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkTypesFixture;
 import io.uhndata.iap.links.models.Linkable;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -75,8 +76,10 @@ class SelfLinkRemovalTest
         this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class, ExternalLinkDefinition.class,
             InternalLink.class, ExternalLink.class, Linkable.class);
         LinkTypesFixture.registerDefinitionTypes(this.context);
-        this.context.registerService(ResourceResolverFactory.class, new TestResolverFactory(
-            this.context.resourceResolver(), this.context.getService(ResourceResolverFactory.class)));
+        final ResourceResolverFactory repository = this.context.getService(ResourceResolverFactory.class);
+        this.context.registerService(ResourceResolverFactory.class,
+            TestResolverFactory.answeredBy(repository::getServiceResourceResolver)
+                .withSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE, this.context.resourceResolver()));
         this.manager = this.context.registerInjectActivateService(new LinkManagerImpl());
         this.resolver = this.context.resourceResolver();
         this.createContent(this.resolver.adaptTo(Session.class));

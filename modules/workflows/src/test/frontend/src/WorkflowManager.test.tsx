@@ -24,8 +24,8 @@ import { MemoryRouter, useLocation } from "react-router";
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { jsonResponse, stubFailingFetch, stubFetch, type StubbedRequest } from "@iap/frontend-commons/fetch.fixture";
 import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import type { WorkflowActionProps } from "@iap/workflows/WorkflowActions";
 import WorkflowManager from "@iap/workflows/WorkflowManager";
@@ -36,8 +36,6 @@ import { isTagSearch, LIFECYCLE_TAGS } from "./lifecycleTags.fixture";
 vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }));
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
-
-type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
 const WORKFLOW_PATH = "/Workflows/review";
 
@@ -66,40 +64,20 @@ const definition = {
 };
 
 // What the server answers: an event with the path of what it created, a read with what it asked for.
-const answerTo = (url: string, options: RequestInit | undefined, body: unknown) => {
-  if (options?.method === "POST") {
-    return { status: "created", path: `${url.split(".")[0]}/created` };
+const answerTo = (request: StubbedRequest, body: unknown) => {
+  if (request.method === "POST") {
+    return jsonResponse({ status: "created", path: `${request.url.split(".")[0]}/created` }, 201);
   }
-  return isTagSearch(url) ? LIFECYCLE_TAGS : body;
+  return jsonResponse(isTagSearch(request.url) ? LIFECYCLE_TAGS : body);
 };
 
 // A server answering the workflow's own listing, and nothing else of consequence.
-const stubFetch = (body: unknown = definition) => {
-  const fetchMock = vi.fn<FetchStub>((url, options) => Promise.resolve({
-    ok: true,
-    status: options?.method === "POST" ? 201 : 200,
-    url: `http://localhost${url}`,
-    headers: new Headers(),
-    json: () => Promise.resolve(answerTo(url, options, body)),
-  } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
+const stubServer = (body: unknown = definition) => stubFetch(request => answerTo(request, body));
 
-// A server that refuses everything while reporting the session as live: what makes a failure the
-// server's own rather than a lapsed session to be recovered from.
-const stubFailingFetch = (status: number) => {
-  vi.stubGlobal("fetch", vi.fn<FetchStub>(url => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : {
-      ok: false,
-      status,
-      statusText: "Refused",
-      url,
-      // The engine explains a refused event; a bare status would leave that to be invented
-      json: () => Promise.resolve({ error: `The engine refused this (${status})` }),
-    }) as unknown as Response)));
-};
+// A server that refuses everything. The engine explains a refused event; a bare status would leave
+// that to be invented.
+const stubRefusal = (status: number) =>
+  stubFailingFetch(status, { body: { error: `The engine refused this (${status})` } });
 
 // Where the router ended up
 function Where() {
@@ -140,7 +118,7 @@ afterEach(() => {
 
 describe("WorkflowManager", () => {
   it("displays the workflow's own properties", async () => {
-    stubFetch();
+    stubServer();
 
     renderManager();
 
@@ -151,7 +129,7 @@ describe("WorkflowManager", () => {
   });
 
   it("leads back to its homepage, under the homepage's title", async () => {
-    stubFetch();
+    stubServer();
 
     renderManager();
 
@@ -162,7 +140,7 @@ describe("WorkflowManager", () => {
   it("says a workflow does not run while no version of it is active", async () => {
     // A trial is not the version instances are created from, so a workflow whose only version is on
     // trial runs nothing
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["trial"] },
@@ -176,7 +154,7 @@ describe("WorkflowManager", () => {
 
   it("says a workflow is retired once its last active version is withdrawn", async () => {
     // A draft beside the retired version does not make it run: only activating a version does
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["retired"] },
@@ -193,7 +171,7 @@ describe("WorkflowManager", () => {
   });
 
   it("lists every version with its lifecycle", async () => {
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
 
     renderManager();
 
@@ -213,7 +191,7 @@ describe("WorkflowManager", () => {
 
   it("opens a version from its row", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubServer();
     renderManager();
     const rows = await screen.findAllByRole("row");
 
@@ -224,7 +202,7 @@ describe("WorkflowManager", () => {
 
   it("lists the versions as cards on a phone", async () => {
     fakeNarrowScreen();
-    stubFetch();
+    stubServer();
 
     renderManager();
 
@@ -235,7 +213,7 @@ describe("WorkflowManager", () => {
 
   it("names a version by its node name when it carries no label", async () => {
     // A version whose label never made it into the repository still has to be identifiable
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "unlabelled": { "jcr:primaryType": "wf:WorkflowVersion", "tags": ["draft"] },
@@ -248,7 +226,7 @@ describe("WorkflowManager", () => {
   });
 
   it("says so when the workflow has no versions yet", async () => {
-    stubFetch({ "jcr:primaryType": "wf:WorkflowDefinition", title: "Empty" });
+    stubServer({ "jcr:primaryType": "wf:WorkflowDefinition", title: "Empty" });
 
     renderManager();
 
@@ -260,7 +238,7 @@ describe("WorkflowManager", () => {
     // is what makes a later action possible without touching the manager
     mockedLoadExtensions.mockImplementation(point =>
       Promise.resolve(point === "WorkflowVersionActions" ? [ { "ext:render": labellingAction } ] : []));
-    stubFetch();
+    stubServer();
 
     renderManager();
 
@@ -274,7 +252,7 @@ describe("WorkflowManager", () => {
     mockedLoadExtensions.mockImplementation(point => Promise.resolve(point === "WorkflowActions"
       ? [ { "ext:render": ({ workflow }: WorkflowActionProps) => <span>{`acts on ${workflow.title}`}</span> } ]
       : []));
-    stubFetch();
+    stubServer();
 
     renderManager();
 
@@ -288,7 +266,7 @@ describe("WorkflowManager", () => {
     );
     mockedLoadExtensions.mockImplementation(point =>
       Promise.resolve(point === "WorkflowActions" ? [ { "ext:render": removingAction } ] : []));
-    stubFetch();
+    stubServer();
     renderManager();
 
     await user.click(await screen.findByRole("button", { name: "remove" }));
@@ -303,7 +281,7 @@ describe("WorkflowManager", () => {
       <button type="button" onClick={reload}>reload</button>
     );
     mockedLoadExtensions.mockResolvedValue([ { "ext:render": reloadingAction } ]);
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     renderManager();
     const buttons = await screen.findAllByRole("button", { name: "reload" });
     const listingsBefore = fetchMock.mock.calls.length;
@@ -314,7 +292,7 @@ describe("WorkflowManager", () => {
   });
 
   it("reports a load failure, and says why", async () => {
-    stubFailingFetch(500);
+    stubRefusal(500);
 
     renderManager();
 
@@ -331,11 +309,11 @@ describe("WorkflowManager", () => {
       <button type="button" onClick={reload}>reload</button>
     );
     mockedLoadExtensions.mockResolvedValue([ { "ext:render": reloadingAction } ]);
-    stubFetch();
+    stubServer();
     renderManager();
     const buttons = await screen.findAllByRole("button", { name: "reload" });
 
-    stubFailingFetch(500);
+    stubRefusal(500);
     await user.click(buttons[0]);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("The workflow could not be reloaded");
@@ -345,11 +323,11 @@ describe("WorkflowManager", () => {
 
   it("reloads when the load failure's Retry is used", async () => {
     const user = userEvent.setup();
-    stubFailingFetch(500);
+    stubRefusal(500);
     renderManager();
     await screen.findByRole("alert");
 
-    stubFetch();
+    stubServer();
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByRole("heading", { name: "Standard review" })).toBeInTheDocument();

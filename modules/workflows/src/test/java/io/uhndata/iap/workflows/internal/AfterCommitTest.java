@@ -21,10 +21,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,7 @@ import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.api.InvalidStateException;
+import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -48,6 +51,8 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordedNotifications;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -85,19 +90,23 @@ class AfterCommitTest
     private static final String CHECK_IN = "checkIn";
 
     /** Lets every commit through. */
-    private static final EngineFixture.RepositoryAction NO_RACE = () -> { };
+    private static final ServiceSessions.RepositoryAction NO_RACE = () -> { };
 
     /** Refuses every commit as one that lost a race. */
-    private static final EngineFixture.RepositoryAction LOSING_EVERY_RACE = () -> {
-        throw EngineFixture.conflict();
+    private static final ServiceSessions.RepositoryAction LOSING_EVERY_RACE = () -> {
+        throw ServiceSessions.conflict();
     };
 
     /** Refuses every commit for a reason a retry cannot help. */
-    private static final EngineFixture.RepositoryAction FAILING_EVERY_COMMIT = () -> {
+    private static final ServiceSessions.RepositoryAction FAILING_EVERY_COMMIT = () -> {
         throw new PersistenceException("The disk is full");
     };
 
-    private final SlingContext context = new SlingContext();
+    private final ServiceSessions sessions = new ServiceSessions();
+
+    private final SlingContext context = new SlingContextBuilder()
+        .plugin(this.sessions, WorkflowPlugins.ENGINE)
+        .build();
 
     private final RecordedNotifications told = new RecordedNotifications();
 
@@ -190,6 +199,8 @@ class AfterCommitTest
         this.context.create().resource("/Submissions/request/wf:instances/process", TYPE,
             WorkflowInstance.RESOURCE_TYPE);
         this.context.create().resource(TASK, TYPE, TaskInstance.RESOURCE_TYPE);
+        Stream.of(this.leavingWork, this.checkingOut, this.undoable)
+            .forEach(handler -> this.context.registerService(ServiceTaskHandler.class, handler));
         ErrorLogger.setService(this.recorder);
     }
 
@@ -204,7 +215,7 @@ class AfterCommitTest
     {
         final TaskCompletion completion = announcing(messageEvent(DECISION, APPROVERS));
 
-        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE), completion, this.told)
+        engine(new ServiceSessions.OneLostRace(ServiceSessions.OneLostRace.UNRELATED_CHANGE), completion, this.told)
             .receiveEvent(task(), DECIDED);
 
         assertEquals(List.of(DECISION), this.told.events());
@@ -254,7 +265,7 @@ class AfterCommitTest
     {
         final TaskCompletion completion = performing(activity("count"));
 
-        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE), completion, this.told)
+        engine(new ServiceSessions.OneLostRace(ServiceSessions.OneLostRace.UNRELATED_CHANGE), completion, this.told)
             .receiveEvent(task(), DECIDED);
 
         assertEquals(List.of("count"), this.done);
@@ -300,7 +311,7 @@ class AfterCommitTest
     @Test
     void checksBackInWhatAnAttemptRetriedAfterAConflictCheckedOut() throws Exception
     {
-        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE),
+        engine(new ServiceSessions.OneLostRace(ServiceSessions.OneLostRace.UNRELATED_CHANGE),
             performing(checkOutStep()), this.told).receiveEvent(task(), DECIDED);
 
         assertEquals(List.of(CHECK_OUT, CHECK_IN, CHECK_OUT, CHECK_IN), this.log);
@@ -318,7 +329,7 @@ class AfterCommitTest
     @Test
     void undoesALostAttemptBeforeRetryingIt() throws Exception
     {
-        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE),
+        engine(new ServiceSessions.OneLostRace(ServiceSessions.OneLostRace.UNRELATED_CHANGE),
             performing(undoableStep("count")), this.told).receiveEvent(task(), DECIDED);
 
         assertEquals(List.of("did count", "undid count", "did count"), this.log);
@@ -501,23 +512,24 @@ class AfterCommitTest
     }
 
     /**
-     * An engine walking through the given task completion, over a session running something before each commit.
+     * An engine walking through the given task completion and telling people through the given service, over a
+     * session running something before each commit.
      *
      * @param beforeCommit what runs before each commit, and may refuse it
      * @param completion the stand-in walk
      * @param notifications what sends the notifications
      * @return the engine
-     * @throws Exception when the fixture cannot be built
+     * @throws PersistenceException when the fixture content cannot be committed
      */
-    private WorkflowEngineImpl engine(final EngineFixture.RepositoryAction beforeCommit,
-        final TaskCompletion completion, final NotificationService notifications) throws Exception
+    private WorkflowEngine engine(final ServiceSessions.RepositoryAction beforeCommit,
+        final TaskCompletion completion, final NotificationService notifications) throws PersistenceException
     {
         this.context.resourceResolver().commit();
-        final WorkflowEngineImpl engine = EngineFixture.engine(
-            EngineFixture.serviceUsersRunning(this.context, beforeCommit),
-            List.of(this.leavingWork, this.checkingOut, this.undoable), notifications);
-        EngineFixture.inject(engine, "taskCompletion", completion);
-        return engine;
+        this.sessions.beforeEachCommit(beforeCommit);
+        EngineFixture.standIn(this.context, TaskCompletion.class, completion);
+        EngineFixture.standIn(this.context, NotificationService.class, notifications);
+        EngineFixture.rebuilt(this.context, ServiceTaskDispatchers.class);
+        return EngineFixture.rebuilt(this.context, WorkflowEngineImpl.class);
     }
 
     private Resource task()

@@ -48,6 +48,46 @@
           </instructions>
         </configuration>
       </plugin>
+      <!-- The fixtures in src/testFixtures, compiled with the tests and published as this module's test jar for other
+           modules' tests -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>add-test-fixtures</id>
+            <phase>generate-test-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>src/testFixtures/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>test-fixtures</id>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <configuration>
+              <includes>
+                <include>io/uhndata/iap/tags/testing/**</include>
+              </includes>
+              <excludes>
+                <exclude>**/*Test.class</exclude>
+              </excludes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 
@@ -164,4 +204,21 @@
       <artifactId>javax.annotation-api</artifactId>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <!-- Other modules' test jars, such as the one holding TestResolverFactory. Only a build that runs the tests
+         produces them. -->
+    <profile>
+      <id>tests</id>
+      <dependencies>
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-java-utils</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>

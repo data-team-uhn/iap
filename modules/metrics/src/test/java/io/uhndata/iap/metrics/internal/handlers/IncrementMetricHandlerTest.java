@@ -17,18 +17,19 @@
  */
 package io.uhndata.iap.metrics.internal.handlers;
 
+import java.util.List;
 import java.util.Optional;
 
+import org.apache.sling.api.resource.Resource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsManager;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,14 +50,14 @@ class IncrementMetricHandlerTest
 
     private final Activity activity = Mockito.mock(Activity.class);
 
-    private final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
+    private final RecordingTaskContext context =
+        RecordingTaskContext.aimedAt(Mockito.mock(Resource.class)).performing(this.activity).build();
 
     private final IncrementMetricHandler handler = new IncrementMetricHandler(this.metrics);
 
     @BeforeEach
     void setUp()
     {
-        Mockito.when(this.context.getActivity()).thenReturn(this.activity);
         Mockito.when(this.activity.getPath()).thenReturn("/Workflows/request/v1/count");
         Mockito.when(this.activity.get("metric")).thenReturn(METRIC);
         Mockito.when(this.metrics.getMetric(METRIC)).thenReturn(Optional.of(this.metric));
@@ -112,7 +113,7 @@ class IncrementMetricHandlerTest
         Mockito.when(this.metrics.getMetric(METRIC)).thenReturn(Optional.empty());
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(this.context));
-        Mockito.verify(this.context, Mockito.never()).afterCommit(Mockito.any());
+        assertEquals(List.of(), this.context.getAfterCommitWork());
     }
 
     @Test
@@ -121,13 +122,13 @@ class IncrementMetricHandlerTest
         Mockito.when(this.activity.get("amount")).thenReturn("two");
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(this.context));
-        Mockito.verify(this.context, Mockito.never()).afterCommit(Mockito.any());
+        assertEquals(List.of(), this.context.getAfterCommitWork());
     }
 
     private Runnable workLeftForAfterTheCommit()
     {
-        final ArgumentCaptor<Runnable> work = ArgumentCaptor.forClass(Runnable.class);
-        Mockito.verify(this.context).afterCommit(work.capture());
-        return work.getValue();
+        final List<Runnable> work = this.context.getAfterCommitWork();
+        assertEquals(1, work.size());
+        return work.get(0);
     }
 }

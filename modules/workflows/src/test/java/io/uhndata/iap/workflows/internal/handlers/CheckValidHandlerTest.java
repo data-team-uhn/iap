@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -139,6 +138,6 @@ class CheckValidHandlerTest
     private WorkflowTaskContext request(final String path)
     {
         return AuthoringFixture.context(this.context.resourceResolver().getResource(path), "activate", Map.of(),
-            this.activity, new HashMap<>());
+            this.activity).build();
     }
 }

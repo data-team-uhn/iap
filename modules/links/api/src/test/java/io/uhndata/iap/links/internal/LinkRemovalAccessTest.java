@@ -45,6 +45,7 @@ import io.uhndata.iap.links.models.ExternalLinkDefinition;
 import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.LinkTypesFixture;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -83,8 +84,10 @@ class LinkRemovalAccessTest
         this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class, ExternalLinkDefinition.class,
             InternalLink.class, ExternalLink.class);
         LinkTypesFixture.registerDefinitionTypes(this.context);
-        this.context.registerService(ResourceResolverFactory.class, new TestResolverFactory(
-            this.context.resourceResolver(), this.context.getService(ResourceResolverFactory.class)));
+        final ResourceResolverFactory repository = this.context.getService(ResourceResolverFactory.class);
+        this.context.registerService(ResourceResolverFactory.class,
+            TestResolverFactory.answeredBy(repository::getServiceResourceResolver)
+                .withSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE, this.context.resourceResolver()));
         this.manager = this.context.registerInjectActivateService(new LinkManagerImpl());
         this.adminSession = this.context.resourceResolver().adaptTo(Session.class);
         this.createReferencesDefinitions();

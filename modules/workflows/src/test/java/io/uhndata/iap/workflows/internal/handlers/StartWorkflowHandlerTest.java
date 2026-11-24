@@ -32,6 +32,7 @@ import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.internal.EngineFixture;
+import io.uhndata.iap.workflows.internal.ServiceSessions;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -49,6 +51,7 @@ import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
@@ -81,7 +84,11 @@ class StartWorkflowHandlerTest
     private static final String LINK = "workflow";
 
     // JCR-backed: following a reference means asking the repository for a node by identifier
-    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+    private final ServiceSessions sessions = new ServiceSessions();
+
+    private final SlingContext context = new SlingContextBuilder(ResourceResolverType.JCR_MOCK)
+        .plugin(WorkflowPlugins.ENGINE)
+        .build();
 
     private final StartWorkflowHandler handler = new StartWorkflowHandler();
 
@@ -456,7 +463,7 @@ class StartWorkflowHandlerTest
      */
     private ResourceResolver repository()
     {
-        return EngineFixture.withRepositoryServices(this.context.resourceResolver());
+        return this.sessions.withRepositoryServices(this.context.resourceResolver());
     }
 
     /**
@@ -485,7 +492,7 @@ class StartWorkflowHandlerTest
         if (created != null) {
             variables.put(WorkflowResult.CREATED_PATH_VARIABLE, created);
         }
-        return EngineFixture.taskContext(resolver.getResource(target), new WorkflowEvent("create", Map.of()),
-            activity, variables, "demo-requester");
+        return EngineFixture.taskContext(this.context, resolver.getResource(target),
+            new WorkflowEvent("create", Map.of()), activity, variables, "demo-requester");
     }
 }

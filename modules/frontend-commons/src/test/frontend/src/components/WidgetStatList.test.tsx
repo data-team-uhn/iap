@@ -20,15 +20,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
-
-const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "Content-Type": "application/json" },
-});
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 
 /** Answers every fetch with one summary. */
 const answering = (body: unknown, status = 200) =>
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(status, body));
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(body, status));
 
 // A linked label is a router link, so the list is rendered inside a router.
 const list = (body: unknown, props: { name?: string; hrefFor?: (path: string) => string } = {}) => {

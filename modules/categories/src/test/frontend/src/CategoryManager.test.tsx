@@ -21,7 +21,7 @@ import { MemoryRouter } from "react-router";
 
 import CategoryManager from "@iap/categories/CategoryManager";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 // A tree with a branch (whose deletion must be blocked), a bound leaf, and a retired category.
 const treeJson = {
@@ -50,34 +50,10 @@ const treeJson = {
 
 // A server that answers everything, except the writes `refusing` picks out by their payload, which
 // get a 403. A test singles out one step of a save that way.
-//
-// Every answer carries its `url`, which useAuthenticatedFetch reads to recognise the login page.
-// The session endpoint reports a live session, so a 500 is the server's own failure.
-const stubFetch = (refusing: (body: string) => boolean = () => false) =>
-  vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
-    if (url === SESSION_INFO_URL) {
-      return Promise.resolve({
-        ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }),
-      } as unknown as Response);
-    }
-    const body = init?.body;
-    if (body instanceof URLSearchParams && refusing(body.toString())) {
-      return Promise.resolve({ ok: false, status: 403, statusText: "Forbidden", url } as unknown as Response);
-    }
-    return Promise.resolve({
-      ok: true, status: 200, statusText: "OK", url,
-      json: () => Promise.resolve(url.startsWith("/Schemas")
-        ? { "jcr:primaryType": "sch:SchemasHomepage" }
-        : treeJson),
-      headers: { get: () => null },
-    } as unknown as Response);
-  }));
-
-// A server that answers everything with the same failure, and reports a live session.
-const stubFailingFetch = (status: number, statusText: string) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : { ok: false, status, statusText, url }) as unknown as Response)));
+const stubServer = (refusing: (body: string) => boolean = () => false) => stubFetch(request =>
+  refusing(request.params.toString())
+    ? new Response(null, { status: 403, statusText: "Forbidden" })
+    : jsonResponse(request.url.startsWith("/Schemas") ? { "jcr:primaryType": "sch:SchemasHomepage" } : treeJson));
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -85,7 +61,7 @@ const renderManager = () => render(<MemoryRouter><CategoryManager /></MemoryRout
 
 describe("CategoryManager", () => {
   it("renders the loaded tree, marking retired and bound categories and blocking a branch's deletion", async () => {
-    stubFetch();
+    stubServer();
     renderManager();
 
     expect(await screen.findByText("Retrospective studies")).toBeInTheDocument();
@@ -99,7 +75,7 @@ describe("CategoryManager", () => {
   });
 
   it("opens the creation dialog from the main action", async () => {
-    stubFetch();
+    stubServer();
     renderManager();
     await screen.findByText("Retrospective studies");
 
@@ -122,7 +98,7 @@ describe("CategoryManager", () => {
 
   describe("saving a category", () => {
     it("creates one under the parent the tree row names, leaving an unbound parent's fields alone", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
 
@@ -137,7 +113,7 @@ describe("CategoryManager", () => {
     });
 
     it("frees the parent's schema version before giving it a subcategory", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Retrospective Data Studies");
 
@@ -158,7 +134,7 @@ describe("CategoryManager", () => {
     });
 
     it("updates one in place when its parent is unchanged", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
 
@@ -172,7 +148,7 @@ describe("CategoryManager", () => {
     });
 
     it("moves one when a different parent is picked", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
@@ -190,7 +166,7 @@ describe("CategoryManager", () => {
     });
 
     it("says so when the fields were saved but the move was refused", async () => {
-      stubFetch(body => body.includes("operation=move"));
+      stubServer(body => body.includes("operation=move"));
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
@@ -209,7 +185,7 @@ describe("CategoryManager", () => {
     });
 
     it("closes the dialog without saving anything when cancelled", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
@@ -224,7 +200,7 @@ describe("CategoryManager", () => {
 
   describe("acting on a row", () => {
     it("retires a category once the retirement is confirmed", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Retrospective studies");
 
@@ -243,7 +219,7 @@ describe("CategoryManager", () => {
     });
 
     it("abandons a retirement that is called off", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Retrospective studies");
       fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
@@ -258,7 +234,7 @@ describe("CategoryManager", () => {
     });
 
     it("unretires a retired category without asking", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
 
@@ -270,7 +246,7 @@ describe("CategoryManager", () => {
     });
 
     it("reorders a category among its siblings", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
 
@@ -282,7 +258,7 @@ describe("CategoryManager", () => {
     });
 
     it("deletes a category once the deletion is confirmed", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
@@ -296,19 +272,16 @@ describe("CategoryManager", () => {
     });
 
     it("retires a category that could not be deleted, having said why", async () => {
-      stubFetch();
+      stubServer();
       const fetchMock = vi.mocked(fetch);
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
       // The deletion endpoint refuses, naming what refers to the category
-      fetchMock.mockResolvedValueOnce({
-        ok: false, status: 409, statusText: "Conflict",
-        json: () => Promise.resolve({
-          "status": "referenced",
-          "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
-        }),
-      } as unknown as Response);
+      fetchMock.mockResolvedValueOnce(jsonResponse({
+        "status": "referenced",
+        "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
+      }, 409));
       fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
       expect(await screen.findByText(/referenced in 2 submissions/)).toBeInTheDocument();
@@ -320,7 +293,7 @@ describe("CategoryManager", () => {
     });
 
     it("abandons a deletion that is called off", async () => {
-      stubFetch();
+      stubServer();
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
@@ -337,7 +310,7 @@ describe("CategoryManager", () => {
 
   describe("when something goes wrong", () => {
     it("names what did not happen when a row action is refused, and lets the report be dismissed", async () => {
-      stubFetch(body => body.includes("order="));
+      stubServer(body => body.includes("order="));
       renderManager();
       await screen.findByText("Paper submissions");
 
@@ -361,7 +334,7 @@ describe("CategoryManager", () => {
     });
 
     it("offers the refused action again until a retry carries it through", async () => {
-      stubFetch();
+      stubServer();
       const fetchMock = vi.mocked(fetch);
       renderManager();
       await screen.findByText("Paper submissions");
@@ -375,7 +348,7 @@ describe("CategoryManager", () => {
       expect(notice).not.toHaveTextContent("Failed to fetch");
 
       // The retry fails too, and the notice comes back
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: "Server Error" } as unknown as Response);
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 500 }));
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       await waitFor(() => {
@@ -392,13 +365,13 @@ describe("CategoryManager", () => {
     });
 
     it("reports a refused retirement inside the dialog that asked for it", async () => {
-      stubFetch();
+      stubServer();
       const fetchMock = vi.mocked(fetch);
       renderManager();
       await screen.findByText("Retrospective studies");
       fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
 
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
       fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
 
       // Reported inside the dialog, which stays open
@@ -410,7 +383,7 @@ describe("CategoryManager", () => {
     });
 
     it("reports a tree that could not be loaded, in place", async () => {
-      stubFailingFetch(500, "Server Error");
+      stubFailingFetch(500);
 
       renderManager();
 
@@ -421,12 +394,12 @@ describe("CategoryManager", () => {
     });
 
     it("reloads the tree when the load failure's Retry is used", async () => {
-      stubFailingFetch(500, "Server Error");
+      stubFailingFetch(500);
       renderManager();
       await screen.findByRole("alert");
 
       // The next attempt succeeds
-      stubFetch();
+      stubServer();
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       expect(await screen.findByText("Retrospective studies")).toBeInTheDocument();
@@ -434,11 +407,7 @@ describe("CategoryManager", () => {
     });
 
     it("invites the first category when there are none", async () => {
-      vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-        ok: true, status: 200, statusText: "OK", url,
-        json: () => Promise.resolve({ "jcr:primaryType": "cat:CategoriesHomepage" }),
-        headers: { get: () => null },
-      } as unknown as Response)));
+      stubFetch(() => jsonResponse({ "jcr:primaryType": "cat:CategoriesHomepage" }));
 
       renderManager();
 

@@ -18,23 +18,19 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import { readNode, useNode } from "@iap/frontend-commons/useNode";
 
 type FetchStub = (url: string) => Promise<Response>;
 
-// A server answering every request with the given body and status. Each answer carries the `url` it
-// came back from, which useAuthenticatedFetch reads to tell a response from the login page.
-const answering = (body: unknown, status = 200) => vi.fn<FetchStub>(url => Promise.resolve({
-  ok: status < 400, status, url, json: () => Promise.resolve(body),
-} as unknown as Response));
+// A server answering every request with the given body and status
+const answering = (body: unknown, status = 200) => vi.fn<FetchStub>(() => Promise.resolve(jsonResponse(body, status)));
 
 // A server holding each answer back until the test gives it, so that answers can arrive in any order
 function holding() {
   const answers = new Map<string, (body: unknown, status: number) => void>();
   const fetch = vi.fn<FetchStub>(url => new Promise(resolve => {
-    answers.set(url, (body, status) => resolve({
-      ok: status < 400, status, url, json: () => Promise.resolve(body),
-    } as unknown as Response));
+    answers.set(url, (body, status) => resolve(jsonResponse(body, status)));
   }));
   // Gives one held answer, and lets all it sets in motion finish before the test looks
   const answer = (url: string, body: unknown, status = 200) => act(async () => {

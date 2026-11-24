@@ -20,6 +20,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import CaughtMailBrowser from "@iap/email-catcher/CaughtMailBrowser";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 const MESSAGE_ROW = {
   "@path": "/CaughtMail/abc",
@@ -35,14 +36,11 @@ const page = (rows: unknown[]) => ({
   rows, offset: 0, limit: 25, returnedrows: rows.length, totalrows: rows.length, totalIsApproximate: false,
 });
 
-/** Answers both the catcher's state and the listing, each with its own Response. */
-const answering = (enabled: boolean, rows: unknown[] = [ MESSAGE_ROW ]) => vi.fn((url: string) => {
-  const body = url.includes(".adminSummary.json")
+/** Answers both the catcher's state and the listing. */
+const answering = (enabled: boolean, rows: unknown[] = [ MESSAGE_ROW ]) => stubFetch(({ url }) => jsonResponse(
+  url.includes(".adminSummary.json")
     ? { enabled: { label: "Catching mail", value: enabled }, total: { label: "Caught so far", value: rows.length } }
-    : page(rows);
-  return Promise.resolve(new Response(JSON.stringify(body),
-    { status: 200, headers: { "Content-Type": "application/json" } }));
-});
+    : page(rows)));
 
 const browser = () => render(<CaughtMailBrowser />, { wrapper: MemoryRouter });
 
@@ -57,7 +55,6 @@ describe("CaughtMailBrowser", () => {
 
   it("lists the caught messages from the catcher's own folder, newest first", async () => {
     const fetchMock = answering(true);
-    vi.stubGlobal("fetch", fetchMock);
     browser();
 
     expect(await screen.findByText("Your proposal has been approved")).toBeInTheDocument();
@@ -70,7 +67,7 @@ describe("CaughtMailBrowser", () => {
   });
 
   it("says mail is being delivered normally, and where to switch that", async () => {
-    vi.stubGlobal("fetch", answering(false, []));
+    answering(false, []);
     browser();
 
     expect(await screen.findByText(/Mail is being delivered normally/)).toHaveTextContent(/administration dashboard/);
@@ -79,7 +76,7 @@ describe("CaughtMailBrowser", () => {
   });
 
   it("says nothing about delivery on an instance that is catching", async () => {
-    vi.stubGlobal("fetch", answering(true, []));
+    answering(true, []);
     browser();
 
     expect(await screen.findByText("Catching mail")).toBeInTheDocument();
@@ -87,18 +84,16 @@ describe("CaughtMailBrowser", () => {
   });
 
   it("says the list is empty rather than looking like it failed", async () => {
-    vi.stubGlobal("fetch", answering(true, []));
+    answering(true, []);
     browser();
 
     expect(await screen.findByText("Nothing has been caught yet.")).toBeInTheDocument();
   });
 
   it("still lists the messages when the catcher's state cannot be read", async () => {
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url.includes(".adminSummary.json")
+    stubFetch(({ url }) => url.includes(".adminSummary.json")
       ? new Response("", { status: 403 })
-      : new Response(JSON.stringify(page([ MESSAGE_ROW ])),
-        { status: 200, headers: { "Content-Type": "application/json" } })));
-    vi.stubGlobal("fetch", fetchMock);
+      : jsonResponse(page([ MESSAGE_ROW ])));
     browser();
 
     expect(await screen.findByText("Your proposal has been approved")).toBeInTheDocument();

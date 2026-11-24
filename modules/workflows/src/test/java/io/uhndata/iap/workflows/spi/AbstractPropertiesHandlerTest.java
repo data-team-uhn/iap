@@ -42,6 +42,8 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -68,7 +70,9 @@ class AbstractPropertiesHandlerTest
 
     private final SlingContext context = new SlingContext();
 
-    private final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
+    private final Activity activity = WorkflowFixture.activity();
+
+    private RecordingTaskContext task;
 
     private final List<String> allowed = new ArrayList<>(List.of(TITLE, NOTE, OWNER));
 
@@ -82,11 +86,8 @@ class AbstractPropertiesHandlerTest
         this.context.create().resource(THING, TITLE, "Old", NOTE, "Kept");
         this.context.create().resource("/people/alice", "sling:resourceType", "test/Person");
         this.context.create().resource("/places/home", "sling:resourceType", "test/Place");
-        final Activity activity = WorkflowFixture.activity();
-        Mockito.when(activity.getPath()).thenReturn("/SystemWorkflows/saveTest/v1/save");
-        Mockito.when(this.task.getActivity()).thenReturn(activity);
-        Mockito.when(this.task.getTarget()).thenReturn(this.thing());
-        Mockito.when(this.task.getResourceResolver()).thenReturn(this.context.resourceResolver());
+        Mockito.when(this.activity.getPath()).thenReturn("/SystemWorkflows/saveTest/v1/save");
+        this.task = saving(this.thing()).build();
     }
 
     @Test
@@ -107,16 +108,15 @@ class AbstractPropertiesHandlerTest
 
         this.handler.execute(this.task);
 
-        Mockito.verify(this.task).recordRole(Mockito.argThat(resource -> THING.equals(resource.getPath())),
-            Mockito.eq("edited"));
+        assertEquals(List.of(new RecordedRole(THING, "edited")), this.task.getRoles());
     }
 
     @Test
     void writesOntoWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException
     {
         // Following createEntity in one run, the step edits the new entity rather than the homepage it went into
-        Mockito.when(this.task.getCreated())
-            .thenReturn(this.context.create().resource("/content/created", TITLE, "Untitled"));
+        this.context.create().resource("/content/created", TITLE, "Untitled");
+        this.task = saving(this.thing()).havingCreated("/content/created").build();
         this.requested.put(TITLE, "Named");
 
         this.handler.execute(this.task);
@@ -245,7 +245,7 @@ class AbstractPropertiesHandlerTest
     {
         final Resource readOnly = Mockito.mock(Resource.class);
         Mockito.when(readOnly.getPath()).thenReturn(THING);
-        Mockito.when(this.task.getTarget()).thenReturn(readOnly);
+        this.task = saving(readOnly).build();
         this.requested.put(TITLE, "New");
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
@@ -303,6 +303,13 @@ class AbstractPropertiesHandlerTest
         {
             return false;
         }
+    }
+
+    private RecordingTaskContext.Builder saving(final Resource target)
+    {
+        return RecordingTaskContext.aimedAt(target)
+            .performing(this.activity)
+            .resolvingThrough(this.context.resourceResolver());
     }
 
     private Resource thing()

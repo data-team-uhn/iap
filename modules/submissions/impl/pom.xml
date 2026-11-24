@@ -146,4 +146,37 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <!-- The test jar is built only when the tests run -->
+    <profile>
+      <id>tests</id>
+      <dependencies>
+        <!-- PropertyTagging, which keeps tags in a mock repository -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-tags-api</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+        <!-- Referenceables, which makes mock repository nodes referenceable -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-java-utils</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+        <!-- RecordingTaskContext, for calling a workflow handler without the engine -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-workflows</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>

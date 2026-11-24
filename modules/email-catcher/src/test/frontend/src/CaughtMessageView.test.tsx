@@ -21,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router";
 
 import CaughtMessageView from "@iap/email-catcher/CaughtMessageView";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 const STORED = {
   "@path": "/CaughtMail/abc",
@@ -35,11 +36,7 @@ const STORED = {
   "htmlBody": "<p>Approved, <b>congratulations</b>.</p>",
 };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
-  { status, headers: { "Content-Type": "application/json" } });
-
-const answering = (body: unknown, status = 200) =>
-  vi.fn((_url: string) => Promise.resolve(json(body, status)));
+const answering = (body: unknown, status = 200) => stubFetch(() => jsonResponse(body, status));
 
 const view = (route = "/admin/mail/abc") => render(
   <MemoryRouter initialEntries={[ route ]}>
@@ -71,7 +68,6 @@ describe("CaughtMessageView", () => {
 
   it("reads the message the address names, and heads the page with its subject", async () => {
     const fetchMock = answering(STORED);
-    vi.stubGlobal("fetch", fetchMock);
     view();
 
     expect(await screen.findByText("Your proposal has been approved")).toBeInTheDocument();
@@ -79,7 +75,7 @@ describe("CaughtMessageView", () => {
   });
 
   it("shows every address list the message carried, one address per line", async () => {
-    vi.stubGlobal("fetch", answering(STORED));
+    answering(STORED);
     view();
 
     expect(await screen.findByText("Someone <someone@uhn.ca>")).toBeInTheDocument();
@@ -89,7 +85,7 @@ describe("CaughtMessageView", () => {
   });
 
   it("shows no heading for an address list the message did not carry", async () => {
-    vi.stubGlobal("fetch", answering(STORED));
+    answering(STORED);
     view();
 
     await screen.findByText("Cc");
@@ -98,7 +94,7 @@ describe("CaughtMessageView", () => {
   });
 
   it("draws the HTML body in a sandbox with nothing allowed", async () => {
-    vi.stubGlobal("fetch", answering(STORED));
+    answering(STORED);
     view();
 
     const frame = await screen.findByTitle("The message as a recipient would see it");
@@ -107,7 +103,7 @@ describe("CaughtMessageView", () => {
   });
 
   it("offers the plain text and the HTML source beside the rendering", async () => {
-    vi.stubGlobal("fetch", answering(STORED));
+    answering(STORED);
     view();
 
     await userEvent.click(await screen.findByRole("tab", { name: "Plain text" }));
@@ -118,7 +114,7 @@ describe("CaughtMessageView", () => {
   });
 
   it("offers no choice for a message with only one body", async () => {
-    vi.stubGlobal("fetch", answering({ textBody: "Approved." }));
+    answering({ textBody: "Approved." });
     view();
 
     expect(await screen.findByText("Approved.")).toBeInTheDocument();
@@ -126,41 +122,41 @@ describe("CaughtMessageView", () => {
   });
 
   it("falls back to a body the message actually has", async () => {
-    vi.stubGlobal("fetch", answering({ textBody: "Only text." }));
+    answering({ textBody: "Only text." });
     view();
 
     expect(await screen.findByText("Only text.")).toBeInTheDocument();
   });
 
   it("says a message has no body rather than showing an empty panel", async () => {
-    vi.stubGlobal("fetch", answering({ subject: "Empty" }));
+    answering({ subject: "Empty" });
     view();
 
     expect(await screen.findByText("This message has no body.")).toBeInTheDocument();
   });
 
   it("shows the remaining headers, and nothing when there are none", async () => {
-    vi.stubGlobal("fetch", answering(STORED));
+    answering(STORED);
     const { unmount } = view();
     expect(await screen.findByText("Headers")).toBeInTheDocument();
     expect(screen.getByText("Message-ID: <1@uhn.ca>")).toBeInTheDocument();
     unmount();
 
-    vi.stubGlobal("fetch", answering({ textBody: "Approved." }));
+    answering({ textBody: "Approved." });
     view();
     await screen.findByText("Approved.");
     expect(screen.queryByText("Headers")).not.toBeInTheDocument();
   });
 
   it("shows the raw timestamp when it is not one it can parse", async () => {
-    vi.stubGlobal("fetch", answering({ caughtAt: "not a date", textBody: "x" }));
+    answering({ caughtAt: "not a date", textBody: "x" });
     view();
 
     expect(await screen.findByText("not a date")).toBeInTheDocument();
   });
 
   it("heads the page with something when the message carries no subject", async () => {
-    vi.stubGlobal("fetch", answering({ textBody: "x" }));
+    answering({ textBody: "x" });
     view();
 
     expect(await screen.findByText("Caught message")).toBeInTheDocument();
@@ -169,7 +165,6 @@ describe("CaughtMessageView", () => {
 
   it("says an address naming no message is not one, rather than failing to load", async () => {
     const fetchMock = answering(STORED);
-    vi.stubGlobal("fetch", fetchMock);
     view("/admin/mail");
 
     expect(await screen.findByText("This address does not name a caught message.")).toBeInTheDocument();
@@ -179,8 +174,7 @@ describe("CaughtMessageView", () => {
   it("reports a message it could not read, and reads it again when asked", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response("", { status: 404 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(STORED),
-        { status: 200, headers: { "Content-Type": "application/json" } }));
+      .mockResolvedValueOnce(jsonResponse(STORED));
     vi.stubGlobal("fetch", fetchMock);
     view();
 
@@ -196,8 +190,8 @@ describe("CaughtMessageView", () => {
   });
 
   it("does not leave one message on screen under the next one's heading", async () => {
-    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(json(
-      url.startsWith("/CaughtMail/abc") ? STORED : { subject: "The second one", textBody: "Later." }))));
+    stubFetch(({ url }) => jsonResponse(
+      url.startsWith("/CaughtMail/abc") ? STORED : { subject: "The second one", textBody: "Later." }));
     reader();
     await screen.findByText("Your proposal has been approved");
 
@@ -210,9 +204,9 @@ describe("CaughtMessageView", () => {
 
   it("ignores a read that lands after the address has moved on", async () => {
     const pending: ((response: Response) => void)[] = [];
-    vi.stubGlobal("fetch", vi.fn((url: string) => (url.startsWith("/CaughtMail/abc")
+    stubFetch(({ url }) => (url.startsWith("/CaughtMail/abc")
       ? new Promise<Response>(resolve => { pending.push(resolve); })
-      : Promise.resolve(json({ subject: "The second one", textBody: "Later." })))));
+      : jsonResponse({ subject: "The second one", textBody: "Later." })));
     reader();
     await waitFor(() => { expect(pending).toHaveLength(1); });
 
@@ -220,7 +214,7 @@ describe("CaughtMessageView", () => {
     expect(await screen.findByText("The second one")).toBeInTheDocument();
 
     await act(async () => {
-      pending[0](json(STORED));
+      pending[0](jsonResponse(STORED));
       await new Promise(resolve => { setTimeout(resolve, 0); });
     });
 
@@ -230,7 +224,7 @@ describe("CaughtMessageView", () => {
 
   it("reports a request that never reached the server", async () => {
     // fetch rejects with a TypeError when the request never reaches the server
-    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
+    stubFetch(() => Promise.reject(new TypeError("Failed to fetch")));
     view();
 
     expect(await screen.findByText(/The server could not be reached/)).toBeInTheDocument();

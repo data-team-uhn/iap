@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import { loadAnswerComponents } from "@iap/submissions/answers";
@@ -101,42 +102,32 @@ function form(overrides: Partial<SubmissionForm> = {}): SubmissionForm {
   };
 }
 
-function json(body: unknown, init: { ok?: boolean; status?: number } = {}) {
-  return Promise.resolve({
-    ok: init.ok ?? true,
-    status: init.status ?? 200,
-    // The authenticated fetch reads this to tell a form from a login page served with a 200
-    url: "",
-    json: () => Promise.resolve(body),
-  } as unknown as Response);
-}
-
 // Serves each read of the form in turn, so a test can say what the server reports after a save.
 function serving(...reads: SubmissionForm[]) {
   let read = 0;
-  return vi.fn((url: string, options?: { method?: string }) => {
-    if (options?.method === "POST") {
-      return json({});
+  return stubFetch(request => {
+    if (request.method === "POST") {
+      return jsonResponse({});
     }
     const next = reads[Math.min(read, reads.length - 1)];
     read += 1;
-    return json(next);
+    return jsonResponse(next);
   });
 }
 
 // Refuses every save, as the server does once the request is no longer a draft: the request is
 // not in a state that admits the save, which is a conflict rather than a refusal of the user.
 function refusingSaves() {
-  return vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
-    ? json({ error: "This request has been submitted and can no longer be changed" }, { ok: false, status: 409 })
-    : json(form()));
+  return stubFetch(request => request.method === "POST"
+    ? jsonResponse({ error: "This request has been submitted and can no longer be changed" }, 409)
+    : jsonResponse(form()));
 }
 
 describe("SubmissionEditor", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("shows what the request asks and what it already answers", async () => {
-    vi.stubGlobal("fetch", serving(form()));
+    serving(form());
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -151,7 +142,6 @@ describe("SubmissionEditor", () => {
       requirements: [ details([ duration([ "multiple days" ]), endDate() ]) ],
     });
     const fetchMock = serving(form(), withEndDate);
-    vi.stubGlobal("fetch", fetchMock);
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
@@ -164,7 +154,7 @@ describe("SubmissionEditor", () => {
 
   it("tells the page once an answer is saved", async () => {
     const changed = vi.fn();
-    vi.stubGlobal("fetch", serving(form()));
+    serving(form());
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} onChanged={changed} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
@@ -174,7 +164,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("reports a refused save on the field it belongs to", async () => {
-    vi.stubGlobal("fetch", refusingSaves());
+    refusingSaves();
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
@@ -185,7 +175,7 @@ describe("SubmissionEditor", () => {
 
   it("tells the page nothing when a save is refused", async () => {
     const changed = vi.fn();
-    vi.stubGlobal("fetch", refusingSaves());
+    refusingSaves();
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} onChanged={changed} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
@@ -196,7 +186,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
-    vi.stubGlobal("fetch", serving(form({ editable: false })));
+    serving(form({ editable: false }));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -205,11 +195,11 @@ describe("SubmissionEditor", () => {
   });
 
   it("shows a requirement it cannot complete, rather than dropping it", async () => {
-    vi.stubGlobal("fetch", serving(form({
+    serving(form({
       requirements: [ {
         name: "ethics", path: "/Schemas/timeOffRequest/v1/ethics", type: "sch/EthicsRequirement", label: "Ethics"
       } ],
-    })));
+    }));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -256,7 +246,6 @@ describe("SubmissionEditor", () => {
       };
       const changed = vi.fn();
       const fetchMock = serving(form({ requirements: [ contributed("test/Thing") ] }));
-      vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} queueSave={queueSave} onChanged={changed} />);
       await userEvent.click(await screen.findByRole("button", { name: PATH }));
@@ -271,7 +260,7 @@ describe("SubmissionEditor", () => {
     it("shows a component that fails to draw as a part it cannot complete, and draws the rest", async () => {
       vi.spyOn(console, "error").mockImplementation(() => undefined);
       registerRequirementComponent(candidateFor("test/Broken", Broken));
-      vi.stubGlobal("fetch", serving(form({ requirements: [ contributed("test/Broken"), details([ duration() ]) ] })));
+      serving(form({ requirements: [ contributed("test/Broken"), details([ duration() ]) ] }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -282,7 +271,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("says who an approval needs, since somebody else grants it", async () => {
-    vi.stubGlobal("fetch", serving(form({ requirements: [ approval() ] })));
+    serving(form({ requirements: [ approval() ] }));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -315,7 +304,7 @@ describe("SubmissionEditor", () => {
     }
 
     it("offers to attach a file, with the types it takes and nothing else", async () => {
-      vi.stubGlobal("fetch", serving(asked()));
+      serving(asked());
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -326,7 +315,7 @@ describe("SubmissionEditor", () => {
     });
 
     it("says nothing about types where the requirement names none", async () => {
-      vi.stubGlobal("fetch", serving(asked({ acceptedFileTypes: [] })));
+      serving(asked({ acceptedFileTypes: [] }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -334,7 +323,7 @@ describe("SubmissionEditor", () => {
     });
 
     it("names what is already there, so a form reopened later does not look untouched", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
+      serving(asked({ attached: [ NOTE_FILE ] }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -345,7 +334,7 @@ describe("SubmissionEditor", () => {
     });
 
     it("names an attachment with no file yet without linking it", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ { title: "note.pdf" } ] })));
+      serving(asked({ attached: [ { title: "note.pdf" } ] }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -354,7 +343,7 @@ describe("SubmissionEditor", () => {
     });
 
     it("offers a new version, not removal, while a file is attached", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
+      serving(asked({ attached: [ NOTE_FILE ] }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -366,7 +355,7 @@ describe("SubmissionEditor", () => {
 
     it("tells the page once a document is attached", async () => {
       const changed = vi.fn();
-      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ NOTE_FILE ] })));
+      serving(asked(), asked({ attached: [ NOTE_FILE ] }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} onChanged={changed} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
@@ -377,7 +366,6 @@ describe("SubmissionEditor", () => {
     it("checks the file against the types the requirement takes before sending it", async () => {
       vi.mocked(validateUpload).mockResolvedValueOnce("note.txt is not a file of an accepted type: .pdf.");
       const fetchMock = serving(asked());
-      vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [ pick("note.txt") ] } });
@@ -390,14 +378,13 @@ describe("SubmissionEditor", () => {
 
     it("posts the file as an event on the submission, then reads the form again", async () => {
       const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));
-      vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
       expect(upload).toBeDefined();
-      const init = upload![1] as RequestInit;
+      const init = upload![1]!;
       expect(init.method).toBe("POST");
       const body = init.body as FormData;
       expect(body.get("requirement")).toBe("doctorsNote");
@@ -410,14 +397,13 @@ describe("SubmissionEditor", () => {
     it("posts a new version as the same event, then reads the form again", async () => {
       const newer = { title: "note-v2.pdf", path: "/Submissions/x/d1/v2/file/uploadedFile" };
       const fetchMock = serving(asked({ attached: [ NOTE_FILE ] }), asked({ attached: [ newer ] }));
-      vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Upload a new version/), pick("note-v2.pdf"));
 
       const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
       expect(upload).toBeDefined();
-      const body = (upload![1] as RequestInit).body as FormData;
+      const body = upload![1]!.body as FormData;
       expect(body.get("requirement")).toBe("doctorsNote");
       expect((body.get("file") as File).name).toBe("note-v2.pdf");
       // From the form read after the upload
@@ -425,7 +411,7 @@ describe("SubmissionEditor", () => {
     });
 
     it("does not offer a new version for a request that can no longer be changed", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] }, { editable: false })));
+      serving(asked({ attached: [ NOTE_FILE ] }, { editable: false }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -435,10 +421,10 @@ describe("SubmissionEditor", () => {
     it("says why the engine refused a file, in the engine's own words", async () => {
       // The requirement takes any type, since `userEvent.upload` drops a file that `accept` leaves out,
       // as a real file dialog does
-      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
-        options?.method === "POST"
-          ? json({ error: "A image/gif is not accepted here" }, { ok: false, status: 400 })
-          : json(asked({ acceptedFileTypes: [] }))));
+      stubFetch(({ method }) =>
+        method === "POST"
+          ? jsonResponse({ error: "A image/gif is not accepted here" }, 400)
+          : jsonResponse(asked({ acceptedFileTypes: [] })));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick("scan.gif", "image/gif"));
@@ -447,15 +433,10 @@ describe("SubmissionEditor", () => {
     });
 
     it("describes a failure that carries no reason by its status", async () => {
-      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
-        options?.method === "POST"
-          ? Promise.resolve({
-            ok: false,
-            status: 502,
-            url: "",
-            json: () => Promise.reject(new Error("not json")),
-          } as unknown as Response)
-          : json(asked())));
+      stubFetch(({ method }) =>
+        method === "POST"
+          ? new Response("<html>Bad gateway</html>", { status: 502 })
+          : jsonResponse(asked()));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
@@ -464,10 +445,10 @@ describe("SubmissionEditor", () => {
     });
 
     it("reports an upload that never reached the server", async () => {
-      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
-        options?.method === "POST"
+      stubFetch(({ method }) =>
+        method === "POST"
           ? Promise.reject("the network went away")
-          : json(asked())));
+          : jsonResponse(asked()));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
@@ -477,16 +458,16 @@ describe("SubmissionEditor", () => {
 
     it("lets a refusal be dismissed and the same file tried again", async () => {
       let refuse = true;
-      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
-        if (options?.method === "POST") {
+      stubFetch(({ method }) => {
+        if (method === "POST") {
           const answer = refuse
-            ? json({ error: "The server was busy" }, { ok: false, status: 503 })
-            : json({});
+            ? jsonResponse({ error: "The server was busy" }, 503)
+            : jsonResponse({});
           refuse = false;
           return answer;
         }
-        return json(asked());
-      }));
+        return jsonResponse(asked());
+      });
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       const input = await screen.findByLabelText(/Attach a file/);
@@ -504,12 +485,12 @@ describe("SubmissionEditor", () => {
 
     it("has the browser warn before a page with an upload on its way is left", async () => {
       let land: () => void = () => undefined;
-      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
-        options?.method === "POST"
+      stubFetch(({ method }) =>
+        method === "POST"
           ? new Promise<Response>(resolve => {
-            land = () => resolve(json({}));
+            land = () => resolve(jsonResponse({}));
           })
-          : json(asked())));
+          : jsonResponse(asked()));
       const leave = () => {
         const event = new Event("beforeunload", { cancelable: true });
         window.dispatchEvent(event);
@@ -530,17 +511,17 @@ describe("SubmissionEditor", () => {
     it("sends a file once the answer being saved has been stored", async () => {
       const posted: string[] = [];
       let store: () => void = () => undefined;
-      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
-        if (options?.method !== "POST") {
-          return json(form({ requirements: [ details([ duration() ]), NOTE ] }));
+      stubFetch(({ url, method }) => {
+        if (method !== "POST") {
+          return jsonResponse(form({ requirements: [ details([ duration() ]), NOTE ] }));
         }
         posted.push(url);
         return url === `${PATH}.save.json`
           ? new Promise<Response>(resolve => {
-            store = () => resolve(json({}));
+            store = () => resolve(jsonResponse({}));
           })
-          : json({});
-      }));
+          : jsonResponse({});
+      });
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.type(await screen.findByLabelText(/several days/), "half day");
@@ -556,7 +537,6 @@ describe("SubmissionEditor", () => {
 
     it("does nothing when the file dialog was dismissed without a choice", async () => {
       const fetchMock = serving(asked());
-      vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       // A dismissed dialog, which `userEvent.upload` cannot express, since it always gives a file
@@ -566,7 +546,7 @@ describe("SubmissionEditor", () => {
     });
 
     it("cannot be attached to once the request is no longer the submitter's to change", async () => {
-      vi.stubGlobal("fetch", serving(asked({}, { editable: false })));
+      serving(asked({}, { editable: false }));
 
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -575,10 +555,10 @@ describe("SubmissionEditor", () => {
   });
 
   it("draws a section as its own block, with its questions inside", async () => {
-    vi.stubGlobal("fetch", serving(form({
+    serving(form({
       requirements: [ details([ { name: "when", type: SECTION, label: "Dates",
         description: "When you are away", items: [ endDate() ] } ]) ],
-    })));
+    }));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -589,10 +569,10 @@ describe("SubmissionEditor", () => {
 
   it("falls back on the name when a requirement or a section is unlabelled", async () => {
     // The server sends an unlabelled requirement or section with an empty label, not without one
-    vi.stubGlobal("fetch", serving(form({
+    serving(form({
       requirements: [ details(
         [ { name: "when", type: SECTION, label: "", items: [ endDate() ] } ], { label: "" }) ],
-    })));
+    }));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -601,10 +581,9 @@ describe("SubmissionEditor", () => {
   });
 
   it("reports a save that failed without an Error to explain it", async () => {
-    const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+    stubFetch(({ method }) => method === "POST"
       ? Promise.reject("the request went nowhere")
-      : json(form()));
-    vi.stubGlobal("fetch", fetchMock);
+      : jsonResponse(form()));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
@@ -616,7 +595,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("says so when the request asks nothing", async () => {
-    vi.stubGlobal("fetch", serving(form({ requirements: [] })));
+    serving(form({ requirements: [] }));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -624,7 +603,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("reports a form that would not load", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => json({}, { ok: false, status: 404 })));
+    stubFetch(() => jsonResponse({}, 404));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
@@ -636,14 +615,14 @@ describe("SubmissionEditor", () => {
       ...duration(), name: "reason", path: "details/reason", text: "Why do you need it?",
     };
     const saves: { question: string | undefined; respond: (response: Response) => void }[] = [];
-    vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string; body?: URLSearchParams }) => {
-      if (options?.method !== "POST") {
-        return json(form({ requirements: [ details([ duration(), reason ]) ] }));
+    stubFetch(({ method, params }) => {
+      if (method !== "POST") {
+        return jsonResponse(form({ requirements: [ details([ duration(), reason ]) ] }));
       }
       return new Promise<Response>(respond => {
-        saves.push({ question: options.body?.keys().next().value, respond });
+        saves.push({ question: params.keys().next().value, respond });
       });
-    }));
+    });
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
@@ -652,11 +631,11 @@ describe("SubmissionEditor", () => {
 
     await waitFor(() => expect(saves).toHaveLength(1));
     expect(saves[0]?.question).toBe("details/duration");
-    saves[0]?.respond(await json({ error: "Somebody else changed this request" }, { ok: false, status: 409 }));
+    saves[0]?.respond(jsonResponse({ error: "Somebody else changed this request" }, 409));
 
     await waitFor(() => expect(saves).toHaveLength(2));
     expect(saves[1]?.question).toBe("details/reason");
-    saves[1]?.respond(await json({}));
+    saves[1]?.respond(jsonResponse({}));
 
     expect(await screen.findByText("Saved")).toBeInTheDocument();
     expect(screen.getAllByText("Not saved")).toHaveLength(1);
@@ -668,15 +647,14 @@ describe("SubmissionEditor", () => {
       resolveFirst = resolve;
     });
     let reads = 0;
-    const fetchMock = vi.fn((url: string, options?: { method?: string }) => {
-      if (options?.method === "POST") {
-        return json({});
+    stubFetch(({ method }) => {
+      if (method === "POST") {
+        return jsonResponse({});
       }
       reads += 1;
       // The first read after a save is held back until the second has already been applied
-      return reads === 2 ? first : json(form({ title: "Newest" }));
+      return reads === 2 ? first : jsonResponse(form({ title: "Newest" }));
     });
-    vi.stubGlobal("fetch", fetchMock);
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
@@ -685,7 +663,7 @@ describe("SubmissionEditor", () => {
     await userEvent.tab();
 
     await waitFor(() => expect(screen.getByText("Newest")).toBeInTheDocument());
-    resolveFirst(await json(form({ title: "Stale" })));
+    resolveFirst(jsonResponse(form({ title: "Stale" })));
 
     await waitFor(() => expect(screen.queryByText("Stale")).not.toBeInTheDocument());
     expect(screen.getByText("Newest")).toBeInTheDocument();

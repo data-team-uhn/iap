@@ -31,6 +31,7 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -51,6 +52,7 @@ import org.mockito.Mockito;
 
 import com.sun.net.httpserver.HttpServer;
 import io.uhndata.iap.documents.api.ParseOutcome;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -101,7 +103,7 @@ class ParseJobConsumerTest
         this.sentRequest = null;
         this.sendFailure = null;
         this.consumer = consumerWithEnvironment(null, null);
-        inject(this.consumer, new TestResolverFactory(this.context.resourceResolver()));
+        inject(this.consumer, TestResolverFactory.serving(this.context.resourceResolver()));
         activate(this.consumer);
         Mockito.when(this.job.getProperty(ParseJob.PN_JOB_ID, String.class)).thenReturn(JOB_ID);
     }
@@ -225,7 +227,7 @@ class ParseJobConsumerTest
     void missingCallbackTokenFailsWithoutCallingTheDaemon() throws Exception
     {
         final ParseJobConsumer unconfigured = consumerWithEnvironment(null, null);
-        inject(unconfigured, new TestResolverFactory(this.context.resourceResolver()));
+        inject(unconfigured, TestResolverFactory.serving(this.context.resourceResolver()));
         unconfigured.activate(Map.of());
         jobNode();
 
@@ -241,7 +243,7 @@ class ParseJobConsumerTest
     void theTokenCanComeFromTheEnvironment() throws Exception
     {
         final ParseJobConsumer fromEnvironment = consumerWithEnvironment("  " + TOKEN + "  ", null);
-        inject(fromEnvironment, new TestResolverFactory(this.context.resourceResolver()));
+        inject(fromEnvironment, TestResolverFactory.serving(this.context.resourceResolver()));
         fromEnvironment.activate(Map.of());
         jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
@@ -356,7 +358,7 @@ class ParseJobConsumerTest
                 throw new IOException("timed out waiting for the daemon");
             }
         };
-        inject(racing, new TestResolverFactory(this.context.resourceResolver()));
+        inject(racing, TestResolverFactory.serving(this.context.resourceResolver()));
         activate(racing);
         jobNode();
 
@@ -380,7 +382,7 @@ class ParseJobConsumerTest
                 throw new InterruptedException();
             }
         };
-        inject(interrupted, new TestResolverFactory(this.context.resourceResolver()));
+        inject(interrupted, TestResolverFactory.serving(this.context.resourceResolver()));
         activate(interrupted);
 
         assertEquals(JobResult.CANCEL, interrupted.process(this.job));
@@ -423,7 +425,7 @@ class ParseJobConsumerTest
     void missingServiceUserCancelsTheJob() throws Exception
     {
         jobNode();
-        inject(this.consumer, new TestResolverFactory(null));
+        inject(this.consumer, TestResolverFactory.withoutServiceUser());
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
@@ -459,7 +461,7 @@ class ParseJobConsumerTest
     void unmodifiableJobNodeCancelsTheJob() throws Exception
     {
         jobNode();
-        inject(this.consumer, new TestResolverFactory(unmodifiableNodes()));
+        inject(this.consumer, TestResolverFactory.serving(unmodifiableNodes()));
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
@@ -507,7 +509,7 @@ class ParseJobConsumerTest
     void daemonTokenEnvironmentVariableIsUsedWhenNoPropertyIsConfigured() throws Exception
     {
         final ParseJobConsumer envConsumer = consumerWithEnvironment(null, "env-daemon-secret");
-        inject(envConsumer, new TestResolverFactory(this.context.resourceResolver()));
+        inject(envConsumer, TestResolverFactory.serving(this.context.resourceResolver()));
         activate(envConsumer);
         jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
@@ -571,7 +573,7 @@ class ParseJobConsumerTest
             daemon.start();
             // No overridden send(): this consumer speaks to the local stand-in over an actual socket
             final ParseJobConsumer real = new ParseJobConsumer();
-            inject(real, new TestResolverFactory(this.context.resourceResolver()));
+            inject(real, TestResolverFactory.serving(this.context.resourceResolver()));
             activate(real, Map.of("daemonUrl", "http://127.0.0.1:" + daemon.getAddress().getPort()));
             jobNode();
 
@@ -691,21 +693,14 @@ class ParseJobConsumerTest
      */
     private ResourceResolverFactory failAfterFirstOpen()
     {
-        return new TestResolverFactory(this.context.resourceResolver())
-        {
-            private boolean opened;
-
-            @Override
-            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
-                throws LoginException
-            {
-                if (this.opened) {
-                    throw new LoginException("The service user is gone");
-                }
-                this.opened = true;
-                return super.getServiceResourceResolver(authenticationInfo);
+        final ResourceResolverFactory serving = TestResolverFactory.serving(this.context.resourceResolver());
+        final AtomicBoolean opened = new AtomicBoolean();
+        return TestResolverFactory.answeredBy(authenticationInfo -> {
+            if (opened.getAndSet(true)) {
+                throw new LoginException("The service user is gone");
             }
-        };
+            return serving.getServiceResourceResolver(authenticationInfo);
+        });
     }
 
     /**
@@ -715,29 +710,22 @@ class ParseJobConsumerTest
      */
     private ResourceResolverFactory secondOpenFindsNothing()
     {
-        return new TestResolverFactory(this.context.resourceResolver())
-        {
-            private boolean opened;
-
-            @Override
-            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
-                throws LoginException
-            {
-                final ResourceResolver resolver = super.getServiceResourceResolver(authenticationInfo);
-                if (!this.opened) {
-                    this.opened = true;
-                    return resolver;
-                }
-                return new ResourceResolverWrapper(resolver)
-                {
-                    @Override
-                    public Resource getResource(final String path)
-                    {
-                        return null;
-                    }
-                };
+        final ResourceResolverFactory serving = TestResolverFactory.serving(this.context.resourceResolver());
+        final AtomicBoolean opened = new AtomicBoolean();
+        return TestResolverFactory.answeredBy(authenticationInfo -> {
+            final ResourceResolver resolver = serving.getServiceResourceResolver(authenticationInfo);
+            if (!opened.getAndSet(true)) {
+                return resolver;
             }
-        };
+            return new ResourceResolverWrapper(resolver)
+            {
+                @Override
+                public Resource getResource(final String path)
+                {
+                    return null;
+                }
+            };
+        });
     }
 
     /**

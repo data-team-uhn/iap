@@ -84,6 +84,7 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.RequirementDescriber;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -150,7 +151,7 @@ class SubmissionFormServletTest
             File.class, Review.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         // Everything applies unless a test hides it. What these tests check is that the servlet asks about every
         // part, and follows the answer.
         this.evaluator = Mockito.mock(ConditionEvaluator.class);

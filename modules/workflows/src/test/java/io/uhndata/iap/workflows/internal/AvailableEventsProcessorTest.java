@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -30,12 +29,17 @@ import jakarta.json.JsonObjectBuilder;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -47,24 +51,26 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class AvailableEventsProcessorTest
 {
     private static final String PATH = "/Schemas/intake";
 
-    private final AvailableEventsProcessor processor = new AvailableEventsProcessor();
+    private final SlingContext context = new SlingContextBuilder().plugin(WorkflowPlugins.MOCK_ENGINE).build();
 
-    private final WorkflowEngine engine = Mockito.mock(WorkflowEngine.class);
+    private AvailableEventsProcessor processor;
+
+    private WorkflowEngine engine;
 
     private final Resource resource = Mockito.mock(Resource.class);
 
     private final Node node = Mockito.mock(Node.class);
 
     @BeforeEach
-    void setUp() throws ReflectiveOperationException, RepositoryException
+    void setUp() throws RepositoryException
     {
-        final Field reference = AvailableEventsProcessor.class.getDeclaredField("engine");
-        reference.setAccessible(true);
-        reference.set(this.processor, this.engine);
+        this.processor = this.context.registerInjectActivateService(AvailableEventsProcessor.class);
+        this.engine = this.context.getService(WorkflowEngine.class);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(this.resource.getResourceResolver()).thenReturn(resolver);
         Mockito.when(resolver.getResource(PATH)).thenReturn(this.resource);

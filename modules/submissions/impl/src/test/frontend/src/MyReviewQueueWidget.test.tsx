@@ -19,6 +19,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import MyReviewQueueWidget from "@iap/submissions/MyReviewQueueWidget";
 
 describe("MyReviewQueueWidget", () => {
@@ -28,9 +29,7 @@ describe("MyReviewQueueWidget", () => {
 
   it("asks for submissions with an open review assigned to the current user", async () => {
     const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(page));
 
     render(<MyReviewQueueWidget />, { wrapper: MemoryRouter });
 

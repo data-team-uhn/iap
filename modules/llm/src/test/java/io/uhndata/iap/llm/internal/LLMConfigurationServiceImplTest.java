@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import javax.jcr.Session;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -43,6 +42,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.llm.LLMSettings;
 import io.uhndata.iap.llm.internal.models.LLMModelNode;
 import io.uhndata.iap.llm.internal.models.LLMProviderNode;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -82,7 +82,7 @@ class LLMConfigurationServiceImplTest
         NodeTypeDefinitionScanner.get().register(this.context.resourceResolver().adaptTo(Session.class),
             List.of("SLING-INF/nodetypes/llms.cnd"), ResourceResolverType.JCR_OAK.getNodeTypeMode());
         this.service = new LLMConfigurationServiceImpl();
-        inject(this.service, new TestResolverFactory(this.context.resourceResolver()));
+        inject(this.service, TestResolverFactory.serving(this.context.resourceResolver()));
     }
 
     private static void inject(final Object target, final ResourceResolverFactory factory) throws Exception
@@ -201,7 +201,7 @@ class LLMConfigurationServiceImplTest
     void failsWhenTheServiceUserIsMissing() throws Exception
     {
         createConfiguration(PROVIDER, MODEL);
-        inject(this.service, new TestResolverFactory(null));
+        inject(this.service, TestResolverFactory.withoutServiceUser());
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
         assertTrue(failure.getMessage().contains("Could not access the LLM configuration"));
@@ -217,7 +217,7 @@ class LLMConfigurationServiceImplTest
         final Resource realCatalog = this.context.resourceResolver().getResource(CATALOG_PATH);
         final Resource catalog = Mockito.spy(realCatalog);
         Mockito.doReturn(brokenProvider).when(catalog).getChild(PROVIDER);
-        inject(this.service, new TestResolverFactory(resolverReturning(CATALOG_PATH, catalog)));
+        inject(this.service, TestResolverFactory.serving(resolverReturning(CATALOG_PATH, catalog)));
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
         assertTrue(failure.getMessage().contains("Could not read the LLM provider"));
@@ -237,7 +237,7 @@ class LLMConfigurationServiceImplTest
         final Resource realCatalog = this.context.resourceResolver().getResource(CATALOG_PATH);
         final Resource catalog = Mockito.spy(realCatalog);
         Mockito.doReturn(provider).when(catalog).getChild(PROVIDER);
-        inject(this.service, new TestResolverFactory(resolverReturning(CATALOG_PATH, catalog)));
+        inject(this.service, TestResolverFactory.serving(resolverReturning(CATALOG_PATH, catalog)));
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
         assertTrue(failure.getMessage().contains("Could not read the LLM model"));
@@ -268,18 +268,11 @@ class LLMConfigurationServiceImplTest
     {
         createConfiguration(PROVIDER, MODEL);
         final AtomicReference<Map<String, Object>> requested = new AtomicReference<>();
-        inject(this.service, new TestResolverFactory(this.context.resourceResolver())
-        {
-            @Override
-            public ResourceResolver getServiceResourceResolver(
-                final Map<String, Object> authenticationInfo) throws LoginException
-            {
-                requested.set(authenticationInfo);
-                // Through the superclass, so this is the wrapper that survives the service closing it.
-                // A real Oak resolver refuses everything after a close, and the context needs this one.
-                return super.getServiceResourceResolver(authenticationInfo);
-            }
-        });
+        final ResourceResolverFactory serving = TestResolverFactory.serving(this.context.resourceResolver());
+        inject(this.service, TestResolverFactory.answeredBy(authenticationInfo -> {
+            requested.set(authenticationInfo);
+            return serving.getServiceResourceResolver(authenticationInfo);
+        }));
 
         this.service.getActiveSettings();
 

@@ -37,13 +37,11 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
-import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -203,19 +201,18 @@ final class AuthoringFixture
     }
 
     /**
-     * Assembles a task context for a handler under test.
+     * Starts a task context for a handler under test, acting for {@link #ACTOR}.
      *
      * @param target the resource the event is aimed at
      * @param event the event name
      * @param payload what it carries
      * @param activity the activity being performed
-     * @param variables where the handler reports its results
-     * @return the assembled context
+     * @return a builder for the context, for the test to add to
      */
-    static WorkflowTaskContext context(final Resource target, final String event,
-        final Map<String, Object> payload, final Activity activity, final Map<String, Object> variables)
+    static RecordingTaskContext.Builder context(final Resource target, final String event,
+        final Map<String, Object> payload, final Activity activity)
     {
-        return EngineFixture.taskContext(target, new WorkflowEvent(event, payload), activity, variables, ACTOR);
+        return RecordingTaskContext.aimedAt(target).forEvent(event, payload).performing(activity).actingFor(ACTOR);
     }
 
     /**

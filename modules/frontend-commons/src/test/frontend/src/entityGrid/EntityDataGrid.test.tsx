@@ -22,6 +22,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import { registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import { jsonResponse, sentRequests, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 // Flushes the React work that promises resolved outside act() left pending, since the mocked fetch
 // resolves in a microtask. Otherwise a render between two awaited queries can wait until a findBy*
@@ -210,29 +211,20 @@ function mockPage(rows: Record<string, unknown>[]) {
     totalrows: rows.length,
     totalIsApproximate: false,
   };
-  const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-    { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+  return stubFetch(() => jsonResponse(page));
 }
 
 // Answers every request with the same five rows, as one page of a result with the given total
 function stubPage(total: { totalrows: number; totalIsApproximate: boolean }) {
   const rows = Array.from({ length: 5 }, (unused, index) => (
     { "@path": `/GridEntities/e${index}`, "title": `Entity ${index}` }));
-  const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve({
-    ok: true,
-    url: "",
-    json: () => Promise.resolve({ rows, offset: 0, limit: 5, returnedrows: 5, ...total }),
-  } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+  return stubFetch(() => jsonResponse({ rows, offset: 0, limit: 5, returnedrows: 5, ...total }));
 }
 
 // The offset and sort of every page the grid asked the server for, in order, as "offset/sortBy"
-function pagesRequested(fetchMock: { mock: { calls: [string][] } }) {
-  return fetchMock.mock.calls
-    .map(call => new URL(call[0], "http://localhost"))
+function pagesRequested() {
+  return sentRequests()
+    .map(request => new URL(request.url, "http://localhost"))
     .filter(url => url.pathname.endsWith(".paginate.json"))
     .map(url => `${url.searchParams.get("offset")}/${url.searchParams.get("sortBy")}`);
 }
@@ -431,8 +423,7 @@ describe("EntityDataGrid", () => {
   });
 
   it("shows an error when the server rejects the request", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));
+    stubFailingFetch(503);
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
@@ -995,85 +986,80 @@ describe("EntityDataGrid", () => {
   });
 
   it("stays on the page it moved to", async () => {
-    const fetchMock = stubPage({ totalrows: 20, totalIsApproximate: false });
+    stubPage({ totalrows: 20, totalIsApproximate: false });
     const user = userEvent.setup();
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await moveToSecondPage(user);
 
     expect(screen.getByText(/6–10 of 20/)).toBeInTheDocument();
-    expect(pagesRequested(fetchMock)).toEqual(["0/title", "5/title"]);
+    expect(pagesRequested()).toEqual(["0/title", "5/title"]);
   });
 
   it("goes back a page when the last one empties, without showing an empty list", async () => {
     let total = 6;
     let answerFirstPage = () => { /* replaced while the first page is held back */ };
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(url => {
-      const offset = Number(new URL(url, "http://localhost").searchParams.get("offset"));
+    stubFetch(request => {
+      const offset = Number(new URL(request.url, "http://localhost").searchParams.get("offset"));
       const rows = Array.from({ length: Math.max(0, Math.min(5, total - offset)) }, (unused, index) => (
         { "@path": `/GridEntities/e${offset + index}`, "title": `Entity ${offset + index}` }));
-      const response = {
-        ok: true,
-        url: "",
-        json: () => Promise.resolve({ rows, offset, limit: 5, returnedrows: rows.length, totalrows: total,
-          totalIsApproximate: false }),
-      } as unknown as Response;
+      const response = jsonResponse({ rows, offset, limit: 5, returnedrows: rows.length, totalrows: total,
+        totalIsApproximate: false });
       return total === 5 && offset === 0
         ? new Promise(resolve => { answerFirstPage = () => resolve(response); })
-        : Promise.resolve(response);
+        : response;
     });
-    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { rerender } = render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />,
       { wrapper: MemoryRouter });
     await screen.findByText("Entity 0");
     await user.click(screen.getByRole("button", { name: /next page/i }));
     await screen.findByText("Entity 5");
-    const before = pagesRequested(fetchMock).length;
+    const before = pagesRequested().length;
 
     // An action column deletes the only entity on the second page
     total = 5;
     // Either message the grid shows over no rows
     const sawEmptyList = watchForText(/No results found|Nothing to show/);
     rerender(<EntityDataGrid entityType={TEST_TYPE} refreshToken={1} disableVirtualization />);
-    await waitFor(() => { expect(pagesRequested(fetchMock).length).toBe(before + 2); });
+    await waitFor(() => { expect(pagesRequested().length).toBe(before + 2); });
     answerFirstPage();
     expect(await screen.findByText("Entity 0")).toBeInTheDocument();
     await flushGridTimers();
 
     expect(sawEmptyList()).toBe(false);
     expect(screen.getByText(/1–5 of 5/)).toBeInTheDocument();
-    expect(pagesRequested(fetchMock).slice(before)).toEqual(["5/title", "0/title"]);
+    expect(pagesRequested().slice(before)).toEqual(["5/title", "0/title"]);
   });
 
   // Left to itself, the grid also ends on the first page, after reading and showing page 2 in the
   // new order. The test therefore counts the requests.
   it("returns to the first page when the sort order changes, in one request", async () => {
-    const fetchMock = stubPage({ totalrows: 20, totalIsApproximate: false });
+    stubPage({ totalrows: 20, totalIsApproximate: false });
     const user = userEvent.setup();
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await moveToSecondPage(user);
-    const before = pagesRequested(fetchMock).length;
+    const before = pagesRequested().length;
 
     await user.click(screen.getByText("Status"));
     await flushGridTimers();
 
-    expect(pagesRequested(fetchMock).slice(before)).toEqual(["0/status"]);
+    expect(pagesRequested().slice(before)).toEqual(["0/status"]);
   });
 
   it("returns to the first page when the sort menu changes the order, in one request", async () => {
     fakeNarrowScreen();
-    const fetchMock = stubPage({ totalrows: 20, totalIsApproximate: false });
+    stubPage({ totalrows: 20, totalIsApproximate: false });
     const user = userEvent.setup();
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await moveToSecondPage(user);
-    const before = pagesRequested(fetchMock).length;
+    const before = pagesRequested().length;
 
     await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Sort" }));
     await user.click(await screen.findByRole("menuitem", { name: /Modified/ }));
     await flushGridTimers();
 
-    expect(pagesRequested(fetchMock).slice(before)).toEqual(["0/jcr:lastModified"]);
+    expect(pagesRequested().slice(before)).toEqual(["0/jcr:lastModified"]);
   });
 
   it("reads the page once when a caller adds a column of its own", async () => {
@@ -1108,9 +1094,9 @@ describe("EntityDataGrid", () => {
   it("recovers from a fetch error through the retry button, keeping its controls", async () => {
     let failing = true;
     const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => failing
+    stubFetch(() => failing
       ? Promise.reject(new Error("Failed to list /GridEntities: 500 — Query parse error"))
-      : Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response)));
+      : jsonResponse(page));
     const user = userEvent.setup();
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
@@ -1149,13 +1135,10 @@ describe("EntityDataGrid", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(resolve => {
       settlers.push(resolve);
     })));
-    const pageWith = (title: string) => ({
-      ok: true, url: "",
-      json: () => Promise.resolve({
-        rows: [{ "@path": `/GridEntities/${title}`, title }],
-        offset: 0, limit: 5, returnedrows: 1, totalrows: 1, totalIsApproximate: false,
-      }),
-    } as unknown as Response);
+    const pageWith = (title: string) => jsonResponse({
+      rows: [{ "@path": `/GridEntities/${title}`, title }],
+      offset: 0, limit: 5, returnedrows: 1, totalrows: 1, totalIsApproximate: false,
+    });
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     // A search sends a second request while the first is unanswered

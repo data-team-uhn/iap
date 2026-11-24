@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.PersistenceException;
@@ -30,12 +31,12 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.models.Linkable;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class AddLinkHandlerTest
 {
     private static final String SOURCE = "/Schemas/study/v1";
+
+    private static final String HOST = "/Schemas/study/v2";
 
     private static final String COPIED_FROM = "copiedFrom";
 
@@ -71,7 +74,7 @@ class AddLinkHandlerTest
         Mockito.when(resource.adaptTo(Content.class)).thenReturn(this.source);
         Mockito.when(this.resolver.getResource(SOURCE)).thenReturn(resource);
         Mockito.when(this.host.adaptTo(Linkable.class)).thenReturn(this.linkable);
-        Mockito.when(this.host.getPath()).thenReturn("/Schemas/study/v2");
+        Mockito.when(this.host.getPath()).thenReturn(HOST);
         Mockito.when(this.activity.get("to")).thenReturn("source");
         Mockito.when(this.activity.get("linkType")).thenReturn(COPIED_FROM);
     }
@@ -93,11 +96,11 @@ class AddLinkHandlerTest
     @Test
     void namesTheLinkByItsTypeForTheHistory() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext linking = context(Map.of("source", SOURCE));
+        final RecordingTaskContext linking = context(Map.of("source", SOURCE));
 
         this.handler.execute(linking);
 
-        Mockito.verify(linking).recordRole(this.host, "linked as copiedFrom");
+        assertEquals(List.of(new RecordedRole(HOST, "linked as copiedFrom")), linking.getRoles());
     }
 
     @Test
@@ -113,14 +116,14 @@ class AddLinkHandlerTest
     @Test
     void linksNothingWhenTheEventNamesNothing() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext unnamed = context(Map.of());
+        final RecordingTaskContext unnamed = context(Map.of());
         this.handler.execute(unnamed);
         // Blank, or something other than text, as for any entry an event gives
         this.handler.execute(context(Map.of("source", " ")));
         this.handler.execute(context(Map.of("source", 12)));
 
         Mockito.verifyNoInteractions(this.linkable);
-        Mockito.verify(unnamed, Mockito.never()).recordRole(Mockito.any(), Mockito.any());
+        assertEquals(List.of(), unnamed.getRoles());
     }
 
     @Test
@@ -172,13 +175,12 @@ class AddLinkHandlerTest
         assertThrows(PersistenceException.class, () -> this.handler.execute(context(Map.of("source", SOURCE))));
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload)
+    private RecordingTaskContext context(final Map<String, Object> payload)
     {
-        final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
-        Mockito.when(context.getEvent()).thenReturn(new WorkflowEvent("createVersion", payload));
-        Mockito.when(context.getActivity()).thenReturn(this.activity);
-        Mockito.when(context.getResourceResolver()).thenReturn(this.resolver);
-        Mockito.when(context.getTarget()).thenReturn(this.host);
-        return context;
+        return RecordingTaskContext.aimedAt(this.host)
+            .forEvent("createVersion", payload)
+            .performing(this.activity)
+            .resolvingThrough(this.resolver)
+            .build();
     }
 }

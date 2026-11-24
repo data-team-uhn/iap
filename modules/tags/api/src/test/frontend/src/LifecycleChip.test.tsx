@@ -18,9 +18,10 @@
 
 import { act, render, screen } from "@testing-library/react";
 
+import { stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import { tagAwareFetch } from "./tagDefinitions.fixture";
+import { tagAware } from "./tagDefinitions.fixture";
 
 describe("LifecycleChip", () => {
   afterEach(() => {
@@ -28,7 +29,7 @@ describe("LifecycleChip", () => {
   });
 
   it("shows where a node stands in its lifecycle, and none of its other tags", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     render(<LifecycleChip tags={["in-progress", "draft"]} />);
 
@@ -37,7 +38,7 @@ describe("LifecycleChip", () => {
   });
 
   it("shows nothing for a node outside any lifecycle", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     const { container } = render(<LifecycleChip tags={["in-progress"]} />);
 

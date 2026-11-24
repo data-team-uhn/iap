@@ -17,7 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,15 +28,16 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -63,7 +64,7 @@ class RetireActiveVersionsHandlerTest
     void setUp()
     {
         AuthoringFixture.setUp(this.context);
-        TaggingFixture.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.activity = AuthoringFixture.activity(this.context, "retire",
             Map.of("handler", RetireActiveVersionsHandler.HANDLER_NAME));
     }
@@ -79,15 +80,15 @@ class RetireActiveVersionsHandlerTest
     {
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext retiring = this.retireFor("2-0");
 
-        this.handler.execute(this.retireFor("2-0", variables));
+        this.handler.execute(retiring);
 
         assertEquals(Set.of("retired"), this.tagsOf("1-0"));
         // The promoted version is left where it is; promoting it is the step after this one
         assertEquals(Set.of("draft"), this.tagsOf("2-0"));
         assertArrayEquals(new String[] { AuthoringFixture.path("1-0") },
-            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
+            (String[]) retiring.getVariable(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
     }
 
     @Test
@@ -95,14 +96,11 @@ class RetireActiveVersionsHandlerTest
     {
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
-        final WorkflowTaskContext retiring = Mockito.spy(this.retireFor("2-0", new HashMap<>()));
+        final RecordingTaskContext retiring = this.retireFor("2-0");
 
         this.handler.execute(retiring);
 
-        Mockito.verify(retiring).recordRole(
-            Mockito.argThat(resource -> AuthoringFixture.path("1-0").equals(resource.getPath())),
-            Mockito.eq("retired"));
-        Mockito.verify(retiring, Mockito.times(1)).recordRole(Mockito.any(), Mockito.anyString());
+        assertEquals(List.of(new RecordedRole(AuthoringFixture.path("1-0"), "retired")), retiring.getRoles());
     }
 
     @Test
@@ -111,12 +109,10 @@ class RetireActiveVersionsHandlerTest
         // After a step that created the version being promoted, its siblings are the ones retired
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put(WorkflowResult.CREATED_PATH_VARIABLE, AuthoringFixture.path("2-0"));
 
         this.handler.execute(AuthoringFixture.context(
             this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION), "activate", Map.of(),
-            this.activity, variables));
+            this.activity).havingCreated(AuthoringFixture.path("2-0")).build());
 
         assertEquals(Set.of("retired"), this.tagsOf("1-0"));
         assertEquals(Set.of("draft"), this.tagsOf("2-0"));
@@ -130,7 +126,7 @@ class RetireActiveVersionsHandlerTest
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "active", Map.of());
         AuthoringFixture.createVersion(this.context, "3-0", "3.0", "trial", Map.of());
 
-        this.handler.execute(this.retireFor("3-0", new HashMap<>()));
+        this.handler.execute(this.retireFor("3-0"));
 
         assertEquals(Set.of("retired"), this.tagsOf("1-0"));
         assertEquals(Set.of("retired"), this.tagsOf("2-0"));
@@ -144,7 +140,7 @@ class RetireActiveVersionsHandlerTest
             Map.of(WorkflowFixture.TAGS, WorkflowFixture.tags("active", "sensitive")));
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
 
-        this.handler.execute(this.retireFor("2-0", new HashMap<>()));
+        this.handler.execute(this.retireFor("2-0"));
 
         assertEquals(Set.of("retired", "sensitive"), this.tagsOf("1-0"));
     }
@@ -154,13 +150,13 @@ class RetireActiveVersionsHandlerTest
     {
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", "retired", Map.of());
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext retiring = this.retireFor("2-0");
 
-        this.handler.execute(this.retireFor("2-0", variables));
+        this.handler.execute(retiring);
 
         assertEquals(Set.of("retired"), this.tagsOf("1-0"));
         assertArrayEquals(new String[0],
-            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
+            (String[]) retiring.getVariable(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
     }
 
     @Test
@@ -172,7 +168,7 @@ class RetireActiveVersionsHandlerTest
         this.context.create().resource(AuthoringFixture.path("notes"),
             Map.of(WorkflowFixture.TYPE, "nt:unstructured", WorkflowFixture.TAGS, WorkflowFixture.tags("active")));
 
-        this.handler.execute(this.retireFor("1-0", new HashMap<>()));
+        this.handler.execute(this.retireFor("1-0"));
 
         final Resource notes = this.context.resourceResolver().getResource(AuthoringFixture.path("notes"));
         assertNotNull(notes);
@@ -187,13 +183,14 @@ class RetireActiveVersionsHandlerTest
             WorkflowFixture.TYPE, "sch/SchemaVersion", WorkflowFixture.TAGS, WorkflowFixture.tags("active")));
         final Resource promoted = this.context.create().resource("/Schemas/leave/v2", Map.of(
             WorkflowFixture.TYPE, "sch/SchemaVersion", WorkflowFixture.TAGS, WorkflowFixture.tags("draft")));
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext promoting =
+            AuthoringFixture.context(promoted, "activate", Map.of(), this.activity).build();
 
-        this.handler.execute(AuthoringFixture.context(promoted, "activate", Map.of(), this.activity, variables));
+        this.handler.execute(promoting);
 
         assertEquals(Set.of("retired"), WorkflowFixture.tags(current));
         assertArrayEquals(new String[] {current.getPath()},
-            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
+            (String[]) promoting.getVariable(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
     }
 
     @Test
@@ -205,7 +202,7 @@ class RetireActiveVersionsHandlerTest
         final Resource rootless = org.mockito.Mockito.spy(orphan);
         org.mockito.Mockito.doReturn(null).when(rootless).getParent();
         final WorkflowTaskContext request =
-            AuthoringFixture.context(rootless, "activate", Map.of(), this.activity, new HashMap<>());
+            AuthoringFixture.context(rootless, "activate", Map.of(), this.activity).build();
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(request));
     }
@@ -214,13 +211,12 @@ class RetireActiveVersionsHandlerTest
      * A task context retiring whatever the fixture's definition has current, on behalf of one of its versions.
      *
      * @param name the node name of the version being promoted
-     * @param variables where the handler reports what it retired
      * @return the assembled context
      */
-    private WorkflowTaskContext retireFor(final String name, final Map<String, Object> variables)
+    private RecordingTaskContext retireFor(final String name)
     {
         return AuthoringFixture.context(this.context.resourceResolver().getResource(AuthoringFixture.path(name)),
-            "activate", Map.of(), this.activity, variables);
+            "activate", Map.of(), this.activity).build();
     }
 
     /**

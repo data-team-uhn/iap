@@ -24,10 +24,12 @@ import java.util.Objects;
 import javax.jcr.Node;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,8 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowToken;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
@@ -97,13 +101,15 @@ class BranchingTest
     private static final WorkflowEvent DONE = new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of());
 
     // JCR-backed: the host points at its workflow with a real REFERENCE, which needs a JCR node
-    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+    private final SlingContext context = new SlingContextBuilder(ResourceResolverType.JCR_MOCK)
+        .plugin(new ServiceSessions(), WorkflowPlugins.ENGINE)
+        .build();
 
     @BeforeEach
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        WorkflowFixture.enableTagging(this.context, WorkflowFixture.LIFECYCLE_TAGS);
+        WorkflowFixture.enableTagging(this.context);
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         this.context.create().resource("/libs/sub/Submission", Map.of("sling:resourceSuperType", Entity.RESOURCE_TYPE));
         this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
@@ -670,16 +676,17 @@ class BranchingTest
     }
 
     /**
-     * Builds an engine with its services injected by hand.
+     * The engine, with the {@code startWorkflow} handler the process is started by.
      *
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
+     * @return the engine
+     * @throws PersistenceException when the fixture content cannot be committed
      */
-    private WorkflowEngine engine() throws Exception
+    private WorkflowEngine engine() throws PersistenceException
     {
+        // The engine's service session only sees what has been committed
         this.context.resourceResolver().commit();
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null),
-            List.of(new StartWorkflowHandler()));
+        this.context.registerService(ServiceTaskHandler.class, new StartWorkflowHandler());
+        return this.context.getService(WorkflowEngine.class);
     }
 
     /**

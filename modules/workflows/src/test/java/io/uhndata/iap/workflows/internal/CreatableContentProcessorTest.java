@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
 import java.util.List;
 
 import javax.jcr.Node;
@@ -31,6 +30,7 @@ import jakarta.json.JsonObjectBuilder;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +44,7 @@ import io.uhndata.iap.workflows.internal.handlers.FieldsFixture;
 import io.uhndata.iap.workflows.internal.handlers.UpdateContentHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,21 +60,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class CreatableContentProcessorTest
 {
-    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
+    private final SlingContext context = new SlingContextBuilder(ResourceResolverType.JCR_OAK)
+        .plugin(WorkflowPlugins.MOCK_ENGINE)
+        .build();
 
-    private final CreatableContentProcessor processor = new CreatableContentProcessor();
+    private CreatableContentProcessor processor;
 
-    private final WorkflowEngine engine = Mockito.mock(WorkflowEngine.class);
+    private WorkflowEngine engine;
 
     private FieldsFixture fixture;
 
     @BeforeEach
-    void setUp() throws RepositoryException, ReflectiveOperationException
+    void setUp() throws RepositoryException
     {
         this.fixture = new FieldsFixture(this.context);
-        final Field field = CreatableContentProcessor.class.getDeclaredField("engine");
-        field.setAccessible(true);
-        field.set(this.processor, this.engine);
+        this.processor = this.context.registerInjectActivateService(CreatableContentProcessor.class);
+        this.engine = this.context.getService(WorkflowEngine.class);
     }
 
     @Test

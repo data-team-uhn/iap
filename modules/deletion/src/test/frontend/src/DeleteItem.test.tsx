@@ -24,18 +24,14 @@ import userEvent from "@testing-library/user-event";
 
 import DeleteItem from "@iap/deletion/DeleteItem";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import { ReLoginContext } from "@iap/frontend-commons/reLogin";
 
 const PATH = "/content/victim";
 
-const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "Content-Type": "application/json" }
-});
-
 const archived = { "status.code": 200, status: "archived", items: [ PATH ], removedLinks: [] };
 
-const dryRun = (extra: Record<string, unknown> = {}) => jsonResponse(200, {
+const dryRun = (extra: Record<string, unknown> = {}) => jsonResponse({
   "status.code": 200,
   status: "dryRun",
   executable: true,
@@ -106,7 +102,7 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse(200, archived));
+      .mockResolvedValueOnce(jsonResponse(archived));
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -123,7 +119,7 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun({ executable: false, ...referenced, status: "dryRun" }))
-      .mockResolvedValueOnce(jsonResponse(200, archived));
+      .mockResolvedValueOnce(jsonResponse(archived));
     renderButton();
 
     await user.click(screen.getByRole("button", { name: "Delete submission" }));
@@ -138,7 +134,7 @@ describe("DeleteItem", () => {
 
   it("states a veto and offers no way to override it", async () => {
     const user = userEvent.setup();
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(200, { ...vetoed, status: "dryRun" }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ ...vetoed, status: "dryRun" }));
     renderButton();
 
     await user.click(screen.getByRole("button", { name: "Delete submission" }));
@@ -153,7 +149,7 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse(409, referenced));
+      .mockResolvedValueOnce(jsonResponse(referenced, 409));
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -170,7 +166,7 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse(404, { "status.code": 404, status: "missing" }));
+      .mockResolvedValueOnce(jsonResponse({ "status.code": 404, status: "missing" }, 404));
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -184,11 +180,11 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse(403, {
+      .mockResolvedValueOnce(jsonResponse({
         "status.code": 403,
         status: "denied",
         "status.message": "You are not allowed to delete everything this deletion would impact"
-      }));
+      }, 403));
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -204,7 +200,7 @@ describe("DeleteItem", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(globalThis, "fetch")
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce(jsonResponse(200, archived));
+      .mockResolvedValueOnce(jsonResponse(archived));
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -221,7 +217,7 @@ describe("DeleteItem", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(jsonResponse(200, archived));
+      .mockResolvedValueOnce(jsonResponse(archived));
     const signIn = vi.fn().mockResolvedValue(true);
     const onDeleted = vi.fn();
     render(
@@ -407,7 +403,7 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse(400, { "status.code": 400, status: "invalid" }));
+      .mockResolvedValueOnce(jsonResponse({ "status.code": 400, status: "invalid" }, 400));
     renderButton();
 
     await openDialog(user);

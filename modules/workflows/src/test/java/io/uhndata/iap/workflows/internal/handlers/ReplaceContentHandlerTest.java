@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,6 +41,8 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -106,12 +107,11 @@ class ReplaceContentHandlerTest
     @Test
     void namesTheChildItReplacedForTheHistory() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext replacing = task(Map.of(ReplaceContentHandler.CONTENT_PARAMETER, json(ALL_OF)));
+        final RecordingTaskContext replacing = task(Map.of(ReplaceContentHandler.CONTENT_PARAMETER, json(ALL_OF)));
 
         this.handler.execute(replacing);
 
-        Mockito.verify(replacing).recordRole(Mockito.argThat(resource -> CARD.equals(resource.getPath())),
-            Mockito.eq("replaced test:rule"));
+        assertEquals(List.of(new RecordedRole(CARD, "replaced test:rule")), replacing.getRoles());
     }
 
     @Test
@@ -251,10 +251,10 @@ class ReplaceContentHandlerTest
     @Test
     void actsOnWhatWasCreated() throws WorkflowException, PersistenceException, RepositoryException
     {
-        final WorkflowTaskContext task = this.fixture.task("condition", this.activity,
-            Map.of(ReplaceContentHandler.CONTENT_PARAMETER, json(ALL_OF)), new HashMap<>());
-        Mockito.when(task.getCreated()).thenReturn(this.context.resourceResolver().getResource("/made"));
-        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(CARD));
+        final WorkflowTaskContext task = this.fixture.task(this.context.resourceResolver().getResource(CARD),
+            "condition", this.activity, Map.of(ReplaceContentHandler.CONTENT_PARAMETER, json(ALL_OF)))
+            .havingCreated("/made")
+            .build();
 
         this.handler.execute(task);
 
@@ -270,9 +270,8 @@ class ReplaceContentHandlerTest
         Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
         Mockito.when(target.getPath()).thenReturn(CARD);
         Mockito.when(node.isCheckedOut()).thenThrow(new RepositoryException("gone"));
-        final WorkflowTaskContext task = this.fixture.task("condition", this.activity,
-            Map.of(ReplaceContentHandler.CONTENT_PARAMETER, "null"), new HashMap<>());
-        Mockito.when(task.getTarget()).thenReturn(target);
+        final WorkflowTaskContext task = this.fixture.task(target, "condition", this.activity,
+            Map.of(ReplaceContentHandler.CONTENT_PARAMETER, "null")).build();
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(task));
     }
@@ -289,11 +288,10 @@ class ReplaceContentHandlerTest
         this.session.save();
     }
 
-    private WorkflowTaskContext task(final Map<String, Object> payload)
+    private RecordingTaskContext task(final Map<String, Object> payload)
     {
-        final WorkflowTaskContext task = this.fixture.task("condition", this.activity, payload, new HashMap<>());
-        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(CARD));
-        return task;
+        return this.fixture.task(this.context.resourceResolver().getResource(CARD), "condition", this.activity,
+            payload).build();
     }
 
     private static String json(final String content)

@@ -27,6 +27,8 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.utils.testing.TestResolverFactory;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -79,7 +81,7 @@ class ParseJobTest
     @Test
     void openResolverPropagatesAMissingServiceUser()
     {
-        assertThrows(LoginException.class, () -> ParseJob.openResolver(new TestResolverFactory(null)));
+        assertThrows(LoginException.class, () -> ParseJob.openResolver(TestResolverFactory.withoutServiceUser()));
     }
 
     @Test

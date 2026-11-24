@@ -27,7 +27,7 @@ import { diffArrays } from "diff";
 import PdfViewer, { type PdfViewerProps } from "@iap/documents-pdf-viewer/PdfViewer";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 
-import { fakePdf, FakeWorker, getDrawnMarks, MATCH_TOP, stubFetch, stubLayout } from "./pdfjs.fixture";
+import { fakePdf, FakeWorker, getDrawnMarks, MATCH_TOP, stubDocumentFetch, stubLayout } from "./pdfjs.fixture";
 
 import type * as Diff from "diff";
 
@@ -95,7 +95,7 @@ async function chooseView(name: string) {
 
 describe("PdfViewer compared with an older version", () => {
   beforeEach(() => {
-    stubFetch();
+    stubDocumentFetch();
     vi.stubGlobal("Worker", FakeWorker);
   });
 

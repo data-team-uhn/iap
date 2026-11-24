@@ -18,6 +18,8 @@
 
 import { render, screen, waitFor } from "@testing-library/react";
 
+import { jsonResponse, stubFailingFetch, stubFetch, type FetchRoute } from "@iap/frontend-commons/fetch.fixture";
+
 // A module in the test bundle, so that loadAsset's dynamic import runs for real. A URL without
 // `asset:` needs no entry in the asset map.
 const FIXTURE_URL = "/src/frontend-commons/remoteAsset.fixture.tsx";
@@ -32,25 +34,20 @@ const freshAssetManager = async () => {
 };
 
 // Serves the two manifests, and 404s anything else
-const stubManifests = (
+const manifests = (
   assets: Record<string, string> = {},
   dependencies: Record<string, string[]> | null = {},
-) => {
-  const fetchMock = vi.fn((url: RequestInfo | URL) => {
-    const target = String(url);
-    if (target.endsWith("assets.json")) {
-      return Promise.resolve({ ok: true, url: target, json: () => Promise.resolve(assets) } as unknown as Response);
-    }
-    if (target.endsWith("assetDependencies.json")) {
-      return Promise.resolve((dependencies
-        ? { ok: true, url: target, json: () => Promise.resolve(dependencies) }
-        : { ok: false, status: 404 }) as unknown as Response);
-    }
-    return Promise.resolve({ ok: false, status: 404 } as Response);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+): FetchRoute => request => {
+  if (request.url.endsWith("assets.json")) {
+    return jsonResponse(assets);
+  }
+  if (request.url.endsWith("assetDependencies.json") && dependencies) {
+    return jsonResponse(dependencies);
+  }
+  return new Response(null, { status: 404 });
 };
+
+const stubManifests = (...args: Parameters<typeof manifests>) => stubFetch(manifests(...args));
 
 describe("assetManager", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -111,15 +108,14 @@ describe("assetManager", () => {
     });
 
     it("reports a manifest that cannot be fetched, and retries next time", async () => {
-      const fetchMock = vi.fn((_url: RequestInfo | URL) => Promise.resolve({ ok: false, status: 500 } as Response));
-      vi.stubGlobal("fetch", fetchMock);
+      const fetchMock = stubFailingFetch(500);
       const { getAssetURL } = await freshAssetManager();
 
       expect(await getAssetURL("asset:iap-test.Widget.js")).toBe("");
       expect(errorSpy).toHaveBeenCalledWith("Failed to resolve assets", expect.any(Error));
 
       await getAssetURL("asset:iap-test.Widget.js");
-      expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("assets.json"))).toHaveLength(2);
+      expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("assets.json"))).toHaveLength(2);
     });
 
     it("fetches the manifest only once for concurrent lookups", async () => {
@@ -128,7 +124,7 @@ describe("assetManager", () => {
 
       await Promise.all([getAssetURL("asset:a.js"), getAssetURL("asset:b.js")]);
 
-      expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("assets.json"))).toHaveLength(1);
+      expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("assets.json"))).toHaveLength(1);
     });
   });
 
@@ -252,22 +248,21 @@ describe("assetManager", () => {
     await loadAsset("asset:iap-test.First.js");
     await loadAsset("asset:iap-test.Second.js");
 
-    const dependencyFetches = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("assetDependencies.json"));
+    const dependencyFetches = fetchMock.mock.calls.filter(([url]) => url.endsWith("assetDependencies.json"));
     expect(dependencyFetches).toHaveLength(1);
   });
 
   it("asks for the asset dependencies manifest again after a failed read", async () => {
     delete (globalThis as { __remoteDependencyLoaded?: boolean }).__remoteDependencyLoaded;
-    const serve = stubManifests({}, { [FIXTURE_URL]: [DEPENDENCY_URL] });
     // The connection drops on the first read of the dependency manifest, as while the server restarts
     let dropped = false;
-    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => {
-      if (!dropped && String(url).endsWith("assetDependencies.json")) {
+    stubFetch(request => {
+      if (!dropped && request.url.endsWith("assetDependencies.json")) {
         dropped = true;
         return Promise.reject(new TypeError("Failed to fetch"));
       }
-      return serve(url);
-    }));
+      return undefined;
+    }, manifests({}, { [FIXTURE_URL]: [DEPENDENCY_URL] }));
     const { loadAsset } = await freshAssetManager();
 
     await loadAsset("asset:iap-test.First.js");

@@ -26,7 +26,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import WorkflowActions, { type WorkflowActionProps } from "@iap/workflows/WorkflowActions";
 import type { WorkflowSummary } from "@iap/workflows/workflowModel";
@@ -36,8 +36,6 @@ import WorkflowPropertiesAction from "@iap/workflows/WorkflowPropertiesAction";
 vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }));
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
-
-type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
 const WORKFLOW_PATH = "/Workflows/review";
 
@@ -64,31 +62,12 @@ const workflow = (events: string[] = [ "createVersion", "save" ]): WorkflowSumma
 });
 
 // An engine that runs every event it is given, and answers each with the path of what it created.
-const stubFetch = () => {
-  const fetchMock = vi.fn<FetchStub>(url => Promise.resolve({
-    ok: true,
-    status: 201,
-    url: `http://localhost${url}`,
-    headers: new Headers(),
-    json: () => Promise.resolve({ status: "created", path: `${url.split(".")[0]}/created` }),
-  } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
+const stubEngine = () => stubFetch(request =>
+  jsonResponse({ status: "created", path: `${request.url.split(".")[0]}/created` }, 201));
 
-// A server that refuses everything while reporting the session as live: what makes a failure the
-// server's own rather than a lapsed session to be recovered from.
-const stubFailingFetch = (status: number) => {
-  vi.stubGlobal("fetch", vi.fn<FetchStub>(url => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : {
-      ok: false,
-      status,
-      statusText: "Refused",
-      url,
-      json: () => Promise.resolve({ error: `The engine refused this (${status})` }),
-    }) as unknown as Response)));
-};
+// A server that refuses everything, in the engine's words
+const stubRefusal = (status: number) =>
+  stubFailingFetch(status, { body: { error: `The engine refused this (${status})` } });
 
 // Wherever the router ended up, as text.
 function Destination() {
@@ -148,7 +127,7 @@ describe("WorkflowActions", () => {
 describe("the properties action", () => {
   it("saves an edit of the workflow's properties, and has the page read it again", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const reload = vi.fn();
     renderAction(WorkflowPropertiesAction, { workflow: workflow(), reload });
 
@@ -174,7 +153,7 @@ describe("the properties action", () => {
     await user.click(screen.getByRole("button", { name: "Edit properties" }));
     const dialog = await screen.findByRole("dialog", { name: "Workflow properties" });
 
-    stubFailingFetch(403);
+    stubRefusal(403);
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("The engine refused this (403)");
@@ -196,7 +175,7 @@ describe("the new-version action", () => {
 
   it("creates a version and opens its editor", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     renderAction(WorkflowNewVersionAction, { workflow: workflow(), reload: vi.fn() });
 
     await user.click(screen.getByRole("button", { name: "New version" }));
@@ -223,7 +202,7 @@ describe("the new-version action", () => {
     await user.click(screen.getByRole("button", { name: "New version" }));
     const dialog = await screen.findByRole("dialog", { name: /New version/ });
 
-    stubFailingFetch(500);
+    stubRefusal(500);
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("The engine refused this (500)");
@@ -244,7 +223,7 @@ describe("the new-version action", () => {
 
   it("can be abandoned without creating anything", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     renderAction(WorkflowNewVersionAction, { workflow: workflow(), reload: vi.fn() });
     await user.click(screen.getByRole("button", { name: "New version" }));
     const dialog = await screen.findByRole("dialog", { name: /New version/ });

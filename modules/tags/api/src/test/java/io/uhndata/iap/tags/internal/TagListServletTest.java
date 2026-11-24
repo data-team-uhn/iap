@@ -36,6 +36,7 @@ import org.osgi.framework.Constants;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.models.TagDefinition;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -81,7 +82,7 @@ class TagListServletTest
 
         // Outranks the mock repository's own factory, so the manager reads the definitions created above
         this.context.registerService(ResourceResolverFactory.class,
-            new TestResolverFactory(this.context.resourceResolver()), Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+            TestResolverFactory.serving(this.context.resourceResolver()), Constants.SERVICE_RANKING, Integer.MAX_VALUE);
         this.context.registerInjectActivateService(new TagManagerImpl());
         this.servlet = this.context.registerInjectActivateService(new TagListServlet());
     }

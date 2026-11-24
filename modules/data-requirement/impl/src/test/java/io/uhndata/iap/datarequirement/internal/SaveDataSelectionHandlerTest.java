@@ -42,8 +42,8 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static io.uhndata.iap.datarequirement.internal.SelectionFixture.BIRTH_DATE;
 import static io.uhndata.iap.datarequirement.internal.SelectionFixture.DATA;
@@ -194,13 +194,12 @@ class SaveDataSelectionHandlerTest
     void recordsWhatItDidForTheHistory() throws Exception
     {
         this.fixture.select();
-        final WorkflowTaskContext task = context(payload(DATA, new String[] {BIRTH_DATE}));
+        final RecordingTaskContext task = context(payload(DATA, new String[] {BIRTH_DATE}));
 
         this.handler.execute(task);
 
-        Mockito.verify(task).recordRole(
-            Mockito.argThat(resource -> resource.getPath().equals(SUBMISSION_PATH + "/selection")),
-            Mockito.eq("chose data for " + SelectionFixture.DATA_LABEL));
+        assertEquals(List.of(new RecordedRole(SUBMISSION_PATH + "/selection",
+            "chose data for " + SelectionFixture.DATA_LABEL)), task.getRoles());
     }
 
     @Test
@@ -304,9 +303,9 @@ class SaveDataSelectionHandlerTest
     @Test
     void refusesToRunOnAnythingButASubmission()
     {
-        final WorkflowTaskContext task = context(payload(DATA, new String[] {BIRTH_DATE}));
-        Mockito.when(task.getTarget()).thenReturn(
-            this.context.resourceResolver().getResource(SelectionFixture.CATALOGUE_PATH));
+        final RecordingTaskContext task = RecordingTaskContext.aimedAt(
+            this.context.resourceResolver().getResource(SelectionFixture.CATALOGUE_PATH)).actingFor(REQUESTER)
+            .forEvent(SaveDataSelectionHandler.HANDLER_NAME, payload(DATA, new String[] {BIRTH_DATE})).build();
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(task));
     }
@@ -364,24 +363,20 @@ class SaveDataSelectionHandlerTest
         return Objects.requireNonNull(selections.get(0));
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload)
+    private RecordingTaskContext context(final Map<String, Object> payload)
     {
         return context(payload, REQUESTER);
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor)
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor)
     {
         return context(payload, actor, this.context.resourceResolver());
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor,
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor,
         final ResourceResolver resolver)
     {
-        final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
-        Mockito.when(task.getTarget()).thenReturn(this.fixture.writableSubmission(resolver));
-        Mockito.when(task.getActor()).thenReturn(actor);
-        Mockito.when(task.getEvent()).thenReturn(new WorkflowEvent(SaveDataSelectionHandler.HANDLER_NAME, payload));
-        Mockito.when(task.getResourceResolver()).thenReturn(resolver);
-        return task;
+        return RecordingTaskContext.aimedAt(this.fixture.writableSubmission(resolver)).actingFor(actor)
+            .forEvent(SaveDataSelectionHandler.HANDLER_NAME, payload).resolvingThrough(resolver).build();
     }
 }

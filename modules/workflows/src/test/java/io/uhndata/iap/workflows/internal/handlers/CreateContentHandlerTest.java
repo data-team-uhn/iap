@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,6 +43,8 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -99,12 +100,11 @@ class CreateContentHandlerTest
     @Test
     void namesWhatItAddedByItsTypeForTheHistory() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext adding = task(BOX, Map.of(TYPE, ITEM, NAME, "chosen"), new HashMap<>());
+        final RecordingTaskContext adding = task(BOX, Map.of(TYPE, ITEM, NAME, "chosen"));
 
         this.handler.execute(adding);
 
-        Mockito.verify(adding).recordRole(Mockito.argThat(resource -> "/box/chosen".equals(resource.getPath())),
-            Mockito.eq("added test:Item"));
+        assertEquals(List.of(new RecordedRole("/box/chosen", "added test:Item")), adding.getRoles());
     }
 
     @Test
@@ -252,30 +252,29 @@ class CreateContentHandlerTest
         Mockito.when(parent.adaptTo(Node.class)).thenReturn(node);
         Mockito.when(node.getMixinNodeTypes()).thenThrow(new RepositoryException("gone"));
         Mockito.when(node.getSession()).thenThrow(new RepositoryException("gone"));
-        final WorkflowTaskContext task = task(BOX, Map.of(TYPE, ITEM), new HashMap<>());
-        Mockito.when(task.getTarget()).thenReturn(parent);
+        final WorkflowTaskContext task =
+            this.fixture.task(parent, "create", this.fixture.creating(), Map.of(TYPE, ITEM)).build();
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(task));
-    }
-
-    private WorkflowTaskContext task(final String parent, final Map<String, Object> payload,
-        final Map<String, Object> variables)
-    {
-        final WorkflowTaskContext task = this.fixture.task("create", this.fixture.creating(), payload, variables);
-        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(parent));
-        return task;
     }
 
     private Map<String, Object> create(final String parent, final Map<String, Object> payload)
         throws WorkflowException, PersistenceException, RepositoryException
     {
-        final Map<String, Object> variables = new HashMap<>();
-        this.handler.execute(task(parent, payload, variables));
+        final RecordingTaskContext task = task(parent, payload);
+        this.handler.execute(task);
         // What a following update fills in, so that the new item can be saved
         final Node created =
-            this.fixture.session().getNode((String) variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+            this.fixture.session().getNode((String) task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
         created.setProperty("title", "Filled in");
         this.fixture.session().save();
-        return variables;
+        return task.getVariables();
+    }
+
+    private RecordingTaskContext task(final String parent, final Map<String, Object> payload)
+    {
+        return this.fixture
+            .task(this.context.resourceResolver().getResource(parent), "create", this.fixture.creating(), payload)
+            .build();
     }
 }

@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.internal.handlers;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +40,8 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -122,23 +123,22 @@ class MoveContentHandlerTest
     @Test
     void namesWhereItMovedFromAndToForTheHistory() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext moving = task("/shelf/loose", Map.of(PARENT, BOX), new HashMap<>());
+        final RecordingTaskContext moving = task("/shelf/loose", Map.of(PARENT, BOX));
 
         this.handler.execute(moving);
 
-        Mockito.verify(moving).recordRole(Mockito.argThat(resource -> "/box/loose".equals(resource.getPath())),
-            Mockito.eq("moved from /shelf/loose to /box/loose"));
+        assertEquals(List.of(new RecordedRole("/box/loose", "moved from /shelf/loose to /box/loose")),
+            moving.getRoles());
     }
 
     @Test
     void namesAMoveWithinItsParentReorderedForTheHistory() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext reordering = task("/box/c", Map.of(BEFORE, "a"), new HashMap<>());
+        final RecordingTaskContext reordering = task("/box/c", Map.of(BEFORE, "a"));
 
         this.handler.execute(reordering);
 
-        Mockito.verify(reordering).recordRole(Mockito.argThat(resource -> "/box/c".equals(resource.getPath())),
-            Mockito.eq("reordered"));
+        assertEquals(List.of(new RecordedRole("/box/c", "reordered")), reordering.getRoles());
     }
 
     @Test
@@ -189,8 +189,7 @@ class MoveContentHandlerTest
         Mockito.when(target.getPath()).thenReturn("/box/a");
         Mockito.when(target.getParent()).thenReturn(this.context.resourceResolver().getResource(BOX));
         Mockito.when(node.getPrimaryNodeType()).thenThrow(new RepositoryException("gone"));
-        final WorkflowTaskContext task = this.fixture.task("move", this.activity, Map.of(), new HashMap<>());
-        Mockito.when(task.getTarget()).thenReturn(target);
+        final WorkflowTaskContext task = this.fixture.task(target, "move", this.activity, Map.of()).build();
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(task));
     }
@@ -198,18 +197,16 @@ class MoveContentHandlerTest
     private String move(final String path, final Map<String, Object> payload)
         throws WorkflowException, PersistenceException, RepositoryException
     {
-        final Map<String, Object> variables = new HashMap<>();
-        this.handler.execute(task(path, payload, variables));
+        final RecordingTaskContext task = task(path, payload);
+        this.handler.execute(task);
         this.fixture.session().save();
-        return (String) variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
+        return (String) task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
     }
 
-    private WorkflowTaskContext task(final String path, final Map<String, Object> payload,
-        final Map<String, Object> variables)
+    private RecordingTaskContext task(final String path, final Map<String, Object> payload)
     {
-        final WorkflowTaskContext task = this.fixture.task("move", this.activity, payload, variables);
-        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(path));
-        return task;
+        return this.fixture.task(this.context.resourceResolver().getResource(path), "move", this.activity, payload)
+            .build();
     }
 
     private static void item(final Node parent, final String name) throws RepositoryException

@@ -34,6 +34,7 @@ import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.AnswerValidator;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -149,9 +150,9 @@ class ValidateAnswersHandlerTest
         return this.context.registerInjectActivateService(new ValidateAnswersHandler());
     }
 
-    private TaskContext savingTo(final Resource target)
+    private RecordingTaskContext savingTo(final Resource target)
     {
-        return new TaskContext(target, SAVER, Map.of());
+        return RecordingTaskContext.aimedAt(target).actingFor(SAVER).build();
     }
 
     /** A rule that gives a fixed answer, and remembers what it was asked. */

@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.demos.timeoff.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -31,6 +30,7 @@ import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,14 +38,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -67,20 +70,38 @@ class NightlyUrgencySweepTest
 
     private static final String OTHER = "/Submissions/other";
 
-    private final SlingContext context = new SlingContext();
+    private static final String JOB_NAME = "iap-demo-time-off-urgency";
 
-    private final NightlyUrgencySweep sweep = new NightlyUrgencySweep();
+    private final SlingContext context = new SlingContextBuilder().plugin(WorkflowPlugins.MOCK_ENGINE).build();
 
-    private final WorkflowEngine engine = Mockito.mock(WorkflowEngine.class);
+    private final Scheduler scheduler = Mockito.mock(Scheduler.class);
+
+    private final ScheduleOptions options = Mockito.mock(ScheduleOptions.class);
 
     private final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
 
+    private NightlyUrgencySweep sweep;
+
+    private WorkflowEngine engine;
+
+    /** The service users the sweep logs in as, which a test chooses. */
+    private ResourceResolverFactory serviceUsers;
+
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
         this.context.create().resource(MINE);
         this.context.create().resource(OTHER);
-        inject("engine", this.engine);
+        this.serviceUsers = TestResolverFactory.serving(this.context.resourceResolver());
+        // Only the nightly schedule is answered, so the sweep cannot start on any other
+        Mockito.when(this.scheduler.EXPR("0 5 0 * * ?")).thenReturn(this.options);
+        this.context.registerService(Scheduler.class, this.scheduler, Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.context.registerService(ResourceResolverFactory.class,
+            TestResolverFactory.answeredBy(authenticationInfo ->
+                this.serviceUsers.getServiceResourceResolver(authenticationInfo)),
+            Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.engine = this.context.getService(WorkflowEngine.class);
+        this.sweep = this.context.registerInjectActivateService(NightlyUrgencySweep.class);
         ErrorLogger.setService(this.recorder);
     }
 
@@ -171,27 +192,21 @@ class NightlyUrgencySweepTest
     }
 
     @Test
-    void schedulesItselfNightlyOnOneInstanceAndStandsDownAgain() throws ReflectiveOperationException
+    void schedulesItselfNightlyOnOneInstanceAndStandsDownAgain()
     {
-        final Scheduler scheduler = Mockito.mock(Scheduler.class);
-        final ScheduleOptions options = Mockito.mock(ScheduleOptions.class);
-        Mockito.when(scheduler.EXPR("0 5 0 * * ?")).thenReturn(options);
-        inject("scheduler", scheduler);
-
-        this.sweep.activate();
         this.sweep.deactivate();
 
-        Mockito.verify(options).name("iap-demo-time-off-urgency");
-        Mockito.verify(options).canRunConcurrently(false);
-        Mockito.verify(options).onLeaderOnly(true);
-        Mockito.verify(scheduler).schedule(this.sweep, options);
-        Mockito.verify(scheduler).unschedule("iap-demo-time-off-urgency");
+        Mockito.verify(this.options).name(JOB_NAME);
+        Mockito.verify(this.options).canRunConcurrently(false);
+        Mockito.verify(this.options).onLeaderOnly(true);
+        Mockito.verify(this.scheduler).schedule(this.sweep, this.options);
+        Mockito.verify(this.scheduler).unschedule(JOB_NAME);
     }
 
     @Test
     void judgesEveryRequestWhenTheClockCallsIt() throws Exception
     {
-        inject("resolverFactory", factoryReturning(resolverFinding(MINE)));
+        this.serviceUsers = TestResolverFactory.serving(resolverFinding(MINE));
 
         this.sweep.run();
 
@@ -202,10 +217,10 @@ class NightlyUrgencySweepTest
     @Test
     void recordsAMissingServiceUser() throws Exception
     {
-        final ResourceResolverFactory refusing = Mockito.mock(ResourceResolverFactory.class);
         final LoginException missing = new LoginException("no such service user");
-        Mockito.when(refusing.getServiceResourceResolver(Mockito.anyMap())).thenThrow(missing);
-        inject("resolverFactory", refusing);
+        this.serviceUsers = TestResolverFactory.answeredBy(authenticationInfo -> {
+            throw missing;
+        });
 
         this.sweep.run();
 
@@ -217,14 +232,14 @@ class NightlyUrgencySweepTest
     void recordsAQueryThatFails() throws Exception
     {
         final IllegalStateException failure = new IllegalStateException("the query timed out");
-        inject("resolverFactory", factoryReturning(new ResourceResolverWrapper(this.context.resourceResolver())
+        this.serviceUsers = TestResolverFactory.serving(new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
             public Iterator<Resource> findResources(final String query, final String language)
             {
                 throw failure;
             }
-        }));
+        });
 
         this.sweep.run();
 
@@ -261,31 +276,6 @@ class NightlyUrgencySweepTest
                     .iterator();
             }
         };
-    }
-
-    /** A factory handing out this resolver, and not minding it being closed. */
-    private static ResourceResolverFactory factoryReturning(final ResourceResolver resolver) throws LoginException
-    {
-        // Closing the wrapper would close the context's own resolver, which every later assertion reads through
-        final ResourceResolver unclosable = new ResourceResolverWrapper(resolver)
-        {
-            @Override
-            public void close()
-            {
-                // Deliberately nothing
-            }
-        };
-        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(unclosable);
-        return factory;
-    }
-
-    // DS metadata only exists in the packaged bundle, so the references are set by reflection
-    private void inject(final String name, final Object value) throws ReflectiveOperationException
-    {
-        final Field field = NightlyUrgencySweep.class.getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(this.sweep, value);
     }
 
     /** A resolver that notes down every query it is asked, and finds nothing. */

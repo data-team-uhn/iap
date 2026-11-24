@@ -24,11 +24,7 @@ import { MemoryRouter } from "react-router";
 import { ArchiveBrowser } from "@iap/deletion/ArchiveBrowser";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-
-const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "Content-Type": "application/json" },
-});
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 const entry = (name: string, extra: Record<string, unknown> = {}) => ({
   path: `/Archive/ab/cd/ef/${name}`,
@@ -53,28 +49,21 @@ const page = (rows: unknown[], extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-// Routes the listing and the actions to different answers, and records every URL asked for.
-//
-// The session endpoint answers that the session is live. `useAuthenticatedFetch` asks it after a 500,
-// and would otherwise report every 500 here as an expired session.
+// Routes the listing and the actions to different answers, and records every URL asked for but the
+// session endpoint's.
 const server = (options: {
   listing?: () => Response;
   action?: () => Response;
 } = {}) => {
   const calls: string[] = [];
-  const mock = vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
-    const asked = String(url);
-    if (asked.includes("sessionInfo")) {
-      return Promise.resolve(jsonResponse(200, { userID: "admin" }));
+  stubFetch(request => {
+    calls.push(request.url);
+    if (request.url.includes(".entries.json")) {
+      return options.listing?.() ?? jsonResponse(page([ entry("one") ]));
     }
-    calls.push(asked);
-    if (asked.includes(".entries.json")) {
-      return Promise.resolve(options.listing?.() ?? jsonResponse(200, page([ entry("one") ])));
-    }
-    return Promise.resolve(
-      options.action?.() ?? jsonResponse(200, { status: "restored", restored: [ "/content/one" ] }));
+    return options.action?.() ?? jsonResponse({ status: "restored", restored: [ "/content/one" ] });
   });
-  return { calls, mock };
+  return { calls };
 };
 
 // Rendered by the application shell's router, and its rows link through it to each entry.
@@ -92,10 +81,11 @@ const listings = (calls: string[]) => calls.filter(url => url.includes(".entries
 describe("ArchiveBrowser", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("lists what was deleted, by whom, and how much went with it", async () => {
-    server({ listing: () => jsonResponse(200, page([ entry("one", { itemCount: 4 }) ])) });
+    server({ listing: () => jsonResponse(page([ entry("one", { itemCount: 4 }) ])) });
     browser();
 
     expect(await screen.findByText("/content/one")).toBeInTheDocument();
@@ -104,14 +94,14 @@ describe("ArchiveBrowser", () => {
   });
 
   it("says the archive is empty rather than showing a bare table", async () => {
-    server({ listing: () => jsonResponse(200, page([])) });
+    server({ listing: () => jsonResponse(page([])) });
     browser();
 
     expect(await screen.findByText("Nothing has been archived yet.")).toBeInTheDocument();
   });
 
   it("says so differently when a filter is what emptied it", async () => {
-    server({ listing: () => jsonResponse(200, page([])) });
+    server({ listing: () => jsonResponse(page([])) });
     browser();
     await screen.findByText("Nothing has been archived yet.");
 
@@ -128,7 +118,7 @@ describe("ArchiveBrowser", () => {
   });
 
   it("shows an entry with no recorded date rather than dropping it", async () => {
-    server({ listing: () => jsonResponse(200, page([ entry("undated", { created: undefined }) ])) });
+    server({ listing: () => jsonResponse(page([ entry("undated", { created: undefined }) ])) });
     browser();
 
     expect(await screen.findByText("/content/undated")).toBeInTheDocument();
@@ -170,7 +160,7 @@ describe("ArchiveBrowser", () => {
 
   it("asks for the next page when the pagination is advanced", async () => {
     const { calls } = server({
-      listing: () => jsonResponse(200, page([ entry("one") ], { totalrows: 100 })),
+      listing: () => jsonResponse(page([ entry("one") ], { totalrows: 100 })),
     });
     browser();
     await screen.findByText("/content/one");
@@ -186,7 +176,7 @@ describe("ArchiveBrowser", () => {
 
   it("asks for a different page size when one is chosen", async () => {
     const { calls } = server({
-      listing: () => jsonResponse(200, page([ entry("one") ], { totalrows: 100 })),
+      listing: () => jsonResponse(page([ entry("one") ], { totalrows: 100 })),
     });
     browser();
     await screen.findByText("/content/one");
@@ -201,7 +191,7 @@ describe("ArchiveBrowser", () => {
 
   it("restores an entry and says what came back", async () => {
     const { calls } = server({
-      action: () => jsonResponse(200, { status: "restored", restored: [ "/content/one", "/content/two" ] }),
+      action: () => jsonResponse({ status: "restored", restored: [ "/content/one", "/content/two" ] }),
     });
     browser();
     await screen.findByText("/content/one");
@@ -217,9 +207,9 @@ describe("ArchiveBrowser", () => {
 
   it("leaves the table alone when a restore is refused", async () => {
     const { calls } = server({
-      action: () => jsonResponse(409, {
+      action: () => jsonResponse({
         status: "conflict", conflicts: [ { originalPath: "/content/one", reason: "OCCUPIED" } ],
-      }),
+      }, 409),
     });
     browser();
     await screen.findByText("/content/one");
@@ -259,7 +249,7 @@ describe("ArchiveBrowser", () => {
   });
 
   it("purges once confirmed", async () => {
-    const { calls } = server({ action: () => jsonResponse(200, { status: "deleted" }) });
+    const { calls } = server({ action: () => jsonResponse({ status: "deleted" }) });
     browser();
     await screen.findByText("/content/one");
     await userEvent.click(screen.getByRole("button", { name: "Purge" }));
@@ -273,7 +263,7 @@ describe("ArchiveBrowser", () => {
 
   it("reports a guard's refusal to purge", async () => {
     server({
-      action: () => jsonResponse(409, { status: "vetoed", "status.message": "Archived too recently" }),
+      action: () => jsonResponse({ status: "vetoed", "status.message": "Archived too recently" }, 409),
     });
     browser();
     await screen.findByText("/content/one");
@@ -286,7 +276,7 @@ describe("ArchiveBrowser", () => {
   it("reports a request that could not be sent at all", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) =>
       String(url).includes(".entries.json")
-        ? Promise.resolve(jsonResponse(200, page([ entry("one") ])))
+        ? Promise.resolve(jsonResponse(page([ entry("one") ])))
         : Promise.reject(new Error("offline")));
     browser();
     await screen.findByText("/content/one");
@@ -301,12 +291,12 @@ describe("ArchiveBrowser", () => {
     let attempts = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
       if (String(url).includes(".entries.json")) {
-        return Promise.resolve(jsonResponse(200, page([ entry("one") ])));
+        return Promise.resolve(jsonResponse(page([ entry("one") ])));
       }
       attempts += 1;
       return attempts === 1
         ? Promise.reject(new Error("offline"))
-        : Promise.resolve(jsonResponse(200, { status: "restored", restored: [ "/content/one" ] }));
+        : Promise.resolve(jsonResponse({ status: "restored", restored: [ "/content/one" ] }));
     });
     browser();
     await screen.findByText("/content/one");
@@ -339,7 +329,7 @@ describe("ArchiveBrowser", () => {
 
     unmount();
     await act(async () => {
-      answer(jsonResponse(200, page([ entry("one") ])));
+      answer(jsonResponse(page([ entry("one") ])));
       await Promise.resolve();
     });
 
@@ -347,7 +337,7 @@ describe("ArchiveBrowser", () => {
   });
 
   it("links each row through to the entry, where the preflight lives", async () => {
-    server({ listing: () => jsonResponse(200, page([ entry("one") ])) });
+    server({ listing: () => jsonResponse(page([ entry("one") ])) });
     browser();
 
     const link = await screen.findByRole("link", { name: "/content/one" });

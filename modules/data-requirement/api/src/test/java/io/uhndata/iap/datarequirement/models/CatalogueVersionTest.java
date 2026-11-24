@@ -30,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -80,7 +81,7 @@ class CatalogueVersionTest
     @Test
     void exposesWhatTheCatalogueSaysAboutAVersion()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final CatalogueVersion version = this.context.create().resource(PATH, Map.of(
             TYPE, CatalogueVersion.RESOURCE_TYPE,
             "version", "2026-08",

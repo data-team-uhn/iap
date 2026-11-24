@@ -47,17 +47,18 @@ import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.submissions.internal.Referenceables;
-import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.testing.PropertyTagging;
+import io.uhndata.iap.utils.testing.Referenceables;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -106,13 +107,15 @@ class DetachDocumentHandlerTest
 
     private Resource target;
 
+    private Referenceables references;
+
     @BeforeEach
-    void setUp() throws RepositoryException, PersistenceException
+    void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Document.class,
             DocumentVersion.class, Submission.class, Activity.class);
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
@@ -123,11 +126,12 @@ class DetachDocumentHandlerTest
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Anything at all"));
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
-        Referenceables.identify(this.context, NOTE_PATH, VERSION_PATH + "/anything");
+        this.references = new Referenceables(this.context.resourceResolver());
+        this.references.identify(NOTE_PATH, VERSION_PATH + "/anything");
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
-        reference(this.target, VERSION_PATH, "schemaVersion");
+        this.references.setReference(this.target.getPath(), "schemaVersion", VERSION_PATH);
     }
 
     @Test
@@ -155,12 +159,12 @@ class DetachDocumentHandlerTest
     void namesTheRequirementItRemovedTheDocumentFromForTheHistory() throws Exception
     {
         attach(NOTE, "wrong.pdf");
-        final TaskContext detaching = context(payload(NOTE), REQUESTER);
+        final RecordingTaskContext detaching = context(payload(NOTE), REQUESTER);
 
         this.handler.execute(detaching);
 
-        assertEquals(Map.of(documents().get(0).getPath(), "removed the document from Doctor's note"),
-            detaching.getRoles());
+        assertEquals(List.of(new RecordedRole(documents().get(0).getPath(),
+            "removed the document from Doctor's note")), detaching.getRoles());
     }
 
     @Test
@@ -243,7 +247,7 @@ class DetachDocumentHandlerTest
         // As createParts leaves one for a requirement nothing has been uploaded for. It holds nothing to remove.
         final Resource waiting = this.context.create().resource(SUBMISSION_PATH + "/waiting",
             Map.of(TYPE, Document.RESOURCE_TYPE, "jcr:primaryType", "sub:Document"));
-        reference(waiting, NOTE_PATH, "fulfills");
+        this.references.setReference(waiting.getPath(), "fulfills", NOTE_PATH);
 
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(payload(NOTE), REQUESTER)));
@@ -336,17 +340,6 @@ class DetachDocumentHandlerTest
         return found;
     }
 
-    private void reference(final Resource from, final String toPath, final String property)
-    {
-        try {
-            from.adaptTo(Node.class).setProperty(property,
-                present(this.context.resourceResolver().getResource(toPath)).adaptTo(Node.class));
-            this.context.resourceResolver().commit();
-        } catch (final RepositoryException | PersistenceException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private void modify(final Resource resource, final String property, final Object value)
     {
         try {
@@ -357,7 +350,7 @@ class DetachDocumentHandlerTest
         }
     }
 
-    private TaskContext context(final Map<String, Object> payload, final String actor)
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor)
     {
         // jcr-mock answers nothing about versioning, so the request reads as checked out
         final Node checkedOut = Mockito.mock(Node.class);
@@ -374,7 +367,7 @@ class DetachDocumentHandlerTest
                 return Node.class.equals(type) ? type.cast(checkedOut) : super.adaptTo(type);
             }
         };
-        return new TaskContext(submission, actor, new WorkflowEvent(DetachDocumentHandler.HANDLER_NAME, payload))
-            .performing(Mockito.mock(Activity.class));
+        return RecordingTaskContext.aimedAt(submission).actingFor(actor)
+            .forEvent(DetachDocumentHandler.HANDLER_NAME, payload).build();
     }
 }

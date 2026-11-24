@@ -39,6 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.deletion.scripting.DeletedPathDisclosure.Disclosure;
 import io.uhndata.iap.utils.DateUtils;
 import io.uhndata.iap.utils.UserIds;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -72,7 +73,7 @@ class DeletedPathDisclosureImplTest
             ResourceResolverType.JCR_OAK.getNodeTypeMode());
         this.session.getRootNode().addNode("Archive", "del:Archive");
         this.session.save();
-        this.disclosure = disclosureWith(new TestResolverFactory(this.context.resourceResolver()));
+        this.disclosure = disclosureWith(TestResolverFactory.serving(this.context.resourceResolver()));
     }
 
     /** A component holding one service resolver factory, wired the way SCR would wire it. */
@@ -210,7 +211,7 @@ class DeletedPathDisclosureImplTest
     @Test
     void anUnavailableServiceUserIsReportedRatherThanThrowing() throws Exception
     {
-        this.disclosure = disclosureWith(new TestResolverFactory(null));
+        this.disclosure = disclosureWith(TestResolverFactory.withoutServiceUser());
 
         assertNull(this.about("/Submissions/one"));
     }
@@ -218,7 +219,7 @@ class DeletedPathDisclosureImplTest
     @Test
     void aServiceResolverWithNoRepositoryBehindItIsReportedRatherThanThrowing() throws Exception
     {
-        this.disclosure = disclosureWith(new TestResolverFactory(new ResourceResolverWrapper(
+        this.disclosure = disclosureWith(TestResolverFactory.serving(new ResourceResolverWrapper(
             this.context.resourceResolver())
         {
             @Override

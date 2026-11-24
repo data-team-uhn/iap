@@ -52,6 +52,8 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.testing.PropertyTagging;
+import io.uhndata.iap.utils.testing.Referenceables;
 
 /**
  * A draft submission whose schema asks for data from one catalogue, beside a set of questions. The catalogue's
@@ -113,7 +115,7 @@ final class SelectionFixture
     private SelectionFixture(final SlingContext context)
     {
         this.context = context;
-        this.references = new Referenceables(context);
+        this.references = new Referenceables(context.resourceResolver());
     }
 
     /**
@@ -128,7 +130,7 @@ final class SelectionFixture
         context.addModelsForClasses(Schema.class, SchemaVersion.class, FormRequirement.class, DataRequirement.class,
             Catalogue.class, CatalogueVersion.class, Database.class, Collection.class, Field.class, Selection.class,
             Submission.class);
-        Tagging.enable(context);
+        PropertyTagging.installIn(context);
         context.registerService(ConditionEvaluator.class, fixture.conditions());
         context.create().resource(CATALOGUE_PATH, Map.of(TYPE, Catalogue.RESOURCE_TYPE, "title", "Clinical data"));
         fixture.addVersion(V1, "2026-02", "birthDate", "gender");

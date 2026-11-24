@@ -46,6 +46,7 @@ import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.tags.spi.TagProcessor.Phase;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -132,20 +133,20 @@ class TagManagerImplTest
         this.context.create().resource("/Tags/config",
             TYPE_PROPERTY, "data/Content");
         // The Taggable model reaches the manager through the TagOperations service it registers
-        this.tagManager = activateManagerServedBy(this.context.resourceResolver());
+        this.tagManager = activateManagerWith(TestResolverFactory.serving(this.context.resourceResolver()));
     }
 
     /**
-     * Activates a manager whose service user logs in as {@link TestResolverFactory} describes. Each activation
-     * registers its factory above every earlier one, the mock repository's own included, so the new manager binds it.
+     * Activates a manager whose service user logs in through the given factory. Each activation registers its
+     * factory above every earlier one, the mock repository's own included, so the new manager binds it.
      *
-     * @param resolver the resolver the service user is served, or {@code null} for a missing service user
+     * @param factory logs the service user in
      * @return the activated manager
      */
-    private TagManagerImpl activateManagerServedBy(final ResourceResolver resolver)
+    private TagManagerImpl activateManagerWith(final ResourceResolverFactory factory)
     {
-        this.context.registerService(ResourceResolverFactory.class, new TestResolverFactory(resolver),
-            Constants.SERVICE_RANKING, ++this.activations);
+        this.context.registerService(ResourceResolverFactory.class, factory, Constants.SERVICE_RANKING,
+            ++this.activations);
         return this.context.registerInjectActivateService(new TagManagerImpl());
     }
 
@@ -556,7 +557,7 @@ class TagManagerImplTest
     @Test
     void survivesAMissingServiceUser()
     {
-        final TagManagerImpl manager = activateManagerServedBy(null);
+        final TagManagerImpl manager = activateManagerWith(TestResolverFactory.withoutServiceUser());
 
         assertTrue(manager.getDefinitions().isEmpty());
         assertNull(manager.getDefinition(DRAFT));

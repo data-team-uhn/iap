@@ -22,6 +22,7 @@ import { MemoryRouter, useNavigate } from "react-router";
 
 import LoggedErrorView from "@iap/error-tracking/LoggedErrorView";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { jsonResponse, stubFetch, type FetchRoute } from "@iap/frontend-commons/fetch.fixture";
 
 const TRIAGE_DEFINITIONS = [
   { name: "unacknowledged", label: "Needs attention", color: "#c62828", order: 90, category: [ "error-triage" ] },
@@ -46,29 +47,23 @@ const FAILURE = {
   "computedTags": [ "unacknowledged" ],
 };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
-  { status, headers: { "Content-Type": "application/json" } });
+/** Answers the tag vocabulary. */
+const triageTags: FetchRoute = request => request.url.includes("/Tags.search.json")
+  ? jsonResponse({ tags: TRIAGE_DEFINITIONS, total: TRIAGE_DEFINITIONS.length })
+  : undefined;
 
-/** Answers the tag vocabulary, the error read, and the acknowledge POST, each with its own Response. */
-function answering(options: {
+/** Answers the tag vocabulary, the error read, and the acknowledge POST. */
+function serve(options: {
   error?: unknown;
   errorStatus?: number;
   acknowledge?: { status: number; body: unknown };
 } = {}) {
-  return vi.fn((url: string, init?: RequestInit) => {
-    if (url.includes("/Tags.search.json")) {
-      return Promise.resolve(json({ tags: TRIAGE_DEFINITIONS, total: TRIAGE_DEFINITIONS.length }));
-    }
-    // The session-aware fetch answers a 500 by asking whether the session is still there. Left
-    // unanswered, a test of a server error would instead see "not authenticated".
-    if (url.includes("/system/sling/info.sessionInfo.json")) {
-      return Promise.resolve(json({ userID: "admin" }));
-    }
-    if (init?.method === "POST") {
+  return stubFetch(triageTags, request => {
+    if (request.method === "POST") {
       const answer = options.acknowledge ?? { status: 200, body: { status: "ok" } };
-      return Promise.resolve(json(answer.body, answer.status));
+      return jsonResponse(answer.body, answer.status);
     }
-    return Promise.resolve(json(options.error ?? FAILURE, options.errorStatus ?? 200));
+    return jsonResponse(options.error ?? FAILURE, options.errorStatus ?? 200);
   });
 }
 
@@ -95,8 +90,7 @@ describe("LoggedErrorView", () => {
   });
 
   it("says so, and asks for nothing, when the address names no single error", async () => {
-    const fetchMock = answering();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = serve();
     view("/admin/errors");
 
     expect(await screen.findByText("This address does not name a recorded error.")).toBeInTheDocument();
@@ -104,7 +98,7 @@ describe("LoggedErrorView", () => {
   });
 
   it("shows everything the instance kept about a thrown failure", async () => {
-    vi.stubGlobal("fetch", answering());
+    serve();
     view();
 
     // The heading is queried by text, not by role: the page title is a Typography variant, and the
@@ -125,7 +119,7 @@ describe("LoggedErrorView", () => {
   });
 
   it("shows a problem without pretending it has a stack trace", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       error: {
         "@name": "def",
         "sling:resourceType": "err/LoggedProblem",
@@ -134,7 +128,7 @@ describe("LoggedErrorView", () => {
         "lastOccurrence": "2026-08-20T18:30:00.000+00:00",
         "computedTags": [ "unacknowledged" ],
       },
-    }));
+    });
     view("/admin/errors/def");
 
     expect(await screen.findByText("unknown comparator")).toBeInTheDocument();
@@ -143,9 +137,9 @@ describe("LoggedErrorView", () => {
   });
 
   it("omits the samples the server kept none of, rather than showing empty headings", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       error: { ...FAILURE, messages: [], subjects: [], actors: [], lastContext: undefined },
-    }));
+    });
     view();
 
     await screen.findByText("java.lang.IllegalStateException");
@@ -156,14 +150,14 @@ describe("LoggedErrorView", () => {
   });
 
   it("shows a dash for a timestamp the error does not carry", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       error: {
         "@name": "abc",
         "sling:resourceType": "err/LoggedProblem",
         "problem": "unknown comparator",
         "occurrences": 1,
       },
-    }));
+    });
     view();
 
     await screen.findByText("unknown comparator");
@@ -172,16 +166,16 @@ describe("LoggedErrorView", () => {
   });
 
   it("heads the page with the fingerprint when the error names neither a phrase nor a throwable", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       error: { "@name": "abc", "sling:resourceType": "err/LoggedFailure", occurrences: 1 },
-    }));
+    });
     view();
 
     expect(await screen.findAllByText("abc")).not.toHaveLength(0);
   });
 
   it("credits a decision whose author was not recorded without leaving a gap", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       error: {
         ...FAILURE,
         anon: {
@@ -192,16 +186,14 @@ describe("LoggedErrorView", () => {
           "jcr:created": "2026-08-02T10:00:00.000+00:00",
         },
       },
-    }));
+    });
     view();
 
     expect(await screen.findByText(/somebody ·/)).toBeInTheDocument();
   });
 
   it("reports a rejection that is not an Error at all", async () => {
-    vi.stubGlobal("fetch", vi.fn((url: string) => (url.includes("/Tags.search.json")
-      ? Promise.resolve(json({ tags: TRIAGE_DEFINITIONS, total: 2 }))
-      : Promise.reject("network is down"))));
+    stubFetch(triageTags, () => Promise.reject("network is down"));
     view();
 
     expect(await screen.findByText("The recorded error could not be read")).toBeInTheDocument();
@@ -209,21 +201,14 @@ describe("LoggedErrorView", () => {
 
   it("drops a read that lands after the reader has moved to another error", async () => {
     let releaseFirst!: (response: Response) => void;
-    const fetchMock = vi.fn((url: string) => {
-      if (url.includes("/Tags.search.json")) {
-        return Promise.resolve(json({ tags: TRIAGE_DEFINITIONS, total: 2 }));
-      }
-      if (url.includes("/abc.1.json")) {
-        return new Promise<Response>(resolve => { releaseFirst = resolve; });
-      }
-      return Promise.resolve(json({
+    stubFetch(triageTags, request => request.url.includes("/abc.1.json")
+      ? new Promise<Response>(resolve => { releaseFirst = resolve; })
+      : jsonResponse({
         "@name": "def",
         "sling:resourceType": "err/LoggedProblem",
         "problem": "the second fault",
         "occurrences": 1,
       }));
-    });
-    vi.stubGlobal("fetch", fetchMock);
 
     render(
       <MemoryRouter initialEntries={[ "/admin/errors/abc" ]}>
@@ -239,7 +224,7 @@ describe("LoggedErrorView", () => {
 
     // The first error's read comes back only now
     await act(async () => {
-      releaseFirst(json(FAILURE));
+      releaseFirst(jsonResponse(FAILURE));
       await new Promise(resolve => { setTimeout(resolve, 0); });
     });
 
@@ -249,15 +234,11 @@ describe("LoggedErrorView", () => {
 
   it("reports a read it could not make, and retries it", async () => {
     let fail = true;
-    const fetchMock = vi.fn((url: string) => {
-      if (url.includes("/Tags.search.json")) {
-        return Promise.resolve(json({ tags: TRIAGE_DEFINITIONS, total: 2 }));
-      }
-      const response = fail ? json({}, 403) : json(FAILURE);
+    stubFetch(triageTags, () => {
+      const response = fail ? jsonResponse({}, 403) : jsonResponse(FAILURE);
       fail = false;
-      return Promise.resolve(response);
+      return response;
     });
-    vi.stubGlobal("fetch", fetchMock);
     view();
 
     expect(await screen.findByText("The recorded error could not be read")).toBeInTheDocument();
@@ -268,7 +249,7 @@ describe("LoggedErrorView", () => {
   });
 
   it("lists the decisions taken, newest first, with who and why", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       error: {
         ...FAILURE,
         first: {
@@ -289,7 +270,7 @@ describe("LoggedErrorView", () => {
           "jcr:createdBy": "priya",
         },
       },
-    }));
+    });
     view();
 
     expect(await screen.findByText("Decisions (2)")).toBeInTheDocument();
@@ -303,15 +284,14 @@ describe("LoggedErrorView", () => {
   });
 
   it("says plainly when nobody has decided anything yet", async () => {
-    vi.stubGlobal("fetch", answering());
+    serve();
     view();
 
     expect(await screen.findByText("Nobody has recorded a decision about this yet.")).toBeInTheDocument();
   });
 
   it("records a decision and re-reads, because the markers are derived server-side", async () => {
-    const fetchMock = answering();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = serve();
     view();
     await screen.findByText("java.lang.IllegalStateException");
     expect(reads(fetchMock)).toHaveLength(1);
@@ -325,8 +305,7 @@ describe("LoggedErrorView", () => {
   });
 
   it("sends the decision that was chosen and the note, then clears the note", async () => {
-    const fetchMock = answering();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = serve();
     view();
     await screen.findByText("java.lang.IllegalStateException");
     const note = screen.getByRole("textbox", { name: /Why/ });
@@ -343,10 +322,9 @@ describe("LoggedErrorView", () => {
   });
 
   it("reports a refused decision in the server's words, and does not re-read", async () => {
-    const fetchMock = answering({
+    const fetchMock = serve({
       acknowledge: { status: 400, body: { status: "error", error: "resolution must name one of the error-triage tags" } },
     });
-    vi.stubGlobal("fetch", fetchMock);
     view();
     await screen.findByText("java.lang.IllegalStateException");
 
@@ -358,9 +336,9 @@ describe("LoggedErrorView", () => {
   });
 
   it("offers another attempt only when the server could not carry it out", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       acknowledge: { status: 500, body: { status: "error", error: "Could not record the decision" } },
-    }));
+    });
     view();
     await screen.findByText("java.lang.IllegalStateException");
 
@@ -373,9 +351,9 @@ describe("LoggedErrorView", () => {
   });
 
   it("does not offer another attempt for a decision the error cannot carry", async () => {
-    vi.stubGlobal("fetch", answering({
+    serve({
       acknowledge: { status: 400, body: { status: "error", error: "not a triage tag" } },
-    }));
+    });
     view();
     await screen.findByText("java.lang.IllegalStateException");
 

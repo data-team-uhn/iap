@@ -46,6 +46,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.documents.api.ParseOutcome;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -289,7 +290,7 @@ class ParseCallbackServletTest
     void anUnmodifiableJobNodeIsReportedMissing() throws Exception
     {
         jobNode();
-        inject(this.servlet, new TestResolverFactory(unmodifiableNodes()));
+        inject(this.servlet, TestResolverFactory.serving(unmodifiableNodes()));
 
         assertEquals(404, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
     }
@@ -298,7 +299,7 @@ class ParseCallbackServletTest
     void everythingFailsWithoutTheServiceUser() throws Exception
     {
         jobNode();
-        inject(this.servlet, new TestResolverFactory(null));
+        inject(this.servlet, TestResolverFactory.withoutServiceUser());
 
         assertEquals(500, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
     }
@@ -307,7 +308,7 @@ class ParseCallbackServletTest
     void aFailedCommitIsAServerError() throws Exception
     {
         jobNode();
-        inject(this.servlet, new TestResolverFactory(failingCommits()));
+        inject(this.servlet, TestResolverFactory.serving(failingCommits()));
 
         final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION, SUCCESS_BODY);
 
@@ -321,7 +322,7 @@ class ParseCallbackServletTest
         // No overridden environment(): the real lookup runs, and the configured token keeps the outcome
         // deterministic whether or not the variable is set on the machine running the tests
         final ParseCallbackServlet real = new ParseCallbackServlet();
-        inject(real, new TestResolverFactory(this.context.resourceResolver()));
+        inject(real, TestResolverFactory.serving(this.context.resourceResolver()));
         real.activate(Map.of(ParseJob.TOKEN_PROPERTY, TOKEN));
         jobNode();
 
@@ -347,7 +348,7 @@ class ParseCallbackServletTest
                 return ParseJob.TOKEN_VARIABLE.equals(name) ? token : null;
             }
         };
-        inject(built, new TestResolverFactory(this.context.resourceResolver()));
+        inject(built, TestResolverFactory.serving(this.context.resourceResolver()));
         return built;
     }
 

@@ -17,6 +17,7 @@
  */
 
 import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 const EMPTY_PAGE = {
   rows: [],
@@ -31,9 +32,7 @@ describe("fetchEntityPage", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("requests the right page from the homepage's pagination servlet", async () => {
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(EMPTY_PAGE));
 
     await fetchEntityPage(fetch, {
       homepage: "/Submissions",
@@ -66,9 +65,7 @@ describe("fetchEntityPage", () => {
   });
 
   it("omits the optional parameters when not provided", async () => {
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(EMPTY_PAGE));
 
     const page = await fetchEntityPage(fetch, { homepage: "/Submissions" });
 
@@ -82,9 +79,7 @@ describe("fetchEntityPage", () => {
   });
 
   it("sends group parameters for every filter once any filter is grouped", async () => {
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(EMPTY_PAGE));
 
     await fetchEntityPage(fetch, {
       homepage: "/Submissions",
@@ -101,9 +96,7 @@ describe("fetchEntityPage", () => {
   });
 
   it("omits group parameters when no filter is grouped", async () => {
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(EMPTY_PAGE));
 
     await fetchEntityPage(fetch, { homepage: "/Submissions", filters: [{ name: "status", value: "draft" }] });
 

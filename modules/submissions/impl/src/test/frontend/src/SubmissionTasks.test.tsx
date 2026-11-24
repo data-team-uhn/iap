@@ -20,40 +20,32 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { jsonResponse, stubFetch, type FetchRoute } from "@iap/frontend-commons/fetch.fixture";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import SubmissionTasks from "@iap/submissions/SubmissionTasks";
 
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
 import { aQueue, settle } from "./workQueue.fixture";
 
-type FetchStub = (url: string, init?: RequestInit) => Promise<Response>;
-
 const PATH = "/Submissions/a/b/demo-1";
 
 const TASK = PATH + "/wf:instances/timeOffRequest/fillIn";
 
 // Answers the container read, and whatever the completion is answered with.
-//
-// Every answer carries a `url`, which the authenticated fetch reads to tell a real response from a
-// redirect to the login page.
-function repository(container: unknown, completion: Partial<Response> = { ok: true, status: 200 }) {
-  return vi.fn<FetchStub>((url, init) => Promise.resolve((init?.method === "POST"
-    ? { url, json: () => Promise.resolve({}), ...completion }
-    : { url, ok: true, status: 200, json: () => Promise.resolve(container) }) as unknown as Response));
-}
+const repositoryOf = (container: unknown, completion = jsonResponse({})): FetchRoute =>
+  request => request.method === "POST" ? completion.clone() : jsonResponse(container);
+
+const repository = (...args: Parameters<typeof repositoryOf>) => stubFetch(repositoryOf(...args));
 
 // Answers the first read of the container, then fails every read after it, as a re-read can.
 function repositoryFailingRereads(container: unknown) {
   let reads = 0;
-  return vi.fn<FetchStub>((url, init) => {
-    if (init?.method === "POST") {
-      return Promise.resolve(
-        { url, ok: true, status: 200, json: () => Promise.resolve({}) } as unknown as Response);
+  return stubFetch(request => {
+    if (request.method === "POST") {
+      return jsonResponse({});
     }
     reads += 1;
-    return Promise.resolve((reads === 1
-      ? { url, ok: true, status: 200, json: () => Promise.resolve(container) }
-      : { url, ok: false, status: 500, json: () => Promise.resolve({}) }) as unknown as Response);
+    return reads === 1 ? jsonResponse(container) : jsonResponse({}, 500);
   });
 }
 
@@ -76,7 +68,6 @@ describe("SubmissionTasks", () => {
 
   it("offers the step the process is waiting on, under its own name", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
-    vi.stubGlobal("fetch", fetchMock);
 
     renderTasks();
 
@@ -85,7 +76,7 @@ describe("SubmissionTasks", () => {
   });
 
   it("says what still stands in the way of the step", async () => {
-    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+    repository(waitingOn(PATH, { fillIn: SEND }));
 
     renderTasks({ readinessNote: "Answer everything first." });
 
@@ -94,7 +85,7 @@ describe("SubmissionTasks", () => {
 
   // Whether the step goes through is decided when it is taken, after the answers still being saved
   it("still offers the step while something stands in its way", async () => {
-    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+    repository(waitingOn(PATH, { fillIn: SEND }));
 
     renderTasks({ readinessNote: "Answer everything first." });
 
@@ -103,7 +94,6 @@ describe("SubmissionTasks", () => {
 
   it("completes the task with no outcome, since it has nothing to decide", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
-    vi.stubGlobal("fetch", fetchMock);
 
     renderTasks();
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
@@ -114,7 +104,7 @@ describe("SubmissionTasks", () => {
   });
 
   it("tells the page once the step is done, which is what makes it a submit button", async () => {
-    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+    repository(waitingOn(PATH, { fillIn: SEND }));
     const completed = vi.fn();
 
     renderTasks({ onCompleted: completed });
@@ -125,7 +115,6 @@ describe("SubmissionTasks", () => {
 
   it("reads what the request is waiting for again once the step is done", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
-    vi.stubGlobal("fetch", fetchMock);
 
     renderTasks();
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
@@ -135,7 +124,6 @@ describe("SubmissionTasks", () => {
 
   it("checks and completes the step once the work queued before it has settled", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
-    vi.stubGlobal("fetch", fetchMock);
     const queue = aQueue();
     const saving = Promise.withResolvers<undefined>();
     const checkReady = vi.fn(() => Promise.resolve());
@@ -153,10 +141,8 @@ describe("SubmissionTasks", () => {
 
   it("holds the work queued after the step until the step is answered", async () => {
     const completion = Promise.withResolvers<Response>();
-    const fetchMock = vi.fn<FetchStub>((url, init) => (init?.method === "POST"
-      ? completion.promise
-      : repository(waitingOn(PATH, { fillIn: SEND }))(url, init)));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(request => request.method === "POST" ? completion.promise : undefined,
+      repositoryOf(waitingOn(PATH, { fillIn: SEND })));
     const queue = aQueue();
     const later = vi.fn(() => Promise.resolve());
 
@@ -167,14 +153,12 @@ describe("SubmissionTasks", () => {
     await settle();
     expect(later).not.toHaveBeenCalled();
 
-    completion.resolve({ url: TASK, redirected: false, ok: true, status: 200,
-      json: () => Promise.resolve({}) } as unknown as Response);
+    completion.resolve(jsonResponse({}));
     await waitFor(() => expect(later).toHaveBeenCalledTimes(1));
   });
 
   it("completes nothing when the submission is not ready for the step", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
-    vi.stubGlobal("fetch", fetchMock);
 
     renderTasks({ checkReady: () => Promise.reject(new Error("Answer everything first.")) });
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
@@ -185,7 +169,7 @@ describe("SubmissionTasks", () => {
   });
 
   it("offers nothing when the read after a step fails, rather than the step just done", async () => {
-    vi.stubGlobal("fetch", repositoryFailingRereads(waitingOn(PATH, { fillIn: SEND })));
+    repositoryFailingRereads(waitingOn(PATH, { fillIn: SEND }));
 
     renderTasks();
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
@@ -194,11 +178,7 @@ describe("SubmissionTasks", () => {
   });
 
   it("says what the engine said when it refuses", async () => {
-    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND }), {
-      ok: false,
-      status: 403,
-      json: () => Promise.resolve({ error: "You are not allowed to do this" }),
-    }));
+    repository(waitingOn(PATH, { fillIn: SEND }), jsonResponse({ error: "You are not allowed to do this" }, 403));
 
     renderTasks();
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
@@ -212,10 +192,10 @@ describe("SubmissionTasks", () => {
     [ "carries a decision", { outcomeOptions: [ "approved", "rejected" ] } ],
     [ "is already done", { status: "completed" } ],
   ])("offers nothing for a task that %s", async (_case, difference) => {
-    vi.stubGlobal("fetch", repository(waitingOn(PATH, {
+    repository(waitingOn(PATH, {
       fillIn: SEND,
       other: { ...SEND, label: "Approve the request", ...difference },
-    })));
+    }));
 
     renderTasks();
 
@@ -225,9 +205,7 @@ describe("SubmissionTasks", () => {
   });
 
   it("offers nothing when the reader cannot read the container", async () => {
-    const fetchMock = vi.fn<FetchStub>(url => Promise.resolve(
-      { url, ok: false, status: 404, json: () => Promise.resolve({}) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse({}, 404));
 
     renderTasks();
 
@@ -236,9 +214,7 @@ describe("SubmissionTasks", () => {
   });
 
   it("offers nothing when the answer is not a node at all", async () => {
-    const fetchMock = vi.fn<FetchStub>(url => Promise.resolve(
-      { url, ok: true, status: 200, json: () => Promise.resolve(null) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(null));
 
     renderTasks();
 
@@ -247,8 +223,7 @@ describe("SubmissionTasks", () => {
   });
 
   it("stays quiet when what a request is waiting for cannot be read", async () => {
-    const fetchMock = vi.fn<FetchStub>(() => Promise.reject(new Error("offline")));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => Promise.reject(new Error("offline")));
 
     renderTasks();
 

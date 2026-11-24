@@ -42,6 +42,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.utils.testing.TestResolverFactory;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -72,7 +74,7 @@ class ParseServletTest
         this.servlet = new ParseServlet();
         // Queueing goes through the real service, so what the endpoint answers is what a caller would really get
         this.service = new ParseJobService();
-        inject("resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
+        inject("resolverFactory", TestResolverFactory.serving(this.context.resourceResolver()));
         inject("jobManager", this.jobManager);
         inject("parseService", this.service);
     }
@@ -221,7 +223,7 @@ class ParseServletTest
     @Test
     void everythingFailsWithoutTheServiceUser() throws Exception
     {
-        inject("resolverFactory", new TestResolverFactory(null));
+        inject("resolverFactory", TestResolverFactory.withoutServiceUser());
 
         assertEquals(500, post(Map.of(ParseJob.PN_PATH, "/shared-docs/proposal.pdf")).getStatus());
         assertEquals(500, get(Map.of("job_id", UUID.randomUUID().toString())).getStatus());
@@ -231,7 +233,7 @@ class ParseServletTest
     @Test
     void unrecordablePostFails() throws Exception
     {
-        inject("resolverFactory", new TestResolverFactory(failingCommits(0)));
+        inject("resolverFactory", TestResolverFactory.serving(failingCommits(0)));
 
         final MockSlingJakartaHttpServletResponse response =
             post(Map.of(ParseJob.PN_PATH, "/shared-docs/proposal.pdf"));
@@ -245,7 +247,7 @@ class ParseServletTest
     void queueRefusalSurvivesACommitFailure() throws Exception
     {
         // The job node is committed, the unstubbed JobManager refuses the job, and marking the failure fails too
-        inject("resolverFactory", new TestResolverFactory(failingCommits(1)));
+        inject("resolverFactory", TestResolverFactory.serving(failingCommits(1)));
 
         final MockSlingJakartaHttpServletResponse response =
             post(Map.of(ParseJob.PN_PATH, "/shared-docs/proposal.pdf"));
@@ -257,7 +259,7 @@ class ParseServletTest
     @Test
     void queueRefusalOnAnUnmodifiableNodeStillFails() throws Exception
     {
-        inject("resolverFactory", new TestResolverFactory(unmodifiableCreations()));
+        inject("resolverFactory", TestResolverFactory.serving(unmodifiableCreations()));
 
         final MockSlingJakartaHttpServletResponse response =
             post(Map.of(ParseJob.PN_PATH, "/shared-docs/proposal.pdf"));

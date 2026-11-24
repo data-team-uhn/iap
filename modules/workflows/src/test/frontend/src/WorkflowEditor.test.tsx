@@ -24,8 +24,8 @@ import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { jsonResponse, stubFailingFetch, stubFetch, type FetchRoute } from "@iap/frontend-commons/fetch.fixture";
 import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import WorkflowEditor from "@iap/workflows/WorkflowEditor";
 import type { WorkflowVersionActionProps } from "@iap/workflows/WorkflowVersionActions";
@@ -58,9 +58,6 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// A stubbed fetch: the URL, and the request options a write carries.
-type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
-
 const VERSION_PATH = "/Workflows/review/2-0";
 
 const definition = {
@@ -81,22 +78,11 @@ const definition = {
   },
 };
 
-const stubFetch = (body: unknown = definition) => {
-  const fetchMock = vi.fn<FetchStub>((url) => Promise.resolve({
-    ok: true, status: 200, url, headers: new Headers(),
-    json: () => Promise.resolve(isTagSearch(url) ? LIFECYCLE_TAGS : body),
-  } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
+// Serves the workflow's definition `body`, and the lifecycle tag definitions
+const serving = (body: unknown): FetchRoute => request =>
+  jsonResponse(isTagSearch(request.url) ? LIFECYCLE_TAGS : body);
 
-// A server that refuses everything but confirms the session is live, so a failure reads as the
-// server's own rather than as a lapsed session.
-const stubFailingFetch = (status: number) => {
-  vi.stubGlobal("fetch", vi.fn<FetchStub>(url => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : { ok: false, status, statusText: "Refused", url }) as unknown as Response)));
-};
+const stubServer = (body: unknown = definition) => stubFetch(serving(body));
 
 // Wherever the router stands, query and all: which page a version is opened on is asked for there,
 // so a URL without it would not say whether the editor or the viewer was arrived at.
@@ -163,7 +149,7 @@ afterEach(() => {
 
 describe("WorkflowEditor", () => {
   it("names the version it has open, with its lifecycle", async () => {
-    stubFetch();
+    stubServer();
 
     renderEditor();
 
@@ -183,7 +169,7 @@ describe("WorkflowEditor", () => {
   it("offers to edit a draft it is only showing, at the same URL asked the other way", async () => {
     // The editor is this version opened for editing, not a page below it -- the same move the
     // workflow's own listing offers.
-    stubFetch();
+    stubServer();
 
     renderEditor();
 
@@ -193,7 +179,7 @@ describe("WorkflowEditor", () => {
 
   it("offers no editing of a version no longer a draft", async () => {
     // Whatever is being followed is not changed from here, so there is nothing to offer
-    stubFetch();
+    stubServer();
 
     renderEditor({ path: "/Workflows/review/1-0" });
 
@@ -202,7 +188,7 @@ describe("WorkflowEditor", () => {
   });
 
   it("does not offer to edit what is already open for editing", async () => {
-    stubFetch();
+    stubServer();
 
     renderEditor({ edit: true });
 
@@ -214,7 +200,7 @@ describe("WorkflowEditor", () => {
     mockedLoadExtensions.mockResolvedValue([
       { "ext:render": ({ version }: WorkflowVersionActionProps) => <span>{`acts on ${version.version}`}</span> },
     ]);
-    stubFetch();
+    stubServer();
 
     const { unmount } = renderEditor();
     expect(await screen.findByText("acts on 2.0")).toBeInTheDocument();
@@ -233,7 +219,7 @@ describe("WorkflowEditor", () => {
       <button type="button" onClick={reload}>reload</button>
     );
     mockedLoadExtensions.mockResolvedValue([ { "ext:render": reloadingAction } ]);
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     renderEditor();
     const button = await screen.findByRole("button", { name: "reload" });
     const readsBefore = fetchMock.mock.calls.length;
@@ -249,7 +235,7 @@ describe("WorkflowEditor", () => {
       <button type="button" onClick={removed}>remove</button>
     );
     mockedLoadExtensions.mockResolvedValue([ { "ext:render": removingAction } ]);
-    stubFetch();
+    stubServer();
     renderEditor();
 
     await user.click(await screen.findByRole("button", { name: "remove" }));
@@ -258,7 +244,7 @@ describe("WorkflowEditor", () => {
   });
 
   it("offers no way to write anything in view mode", async () => {
-    stubFetch();
+    stubServer();
 
     renderEditor();
 
@@ -270,7 +256,7 @@ describe("WorkflowEditor", () => {
 
   it("saves the diagram in edit mode, and stops saying there are unsaved changes", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     // The page is handed the means to serialize once the canvas is ready
@@ -295,7 +281,7 @@ describe("WorkflowEditor", () => {
 
   it("saves and then shows the version, on the same URL without the editor asked for", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
@@ -309,7 +295,7 @@ describe("WorkflowEditor", () => {
 
   it("saves and then closes onto the workflow the version belongs to", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
@@ -325,7 +311,7 @@ describe("WorkflowEditor", () => {
     // Leaving would take the only copy of what was drawn with it, so a refusal is reported here and
     // offered again rather than navigated past
     const user = userEvent.setup();
-    stubFetch();
+    stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
@@ -341,7 +327,7 @@ describe("WorkflowEditor", () => {
     // The page's own header says the same thing, but only the browser's warning can interrupt a
     // reload or a closed tab, and it only appears for a cancelled beforeunload
     const user = userEvent.setup();
-    stubFetch();
+    stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
 
@@ -359,7 +345,7 @@ describe("WorkflowEditor", () => {
   it("asks before leaving unsaved changes for another page of the app", async () => {
     // Moving within the app unloads nothing, so the browser's own warning never comes
     const user = userEvent.setup();
-    stubFetch();
+    stubServer();
     const { router } = renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     await user.click(screen.getByRole("button", { name: "pretend to draw" }));
@@ -377,16 +363,10 @@ describe("WorkflowEditor", () => {
   it("still has unsaved changes when the process changed while the save was out", async () => {
     // What was sent was serialized before that change, so the change is not saved
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
     let answerSave: (response: Response) => void = () => undefined;
-    fetchMock.mockImplementation((url, options) => options?.method === "POST"
-      ? new Promise<Response>(resolve => {
-        answerSave = resolve;
-      })
-      : Promise.resolve({
-        ok: true, status: 200, url, headers: new Headers(),
-        json: () => Promise.resolve(isTagSearch(url) ? LIFECYCLE_TAGS : definition),
-      } as unknown as Response));
+    const fetchMock = stubFetch(
+      request => request.method === "POST" ? new Promise<Response>(resolve => { answerSave = resolve; }) : undefined,
+      serving(definition));
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
@@ -396,8 +376,7 @@ describe("WorkflowEditor", () => {
 
     await user.click(screen.getByRole("button", { name: "pretend to draw" }));
     await act(async () => {
-      answerSave({ ok: true, status: 200, url: `${VERSION_PATH}.save.json`, headers: new Headers(),
-        json: () => Promise.resolve({ status: "completed" }) } as unknown as Response);
+      answerSave(jsonResponse({ status: "completed" }));
     });
 
     expect(await screen.findByText("The process was saved")).toBeInTheDocument();
@@ -407,7 +386,7 @@ describe("WorkflowEditor", () => {
   it("does nothing on a Retry once the page that failed has been left", async () => {
     // The report outlives the page, and the page it would save from is gone
     const user = userEvent.setup();
-    stubFetch();
+    stubServer();
     const { router } = renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
@@ -416,7 +395,7 @@ describe("WorkflowEditor", () => {
     expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
 
     await navigateTo(router, ELSEWHERE);
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toHaveLength(0);
@@ -425,7 +404,7 @@ describe("WorkflowEditor", () => {
 
   it("reports a save the server refused, and offers to try again", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
@@ -439,7 +418,7 @@ describe("WorkflowEditor", () => {
 
   it("does nothing on Save until the canvas is ready to serialize", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
 
@@ -450,7 +429,7 @@ describe("WorkflowEditor", () => {
 
   it("shows an active version read-only even when asked to edit it, and says why", async () => {
     // The URL can always be typed; what a version's lifecycle allows is not the URL's decision
-    stubFetch();
+    stubServer();
 
     renderEditor({ edit: true, path: "/Workflows/review/1-0" });
 
@@ -460,7 +439,7 @@ describe("WorkflowEditor", () => {
   });
 
   it("says as much for a retired version asked to be edited", async () => {
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["retired"] },
@@ -475,7 +454,7 @@ describe("WorkflowEditor", () => {
   it("refuses to edit a version in no lifecycle, and offers a draft instead", async () => {
     // A version with no lifecycle tag is not a draft, so the one version whose lifecycle is least
     // certain is not the one freely editable. It opens read-only, and the way forward is a copy
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["sensitive"] },
@@ -490,7 +469,7 @@ describe("WorkflowEditor", () => {
   });
 
   it("offers no way into the editor for a version in no lifecycle", async () => {
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["sensitive"] },
@@ -505,7 +484,7 @@ describe("WorkflowEditor", () => {
   it("shows a version on trial read-only, and says how to change it", async () => {
     // A trial is tried as it stands; what it is changed by is being returned to a draft, which is
     // the one thing this notice can usefully point at
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "1-0": {
@@ -522,7 +501,7 @@ describe("WorkflowEditor", () => {
   });
 
   it("names a version with no label of its own by its node name", async () => {
-    stubFetch({
+    stubServer({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "tags": ["draft"] },
@@ -534,7 +513,7 @@ describe("WorkflowEditor", () => {
   });
 
   it("displays whatever is at the path when the workflow has no such version", async () => {
-    stubFetch();
+    stubServer();
 
     renderEditor({ path: "/Workflows/review/9-9" });
 
@@ -552,7 +531,7 @@ describe("WorkflowEditor", () => {
     expect(screen.getByRole("heading", { name: "Version 2-0" })).toBeInTheDocument();
     expect(getPageCrumbs()).toContainEqual({ path: "/admin/workflows/Workflows/review", label: "review" });
 
-    stubFetch();
+    stubServer();
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByRole("heading", { name: /Standard review/ })).toBeInTheDocument();

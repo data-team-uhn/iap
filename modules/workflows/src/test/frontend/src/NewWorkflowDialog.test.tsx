@@ -21,7 +21,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import NewWorkflowDialog from "@iap/workflows/NewWorkflowDialog";
 import { forgetWorkflowHomepages } from "@iap/workflows/useWorkflowHomepages";
 
@@ -33,35 +33,13 @@ const homepages = [
   { path: "/SystemWorkflows", title: "System workflows" },
 ];
 
-type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
+// An engine that creates whatever it is asked to, answering with the path of what it created
+const stubServer = () => stubFetch(request =>
+  jsonResponse({ status: "created", path: `${request.url.split(".")[0]}/created` }, 201));
 
-const stubFetch = () => {
-  const fetchMock = vi.fn<FetchStub>(url => Promise.resolve({
-    ok: true,
-    status: 201,
-    url: `http://localhost${url}`,
-    headers: new Headers(),
-    // The engine answers a creation with the path of what it created
-    json: () => Promise.resolve({ status: "created", path: `${url.split(".")[0]}/created` }),
-  } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
-
-// A server that refuses the creation while reporting the session as live.
-const stubFailingFetch = () => {
-  vi.stubGlobal("fetch", vi.fn<FetchStub>(url => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : {
-      ok: false,
-      status: 403,
-      statusText: "Forbidden",
-      url,
-      headers: new Headers(),
-      // The engine explains a refused event; a bare status would leave that to be invented
-      json: () => Promise.resolve({ error: "You are not allowed to create workflows here" }),
-    }) as unknown as Response)));
-};
+// An engine that refuses the creation, saying why
+const stubRefusal = () =>
+  stubFailingFetch(403, { body: { error: "You are not allowed to create workflows here" } });
 
 const renderDialog = (options: { homepages?: typeof homepages; preselected?: string } = {}) => {
   const onClose = vi.fn();
@@ -117,7 +95,7 @@ describe("NewWorkflowDialog", () => {
 
   it("creates the workflow where it was told to, and reports the new draft", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     const { dialog, onCreated, onClose } = renderDialog();
 
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Standard review");
@@ -133,7 +111,7 @@ describe("NewWorkflowDialog", () => {
 
   it("offers the homepages a workflow may be stored in, when there is a choice", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     const { dialog } = renderDialog();
 
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Platform behaviour");
@@ -146,7 +124,7 @@ describe("NewWorkflowDialog", () => {
 
   it("offers the homepage it was told is open ahead of the first discovered", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubServer();
     const { dialog } = renderDialog({ preselected: "/SystemWorkflows" });
 
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Platform behaviour");
@@ -174,7 +152,7 @@ describe("NewWorkflowDialog", () => {
 
   it("keeps the dialog open and says why when the creation is refused", async () => {
     const user = userEvent.setup();
-    stubFailingFetch();
+    stubRefusal();
     const { dialog, onClose } = renderDialog();
 
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Standard review");

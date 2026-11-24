@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { stubFetch } from "@iap/frontend-commons/fetch.fixture";
+
 // A stand-in for pdfjs-dist and its viewer, which follows the protocol the real ones follow with each
 // other and with PdfViewer. The document gives each page's text, and events go on the bus. The link
 // service moves the viewer, and the viewer draws each page's text layer as it is shown. Tests load it
@@ -167,12 +169,9 @@ export class FakeWorker extends EventTarget {
   }
 }
 
-// What the server answers when the viewer fetches the file: its URL, which says which document it is. A new
-// response per call, since a body can only be read once.
-export function stubFetch(status = 200): void {
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(
-    new Response(new TextEncoder().encode(url), { status }),
-  )));
+// What the server answers when the viewer fetches the file: its URL, which says which document it is
+export function stubDocumentFetch(status = 200): void {
+  stubFetch(({ url }) => new Response(new TextEncoder().encode(url), { status }));
 }
 
 // A document whose pages' text is as given, one text item per line, inside marked content.

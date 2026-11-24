@@ -44,6 +44,8 @@ import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class DeleteTaskHandlerTest
 {
+    private static final String TARGET_PATH = "/Schemas/intake";
+
     private final DeleteTaskHandler handler = new DeleteTaskHandler();
 
     private final DeletionService deletionService = Mockito.mock(DeletionService.class);
@@ -67,7 +71,13 @@ class DeleteTaskHandlerTest
 
     private final Activity activity = Mockito.mock(Activity.class);
 
-    private final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
+    private final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+
+    private final RecordingTaskContext context = RecordingTaskContext.aimedAt(this.target)
+        .actingFor("coordinator")
+        .performing(this.activity)
+        .resolvingThrough(this.resolver)
+        .build();
 
     @BeforeEach
     void setUp() throws ReflectiveOperationException
@@ -75,10 +85,7 @@ class DeleteTaskHandlerTest
         final Field reference = DeleteTaskHandler.class.getDeclaredField("deletionService");
         reference.setAccessible(true);
         reference.set(this.handler, this.deletionService);
-        Mockito.when(this.target.getPath()).thenReturn("/Schemas/intake");
-        Mockito.when(this.context.getTarget()).thenReturn(this.target);
-        Mockito.when(this.context.getActivity()).thenReturn(this.activity);
-        Mockito.when(this.context.getActor()).thenReturn("coordinator");
+        Mockito.when(this.target.getPath()).thenReturn(TARGET_PATH);
     }
 
     @Test
@@ -115,10 +122,12 @@ class DeleteTaskHandlerTest
     {
         answer(DeletionResult.Status.ARCHIVED);
 
-        this.handler.execute(this.context);
+        final WorkflowTaskContext watched = Mockito.spy(this.context);
 
-        final InOrder order = Mockito.inOrder(this.context, this.deletionService);
-        order.verify(this.context).recordRole(this.target, "archived");
+        this.handler.execute(watched);
+
+        final InOrder order = Mockito.inOrder(watched, this.deletionService);
+        order.verify(watched).recordRole(this.target, "archived");
         order.verify(this.deletionService).deleteWithin(Mockito.eq(this.target), Mockito.any());
     }
 
@@ -126,14 +135,11 @@ class DeleteTaskHandlerTest
     void checksInWhatTheDeletionCheckedOutWhetherTheDeliveryCommitsOrNot() throws Exception
     {
         answer(DeletionResult.Status.ARCHIVED, List.of("/Schemas", "/Schemas/other"));
-        final ArgumentCaptor<Runnable> afterCommit = ArgumentCaptor.forClass(Runnable.class);
-        final ArgumentCaptor<Runnable> onRollback = ArgumentCaptor.forClass(Runnable.class);
 
         this.handler.execute(this.context);
 
-        Mockito.verify(this.context, Mockito.times(2)).afterCommit(afterCommit.capture());
-        Mockito.verify(this.context, Mockito.times(2)).onRollback(onRollback.capture());
-        assertEquals(afterCommit.getAllValues(), onRollback.getAllValues());
+        assertEquals(2, this.context.getAfterCommitWork().size());
+        assertEquals(this.context.getAfterCommitWork(), this.context.getRollbackActions());
     }
 
     @Test
@@ -169,8 +175,8 @@ class DeleteTaskHandlerTest
 
         this.handler.execute(this.context);
 
-        Mockito.verify(this.context, Mockito.never()).afterCommit(Mockito.any());
-        Mockito.verify(this.context, Mockito.never()).onRollback(Mockito.any());
+        assertEquals(List.of(), this.context.getAfterCommitWork());
+        assertEquals(List.of(), this.context.getRollbackActions());
     }
 
     @Test
@@ -181,7 +187,7 @@ class DeleteTaskHandlerTest
 
         this.handler.execute(this.context);
 
-        Mockito.verify(this.context).recordRole(this.target, "erased");
+        assertEquals(List.of(new RecordedRole(TARGET_PATH, "erased")), this.context.getRoles());
     }
 
     @Test
@@ -229,12 +235,10 @@ class DeleteTaskHandlerTest
      */
     private VersionManager checkedOutInTheRepository(final String path) throws RepositoryException
     {
-        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         final Session session = Mockito.mock(Session.class);
         final Workspace workspace = Mockito.mock(Workspace.class);
         final VersionManager versions = Mockito.mock(VersionManager.class);
-        Mockito.when(this.context.getResourceResolver()).thenReturn(resolver);
-        Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
+        Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(session);
         Mockito.when(session.getWorkspace()).thenReturn(workspace);
         Mockito.when(session.nodeExists(path)).thenReturn(true);
         Mockito.when(workspace.getVersionManager()).thenReturn(versions);
@@ -244,9 +248,9 @@ class DeleteTaskHandlerTest
 
     private Runnable registeredCheckIn()
     {
-        final ArgumentCaptor<Runnable> checkIn = ArgumentCaptor.forClass(Runnable.class);
-        Mockito.verify(this.context).afterCommit(checkIn.capture());
-        return checkIn.getValue();
+        final List<Runnable> checkIn = this.context.getAfterCommitWork();
+        assertEquals(1, checkIn.size());
+        return checkIn.get(0);
     }
 
     /**

@@ -59,6 +59,47 @@
           </instructions>
         </configuration>
       </plugin>
+      <!-- The fixtures in src/testFixtures, compiled with the tests and published as this module's test jar for other
+           modules' tests -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>add-test-fixtures</id>
+            <phase>generate-test-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>src/testFixtures/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>test-fixtures</id>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <configuration>
+              <includes>
+                <include>io/uhndata/iap/workflows/testing/**</include>
+              </includes>
+              <excludes>
+                <exclude>**/*Test.class</exclude>
+                <exclude>**/*Test$*.class</exclude>
+              </excludes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 
@@ -228,6 +269,11 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
+    <!-- The context plugins the test fixtures offer -->
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.osgi-mock.core</artifactId>
+    </dependency>
     <!-- A real repository, whose node types decide which fields an update may change -->
     <dependency>
       <groupId>org.apache.sling</groupId>
@@ -252,4 +298,29 @@
       <artifactId>javax.annotation-api</artifactId>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <!-- Other modules' test jars, which only a build that runs the tests produces -->
+    <profile>
+      <id>tests</id>
+      <dependencies>
+        <!-- TestResolverFactory, through which the engine tests hand out the engine's sessions -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-java-utils</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+        <!-- PropertyTagging, which keeps tags in a mock repository -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-tags-api</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>

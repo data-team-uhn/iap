@@ -32,6 +32,7 @@ import org.apache.sling.api.request.RequestParameter;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.servlethelpers.MockJakartaRequestDispatcherFactory;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockRequestPathInfo;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
@@ -56,6 +57,7 @@ import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -74,7 +76,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class WorkflowEventServletTest
 {
-    private final SlingContext context = new SlingContext();
+    private final SlingContext context = new SlingContextBuilder().plugin(WorkflowPlugins.MOCK_ENGINE).build();
 
     private WorkflowEngine engine;
 
@@ -87,7 +89,7 @@ class WorkflowEventServletTest
     {
         WorkflowFixture.setUp(this.context);
         this.target = EngineFixture.createTarget(this.context);
-        this.engine = Mockito.mock(WorkflowEngine.class);
+        this.engine = this.context.getService(WorkflowEngine.class);
         this.servlet = new WorkflowEventServlet(this.engine);
     }
 

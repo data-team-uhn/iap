@@ -53,18 +53,19 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.submissions.internal.Referenceables;
-import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.testing.PropertyTagging;
+import io.uhndata.iap.utils.testing.Referenceables;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -115,12 +116,14 @@ class AttachDocumentHandlerTest
 
     private Resource target;
 
+    private Referenceables references;
+
     // What the request reads as when adapted to a node: jcr-mock answers nothing about versioning, so each test says
     // whether the request is checked in
     private Node node;
 
     @BeforeEach
-    void setUp() throws RepositoryException, PersistenceException
+    void setUp() throws RepositoryException
     {
         this.node = Mockito.mock(Node.class);
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
@@ -128,7 +131,7 @@ class AttachDocumentHandlerTest
             SchemaVersion.class, Question.class, FormRequirement.class, DocumentRequirement.class, Document.class,
             DocumentVersion.class, File.class, Submission.class, Activity.class);
         // Whether a request may still be changed is read from its lifecycle tag
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
@@ -141,11 +144,12 @@ class AttachDocumentHandlerTest
         // A requirement of a kind nobody uploads a file for, so a name alone does not find a document requirement
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
-        Referenceables.identify(this.context, NOTE_PATH, VERSION_PATH + "/anything");
+        this.references = new Referenceables(this.context.resourceResolver());
+        this.references.identify(NOTE_PATH, VERSION_PATH + "/anything");
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
-        reference(this.target, VERSION_PATH, "schemaVersion");
+        this.references.setReference(this.target.getPath(), "schemaVersion", VERSION_PATH);
     }
 
     @Test
@@ -168,11 +172,12 @@ class AttachDocumentHandlerTest
     @Test
     void namesTheRequirementItAttachedADocumentToForTheHistory() throws Exception
     {
-        final TaskContext attaching = context(payload(NOTE, upload("note.pdf", PDF)));
+        final RecordingTaskContext attaching = context(payload(NOTE, upload("note.pdf", PDF)));
 
         this.handler.execute(attaching);
 
-        assertEquals(Map.of(onlyDocument().getPath(), "attached a document to Doctor's note"), attaching.getRoles());
+        assertEquals(List.of(new RecordedRole(onlyDocument().getPath(), "attached a document to Doctor's note")),
+            attaching.getRoles());
     }
 
     @Test
@@ -208,10 +213,10 @@ class AttachDocumentHandlerTest
         // another requirement, is not this upload's to take.
         final Resource other = this.context.create().resource(SUBMISSION_PATH + "/waitingForAnything",
             Map.of(TYPE, Document.RESOURCE_TYPE));
-        reference(other, VERSION_PATH + "/anything", "fulfills");
+        this.references.setReference(other.getPath(), "fulfills", VERSION_PATH + "/anything");
         final Resource waiting = this.context.create().resource(SUBMISSION_PATH + "/waiting",
             Map.of(TYPE, Document.RESOURCE_TYPE));
-        reference(waiting, NOTE_PATH, "fulfills");
+        this.references.setReference(waiting.getPath(), "fulfills", NOTE_PATH);
 
         this.handler.execute(context(payload(NOTE, upload("waited.pdf", PDF))));
 
@@ -654,17 +659,6 @@ class AttachDocumentHandlerTest
         }
     }
 
-    private void reference(final Resource from, final String toPath, final String property)
-    {
-        try {
-            from.adaptTo(Node.class).setProperty(property,
-                present(this.context.resourceResolver().getResource(toPath)).adaptTo(Node.class));
-            this.context.resourceResolver().commit();
-        } catch (final RepositoryException | PersistenceException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private void modify(final Resource resource, final String property, final Object value)
     {
         try {
@@ -675,17 +669,17 @@ class AttachDocumentHandlerTest
         }
     }
 
-    private TaskContext context(final Map<String, Object> payload)
+    private RecordingTaskContext context(final Map<String, Object> payload)
     {
         return context(payload, REQUESTER);
     }
 
-    private TaskContext context(final Map<String, Object> payload, final String actor)
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor)
     {
         return context(payload, actor, this.context.resourceResolver());
     }
 
-    private TaskContext context(final Map<String, Object> payload, final String actor,
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor,
         final ResourceResolver resolver)
     {
         final Node asNode = this.node;
@@ -703,7 +697,6 @@ class AttachDocumentHandlerTest
                 return Node.class.equals(type) ? type.cast(asNode) : super.adaptTo(type);
             }
         };
-        return new TaskContext(submission, actor, new WorkflowEvent("attachDocument", payload))
-            .performing(Mockito.mock(Activity.class));
+        return RecordingTaskContext.aimedAt(submission).actingFor(actor).forEvent("attachDocument", payload).build();
     }
 }

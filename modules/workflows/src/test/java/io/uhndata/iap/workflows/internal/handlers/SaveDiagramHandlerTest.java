@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows.internal.handlers;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.RepositoryException;
@@ -41,10 +42,11 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -103,14 +105,11 @@ class SaveDiagramHandlerTest
     void namesTheVersionsDiagramAsEditedForTheHistory() throws WorkflowException, PersistenceException
     {
         AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
-        final WorkflowTaskContext saving =
-            Mockito.spy(this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, "application/xml")));
+        final RecordingTaskContext saving = this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, "application/xml"));
 
         this.handler.execute(saving);
 
-        Mockito.verify(saving).recordRole(
-            Mockito.argThat(resource -> AuthoringFixture.path(DRAFT).equals(resource.getPath())),
-            Mockito.eq("diagram edited"));
+        assertEquals(List.of(new RecordedRole(AuthoringFixture.path(DRAFT), "diagram edited")), saving.getRoles());
     }
 
     @Test
@@ -118,14 +117,13 @@ class SaveDiagramHandlerTest
     {
         // After a step that created a version in the same run, the diagram goes onto that version
         AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put(WorkflowResult.CREATED_PATH_VARIABLE, AuthoringFixture.path(DRAFT));
         final Map<String, Object> payload = new HashMap<>();
         payload.put("bpmn.xml", AuthoringFixture.upload(REPLACEMENT, "application/xml"));
 
         this.handler.execute(AuthoringFixture.context(
-            this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION), "save", payload, this.activity,
-            variables));
+            this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION), "save", payload, this.activity)
+            .havingCreated(AuthoringFixture.path(DRAFT))
+            .build());
 
         assertEquals(REPLACEMENT, AuthoringFixture.read(
             this.context.resourceResolver().getResource(AuthoringFixture.path(DRAFT)).getChild("bpmn.xml")));
@@ -205,8 +203,8 @@ class SaveDiagramHandlerTest
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
         final WorkflowTaskContext request = AuthoringFixture.context(
             AuthoringFixture.unreadable(this.context, AuthoringFixture.path("2-0")), "save",
-            Map.of(VersionEdits.BPMN_XML_FILE_NAME, AuthoringFixture.upload(REPLACEMENT, null)), this.activity,
-            new HashMap<>());
+            Map.of(VersionEdits.BPMN_XML_FILE_NAME, AuthoringFixture.upload(REPLACEMENT, null)), this.activity)
+            .build();
 
         final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
             () -> this.handler.execute(request));
@@ -273,7 +271,7 @@ class SaveDiagramHandlerTest
         payload.put("bpmn.xml", AuthoringFixture.upload(REPLACEMENT, "application/xml"));
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            AuthoringFixture.context(version, "save", payload, this.activity, new HashMap<>())));
+            AuthoringFixture.context(version, "save", payload, this.activity).build()));
         assertEquals("The repository is full", failure.getMessage());
     }
 
@@ -297,20 +295,20 @@ class SaveDiagramHandlerTest
      * @param diagram the uploaded document, or {@code null} to send none
      * @return the assembled context
      */
-    private WorkflowTaskContext save(final String name, final EventAttachment diagram)
+    private RecordingTaskContext save(final String name, final EventAttachment diagram)
     {
         final Map<String, Object> payload = new HashMap<>();
         if (diagram != null) {
             payload.put("bpmn.xml", diagram);
         }
         return AuthoringFixture.context(this.context.resourceResolver().getResource(AuthoringFixture.path(name)),
-            "save", payload, this.activity, new HashMap<>());
+            "save", payload, this.activity).build();
     }
 
     private WorkflowTaskContext saveAt(final Resource version)
     {
         return AuthoringFixture.context(version, "save",
-            Map.of(VersionEdits.BPMN_XML_FILE_NAME, AuthoringFixture.upload(REPLACEMENT, null)), this.activity,
-            new HashMap<>());
+            Map.of(VersionEdits.BPMN_XML_FILE_NAME, AuthoringFixture.upload(REPLACEMENT, null)), this.activity)
+            .build();
     }
 }

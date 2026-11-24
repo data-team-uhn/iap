@@ -22,10 +22,9 @@ import userEvent from "@testing-library/user-event";
 
 import CatcherSwitch from "@iap/email-catcher/CatcherSwitch";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
-const accepting = () =>
-  vi.fn((_url: string, _init?: RequestInit) =>
-    Promise.resolve(new Response("{}", { status: 200 })));
+const accepting = () => stubFetch(() => jsonResponse({}));
 
 const showing = (enabled: boolean, onChanged = vi.fn()) => {
   render(
@@ -45,7 +44,7 @@ describe("CatcherSwitch", () => {
   });
 
   it("asks before it starts catching, and says what that costs", async () => {
-    vi.stubGlobal("fetch", accepting());
+    accepting();
     showing(false);
 
     await userEvent.click(toggle());
@@ -55,7 +54,7 @@ describe("CatcherSwitch", () => {
   });
 
   it("asks before it stops, too, because the other direction reaches real people", async () => {
-    vi.stubGlobal("fetch", accepting());
+    accepting();
     showing(true);
 
     await userEvent.click(toggle());
@@ -66,7 +65,6 @@ describe("CatcherSwitch", () => {
 
   it("writes nothing until the confirmation is accepted", async () => {
     const fetchMock = accepting();
-    vi.stubGlobal("fetch", fetchMock);
     showing(false);
 
     await userEvent.click(toggle());
@@ -81,7 +79,6 @@ describe("CatcherSwitch", () => {
   it("writes nothing when the dialog is dismissed rather than answered", async () => {
     // Escape and a backdrop click go through the Dialog's own onClose, not the Cancel button.
     const fetchMock = accepting();
-    vi.stubGlobal("fetch", fetchMock);
     showing(false);
 
     await userEvent.click(toggle());
@@ -94,7 +91,6 @@ describe("CatcherSwitch", () => {
 
   it("posts the new setting once confirmed, and tells the caller to read it back", async () => {
     const fetchMock = accepting();
-    vi.stubGlobal("fetch", fetchMock);
     const onChanged = showing(false);
 
     await userEvent.click(toggle());
@@ -109,7 +105,6 @@ describe("CatcherSwitch", () => {
 
   it("asks to be switched off when it is on", async () => {
     const fetchMock = accepting();
-    vi.stubGlobal("fetch", fetchMock);
     showing(true);
 
     await userEvent.click(toggle());
@@ -121,7 +116,7 @@ describe("CatcherSwitch", () => {
   });
 
   it("announces the change, so the banner on this page notices", async () => {
-    vi.stubGlobal("fetch", accepting());
+    accepting();
     const heard = vi.fn();
     window.addEventListener("iap:mail-catching-changed", heard);
     showing(false);
@@ -134,8 +129,7 @@ describe("CatcherSwitch", () => {
   });
 
   it("announces nothing when the write was refused", async () => {
-    vi.stubGlobal("fetch", vi.fn((_url: string, _init?: RequestInit) =>
-      Promise.resolve(new Response("{}", { status: 403 }))));
+    stubFailingFetch(403, { body: {} });
     const heard = vi.fn();
     window.addEventListener("iap:mail-catching-changed", heard);
     showing(false);
@@ -149,8 +143,7 @@ describe("CatcherSwitch", () => {
   });
 
   it("says so when the setting could not be written, rather than closing as though it had", async () => {
-    vi.stubGlobal("fetch", vi.fn((_url: string, _init?: RequestInit) =>
-      Promise.resolve(new Response("{}", { status: 403 }))));
+    stubFailingFetch(403, { body: {} });
     const onChanged = showing(false);
 
     await userEvent.click(toggle());

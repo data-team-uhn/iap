@@ -48,6 +48,7 @@ import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.utils.testing.Referenceables;
 
 /**
  * A submission and the schema it answers, for the tests of what a submission is still missing. The schema has a form
@@ -91,9 +92,8 @@ public final class CompletenessFixture
      *
      * @param context the mock context, JCR-backed for the references
      * @param hidden the names of the schema parts whose condition does not hold
-     * @throws Exception when a reference cannot be written
      */
-    public static void setUp(final SlingContext context, final Set<String> hidden) throws Exception
+    public static void setUp(final SlingContext context, final Set<String> hidden)
     {
         context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
@@ -118,12 +118,13 @@ public final class CompletenessFixture
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Why?", "minAnswers", 1L));
         context.create().resource(VERSION_PATH + "/" + DOCTORS_NOTE, Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
-        Referenceables.identify(context, VERSION_PATH + "/" + START_DATE, VERSION_PATH + "/" + NOTE,
+        final Referenceables references = new Referenceables(context.resourceResolver());
+        references.identify(VERSION_PATH + "/" + START_DATE, VERSION_PATH + "/" + NOTE,
             VERSION_PATH + "/" + REASON, VERSION_PATH + "/" + DOCTORS_NOTE);
 
         context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", "demo-requester"));
-        reference(context, SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
+        references.setReference(SUBMISSION_PATH, "schemaVersion", VERSION_PATH);
     }
 
     /**
@@ -133,14 +134,13 @@ public final class CompletenessFixture
      * @param questionPath the question's path, relative to the schema version
      * @param values what was answered
      * @return the answer's resource
-     * @throws Exception when the reference cannot be written
      */
     public static Resource answer(final SlingContext context, final String questionPath, final String... values)
-        throws Exception
     {
         final Resource answer = context.create().resource(SUBMISSION_PATH + "/" + questionPath.replace('/', '-'),
             Map.of(TYPE, Answer.RESOURCE_TYPE, "value", values));
-        reference(context, answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+        new Referenceables(context.resourceResolver())
+            .setReference(answer.getPath(), "question", VERSION_PATH + "/" + questionPath);
         return answer;
     }
 
@@ -151,17 +151,16 @@ public final class CompletenessFixture
      * @param requirement the requirement's name
      * @param attached whether a file has been uploaded into it
      * @return the document's resource
-     * @throws Exception when the reference cannot be written
      */
     public static Resource document(final SlingContext context, final String requirement, final boolean attached)
-        throws Exception
     {
         final Resource document = context.create().resource(SUBMISSION_PATH + "/" + requirement
             + (attached ? "Attached" : "Empty"), Map.of(TYPE, Document.RESOURCE_TYPE));
         if (attached) {
             context.create().resource(document.getPath() + "/v1", Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
         }
-        reference(context, document.getPath(), VERSION_PATH + "/" + requirement, "fulfills");
+        new Referenceables(context.resourceResolver())
+            .setReference(document.getPath(), "fulfills", VERSION_PATH + "/" + requirement);
         return document;
     }
 
@@ -238,16 +237,5 @@ public final class CompletenessFixture
             .getChildren().spliterator(), false)
             .filter(child -> child.isResourceType(resourceType)
                 || primaryType.equals(child.getValueMap().get("jcr:primaryType", String.class)));
-    }
-
-    public static void reference(final SlingContext context, final String fromPath, final String toPath,
-        final String property) throws Exception
-    {
-        final Node source =
-            Objects.requireNonNull(context.resourceResolver().getResource(fromPath)).adaptTo(Node.class);
-        final Node target =
-            Objects.requireNonNull(context.resourceResolver().getResource(toPath)).adaptTo(Node.class);
-        Objects.requireNonNull(source).setProperty(property, Objects.requireNonNull(target));
-        context.resourceResolver().commit();
     }
 }

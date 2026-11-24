@@ -21,49 +21,26 @@ import type { ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { DeletionRefusedError, useCategoryTree } from "@iap/categories/useCategoryTree";
-import { ReLoginContext, SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import {
+  jsonResponse,
+  sentRequests,
+  sessionInfo,
+  stubFailingFetch,
+  stubFetch,
+} from "@iap/frontend-commons/fetch.fixture";
+import { ReLoginContext } from "@iap/frontend-commons/reLogin";
 
-// One request the stubbed fetch received.
-interface RecordedRequest {
-  url: string;
-  method: string;
-  params: URLSearchParams;
-}
-
-let requests: RecordedRequest[] = [];
-
-// Stubs fetch to answer the tree GET with `treeJson` and every other request with `postStatus`,
-// recording each one. `location` is the Location header of those answers; null for none.
-// Every answer carries its `url`, which useAuthenticatedFetch reads to recognise the login page.
-const stubFetch = (
+// Answers the tree GET with `treeJson` and every other request with `postStatus`. `location` is the
+// Location header of those answers; null for none. Only the deletion endpoint's `refusal` is read.
+const stubServer = (
   treeJson: Record<string, unknown>,
   postStatus = 200,
   location: string | null = "/Categories/new-category",
   refusal?: Record<string, unknown>,
-) =>
-  vi.stubGlobal("fetch", vi.fn((url: string, options?: RequestInit) => {
-    const method = options?.method ?? "GET";
-    requests.push({
-      url,
-      method,
-      params: new URLSearchParams(options?.body as URLSearchParams | undefined),
-    });
-    if (method === "GET") {
-      return Promise.resolve({
-        ok: true, status: 200, statusText: "OK", url,
-        json: () => Promise.resolve(treeJson),
-      } as unknown as Response);
-    }
-    return Promise.resolve({
-      ok: postStatus < 400,
-      status: postStatus,
-      statusText: postStatus === 200 ? "OK" : "Error",
-      url,
-      headers: { get: (name: string) => name === "Location" ? location : null },
-      // Only the deletion endpoint answers with a body; the POST servlet's is never read
-      ...(refusal ? { json: () => Promise.resolve(refusal) } : {}),
-    } as unknown as Response);
-  }));
+) => stubFetch(request => request.method === "GET"
+  ? jsonResponse(treeJson)
+  : new Response(refusal ? JSON.stringify(refusal) : null,
+    { status: postStatus, headers: location ? { Location: location } : {} }));
 
 const treeJson = {
   "jcr:primaryType": "cat:CategoriesHomepage",
@@ -79,11 +56,7 @@ const loadedHook = async () => {
   return result;
 };
 
-const lastPost = () => requests.filter(request => request.method === "POST").at(-1);
-
-beforeEach(() => {
-  requests = [];
-});
+const lastPost = () => sentRequests().filter(request => request.method === "POST").at(-1);
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -92,20 +65,17 @@ afterEach(() => {
 
 describe("useCategoryTree", () => {
   it("loads and parses the tree on mount", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
-    expect(requests[0].url).toBe("/Categories.deep.simple.json");
+    expect(sentRequests()[0].url).toBe("/Categories.deep.simple.json");
     expect(result.current.tree.map(node => node.label)).toEqual(["Retrospective studies"]);
     expect(result.current.loadError).toBeUndefined();
   });
 
   // The sentence comes from requestFailure, and a failed read must not speak of a change
   it("reports a load failure in the user's terms", async () => {
-    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-      // A live session makes the 500 a server failure, not an expired session
-      ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-      : { ok: false, status: 500, statusText: "Server Error", url }) as unknown as Response)));
+    stubFailingFetch(500);
     const result = await loadedHook();
 
     expect(result.current.loadError).toContain("The server ran into a problem");
@@ -131,7 +101,7 @@ describe("useCategoryTree", () => {
   });
 
   it("creates a category under its parent and reloads the tree", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     const newPath = await result.current.create("/Categories/Retrospective",
@@ -145,11 +115,11 @@ describe("useCategoryTree", () => {
     expect(post?.params.get("description")).toBe("Something");
     expect(newPath).toBe("/Categories/new-category");
     // The mount GET, then a re-fetch after the mutation
-    expect(requests.filter(request => request.method === "GET").length).toBe(2);
+    expect(sentRequests().filter(request => request.method === "GET").length).toBe(2);
   });
 
   it("binds a schema version as a typed reference", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await result.current.update("/Categories/Retrospective", { label: "Retro", schemaVersion: "uuid-sv1" });
@@ -160,7 +130,7 @@ describe("useCategoryTree", () => {
   });
 
   it("removes a schema version binding explicitly", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await result.current.update("/Categories/Retrospective", { label: "Retro", schemaVersion: null });
@@ -171,7 +141,7 @@ describe("useCategoryTree", () => {
   });
 
   it("unbinds a schema version on its own, leaving the other fields alone", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await result.current.unbindSchemaVersion("/Categories/Retrospective");
@@ -183,7 +153,7 @@ describe("useCategoryTree", () => {
   });
 
   it("moves a category with a trailing-slash destination, keeping its name", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await result.current.move("/Categories/Retrospective", "/Categories/Prospective");
@@ -194,7 +164,7 @@ describe("useCategoryTree", () => {
   });
 
   it("reorders a category with Sling's :order syntax", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await result.current.reorder("/Categories/Retrospective", "before Prospective");
@@ -203,7 +173,7 @@ describe("useCategoryTree", () => {
   });
 
   it("retires a category by placing the retired tag", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await result.current.setRetired("/Categories/Retrospective", true);
@@ -214,7 +184,7 @@ describe("useCategoryTree", () => {
   });
 
   it("unretires a category by removing the same tag", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await result.current.setRetired("/Categories/Retrospective", false);
@@ -223,21 +193,21 @@ describe("useCategoryTree", () => {
   });
 
   it("deletes a category through the deletion endpoint and reloads the tree", async () => {
-    stubFetch(treeJson);
+    stubServer(treeJson);
     const result = await loadedHook();
 
     await act(() => result.current.remove("/Categories/Retrospective"));
 
-    const sent = requests.filter(request => request.method === "DELETE");
+    const sent = sentRequests().filter(request => request.method === "DELETE");
     expect(sent).toHaveLength(1);
     expect(sent[0].url).toBe("/Categories/Retrospective");
-    expect(requests.filter(request => request.method === "POST")).toHaveLength(0);
+    expect(sentRequests().filter(request => request.method === "POST")).toHaveLength(0);
     // The reload that follows it
-    expect(requests.filter(request => request.method === "GET")).toHaveLength(2);
+    expect(sentRequests().filter(request => request.method === "GET")).toHaveLength(2);
   });
 
   it("takes the created category's path from the Location the server reports", async () => {
-    stubFetch(treeJson, 200, "/Categories/Retrospective/New%20One.json");
+    stubServer(treeJson, 200, "/Categories/Retrospective/New%20One.json");
     const result = await loadedHook();
 
     await act(async () => {
@@ -247,7 +217,7 @@ describe("useCategoryTree", () => {
   });
 
   it("falls back to the parent when the server reports no Location", async () => {
-    stubFetch(treeJson, 200, null);
+    stubServer(treeJson, 200, null);
     const result = await loadedHook();
 
     await act(async () => {
@@ -264,7 +234,7 @@ describe("useCategoryTree", () => {
   });
 
   it("passes on the reason the deletion endpoint refused", async () => {
-    stubFetch(treeJson, 409, null, {
+    stubServer(treeJson, 409, null, {
       "status.code": 409,
       "status": "referenced",
       "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
@@ -276,7 +246,7 @@ describe("useCategoryTree", () => {
   });
 
   it("still reports a refusal when its reason cannot be read", async () => {
-    stubFetch(treeJson, 409);
+    stubServer(treeJson, 409);
     const result = await loadedHook();
 
     await expect(result.current.remove("/Categories/Retrospective"))
@@ -284,7 +254,7 @@ describe("useCategoryTree", () => {
   });
 
   it("reports any other deletion failure as a failure", async () => {
-    stubFetch(treeJson, 403);
+    stubServer(treeJson, 403);
     const result = await loadedHook();
 
     await expect(result.current.remove("/Categories/Retrospective"))
@@ -295,34 +265,17 @@ describe("useCategoryTree", () => {
   // with reLogin; this checks that a category write goes through it.
   it("recovers a write from a session that expired under it", async () => {
     let posts = 0;
-    vi.stubGlobal("fetch", vi.fn((url: string, options?: RequestInit) => {
-      const method = options?.method ?? "GET";
-      requests.push({
-        url,
-        method,
-        params: new URLSearchParams(options?.body as URLSearchParams | undefined),
-      });
-      if (url === SESSION_INFO_URL) {
-        // The session is gone, so the 500 means an expired session
-        return Promise.resolve({
-          ok: true, status: 200, url,
-          json: () => Promise.resolve({ userID: "anonymous" }),
-        } as unknown as Response);
-      }
-      if (method === "GET") {
-        return Promise.resolve({
-          ok: true, status: 200, url, json: () => Promise.resolve(treeJson),
-        } as unknown as Response);
+    // The session is gone, so the 500 means an expired session
+    stubFetch(sessionInfo("anonymous"), request => {
+      if (request.method === "GET") {
+        return jsonResponse(treeJson);
       }
       // The first write meets the expired session, and the re-sent one succeeds
       posts += 1;
-      return Promise.resolve(posts === 1
-        ? { ok: false, status: 500, url } as unknown as Response
-        : {
-          ok: true, status: 200, url,
-          headers: { get: () => "/Categories/Retrospective" },
-        } as unknown as Response);
-    }));
+      return posts === 1
+        ? new Response(null, { status: 500 })
+        : new Response(null, { headers: { Location: "/Categories/Retrospective" } });
+    });
     const signIn = vi.fn(() => Promise.resolve(true));
     const { result } = renderHook(() => useCategoryTree(), {
       wrapper: ({ children }: { children: ReactNode }) =>
@@ -334,7 +287,7 @@ describe("useCategoryTree", () => {
 
     expect(signIn).toHaveBeenCalled();
     // Two POSTs for the one change: the write was sent again, not reported
-    expect(requests.filter(request => request.method === "POST")).toHaveLength(2);
+    expect(sentRequests().filter(request => request.method === "POST")).toHaveLength(2);
     expect(result.current.loadError).toBeUndefined();
   });
 });

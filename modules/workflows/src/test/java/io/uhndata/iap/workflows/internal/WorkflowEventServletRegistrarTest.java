@@ -17,30 +17,33 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 
 import jakarta.servlet.Servlet;
 
-import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceWrapper;
+import org.apache.sling.testing.mock.osgi.MockOsgi;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
+import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;
 
-import io.uhndata.iap.workflows.api.WorkflowEngine;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
@@ -60,15 +63,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @ExtendWith(SlingContextExtension.class)
 class WorkflowEventServletRegistrarTest
 {
-    private final SlingContext context = new SlingContext();
+    private final SlingContext context = new SlingContextBuilder().plugin(WorkflowPlugins.MOCK_ENGINE).build();
 
-    private final WorkflowEventServletRegistrar registrar = new WorkflowEventServletRegistrar();
+    private WorkflowEventServletRegistrar registrar;
 
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        inject("engine", Mockito.mock(WorkflowEngine.class));
     }
 
     @Test
@@ -119,11 +121,8 @@ class WorkflowEventServletRegistrarTest
         final Resource home = this.context.resourceResolver().getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH)).thenReturn(new WithoutModels(home));
-        final ResourceResolverFactory restarting = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(restarting.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
-        inject("resolverFactory", restarting);
 
-        this.registrar.activate(this.context.bundleContext());
+        activateLoggingInThrough(TestResolverFactory.answeredBy(authenticationInfo -> resolver));
 
         assertArrayEquals(new String[] { "wf/TaskInstance", "wf/WorkflowsHomepage" }, boundTypes());
     }
@@ -131,30 +130,48 @@ class WorkflowEventServletRegistrarTest
     @Test
     void bindsOnlyTasksWithoutItsServiceUser() throws Exception
     {
-        final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new LoginException("no such service user"));
-        inject("resolverFactory", broken);
-        this.registrar.activate(this.context.bundleContext());
+        activateLoggingInThrough(TestResolverFactory.withoutServiceUser());
 
         assertArrayEquals(new String[] { "wf/TaskInstance" }, boundTypes());
     }
 
     @Test
-    void takesTheServletDownWithIt() throws Exception
+    void takesTheServletDownWithIt()
     {
-        activate();
+        // Wired and activated without being registered: a registered component is deactivated again when the
+        // context shuts down, and a second deactivation unregisters the servlet twice
+        final WorkflowEventServletRegistrar unregistered = new WorkflowEventServletRegistrar();
+        final BundleContext bundle = this.context.bundleContext();
+        MockOsgi.injectServices(unregistered, bundle);
+        MockOsgi.activate(unregistered, bundle);
 
-        this.registrar.deactivate();
+        MockOsgi.deactivate(unregistered, bundle);
 
-        assertNull(this.context.bundleContext().getServiceReference(Servlet.class));
+        assertNull(bundle.getServiceReference(Servlet.class));
     }
 
-    private void activate() throws ReflectiveOperationException, Exception
+    /**
+     * Registers the registrar as the framework would, once the test's content is committed for its service session
+     * to see.
+     *
+     * @throws PersistenceException when the content cannot be committed
+     */
+    private void activate() throws PersistenceException
     {
         this.context.resourceResolver().commit();
-        inject("resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        this.registrar.activate(this.context.bundleContext());
+        this.registrar = this.context.registerInjectActivateService(WorkflowEventServletRegistrar.class);
+    }
+
+    /**
+     * Registers the registrar as the framework would, logging in as its service user through the given factory.
+     *
+     * @param serviceUsers where the registrar opens its session
+     */
+    private void activateLoggingInThrough(final ResourceResolverFactory serviceUsers)
+    {
+        this.context.registerService(ResourceResolverFactory.class, serviceUsers,
+            Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.registrar = this.context.registerInjectActivateService(WorkflowEventServletRegistrar.class);
     }
 
     private ServiceReference<Servlet> servlet()
@@ -165,13 +182,6 @@ class WorkflowEventServletRegistrarTest
     private String[] boundTypes()
     {
         return (String[]) servlet().getProperty("sling.servlet.resourceTypes");
-    }
-
-    private void inject(final String field, final Object value) throws ReflectiveOperationException
-    {
-        final Field reference = WorkflowEventServletRegistrar.class.getDeclaredField(field);
-        reference.setAccessible(true);
-        reference.set(this.registrar, value);
     }
 
     /** A resource as it reads while Sling Models restarts: there, with its children, and adaptable to no model. */

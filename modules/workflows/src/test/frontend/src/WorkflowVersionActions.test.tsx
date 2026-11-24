@@ -26,7 +26,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, sentRequests, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import type { WorkflowSummary, WorkflowVersionSummary } from "@iap/workflows/workflowModel";
 import WorkflowVersionActions, { type WorkflowVersionActionProps } from "@iap/workflows/WorkflowVersionActions";
@@ -42,8 +42,6 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 // A stubbed fetch: the URL, and the request options a write carries.
-type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
-
 // A version's lifecycle tag
 type Lifecycle = "draft" | "trial" | "active" | "retired";
 
@@ -111,32 +109,16 @@ const renderAction = (
 );
 
 // An engine that runs every event it is given. One that created something answers with its path.
-const stubFetch = (created?: string) => {
-  const fetchMock = vi.fn<FetchStub>((url) => Promise.resolve({
-    ok: true,
-    status: created === undefined ? 200 : 201,
-    url: `http://localhost${url}`,
-    headers: new Headers(),
-    json: () => Promise.resolve(created === undefined
-      ? { status: "completed" } : { status: "created", path: created }),
-  } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
+const stubEngine = (created?: string) => stubFetch(() => created === undefined
+  ? jsonResponse({ status: "completed" })
+  : jsonResponse({ status: "created", path: created }, 201));
 
 // An engine that refused the event, in the words it refused it with.
-const stubRefusingFetch = (status: number, error: string) => {
-  vi.stubGlobal("fetch", vi.fn<FetchStub>(url => Promise.resolve(((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : { ok: false, status, url, headers: new Headers(), json: () => Promise.resolve({ error }) })
-  ) as unknown as Response)));
-};
+const stubRefusingFetch = (status: number, error: string) => stubFailingFetch(status, { body: { error } });
 
 // The move the latest lifecycle event asked for, which is the event's own name.
-const moveAskedFor = (fetchMock: { mock: { calls: [string, RequestInit?][] } }) => {
-  const call = fetchMock.mock.calls.filter(([url]) => url.startsWith("/Workflows/")).at(-1);
-  return call?.[0].split(".")[1];
-};
+const moveAskedFor = () =>
+  sentRequests().filter(request => request.url.startsWith("/Workflows/")).at(-1)?.url.split(".")[1];
 
 beforeEach(() => {
   clearActions();
@@ -239,7 +221,7 @@ describe("the edit action", () => {
 describe("the activate action", () => {
   it("names the version that will be retired, and promotes on confirmation", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const active = version("1.0", "active");
     const draft = version("2.0", "draft");
     const props = propsFor(draft, workflow(active, draft));
@@ -254,13 +236,13 @@ describe("the activate action", () => {
     await waitFor(() => expect(props.reload).toHaveBeenCalled());
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/2-0.activate.json",
       expect.objectContaining({ method: "POST" }));
-    expect(moveAskedFor(fetchMock)).toBe("activate");
+    expect(moveAskedFor()).toBe("activate");
     expect(await screen.findByText("Version 2.0 is now the active version of Standard review")).toBeInTheDocument();
   });
 
   it("says that nothing is retired when the workflow has no active version", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubEngine();
     const draft = version("1.0", "draft");
     renderAction(WorkflowVersionActivateAction, propsFor(draft, workflow(draft)));
 
@@ -286,7 +268,7 @@ describe("the activate action", () => {
 
   it("names an unlabelled version, and the unlabelled one it supersedes, by node name", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubEngine();
     const active = { ...version("1.0", "active"), version: "" };
     const draft = { ...version("2.0", "draft"), version: "" };
     renderAction(WorkflowVersionActivateAction, propsFor(draft, workflow(active, draft)));
@@ -302,7 +284,7 @@ describe("the activate action", () => {
     // A trial is exactly a version being considered for this, so it is promoted the same way a draft
     // is — and supersedes what was running, which the confirmation still has to say
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const active = version("1.0", "active");
     const trial = version("2.0", "trial");
     const props = propsFor(trial, workflow(active, trial));
@@ -315,12 +297,12 @@ describe("the activate action", () => {
     await waitFor(() => expect(props.reload).toHaveBeenCalled());
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/2-0.activate.json",
       expect.objectContaining({ method: "POST" }));
-    expect(moveAskedFor(fetchMock)).toBe("activate");
+    expect(moveAskedFor()).toBe("activate");
   });
 
   it("brings a retired version back, retiring the one that replaced it", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const retired = version("1.0", "retired");
     const active = version("2.0", "active");
     const props = propsFor(retired, workflow(retired, active));
@@ -350,7 +332,7 @@ describe("the activate action", () => {
 describe("the trial action", () => {
   it("puts a draft on trial once the freeze is confirmed", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const draft = version("2.0", "draft");
     const props = propsFor(draft, workflow(version("1.0", "active"), draft));
     renderAction(WorkflowVersionTrialAction, props);
@@ -364,7 +346,7 @@ describe("the trial action", () => {
     await waitFor(() => expect(props.reload).toHaveBeenCalled());
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/2-0.startTrial.json",
       expect.objectContaining({ method: "POST" }));
-    expect(moveAskedFor(fetchMock)).toBe("startTrial");
+    expect(moveAskedFor()).toBe("startTrial");
     expect(await screen.findByText("Version 2.0 of Standard review is on trial")).toBeInTheDocument();
   });
 
@@ -382,7 +364,7 @@ describe("the trial action", () => {
     // A version created without a label is still a version, and has to be nameable in the sentence
     // asking about it; its node name is the only other thing it is known by
     const user = userEvent.setup();
-    stubFetch();
+    stubEngine();
     const unlabelled = { ...version("2.0", "draft"), version: "" };
 
     renderAction(WorkflowVersionTrialAction, propsFor(unlabelled, workflow(unlabelled)));
@@ -396,7 +378,7 @@ describe("the trial action", () => {
 describe("the return-to-draft action", () => {
   it("takes a trial back to being a draft", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    stubEngine();
     const trial = version("2.0", "trial");
     const props = propsFor(trial, workflow(version("1.0", "active"), trial));
     renderAction(WorkflowVersionRedraftAction, props);
@@ -408,7 +390,7 @@ describe("the return-to-draft action", () => {
     await user.click(within(dialog).getByRole("button", { name: "Return to draft" }));
 
     await waitFor(() => expect(props.reload).toHaveBeenCalled());
-    expect(moveAskedFor(fetchMock)).toBe("returnToDraft");
+    expect(moveAskedFor()).toBe("returnToDraft");
     expect(await screen.findByText("Version 2.0 of Standard review is a draft again")).toBeInTheDocument();
   });
 
@@ -426,7 +408,7 @@ describe("the return-to-draft action", () => {
 
   it("names a version without a label by its node name", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubEngine();
     const unlabelled = { ...version("2.0", "trial"), version: "" };
     const props = propsFor(unlabelled, workflow(unlabelled));
 
@@ -442,7 +424,7 @@ describe("the return-to-draft action", () => {
 describe("the retire action", () => {
   it("withdraws the active version once confirmed", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const active = version("1.0", "active");
     const props = propsFor(active, workflow(active));
     renderAction(WorkflowVersionRetireAction, props);
@@ -456,13 +438,13 @@ describe("the retire action", () => {
     await waitFor(() => expect(props.reload).toHaveBeenCalled());
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/1-0.retire.json",
       expect.objectContaining({ method: "POST" }));
-    expect(moveAskedFor(fetchMock)).toBe("retire");
+    expect(moveAskedFor()).toBe("retire");
     expect(await screen.findByText("Version 1.0 is retired, and Standard review has no active version")).toBeInTheDocument();
   });
 
   it("names a version without a label by its node name", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubEngine();
     const unlabelled = { ...version("1.0", "active"), version: "" };
     const props = propsFor(unlabelled, workflow(unlabelled));
     renderAction(WorkflowVersionRetireAction, props);
@@ -499,7 +481,7 @@ describe("the draft-from action", () => {
 
   it("copies an active version into a new draft and opens it", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch("/Workflows/review/2-0");
+    const fetchMock = stubEngine("/Workflows/review/2-0");
     const active = version("1.0", "active");
     const props = propsFor(active, workflow(active));
     renderAction(WorkflowVersionDraftAction, props);
@@ -519,7 +501,7 @@ describe("the draft-from action", () => {
 
   it("refuses a label the workflow already uses", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubEngine();
     const active = version("1.0", "active");
     const retired = version("0.9", "retired");
     renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(retired, active)));
@@ -535,7 +517,7 @@ describe("the draft-from action", () => {
 
   it("can be abandoned without creating anything", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const active = version("1.0", "active");
     renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(active)));
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
@@ -569,7 +551,7 @@ describe("the draft-from action", () => {
 
   it("names a source version without a label by its node name", async () => {
     const user = userEvent.setup();
-    stubFetch();
+    stubEngine();
     const unlabelled = { ...version("1.0", "active"), version: "" };
 
     renderAction(WorkflowVersionDraftAction, propsFor(unlabelled, workflow(unlabelled)));
@@ -601,7 +583,7 @@ describe("the draft-from action", () => {
 
   it("can be dismissed with the dialog's close button", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch();
+    const fetchMock = stubEngine();
     const active = version("1.0", "active");
     renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(active)));
     await user.click(screen.getByRole("button", { name: "New draft from this" }));

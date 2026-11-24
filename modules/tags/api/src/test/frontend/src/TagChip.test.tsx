@@ -18,10 +18,11 @@
 
 import { act, render, screen } from "@testing-library/react";
 
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import type TagChipComponent from "@iap/tags/TagChip";
 import type { tagValueOptions as TagValueOptions } from "@iap/tags/tagDefinitions";
 
-import { jsonResponse, tagAwareFetch } from "./tagDefinitions.fixture";
+import { tagAware } from "./tagDefinitions.fixture";
 
 let TagChip: typeof TagChipComponent;
 let tagValueOptions: typeof TagValueOptions;
@@ -39,7 +40,7 @@ describe("TagChip", () => {
   });
 
   it("labels, colors and decorates the tag from its definition", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     render(<TagChip tags={["in-review"]} category="lifecycle" />);
 
@@ -51,8 +52,7 @@ describe("TagChip", () => {
 
   it("fills the chip with the raw color for the filled variant", async () => {
     const tags = [{ name: "loud", label: "Loud", color: "#673ab7", variant: "filled" }];
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => jsonResponse({ tags, total: tags.length })));
+    stubFetch(() => jsonResponse({ tags, total: tags.length }));
 
     render(<TagChip tags={["loud"]} category="custom" />);
 
@@ -61,7 +61,7 @@ describe("TagChip", () => {
   });
 
   it("only shows tags actually belonging to the requested category", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     // "in-progress" is in the review category, not the lifecycle one
     const { container } = render(<TagChip tags={["in-progress"]} category="lifecycle" />);
@@ -72,8 +72,7 @@ describe("TagChip", () => {
   });
 
   it("displays all tags when no category is requested, muting the unrecognized ones", async () => {
-    const fetchMock = vi.fn(tagAwareFetch({}));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(tagAware({}));
 
     render(<TagChip tags={["never-defined", "submitted", "in-progress"]} />);
 
@@ -88,7 +87,7 @@ describe("TagChip", () => {
   });
 
   it("shows every tag of the category, in definition order", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     const { container } = render(
       <TagChip tags={["rejected", "submitted", "not-a-state"]} category="lifecycle" />);
@@ -101,7 +100,7 @@ describe("TagChip", () => {
   });
 
   it("leaves a tag of another category out even when it shows several", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     render(<TagChip tags={["submitted", "in-progress", "approved"]} category="lifecycle" />);
 
@@ -111,7 +110,7 @@ describe("TagChip", () => {
   });
 
   it("tolerates a single string instead of an array", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     render(<TagChip tags="approved" category="lifecycle" />);
 
@@ -119,8 +118,7 @@ describe("TagChip", () => {
   });
 
   it("fetches each category's definitions only once, across chips", async () => {
-    const fetchMock = vi.fn(tagAwareFetch({}));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(tagAware({}));
 
     render(
       <>
@@ -137,7 +135,7 @@ describe("TagChip", () => {
   });
 
   it("renders nothing for an untagged node", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     const { container } = render(
       <>
@@ -154,7 +152,7 @@ describe("TagChip", () => {
   });
 
   it("hides undefined tags in category mode", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     const { container } = render(<TagChip tags={["never-defined"]} category="lifecycle" />);
 
@@ -170,8 +168,7 @@ describe("TagChip", () => {
       { name: "broken", label: "Broken", color: "not-a-color" },
       { name: "sneaky", label: "Sneaky", color: "#fff;background:url(https://evil.example/x)" },
     ];
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve({ tags, total: tags.length }) } as unknown as Response)));
+    stubFetch(() => jsonResponse({ tags, total: tags.length }));
 
     render(
       <>
@@ -198,8 +195,7 @@ describe("TagChip", () => {
   });
 
   it("treats a search result without a tag list as no definitions", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve({ total: 0 }) } as unknown as Response)));
+    stubFetch(() => jsonResponse({ total: 0 }));
 
     const { container } = render(<TagChip tags={["draft"]} category="lifecycle" />);
 
@@ -215,12 +211,12 @@ describe("TagChip", () => {
 
     const { unmount } = render(<TagChip tags={["draft"]} category="lifecycle" />);
     unmount();
-    settlers[0]({ ok: true, url: "", json: () => Promise.resolve({ tags: [] }) } as unknown as Response);
+    settlers[0](jsonResponse({ tags: [] }));
     await act(() => Promise.resolve());
   });
 
   it("offers the defined tags as filter choices through tagValueOptions", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
     const options = tagValueOptions("review");
 
     // Empty until the fetch it started has resolved
@@ -254,8 +250,7 @@ describe("TagChip", () => {
   });
 
   it("shows the raw names, without a category, when the definitions cannot be fetched", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));
+    stubFailingFetch(503);
 
     render(<TagChip tags={["draft"]} />);
     expect((await screen.findByText("draft")).closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");

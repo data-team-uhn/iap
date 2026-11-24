@@ -553,6 +553,13 @@
         <version>4.0.6</version>
         <scope>test</scope>
       </dependency>
+      <!-- The context plugins a module's test fixtures offer: the version sling-mock.junit5 brings -->
+      <dependency>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>org.apache.sling.testing.osgi-mock.core</artifactId>
+        <version>3.5.8</version>
+        <scope>test</scope>
+      </dependency>
       <!-- A real Oak repository for the mocks (ResourceResolverType.JCR_OAK), for tests exercising real repository
            semantics: back-references, referential integrity, moves, versioning, permission checks -->
       <dependency>

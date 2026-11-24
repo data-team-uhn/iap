@@ -34,8 +34,8 @@ import io.uhndata.iap.submissions.internal.RankedServices;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.PartCreator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -146,7 +146,6 @@ class CreatePartsHandlerTest
      */
     private WorkflowTaskContext context(final Resource target, final String createdPath)
     {
-        return new TaskContext(target, REQUESTER, Map.of())
-            .withVariable(WorkflowResult.CREATED_PATH_VARIABLE, createdPath);
+        return RecordingTaskContext.aimedAt(target).actingFor(REQUESTER).havingCreated(createdPath).build();
     }
 }

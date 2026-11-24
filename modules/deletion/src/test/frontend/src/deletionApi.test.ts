@@ -17,13 +17,9 @@
  */
 
 import { requestDeletion } from "@iap/deletion/deletionApi";
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
-
-const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "Content-Type": "application/json" }
-});
 
 // A stand-in for the fetch the caller passes in.
 const answering = (response: Response) =>
@@ -35,7 +31,7 @@ describe("requestDeletion", () => {
   });
 
   it("sends a bare DELETE when no options are given", async () => {
-    const fetchMock = answering(jsonResponse(200, { "status.code": 200, status: "archived" }));
+    const fetchMock = answering(jsonResponse({ "status.code": 200, status: "archived" }));
 
     const outcome = await requestDeletion(fetchMock, "/content/victim");
 
@@ -48,7 +44,7 @@ describe("requestDeletion", () => {
 
   it("passes only the options that are turned on", async () => {
     const fetchMock = answering(
-      jsonResponse(200, { "status.code": 200, status: "dryRun", executable: true }));
+      jsonResponse({ "status.code": 200, status: "dryRun", executable: true }));
 
     await requestDeletion(fetchMock, "/content/victim",
       { dryRun: true, permanent: true, recursive: false });
@@ -60,13 +56,13 @@ describe("requestDeletion", () => {
   });
 
   it("returns a refusal as an outcome rather than throwing", async () => {
-    const outcome = await requestDeletion(answering(jsonResponse(409, {
+    const outcome = await requestDeletion(answering(jsonResponse({
       "status.code": 409,
       status: "referenced",
       "status.message": "This item is referenced by 2 submissions.",
       referrers: [ { type: "sub:Submission", label: "submission", count: 2, names: [ "S-1", "S-2" ] } ],
       inaccessibleReferrers: 0
-    })), "/content/victim");
+    }, 409)), "/content/victim");
 
     expect(outcome.status).toBe("referenced");
     expect(outcome.referrers?.[0].count).toBe(2);
@@ -93,7 +89,7 @@ describe("requestDeletion", () => {
     // A 200 whose body is not the endpoint's own JSON means something answered in its place, so
     // the deletion cannot be reported as done
     const outcome = await requestDeletion(
-      answering(jsonResponse(200, { unexpected: true })), "/content/victim");
+      answering(jsonResponse({ unexpected: true })), "/content/victim");
 
     expect(outcome.status).toBe("failed");
   });

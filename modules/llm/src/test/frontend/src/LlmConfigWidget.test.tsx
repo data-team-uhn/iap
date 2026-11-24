@@ -18,7 +18,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import LlmConfigWidget from "@iap/llm/LlmConfigWidget";
 
 const catalogJson = {
@@ -35,24 +35,13 @@ const catalogJson = {
   ],
 };
 
-// The widget reads the catalog through useAuthenticatedFetch, so every answer carries the `url` it
-// came back from: that is how the login page an expired session is redirected to is recognised.
-const stubFetch = (body: unknown = catalogJson) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-    ok: true, status: 200, statusText: "OK", url,
-    json: () => Promise.resolve(body),
-  } as unknown as Response)));
-
-const stubFailingFetch = (status: number, statusText: string) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : { ok: false, status, statusText, url }) as unknown as Response)));
+const stubCatalog = (body: unknown = catalogJson) => stubFetch(() => jsonResponse(body));
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("LlmConfigWidget", () => {
   it("summarizes which LLM is in use", async () => {
-    stubFetch();
+    stubCatalog();
     render(<LlmConfigWidget />);
 
     expect(await screen.findByText("Example Provider")).toBeInTheDocument();
@@ -61,27 +50,27 @@ describe("LlmConfigWidget", () => {
   });
 
   it("says so when nothing is selected", async () => {
-    stubFetch({ providers: [ { name: "example", models: [] } ] });
+    stubCatalog({ providers: [ { name: "example", models: [] } ] });
     render(<LlmConfigWidget />);
 
     expect(await screen.findByText("No LLM is selected.")).toBeInTheDocument();
   });
 
   it("says so when the selection names something the catalog does not offer", async () => {
-    stubFetch({ activeProvider: "example", activeModel: "absent", providers: [ { name: "example", models: [] } ] });
+    stubCatalog({ activeProvider: "example", activeModel: "absent", providers: [ { name: "example", models: [] } ] });
     render(<LlmConfigWidget />);
 
     expect(await screen.findByText("No LLM is selected.")).toBeInTheDocument();
   });
 
   it("reports a failure to load, with a way to try again", async () => {
-    stubFailingFetch(500, "Server Error");
+    stubFailingFetch(500);
     render(<LlmConfigWidget />);
 
     expect(await screen.findByText("The LLM configuration could not be loaded")).toBeInTheDocument();
 
     vi.unstubAllGlobals();
-    stubFetch();
+    stubCatalog();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     await waitFor(() => expect(screen.getByText("Example Provider")).toBeInTheDocument());

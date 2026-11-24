@@ -32,14 +32,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.submissions.internal.RankedServices;
-import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -78,7 +78,7 @@ class MarkCompletenessHandlerTest
     @BeforeEach
     void setUp()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.handler = this.context.registerInjectActivateService(new MarkCompletenessHandler());
         this.context.create().resource(SUBMISSION_PATH, Map.of(TYPE, Submission.RESOURCE_TYPE));
         this.context.create().resource(ANSWER, Map.of(TYPE, Answer.RESOURCE_TYPE));
@@ -250,7 +250,6 @@ class MarkCompletenessHandlerTest
      */
     private WorkflowTaskContext context(final Resource target, final String createdPath)
     {
-        return new TaskContext(target, REQUESTER, Map.of())
-            .withVariable(WorkflowResult.CREATED_PATH_VARIABLE, createdPath);
+        return RecordingTaskContext.aimedAt(target).actingFor(REQUESTER).havingCreated(createdPath).build();
     }
 }

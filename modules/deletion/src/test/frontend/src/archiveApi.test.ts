@@ -25,12 +25,8 @@ import {
   purgeEntry,
   restoreEntry,
 } from "@iap/deletion/archiveApi";
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import { UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
-
-const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "Content-Type": "application/json" },
-});
 
 const emptyPage = {
   rows: [], offset: 0, limit: 25, returnedrows: 0, totalrows: 0,
@@ -43,13 +39,13 @@ afterEach(() => {
 
 describe("fetchArchiveEntries", () => {
   it("asks for the default page when nothing is specified", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, emptyPage));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(emptyPage));
     await fetchArchiveEntries(doFetch);
     expect(doFetch.mock.calls[0][0]).toBe("/Archive.entries.json");
   });
 
   it("passes the paging, filter and sort along", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, emptyPage));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(emptyPage));
     await fetchArchiveEntries(doFetch,
       { offset: 25, limit: 10, filter: "alice", sortBy: "deletedBy", descending: false });
     const url = doFetch.mock.calls[0][0] as string;
@@ -62,7 +58,7 @@ describe("fetchArchiveEntries", () => {
 
   it("leaves an empty filter out of the request entirely", async () => {
     // Otherwise the server would be asked to match everything against the empty string
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, emptyPage));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(emptyPage));
     await fetchArchiveEntries(doFetch, { filter: "", offset: 0 });
     expect(doFetch.mock.calls[0][0] as string).not.toContain("filter");
   });
@@ -72,7 +68,7 @@ describe("fetchArchiveEntries", () => {
       path: "/Archive/ab/cd/ef/one", shortPath: "/Archive/by-id/one", requestedPath: "/content/one", deletedBy: "alice",
       created: "2026-08-14T00:00:00.000+00:00", originalPaths: [ "/content/one" ], itemCount: 1,
     } ] };
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, page));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(page));
     await expect(fetchArchiveEntries(doFetch)).resolves.toEqual(page);
   });
 
@@ -82,7 +78,7 @@ describe("fetchArchiveEntries", () => {
   });
 
   it("rejects when the body is empty", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, null));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(null));
     await expect(fetchArchiveEntries(doFetch)).rejects.toThrow();
   });
 
@@ -96,7 +92,7 @@ describe("fetchArchiveEntries", () => {
 
 describe("restoreEntry", () => {
   it("posts to the entry's restore endpoint", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { status: "restored", restored: [ "/a" ] }));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse({ status: "restored", restored: [ "/a" ] }));
     const answer = await restoreEntry(doFetch, "/Archive/ab/one");
     expect(doFetch.mock.calls[0][0]).toBe("/Archive/ab/one.restore.json");
     expect(doFetch.mock.calls[0][1]).toMatchObject({ method: "POST" });
@@ -104,9 +100,9 @@ describe("restoreEntry", () => {
   });
 
   it("resolves a refusal as an outcome rather than throwing", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(409, {
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse({
       status: "conflict", conflicts: [ { originalPath: "/a", reason: "OCCUPIED" } ],
-    }));
+    }, 409));
     const answer = await restoreEntry(doFetch, "/Archive/ab/one");
     expect(answer.status).toBe("conflict");
     expect(answer.conflicts).toHaveLength(1);
@@ -115,7 +111,7 @@ describe("restoreEntry", () => {
 
 describe("purgeEntry", () => {
   it("deletes the entry itself", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { status: "deleted" }));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse({ status: "deleted" }));
     const answer = await purgeEntry(doFetch, "/Archive/ab/one");
     expect(doFetch.mock.calls[0][0]).toBe("/Archive/ab/one");
     expect(doFetch.mock.calls[0][1]).toMatchObject({ method: "DELETE" });
@@ -123,9 +119,9 @@ describe("purgeEntry", () => {
   });
 
   it("reports a veto as an outcome", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(409, {
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse({
       status: "vetoed", "status.message": "Too recent",
-    }));
+    }, 409));
     await expect(purgeEntry(doFetch, "/Archive/ab/one"))
       .resolves.toMatchObject({ status: "vetoed" });
   });
@@ -152,7 +148,7 @@ describe("an answer this page cannot read", () => {
   });
 
   it("is reported when the body parses but says nothing useful", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { unexpected: true }));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse({ unexpected: true }));
     await expect(restoreEntry(doFetch, "/Archive/ab/one"))
       .resolves.toEqual({ status: "failed", "status.message": UNREADABLE_RESPONSE });
   });
@@ -166,7 +162,7 @@ describe("fetchArchiveEntry", () => {
   };
 
   it("asks the entry itself what would happen to it", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, detail));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(detail));
     await expect(fetchArchiveEntry(doFetch, "/Archive/ab/one")).resolves.toEqual(detail);
     expect(doFetch.mock.calls[0][0]).toBe("/Archive/ab/one.entry.json");
   });
@@ -179,7 +175,7 @@ describe("fetchArchiveEntry", () => {
       purgeable: false,
       purgeVetoes: [ { vetoer: "RetentionVeto", path: "/Archive/ab/one", reason: "Too recent" } ],
     };
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, blocked));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(blocked));
     const answer = await fetchArchiveEntry(doFetch, "/Archive/ab/one");
     expect(answer.restorable).toBe(false);
     expect(answer.restoreConflicts[0].reason).toBe("OCCUPIED");
@@ -193,7 +189,7 @@ describe("fetchArchiveEntry", () => {
 
   it("rejects a path that is not an entry at all", async () => {
     // A prefix-tree bucket shares the archive's resource type and answers with something else
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { "jcr:primaryType": "del:Archive" }));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse({ "jcr:primaryType": "del:Archive" }));
     await expect(fetchArchiveEntry(doFetch, "/Archive/ab")).rejects.toThrow("not an archive entry");
   });
 });

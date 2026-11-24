@@ -17,49 +17,21 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
-import java.security.Principal;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.jcr.InvalidItemStateException;
-import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.jcr.security.AccessControlList;
-import javax.jcr.security.AccessControlManager;
-import javax.jcr.security.AccessControlPolicy;
-import javax.jcr.security.Privilege;
 
-import org.apache.jackrabbit.api.JackrabbitSession;
-import org.apache.jackrabbit.api.security.principal.PrincipalManager;
-import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
-import org.apache.jackrabbit.api.security.user.User;
-import org.apache.jackrabbit.api.security.user.UserManager;
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
-import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
-import io.uhndata.iap.conditions.internal.TagsOperandResolver;
-import io.uhndata.iap.notifications.api.NotificationService;
-import io.uhndata.iap.principals.api.PrincipalService;
-import io.uhndata.iap.principals.internal.CreatorResolver;
-import io.uhndata.iap.principals.internal.MeResolver;
-import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.models.Activity;
@@ -70,7 +42,6 @@ import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
-import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
@@ -78,11 +49,12 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 
 /**
- * Shared setup for the engine tests: the {@code /Workflows} homepage events are aimed at, builders for system
- * workflow definitions of various shapes under {@code /SystemWorkflows}, and a stand-in for the user store that
- * the mock repository does not have but authorization cannot do without. Public for the handlers' tests, which
- * live in a package of their own and run each handler in a {@link #taskContext task context} built here, the
- * engine's own being private to it.
+ * Shared setup for the engine tests: the {@code /Workflows} homepage events are aimed at, the users asking, builders
+ * for system workflow definitions of various shapes under {@code /SystemWorkflows}, and the ways a test changes the
+ * engine {@link io.uhndata.iap.workflows.testing.WorkflowPlugins#ENGINE the plugin} installed. Public for the
+ * handlers' tests, which live in a package of their own and run each handler in a {@link #taskContext task context}
+ * built here, the engine's own being private to it. The engine's sessions over the mock repository are
+ * {@link ServiceSessions}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -104,8 +76,11 @@ public final class EngineFixture
     /** The group {@link #REQUESTER} belongs to. */
     static final String REQUESTERS = "time-off-requesters";
 
-    /** Every principal granted read since the last fixture was built, for the access tests to assert on. */
-    static final List<String> GRANTED = new ArrayList<>();
+    /** Ranks a test's stand-in above whatever provides the same service. */
+    private static final int STAND_IN_RANKING = Integer.MAX_VALUE;
+
+    /** Ranks a component built again above the one the engine plugin registered. */
+    private static final int REBUILT_RANKING = 1;
 
     private EngineFixture()
     {
@@ -194,28 +169,10 @@ public final class EngineFixture
     }
 
     /**
-     * How a task context performs further work, for a handler under test that does none: no handlers to dispatch
-     * to, and no event may be sent.
-     *
-     * @return a dispatcher refusing to send events
-     */
-    static ServiceTaskDispatcher noFurtherTasks()
-    {
-        try {
-            return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
-                throw new IllegalStateException("No event was expected to be sent here");
-            }, routing(), runners(),
-                new DeliveryConsequences(new PendingNotifications(Mockito.mock(NotificationService.class))));
-        } catch (final ReflectiveOperationException e) {
-            throw new IllegalStateException("The fixture could not build its condition evaluator", e);
-        }
-    }
-
-    /**
      * A context for a handler under test to execute in, as the engine builds one for a service task: aimed at a
-     * target, for an event, performing an activity, sharing the given variables, and with no further tasks to
-     * dispatch.
+     * target, for an event, performing an activity, sharing the given variables, and refusing to send any event on.
      *
+     * @param context a Sling context with the engine installed
      * @param target the resource the event was aimed at
      * @param event the triggering event
      * @param activity the activity being performed
@@ -223,29 +180,44 @@ public final class EngineFixture
      * @param actor the user the execution is acting for
      * @return the context
      */
-    public static WorkflowTaskContext taskContext(final Resource target, final WorkflowEvent event,
-        final Activity activity, final Map<String, Object> variables, final String actor)
+    public static WorkflowTaskContext taskContext(final SlingContext context, final Resource target,
+        final WorkflowEvent event, final Activity activity, final Map<String, Object> variables, final String actor)
     {
-        return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks(), 0);
+        final ServiceTaskDispatcher noFurtherTasks = context.getService(ServiceTaskDispatchers.class)
+            .create((to, sent, sender, depth) -> {
+                throw new IllegalStateException("No event was expected to be sent here");
+            });
+        return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks, 0);
     }
 
     /**
-     * The principal service, wired as the platform wires it: the real service, with the special names it ships.
-     * Built by hand for the same reason as {@link #conditions()}.
+     * Ranks a test's stand-in for one of the engine's services above the one the engine plugin registered. A
+     * component registered from then on binds the stand-in; one registered before keeps what it has, so the test
+     * {@link #rebuilt rebuilds} the components it needs to see the stand-in.
      *
-     * @return a principal service answering {@code @creator} and {@code @me}
+     * @param <T> the service type
+     * @param context the Sling context the engine is installed in
+     * @param service the service the stand-in provides
+     * @param standIn the stand-in
+     * @return the stand-in
      */
-    static PrincipalService principals()
+    static <T> T standIn(final SlingContext context, final Class<T> service, final T standIn)
     {
-        final PrincipalServiceImpl service = new PrincipalServiceImpl();
-        try {
-            final Field resolvers = PrincipalServiceImpl.class.getDeclaredField("resolvers");
-            resolvers.setAccessible(true);
-            resolvers.set(service, List.of(new CreatorResolver(), new MeResolver()));
-        } catch (final ReflectiveOperationException e) {
-            throw new IllegalStateException("The fixture could not build its principal service", e);
-        }
-        return service;
+        return context.registerService(service, standIn, Constants.SERVICE_RANKING, STAND_IN_RANKING);
+    }
+
+    /**
+     * Registers one of the engine's components again, ranked above the one the engine plugin registered and below
+     * any {@link #standIn stand-in}, so that it binds the stand-ins registered since.
+     *
+     * @param <T> the component type
+     * @param context the Sling context the engine is installed in
+     * @param component the component to build again
+     * @return the new component
+     */
+    static <T> T rebuilt(final SlingContext context, final Class<T> component)
+    {
+        return context.registerInjectActivateService(component, Constants.SERVICE_RANKING, REBUILT_RANKING);
     }
 
     /**
@@ -285,461 +257,6 @@ public final class EngineFixture
     {
         return Objects.requireNonNull(context.resourceResolver().getResource(path).adaptTo(ModifiableValueMap.class),
             "The mock repository lets any node be modified");
-    }
-
-    /**
-     * A resolver factory handing out the engine's service session, wrapped so that it can be asked who the
-     * repository's users are. The mock repository has no user store at all, so without this every event would
-     * fail as "the repository cannot be asked who its users are" rather than exercising the check.
-     *
-     * @param context the Sling context whose real factory does the work
-     * @param failure what the session's commit should throw, or {@code null} for a session that commits normally
-     * @return a factory to inject into the engine
-     */
-    static ResourceResolverFactory serviceUsers(final SlingContext context, final PersistenceException failure)
-    {
-        return serviceUsersRunning(context, () -> {
-            if (failure != null) {
-                throw failure;
-            }
-        });
-    }
-
-    /**
-     * A refused commit, as Oak refuses one that conflicts with a change another session committed first.
-     *
-     * @return the refusal, ready to be thrown
-     */
-    static PersistenceException conflict()
-    {
-        return new PersistenceException("save failed", new InvalidItemStateException("this node has been modified"));
-    }
-
-    /**
-     * Something done to the repository that may fail as a commit does.
-     *
-     * @version $Id$
-     * @since 0.1.0
-     */
-    @FunctionalInterface
-    interface RepositoryAction
-    {
-        /**
-         * Acts on the repository. Run as another writer, it makes and commits that writer's change. Run before
-         * one of the engine's commits, it may refuse that commit by throwing.
-         *
-         * @throws PersistenceException when the repository refuses the change, or to refuse the commit it precedes
-         */
-        void run() throws PersistenceException;
-    }
-
-    /**
-     * Run before each of the engine's commits, loses the first to another writer: the winner's change lands, and
-     * the commit is refused as Oak refuses a conflicting one. Every later commit goes through.
-     *
-     * @version $Id$
-     * @since 0.1.0
-     */
-    static final class OneLostRace implements RepositoryAction
-    {
-        /** A winner whose change the losing event does not read. The stand-in writes nothing. */
-        static final RepositoryAction UNRELATED_CHANGE = () -> { };
-
-        private final RepositoryAction winner;
-
-        private boolean lost;
-
-        /**
-         * Constructor.
-         *
-         * @param winner the other writer's change, committed through its own session
-         */
-        OneLostRace(final RepositoryAction winner)
-        {
-            this.winner = winner;
-        }
-
-        @Override
-        public void run() throws PersistenceException
-        {
-            if (!this.lost) {
-                this.lost = true;
-                this.winner.run();
-                throw conflict();
-            }
-        }
-
-        /**
-         * Whether the race was lost: whether the engine committed at all.
-         *
-         * @return {@code true} once the first commit has been refused
-         */
-        boolean wasLost()
-        {
-            return this.lost;
-        }
-    }
-
-    /**
-     * A resolver factory handing out the engine's service session, wrapped as
-     * {@link #serviceUsers(SlingContext, PersistenceException)} describes, with something run before each of its
-     * commits.
-     *
-     * @param context the Sling context whose real factory does the work
-     * @param beforeCommit what runs before each commit, and may refuse it
-     * @return a factory to inject into the engine
-     */
-    static ResourceResolverFactory serviceUsersRunning(final SlingContext context,
-        final RepositoryAction beforeCommit)
-    {
-        GRANTED.clear();
-        final ResourceResolverFactory real = context.getService(ResourceResolverFactory.class);
-        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        try {
-            Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
-                final ResourceResolver delegate = real.getServiceResourceResolver(invocation.getArgument(0));
-                // Delegating rather than replacing. Everything the runtime does with the session, resolving
-                // references by identifier and reading nodes, must still be the mock repository's behaviour,
-                // with only the two things it has no notion of supplied on top
-                return new ResourceResolverWrapper(withRepositoryServices(delegate))
-                {
-                    @Override
-                    public Resource create(final Resource parent, final String name,
-                        final Map<String, Object> properties) throws PersistenceException
-                    {
-                        return super.create(parent, name, autocreatedResourceType(properties));
-                    }
-
-                    @Override
-                    public void commit() throws PersistenceException
-                    {
-                        beforeCommit.run();
-                        super.commit();
-                    }
-
-                    @Override
-                    public void revert()
-                    {
-                        // The mock session cannot refresh, so rolling back is beyond it. That the engine reverts
-                        // a failed run is asserted against a real repository by the integration tests; here the
-                        // point is only that a failure surfaces as the right exception rather than as this one.
-                        try {
-                            super.revert();
-                        } catch (final UnsupportedOperationException e) {
-                            // Nothing this repository can do
-                        }
-                    }
-                };
-            });
-        } catch (final LoginException e) {
-            throw new IllegalStateException(e);
-        }
-        return factory;
-    }
-
-    /**
-     * Builds a condition evaluator with the operand sources a workflow's guards use: literals, tags, and the
-     * instance's variables.
-     *
-     * <p>Wired by hand, because the bundle plugin generates the DS metadata only at packaging time.</p>
-     *
-     * @return an evaluator a gateway's guards can be asked of
-     * @throws ReflectiveOperationException when the injection fails, which would be a bug in this fixture
-     */
-    static ConditionEvaluator conditions() throws ReflectiveOperationException
-    {
-        final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(evaluator,
-            List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()));
-        return evaluator;
-    }
-
-    /**
-     * The engine's flow routing, asking the fixture's {@link #conditions() evaluator} about a gateway's guards.
-     *
-     * @return a routing for the engine and its task completion
-     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
-     */
-    static FlowRouting routing() throws ReflectiveOperationException
-    {
-        return new FlowRouting(conditions());
-    }
-
-    /**
-     * Who the names in a definition stand for, as the fixture's {@link #principals() principal service} answers.
-     *
-     * @return the engine's performers
-     */
-    static Performers performers()
-    {
-        return new Performers(principals());
-    }
-
-    /**
-     * How the engine grants read access on the resources its workflows drive.
-     *
-     * @return the engine's host access
-     */
-    static HostAccess hostAccess()
-    {
-        return new HostAccess(performers());
-    }
-
-    /**
-     * Where the engine gets the runner that carries a user workflow on, routing through the fixture's
-     * {@link #routing()}.
-     *
-     * @return the engine's instance runners
-     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
-     */
-    static InstanceRunners runners() throws ReflectiveOperationException
-    {
-        return new InstanceRunners(routing(), performers(), hostAccess());
-    }
-
-    /**
-     * How the engine ends a user task.
-     *
-     * @return a task completion for the engine
-     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
-     */
-    static TaskCompletion taskCompletion() throws ReflectiveOperationException
-    {
-        return new TaskCompletion(performers(), runners());
-    }
-
-    /**
-     * What the engine answers without changing anything, asking the fixture's {@link #conditions() evaluator} and
-     * {@link #performers()}.
-     *
-     * @return the engine's queries
-     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
-     */
-    static WorkflowQueries queries() throws ReflectiveOperationException
-    {
-        return new WorkflowQueries(conditions(), performers());
-    }
-
-    /**
-     * An engine wired as the DS runtime would wire it, over the given service sessions and handlers. Wiring is by
-     * reflection, since the SCR metadata only exists in the packaged bundle.
-     *
-     * @param resolverFactory where the engine opens its own sessions
-     * @param handlers the service task handlers to register
-     * @return a ready engine
-     * @throws ReflectiveOperationException when a field cannot be set, which would be a bug in this fixture
-     */
-    static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
-        final List<ServiceTaskHandler> handlers) throws ReflectiveOperationException
-    {
-        return engine(resolverFactory, handlers, Mockito.mock(NotificationService.class));
-    }
-
-    /**
-     * An engine as {@link #engine(ResourceResolverFactory, List)} builds one, telling people through the given
-     * notification service.
-     *
-     * @param resolverFactory where the engine opens its own sessions
-     * @param handlers the service task handlers to register
-     * @param notifications what sends the notifications message events announce
-     * @return a ready engine
-     * @throws ReflectiveOperationException when a field cannot be set, which would be a bug in this fixture
-     */
-    static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
-        final List<ServiceTaskHandler> handlers, final NotificationService notifications)
-        throws ReflectiveOperationException
-    {
-        return engine(resolverFactory, handlers, notifications, new RecordedDeliveries());
-    }
-
-    /**
-     * An engine as {@link #engine(ResourceResolverFactory, List)} builds one, telling people through the given
-     * notification service and describing its deliveries to the given recorder.
-     *
-     * @param resolverFactory where the engine opens its own sessions
-     * @param handlers the service task handlers to register
-     * @param notifications what sends the notifications message events announce
-     * @param recorder what each delivery is described to before its commit
-     * @return a ready engine
-     * @throws ReflectiveOperationException when a field cannot be set, which would be a bug in this fixture
-     */
-    static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
-        final List<ServiceTaskHandler> handlers, final NotificationService notifications,
-        final DeliveryRecorder recorder) throws ReflectiveOperationException
-    {
-        final ServiceTaskDispatchers dispatchers = new ServiceTaskDispatchers(routing(), runners(), notifications);
-        inject(dispatchers, "handlers", handlers);
-        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        inject(engine, "resolverFactory", resolverFactory);
-        inject(engine, "dispatchers", dispatchers);
-        inject(engine, "recorder", recorder);
-        inject(engine, "conditionEvaluator", conditions());
-        inject(engine, "performers", performers());
-        inject(engine, "taskCompletion", taskCompletion());
-        inject(engine, "queries", queries());
-        return engine;
-    }
-
-    /**
-     * Sets one of a component's references, as the DS runtime would.
-     *
-     * @param component the component
-     * @param field the reference's field name
-     * @param value what to set it to
-     * @throws ReflectiveOperationException when there is no such field
-     */
-    static void inject(final Object component, final String field, final Object value)
-        throws ReflectiveOperationException
-    {
-        final Field reference = component.getClass().getDeclaredField(field);
-        reference.setAccessible(true);
-        reference.set(component, value);
-    }
-
-    /**
-     * Supplies the {@code sling:resourceType} that a real repository autocreates from the node type, which is the
-     * one thing the mock one cannot do for itself. It matters because the runtime may not write that property:
-     * every {@code wf:} type declares it protected, so a repository refuses. And because the engine reads what it
-     * has just written back through the models, which recognise a node by exactly that type. Stamping afterwards
-     * is not enough: the read happens inside the same call as the write.
-     *
-     * @param properties what the runtime asked to create
-     * @return the same, plus the resource type the node type would have autocreated
-     */
-    private static Map<String, Object> autocreatedResourceType(final Map<String, Object> properties)
-    {
-        final Object primaryType = properties == null ? null : properties.get("jcr:primaryType");
-        if (!(primaryType instanceof String) || !((String) primaryType).startsWith("wf:")
-            || properties.containsKey(TYPE)) {
-            return properties;
-        }
-        final Map<String, Object> stamped = new HashMap<>(properties);
-        stamped.put(TYPE, ((String) primaryType).replace(':', '/'));
-        return stamped;
-    }
-
-    /**
-     * Wraps a resolver so that its session can be asked who the repository's users are and can hold access
-     * control lists, the two things the mock repository has no notion of, and that anything authorizing or
-     * granting cannot do without. Everything else stays the mock's own real behaviour.
-     *
-     * @param delegate the resolver to wrap
-     * @return a resolver over a repository that answers those questions
-     */
-    public static ResourceResolver withRepositoryServices(final ResourceResolver delegate)
-    {
-        final JackrabbitSession session = jackrabbitSession(delegate.adaptTo(Session.class));
-        return new ResourceResolverWrapper(delegate)
-        {
-            @Override
-            public <T> T adaptTo(final Class<T> type)
-            {
-                return type == Session.class ? type.cast(session) : super.adaptTo(type);
-            }
-        };
-    }
-
-    /**
-     * A session whose user store holds an administrator and one ordinary group member, and which accepts access
-     * control lists. The mock repository has neither, so both have to be supplied for anything that authorizes or
-     * grants to be exercised at all.
-     *
-     * @return a stub session
-     */
-    private static JackrabbitSession jackrabbitSession(final Session real)
-    {
-        try {
-            // Built before the stubbing below starts: stubbing a mock inside an unfinished when() is the classic
-            // way to confuse Mockito
-            final User admin = user(ADMIN, true);
-            final User requester = user(REQUESTER, false);
-            final User timer = user(TaskDeadline.TIMER_USER, false);
-            Mockito.when(timer.memberOf()).thenAnswer(invocation -> List.<Group>of().iterator());
-            final Group requesters = group();
-            final AccessControlManager accessControl = accessControlManager();
-            final UserManager userManager = Mockito.mock(UserManager.class);
-            Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
-            Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
-            Mockito.when(userManager.getAuthorizable(TaskDeadline.TIMER_USER)).thenReturn(timer);
-            Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
-            // Membership is asked of the group, about the member, and only the ordinary user is in it
-            Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
-                REQUESTER.equals(((Authorizable) invocation.getArgument(0)).getID()));
-            final JackrabbitSession session =
-                Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
-            Mockito.doReturn(userManager).when(session).getUserManager();
-            Mockito.doReturn(accessControl).when(session).getAccessControlManager();
-            // The principal store knows no synchronised group, so a name the user store lacks names nobody
-            Mockito.doReturn(Mockito.mock(PrincipalManager.class)).when(session).getPrincipalManager();
-            // Not the actor, so membership is looked up in the user and principal stores, not read off this session
-            Mockito.doReturn("the-engine").when(session).getUserID();
-            return session;
-        } catch (final RepositoryException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    /**
-     * An access control manager that hands out a list and remembers what was granted on it.
-     *
-     * @return a stub manager
-     * @throws RepositoryException never, but the stubbed methods declare it
-     */
-    private static AccessControlManager accessControlManager() throws RepositoryException
-    {
-        final AccessControlList acl = Mockito.mock(AccessControlList.class);
-        Mockito.when(acl.addAccessControlEntry(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
-            GRANTED.add(((Principal) invocation.getArgument(0)).getName());
-            return true;
-        });
-        final AccessControlManager manager = Mockito.mock(AccessControlManager.class);
-        Mockito.when(manager.getPolicies(Mockito.anyString()))
-            .thenReturn(new AccessControlPolicy[] {acl});
-        Mockito.when(manager.privilegeFromName(Mockito.anyString())).thenReturn(Mockito.mock(Privilege.class));
-        return manager;
-    }
-
-    /**
-     * The group the ordinary user belongs to, as an authorizable in its own right.
-     *
-     * @return a stub group
-     * @throws RepositoryException never, but the stubbed methods declare it
-     */
-    private static Group group() throws RepositoryException
-    {
-        final Principal principal = Mockito.mock(Principal.class);
-        Mockito.when(principal.getName()).thenReturn(REQUESTERS);
-        final Group group = Mockito.mock(Group.class);
-        Mockito.when(group.getID()).thenReturn(REQUESTERS);
-        Mockito.when(group.isGroup()).thenReturn(true);
-        Mockito.when(group.getPrincipal()).thenReturn(principal);
-        return group;
-    }
-
-    /**
-     * One of the repository's users. The ordinary one belongs to {@link #REQUESTERS}; the administrator belongs
-     * to nothing, since being an administrator is what gets them through.
-     *
-     * @param id the user id
-     * @param admin whether this user is an administrator
-     * @return a stub user
-     * @throws RepositoryException never, but the stubbed methods declare it
-     */
-    private static User user(final String id, final boolean admin) throws RepositoryException
-    {
-        final Group requesters = group();
-        final Principal principal = Mockito.mock(Principal.class);
-        Mockito.when(principal.getName()).thenReturn(id);
-        final User user = Mockito.mock(User.class);
-        Mockito.when(user.getPrincipal()).thenReturn(principal);
-        Mockito.when(user.getID()).thenReturn(id);
-        Mockito.when(user.isAdmin()).thenReturn(admin);
-        Mockito.when(user.memberOf()).thenAnswer(invocation -> admin
-            ? List.<Group>of().iterator()
-            : List.of(requesters).iterator());
-        return user;
     }
 
     /**

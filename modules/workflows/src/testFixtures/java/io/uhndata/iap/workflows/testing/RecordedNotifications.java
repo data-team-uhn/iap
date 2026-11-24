@@ -15,46 +15,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.testing;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 
 /**
- * A notification service that records what it is asked to send, so that a test can see who an engine told what.
+ * A notification service that records what it is asked to send instead of sending it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class RecordedNotifications implements NotificationService
+public final class RecordedNotifications implements NotificationService
 {
     private final List<Sent> sent = new ArrayList<>();
 
     @Override
-    public void notify(final NotificationContext notification, final List<String> roles)
+    public void notify(@NotNull final NotificationContext notification, @NotNull final List<String> roles)
     {
         this.sent.add(new Sent(notification, List.copyOf(roles)));
     }
 
     /**
-     * What was sent.
+     * The notifications it was asked to send.
      *
-     * @return every notification, in the order it was sent
+     * @return every notification, in the order it was sent; empty if none was
      */
-    List<Sent> sent()
+    @NotNull
+    public List<Sent> sent()
     {
-        return this.sent;
+        return List.copyOf(this.sent);
     }
 
     /**
-     * What happened, by each notification sent.
+     * The event each notification was about.
      *
-     * @return the event names, in the order they were sent
+     * @return the event names, such as {@code approved}, in the order the notifications were sent
      */
-    List<String> events()
+    @NotNull
+    public List<String> events()
     {
         return this.sent.stream().map(one -> one.notification().getEvent()).toList();
     }
@@ -62,12 +66,12 @@ final class RecordedNotifications implements NotificationService
     /**
      * One notification sent.
      *
-     * @param notification what happened, and what it is about
-     * @param roles who to tell
+     * @param notification what happened, and to which subject
+     * @param roles who it concerns: user ids, group names, and special names such as {@code @creator}
      * @version $Id$
      * @since 0.1.0
      */
-    record Sent(NotificationContext notification, List<String> roles)
+    public record Sent(@NotNull NotificationContext notification, @NotNull List<String> roles)
     {
     }
 }
