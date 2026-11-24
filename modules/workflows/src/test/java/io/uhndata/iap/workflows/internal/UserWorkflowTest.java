@@ -504,15 +504,15 @@ class UserWorkflowTest
      * @param duration how long the timer waits, as an ISO-8601 duration
      * @param elementId the timer's element identifier
      * @param endTag the tag placed on the host on the way out, or {@code null} for none
-     * @param interrupting whether firing gives up on the task, or leaves it running alongside
+     * @param cancelActivity whether firing gives up on the task, or leaves it running alongside
      */
     private void watchApprovalWith(final String duration, final String elementId, final String endTag,
-        final boolean interrupting)
+        final boolean cancelActivity)
     {
         final String timer = PROCESS + "/" + APPROVE + "/" + elementId;
         this.context.create().resource(timer, Map.of(
             TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, elementId,
-            "timerDuration", duration, "interrupting", interrupting));
+            "timeDuration", duration, "cancelActivity", cancelActivity));
         final String target = (endTag == null ? "end" : "tag") + elementId;
         this.context.create().resource(timer + "/toEnd" + elementId, Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toEnd" + elementId, TARGET_REF, target));

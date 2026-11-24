@@ -101,14 +101,14 @@ function cancelActivityDeclared(bpmn: string): Set<string> {
  * One flow node, and whatever it holds, with everything neither the diagram nor the descriptor is
  * responsible for taken out.
  *
- * `interrupting` is only compared for a boundary event whose own element states `cancelActivity`.
- * Where the attribute is absent the node type's own default stands - which a hand-written descriptor
- * is free to spell out and a parse never writes.
+ * `cancelActivity` is only compared for a boundary event whose own element says it. Where the
+ * attribute is absent the node type's own default stands - which a hand-written descriptor is free to
+ * spell out and a parse never writes.
  */
 function comparable(name: string, node: JsonObject, declared: Set<string>): JsonObject {
   const result: JsonObject = {};
   for (const [ property, value ] of Object.entries(node)) {
-    if (REPOSITORY_OWNED.has(property) || (property === 'interrupting' && !declared.has(name))) {
+    if (REPOSITORY_OWNED.has(property) || (property === 'cancelActivity' && !declared.has(name))) {
       continue;
     }
     result[property] = isNode(value) ? comparable(property, value, declared) : value;

@@ -95,10 +95,8 @@ public class Activity extends FlowNode
     }
 
     /**
-     * The events watching this activity while it runs, e.g. a deadline expiring or a cancellation arriving. They are
-     * stored inside the activity precisely because they only listen for as long as it runs, and being stored here is
-     * the whole of what makes them boundary events rather than free-standing ones. Not all of them necessarily
-     * cancel the activity — see {@link IntermediateCatchingEvent#isInterrupting()}.
+     * The events stored inside this activity, which watch it while it runs, such as a deadline expiring.
+     * {@link IntermediateCatchingEvent#cancelsActivity()} says whether one cancels it.
      *
      * @return a list of boundary events, empty if nothing is watching this activity
      */

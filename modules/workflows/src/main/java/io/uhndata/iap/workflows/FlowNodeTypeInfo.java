@@ -86,6 +86,8 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
 
     private static final String XML_LOCATION_PROPERTY = "xmlLocation";
 
+    private static final String XML_PATH_PROPERTY = "xmlPath";
+
     private static final String VALUE_PROPERTY = "value";
 
     /**
@@ -110,7 +112,11 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         /** Inside the entry's extension element. */
         EXTENSION_ELEMENT(Parameter.LOCATION_EXTENSION_ELEMENT),
         /** An attribute of the element itself. */
-        ATTRIBUTE(Parameter.LOCATION_ATTRIBUTE);
+        ATTRIBUTE(Parameter.LOCATION_ATTRIBUTE),
+        /** One of BPMN's own attributes, unprefixed. */
+        BPMN_ATTRIBUTE(Parameter.LOCATION_BPMN_ATTRIBUTE),
+        /** The text of one of BPMN's own child elements, one element per value. */
+        BPMN_ELEMENT(Parameter.LOCATION_BPMN_ELEMENT);
 
         private final String value;
 
@@ -131,6 +137,27 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
             return Arrays.stream(values()).filter(location -> location.value.equals(value)).findFirst()
                 .orElse(EXTENSION_ELEMENT);
         }
+
+        /**
+         * Whether a value in this location is BPMN's own markup rather than IAP's.
+         *
+         * @return {@code true} for a BPMN attribute or element
+         */
+        boolean isBpmn()
+        {
+            return this == BPMN_ATTRIBUTE || this == BPMN_ELEMENT;
+        }
+    }
+
+    /**
+     * The location and path of a parameter's value.
+     *
+     * @param location the kind of markup holding it
+     * @param path the local names of the {@link Parameter#getXmlPath() xmlPath} steps, empty for none
+     * @since 0.1.0
+     */
+    record Placement(XmlLocation location, List<String> path)
+    {
     }
 
     /**
@@ -141,14 +168,34 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
      * @param minValues how many values must be given, one or more meaning the parameter is required
      * @param maxValues how many values may be given, {@code 0} meaning unbounded and anything but {@code 1}
      *            meaning the stored property is multi-valued
-     * @param location where in the diagram the value is written
+     * @param placement where in the diagram the value is written
      * @param options the values this parameter offers, empty when it takes anything its type accepts
      * @param declaration the {@code wf:Parameter} node, which a parameter type reads its own settings from
      * @since 0.1.0
      */
-    record ParameterInfo(String name, String dataType, long minValues, long maxValues, XmlLocation location,
+    record ParameterInfo(String name, String dataType, long minValues, long maxValues, Placement placement,
         Set<String> options, NodeState declaration)
     {
+        /**
+         * Where in the diagram the value is written.
+         *
+         * @return the kind of markup holding the value
+         */
+        XmlLocation location()
+        {
+            return this.placement.location();
+        }
+
+        /**
+         * The local names of the {@link Parameter#getXmlPath() xmlPath} steps.
+         *
+         * @return the path, empty for none
+         */
+        List<String> path()
+        {
+            return this.placement.path();
+        }
+
         /**
          * Whether the property this parameter is stored in holds a list. A maximum of exactly one value is the only
          * thing that makes a property single-valued: unbounded is a list, and so is "up to three".
@@ -235,8 +282,18 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         // has to be told from an absent one, since 0 there means unbounded rather than "one".
         final long maxValues = node.hasProperty(MAX_VALUES_PROPERTY) ? node.getLong(MAX_VALUES_PROPERTY) : 1;
         return new ParameterInfo(name, dataType == null ? Parameter.TYPE_TEXT : dataType,
-            node.getLong(MIN_VALUES_PROPERTY), maxValues, XmlLocation.of(node.getString(XML_LOCATION_PROPERTY)),
+            node.getLong(MIN_VALUES_PROPERTY), maxValues,
+            new Placement(XmlLocation.of(node.getString(XML_LOCATION_PROPERTY)),
+                path(node.getString(XML_PATH_PROPERTY))),
             options(node, nodeTypesRoot), node);
+    }
+
+    /** The steps of an {@code xmlPath}, each reduced to its local name. */
+    private static List<String> path(final String raw)
+    {
+        return raw == null ? List.of()
+            : Arrays.stream(raw.split("/")).filter(StringUtils::isNotBlank)
+                .map(step -> WorkflowDefinitionUtils.localName(step.trim())).toList();
     }
 
     /**

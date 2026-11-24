@@ -126,8 +126,8 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     /**
      * The element inside {@code bpmn:extensionElements}, in the IAP namespace, this entry is written as, e.g.
      * {@code addTag}. It tells two entries sharing an XML element apart by what they were configured with rather
-     * than by what BPMN calls them: one service task handler from another. It is also where every parameter that
-     * is not an attribute of the element itself is written.
+     * than by what BPMN calls them: one service task handler from another. It is also where every parameter located
+     * in an extension element is written.
      *
      * @return an element name, or {@code null} if the entry is recognized without one
      */

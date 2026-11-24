@@ -244,7 +244,7 @@ final class InstanceRunner
         throws WorkflowException, PersistenceException
     {
         final Resource instanceResource = instanceOf(task);
-        if (timer.isInterrupting()) {
+        if (timer.cancelsActivity()) {
             // Gateways downstream see the last recorded outcome, if there is one
             this.records.cancelTask(this.records.getResource(task.getPath()));
             runFrom(instanceResource, this.records.findTokenAt(instanceResource, definition.getElementId()), timer,

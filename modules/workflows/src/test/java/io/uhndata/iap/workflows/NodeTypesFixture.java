@@ -90,7 +90,7 @@ public final class NodeTypesFixture
         type(nodeTypes, "wf:EventBasedGateway", List.of(GATEWAY, FLOW_NODE), GATEWAY);
         // The kinds of vocabulary entry, recognized as entries by what they extend
         for (final String entry : List.of("wf:CatchingEventType", "wf:ThrowingEventType", "wf:ActivityType",
-            "wf:GatewayType")) {
+            "wf:GatewayType", "wf:SequenceFlowType")) {
             type(nodeTypes, entry, List.of(FLOW_NODE_TYPE), FLOW_NODE_TYPE);
         }
         type(nodeTypes, "wf:SequenceFlow", List.of(ENTITY_PART), ENTITY_PART);
