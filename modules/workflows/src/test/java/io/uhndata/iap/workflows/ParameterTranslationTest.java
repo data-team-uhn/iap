@@ -32,6 +32,7 @@ import io.uhndata.iap.utils.NodeTypeUtils;
 import io.uhndata.iap.workflows.models.Parameter;
 
 import static io.uhndata.iap.workflows.ParseFixture.parse;
+import static io.uhndata.iap.workflows.ParseFixture.problemLines;
 import static io.uhndata.iap.workflows.ParseFixture.serviceTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -412,6 +413,27 @@ class ParameterTranslationTest
     }
 
     @Test
+    void asksForAnAdministratorOnlyWhenTheVocabularyIsAtFault() throws Exception
+    {
+        final NodeBuilder broken = withGenericServiceTask();
+        broken.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK).child("note")
+            .setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME)
+            .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
+        final NodeBuilder required = VocabularyFixture.repository();
+        VocabularyFixture.parameter(VocabularyFixture.handler(required, "Escalate", "escalate"), "count",
+            Parameter.TYPE_LONG, 1, 1);
+
+        final List<String> vocabulary = problemLines(broken, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+        final List<String> diagram = problemLines(required, serviceTask("<iap:escalate/>"));
+
+        assertEquals(1, vocabulary.size());
+        assertTrue(vocabulary.get(0).endsWith(". Please contact an administrator"));
+        assertEquals(1, diagram.size());
+        assertTrue(diagram.get(0).startsWith("a required parameter has no value"));
+        assertFalse(diagram.get(0).contains("administrator"));
+    }
+
+    @Test
     void reportsAParameterDeclaredByItsResourceTypeAlone() throws Exception
     {
         final NodeBuilder root = withGenericServiceTask();
@@ -465,17 +487,15 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.handler(root, "Escalate", "escalate");
-        VocabularyFixture.parameter(type, "urgent", Parameter.TYPE_BOOLEAN, 0, 1);
         VocabularyFixture.parameter(type, "retries", Parameter.TYPE_LONG, 0, 0);
 
         try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(root, serviceTask("<iap:escalate urgent=\"maybe\">"
+            final NodeState task = parse(root, serviceTask("<iap:escalate>"
                 + "<iap:retries>2</iap:retries><iap:retries>often</iap:retries></iap:escalate>")).getChildNode(TASK);
 
-            assertFalse(task.hasProperty("urgent"));
             assertEquals(List.of(2L), task.getProperty("retries").getValue(Type.LONGS));
-            assertEquals(Map.of("urgent", "a parameter has a value that is not a boolean",
-                "retries", "a parameter has a value that is not a whole number"), problems.all().stream()
+            assertEquals(Map.of("retries", "a parameter has a value that is not a whole number"),
+                problems.all().stream()
                     .collect(Collectors.toMap(problem -> problem.details().get(PARAMETER_DETAIL),
                         RecordedProblems.Problem::problem)));
         }

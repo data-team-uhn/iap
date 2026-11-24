@@ -38,7 +38,8 @@ Recording never throws, and never waits for the repository. Its caller is alread
 handling a failure.
 
 `logProblem` records a failure that nothing was thrown for, such as a mis-authored
-definition.
+definition. The workflow parse is one: it also keeps its problems on the version, so
+the author sees them too ([workflows](workflows.md)).
 
 Record a failure only when nobody would learn of it any other way, and when it is a
 fault of the code or the deployment. A fault that a client's input decides is answered

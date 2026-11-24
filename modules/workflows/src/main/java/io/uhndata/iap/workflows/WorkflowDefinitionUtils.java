@@ -108,6 +108,9 @@ public final class WorkflowDefinitionUtils
     /** The detail naming the BPMN element a translation problem was about. */
     static final String ELEMENT_DETAIL = "element";
 
+    /** What follows a complaint that only an administrator can resolve, such as a gap in the vocabulary. */
+    static final String CONTACT_ADMINISTRATOR = "Please contact an administrator";
+
     /**
      * IAP's BPMN extension namespace. Matched by namespace rather than by prefix, since a prefix is the document's
      * choice and a diagram editor is free to renormalize {@code iap:} to anything on save.
@@ -247,11 +250,12 @@ public final class WorkflowDefinitionUtils
      *            against the tree as a whole.
      * @param author the user id to record as {@code jcr:createdBy} on newly created flow nodes/sequence flows
      * @param workflowVersionPath the path of {@code workflowVersion}, for diagnostic messages only
+     * @return what the parse complained about, which is empty when the diagram was stored as drawn
      * @throws ParserConfigurationException if a compliant XML parser could not be created
      * @throws SAXException if the BPMN XML is not well-formed
      * @throws IOException if the BPMN XML could not be read
      */
-    public static void parse(@NotNull final InputStream bpmnXml, @NotNull final NodeBuilder workflowVersion,
+    public static ParseProblems parse(@NotNull final InputStream bpmnXml, @NotNull final NodeBuilder workflowVersion,
         @NotNull final NodeState root, @NotNull final String author, @NotNull final String workflowVersionPath)
         throws ParserConfigurationException, SAXException, IOException
     {
@@ -259,7 +263,7 @@ public final class WorkflowDefinitionUtils
         final Element process = getProcessElement(bpmnXml, problems);
         clear(workflowVersion, NodeTypeUtils.registry(root));
         if (process == null) {
-            return;
+            return problems;
         }
         // One timestamp for the whole batch: every node in it was created by the same parse, and differing
         // millisecond values would suggest otherwise.
@@ -300,6 +304,7 @@ public final class WorkflowDefinitionUtils
         // Last, so that nothing the diagram wrote is overwritten by a default
         context.createdNodes().values().forEach(node ->
             NodeTypeUtils.autoCreateItems(node, context.nodeTypesRoot(), author, context.created()));
+        return problems;
     }
 
     /**
@@ -897,7 +902,7 @@ public final class WorkflowDefinitionUtils
                 // The vocabulary is at fault here, not the diagram, and nothing else validates it
                 context.problems().report("FlowNodeType declares no jcrNodeType",
                     context.problems().context().with("bpmnElement", localName).with(ELEMENT_DETAIL, id)
-                        .with(FLOW_NODE_TYPE_DETAIL, candidate.name()));
+                        .with(FLOW_NODE_TYPE_DETAIL, candidate.name()), CONTACT_ADMINISTRATOR);
                 continue;
             }
             return candidate;
@@ -905,7 +910,8 @@ public final class WorkflowDefinitionUtils
         LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}) in {}, skipping", localName, id,
             context.path());
         context.problems().report("no FlowNodeType configured for a BPMN element",
-            context.problems().context().with("bpmnElement", localName).with(ELEMENT_DETAIL, id));
+            context.problems().context().with("bpmnElement", localName).with(ELEMENT_DETAIL, id),
+            CONTACT_ADMINISTRATOR);
         return null;
     }
 
@@ -959,7 +965,7 @@ public final class WorkflowDefinitionUtils
                 flowNodeType.identifier(), context.path());
             context.problems().report("FlowNodeType declares jcrProperties that are not a JSON object",
                 context.problems().context()
-                    .with("flowNodeType", flowNodeType.identifier()));
+                    .with("flowNodeType", flowNodeType.identifier()), CONTACT_ADMINISTRATOR);
             return;
         }
         properties.forEach((name, value) -> setJsonProperty(node, name, value, context));
@@ -978,7 +984,7 @@ public final class WorkflowDefinitionUtils
                     value.getValueType());
                 context.problems().report("jcrProperties entry holds an unsupported value type",
                     context.problems().context()
-                        .with("property", name).with("valueType", value.getValueType()));
+                        .with("property", name).with("valueType", value.getValueType()), CONTACT_ADMINISTRATOR);
             }
         }
     }

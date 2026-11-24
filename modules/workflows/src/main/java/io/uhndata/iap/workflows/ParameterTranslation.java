@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.workflows.FlowNodeTypeInfo.ParameterInfo;
 import io.uhndata.iap.workflows.FlowNodeTypeInfo.XmlLocation;
 import io.uhndata.iap.workflows.internal.types.BooleanParameterType;
@@ -213,7 +214,7 @@ final class ParameterTranslation
         validate(parameter, values, context);
         final String refusal = nodeTypeRefusal(parameter, type.storageType(), context);
         if (refusal != null) {
-            report(refusal, parameter, context);
+            reportDefect(refusal, parameter, context);
             return;
         }
         final List<Object> converted = convert(type, parameter, values, context);
@@ -254,7 +255,7 @@ final class ParameterTranslation
     private static void structure(final ParameterInfo parameter, final Context context)
     {
         if (parameter.location() != XmlLocation.EXTENSION_ELEMENT || context.extension() == null) {
-            report("a structured parameter is not written inside an extension element", parameter, context);
+            reportDefect("a structured parameter is not written inside an extension element", parameter, context);
             return;
         }
         final List<Element> elements = WorkflowDefinitionUtils.childElements(context.extension(),
@@ -271,7 +272,7 @@ final class ParameterTranslation
         validateCount(parameter, elements.size(), context);
         final String refusal = structureRefusal(parameter, context);
         if (refusal != null) {
-            report(refusal, parameter, context);
+            reportDefect(refusal, parameter, context);
             return;
         }
         if (parameter.isMultiValued()) {
@@ -289,7 +290,7 @@ final class ParameterTranslation
         final String key = parameter.keyParameter();
         if (parameter.fields().stream().noneMatch(field -> field.name().equals(key) && !field.isMultiValued()
             && !field.isStructure())) {
-            report("a repeated structured parameter declares no single-valued key field", parameter, context);
+            reportDefect("a repeated structured parameter declares no single-valued key field", parameter, context);
             return;
         }
         final NodeBuilder container = context.node().child(parameter.name());
@@ -342,7 +343,7 @@ final class ParameterTranslation
                 continue;
             }
             if (field.location() != XmlLocation.EXTENSION_ELEMENT) {
-                report("a field of a structured parameter is not written inside it", field, inner);
+                reportDefect("a field of a structured parameter is not written inside it", field, inner);
             } else {
                 apply(field, inner);
             }
@@ -377,8 +378,8 @@ final class ParameterTranslation
         }
         if (parameter.location() == XmlLocation.ATTRIBUTE || context.extension() == null) {
             if (parameter.location() != XmlLocation.ATTRIBUTE) {
-                report("a parameter is not an attribute of an entry that declares no extension element", parameter,
-                    context);
+                reportDefect("a parameter is not an attribute of an entry that declares no extension element",
+                    parameter, context);
             }
             return attributeValues(parameter,
                 context.element().getAttributeNS(WorkflowDefinitionUtils.IAP_NS, parameter.name()));
@@ -555,7 +556,19 @@ final class ParameterTranslation
 
     private static void report(final String problem, final ParameterInfo parameter, final Context context)
     {
-        report(problem, parameter, context, null);
+        report(problem, parameter, context, null, null);
+    }
+
+    private static void report(final String problem, final ParameterInfo parameter, final Context context,
+        final String key)
+    {
+        report(problem, parameter, context, key, null);
+    }
+
+    /** Reports a problem that lies in the vocabulary, which only an administrator can fix. */
+    private static void reportDefect(final String problem, final ParameterInfo parameter, final Context context)
+    {
+        report(problem, parameter, context, null, WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR);
     }
 
     /**
@@ -563,13 +576,18 @@ final class ParameterTranslation
      * node. A problem about one record of a structure also names its key.
      */
     private static void report(final String problem, final ParameterInfo parameter, final Context context,
-        final String key)
+        final String key, final String advice)
     {
         final String id = context.element().getAttribute(ID_ATTRIBUTE);
         final String name = context.level().prefix() + parameter.name();
         LOGGER.warn("Parameter {} of element {} in {}: {}", name, id, context.problems().path(), problem);
-        context.problems().report(problem, context.problems().context()
-            .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, id).with(PARAMETER_DETAIL, name).with(KEY_DETAIL, key));
+        final ErrorContext details = context.problems().context()
+            .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, id).with(PARAMETER_DETAIL, name).with(KEY_DETAIL, key);
+        if (advice == null) {
+            context.problems().report(problem, details);
+        } else {
+            context.problems().report(problem, details, advice);
+        }
     }
 
     /** Reports a vocabulary declaration the parse cannot read, for each element of the entry's kind. */
@@ -578,6 +596,7 @@ final class ParameterTranslation
     {
         problems.report(problem, problems.context()
             .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE))
-            .with("flowNodeType", type.name()).with(PARAMETER_DETAIL, path));
+            .with("flowNodeType", type.name()).with(PARAMETER_DETAIL, path),
+            WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR);
     }
 }

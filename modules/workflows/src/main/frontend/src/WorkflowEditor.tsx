@@ -37,7 +37,8 @@ import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog"
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
-import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
+import { lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
+import { readNode } from "@iap/frontend-commons/useNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
@@ -143,6 +144,18 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   const editable = requestedEdit && version !== undefined && offers(version, "save");
   const label = version ? versionLabel(version) : lastSegmentOf(path);
 
+  // What the server could not store of the diagram it was just sent. The save itself succeeded, so a failed
+  // read counts as no problems.
+  async function readParseProblems(versionPath: string): Promise<{ problems: string[]; invalid: boolean }> {
+    try {
+      const node = await readNode(fetchUtil, versionPath, "0");
+      return { problems: stringsOf(node.parseProblems), invalid: stringsOf(node.tags).includes("invalid") };
+    } catch (error: unknown) {
+      console.error("The problems found in the saved workflow could not be read", error);
+      return { problems: [], invalid: false };
+    }
+  }
+
   // Saves the diagram, then navigates to `destination` if one was given and the save succeeded. A
   // refused save stays on the page, reports itself, and offers to retry.
   // Declared rather than assigned, so the failure report can offer to call it again.
@@ -159,13 +172,22 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
     setSaving(true);
     void serialize()
       .then(xml => saveDiagram(fetchUtil, path, xml))
-      .then(() => {
+      .then(async () => {
         // A change made while the request was out is not in what was saved
         if (changesRef.current === changes) {
           dirtyRef.current = false;
           setDirty(false);
         }
-        if (destination === undefined) {
+        const { problems, invalid } = await readParseProblems(path);
+        reloadWorkflow();
+        if (problems.length > 0) {
+          // Stays on the page: leaving would take the report away from the author
+          notify({
+            title: "The workflow was partly saved. Some nodes could not be read.",
+            message: problems.join("\n"),
+            severity: invalid ? "error" : "warning",
+          });
+        } else if (destination === undefined) {
           notify({ title: "The process was saved", severity: "success" });
         } else {
           // No confirmation: the page it lands on is the confirmation

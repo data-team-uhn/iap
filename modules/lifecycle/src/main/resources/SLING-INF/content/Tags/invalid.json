@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Invalid",
+  "description": "The diagram could not be fully parsed so the version cannot be activated.",
+  "category": ["validity"],
+  "targetResourceTypes": ["wf/WorkflowVersion"],
+  "system": true,
+  "color": "#cf222e",
+  "icon": "BlockOutlined",
+  "order": 5
+}

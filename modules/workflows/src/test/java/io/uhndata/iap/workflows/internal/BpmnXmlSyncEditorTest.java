@@ -23,10 +23,12 @@ import java.util.List;
 import java.util.UUID;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -58,6 +60,12 @@ class BpmnXmlSyncEditorTest
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     private static final String HASH_PROPERTY = "bpmnXmlParsedHash";
+
+    private static final String PARSE_PROBLEMS = "parseProblems";
+
+    private static final String TAGS = "tags";
+
+    private static final String INVALID = "invalid";
 
     private static final String AUTHORITATIVE = "bpmnAuthoritative";
 
@@ -1178,8 +1186,83 @@ class BpmnXmlSyncEditorTest
     {
         final NodeState version = firstSave(NO_PROCESS_XML);
 
-        assertEquals(sha256(NO_PROCESS_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertFalse(version.hasProperty(HASH_PROPERTY));
         assertFalse(version.getChildNode(START_1).exists());
+    }
+
+    @Test
+    void aBreakingProblemMarksTheVersionInvalidAndKeepsItsOtherTags() throws Exception
+    {
+        final NodeBuilder base = base();
+        version(base).setProperty(TAGS, List.of("draft"), Type.STRINGS);
+
+        final NodeState version = firstSave(base, NO_PROCESS_XML);
+
+        assertEquals(List.of("draft", INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
+        assertEquals(List.of("bpmnXml declares no process element"),
+            version.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
+    }
+
+    @Test
+    void aProblemTheAuthorCanFixIsRecordedWithoutAdviceAndInvalidatesTheVersion() throws Exception
+    {
+        final NodeState version = firstSave(richBase(), DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"start1\"/>\n"
+            + "    <bpmn:endEvent id=\"end1\"/>\n"
+            + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
+            + "      <bpmn:conditionExpression>${approved}</bpmn:conditionExpression>\n"
+            + "    </bpmn:sequenceFlow>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals(List.of("sequence flow guard is a conditionExpression, not a cond:condition (flow1,"
+            + " conditionExpression=${approved})"), version.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
+        assertEquals(List.of(INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
+        assertFalse(version.hasProperty(HASH_PROPERTY), "saving the same diagram again parses it again");
+    }
+
+    @Test
+    void aCleanParseClearsTheProblemsAndTheInvalidTagOnly() throws Exception
+    {
+        final NodeBuilder base = base();
+        version(base).setProperty(TAGS, List.of(INVALID, "draft"), Type.STRINGS);
+        version(base).setProperty(PARSE_PROBLEMS, List.of("stale"), Type.STRINGS);
+
+        final NodeState version = firstSave(base, START_EVENT_XML);
+
+        assertFalse(version.hasProperty(PARSE_PROBLEMS));
+        assertEquals(List.of("draft"), version.getProperty(TAGS).getValue(Type.STRINGS));
+    }
+
+    @Test
+    void aCleanParseRemovesTheTagsPropertyWhenInvalidWasTheOnlyTag() throws Exception
+    {
+        final NodeBuilder base = base();
+        version(base).setProperty(TAGS, List.of(INVALID), Type.STRINGS);
+
+        assertFalse(firstSave(base, START_EVENT_XML).hasProperty(TAGS));
+    }
+
+    @Test
+    void aThrownParseFailureMarksTheVersionInvalid() throws Exception
+    {
+        final NodeState version = firstSave("<not-well-formed");
+
+        assertEquals(List.of(INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
+        assertEquals(1, version.getProperty(PARSE_PROBLEMS).count());
+        assertTrue(version.getProperty(PARSE_PROBLEMS).getValue(Type.STRING, 0).contains("SAXParseException"));
+    }
+
+    @Test
+    void aFailureToRecordAParseFailureDoesNotFailTheCommit() throws Exception
+    {
+        final NodeBuilder base = base();
+        final Blob unreadable = Mockito.mock(Blob.class);
+        Mockito.when(unreadable.getNewStream()).thenThrow(new IllegalStateException("unreadable"));
+        version(base).setProperty(PropertyStates.createProperty(TAGS, List.of(unreadable), Type.BINARIES));
+
+        final NodeState version = firstSave(base, "<not-well-formed");
+
+        assertEquals(Type.BINARIES, version.getProperty(TAGS).getType(), "tags it could not read are left alone");
     }
 
     /** A collaboration declares one process per participant; only the first is parsed, and that is reported. */
@@ -1427,6 +1510,14 @@ class BpmnXmlSyncEditorTest
         assertFalse(version.getChildNode("gwNoUuid").exists());
         // The rest of the diagram still parses, and the commit still succeeds.
         assertTrue(version.getChildNode(START_1).exists());
+        // Only an administrator can complete a vocabulary entry, and the author is told so.
+        final PropertyState problems = version.getProperty(PARSE_PROBLEMS);
+        // Each element is reported for the entry that was passed over, then for finding no entry at all.
+        assertEquals(4, problems.count());
+        for (int i = 0; i < problems.count(); i++) {
+            assertTrue(problems.getValue(Type.STRING, i).endsWith(". Please contact an administrator"));
+        }
+        assertTrue(problems.getValue(Type.STRING, 0).startsWith("FlowNodeType declares no jcrNodeType ("));
     }
 
     /**
@@ -1446,6 +1537,10 @@ class BpmnXmlSyncEditorTest
         assertTrue(start.exists());
         assertEquals("Start", start.getProperty("label").getValue(Type.STRING));
         assertTrue(version.getChildNode(END_1).exists());
+        final PropertyState problems = version.getProperty(PARSE_PROBLEMS);
+        assertEquals(2, problems.count());
+        assertTrue(problems.getValue(Type.STRING, 0).endsWith(". Please contact an administrator"));
+        assertTrue(problems.getValue(Type.STRING, 1).endsWith(". Please contact an administrator"));
     }
 
     /** The engine evaluates a cond:condition; a BPMN expression is reported, and the arc made without it. */

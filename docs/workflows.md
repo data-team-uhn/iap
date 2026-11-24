@@ -77,8 +77,18 @@ could disagree with its versions.
 
 A version keeps both representations of its graph: the `bpmn.xml` it was authored as,
 which the visual editor loads and saves, and the flow nodes it was parsed into, which
-the engine reads. `bpmnXmlParsedHash` records the source as of the last successful
-parse, so a graph that has fallen behind its diagram can be spotted.
+the engine reads. `bpmnXmlParsedHash` records the source as of the last parse that
+stored everything it drew, so a graph that has fallen behind its diagram can be spotted.
+After a problem the hash is left unset, and saving the same diagram parses it again.
+
+A parse skips what it cannot store and carries on, since a commit editor that throws
+aborts the whole commit. Each thing it complains about is a line of the version's
+`parseProblems`, which the editor shows after a save. Any problem tags the version with
+the system tag `invalid`, and `InvalidVersionCheck` refuses to activate or trial it,
+listing the stored lines. Saving is never blocked. The tag and the lines go away on the
+next parse that finds nothing. A problem in the workflow vocabulary, which only an
+administrator can fix, ends with "Please contact an administrator". A diagram that could
+not be read at all records one line, and the version keeps the nodes it had.
 
 The parse writes the flow nodes straight into the commit, where nothing autocreates, so once they are
 written it gives each node what its node type autocreates: `sling:resourceType`, `jcr:created`, and any
@@ -516,7 +526,7 @@ tags placed on the host itself, never inherited or computed ones.
 `checkValid` asks every `ValidityCheck` (`io.uhndata.iap.workflows.spi`) that applies to
 the target what would stop it moving on, and refuses with all of it at once. Activating
 or trialling a workflow version runs it, and so does publishing a schema version. The
-workflow checks require exactly one start event, and of a system workflow a
+workflow checks require exactly one start event, no `invalid` tag, and of a system workflow a
 `targetResourceType`, a named message start and no user task. A module protects what it
 adds by registering another check.
 

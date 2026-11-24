@@ -24,8 +24,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * One kind of value a workflow vocabulary parameter can hold, named by the parameter's {@code dataType}. The parser
- * hands each value a diagram gives such a parameter to the type, and stores what the type returns.
+ * Converts the text a diagram holds for a vocabulary parameter into a typed JCR value. The implementation is selected
+ * using the {@code dataType} of the parameter's declaration.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,9 +44,9 @@ public interface ParameterType
      * and dropped. A value that can be stored but is suspect is reported and returned.
      *
      * @param raw one value as the diagram writes it, trimmed and never blank
-     * @param declaration the {@code wf:Parameter} node declaring the parameter, which a type reads its own
-     *            settings from, such as the node type a reference must point at
-     * @param root the committed repository root, for a value that names something in the repository
+     * @param declaration the {@code wf:Parameter} node declaring the parameter and its settings
+     * @param root the committed repository root ({@code /}), for a value that needs repository access to parse,
+     *            such as a reference to a node
      * @param report where a problem with the value is reported, as a sentence fragment such as {@code a parameter
      *            has a value that is not a whole number}
      * @return the value to store, of the Java class Oak keeps the {@link #storageType()} in, or {@code null} to drop

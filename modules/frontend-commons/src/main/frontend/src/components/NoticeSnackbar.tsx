@@ -70,6 +70,7 @@ function NoticeAlert({ notice, dismiss }: NoticeAlertProps) {
     <Grow in>
       <Alert
         severity={severity}
+        sx={{ whiteSpace: "pre-line" }}
         // Both controls go in `action`: an Alert given an `action` drops its own close button
         action={
           <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>

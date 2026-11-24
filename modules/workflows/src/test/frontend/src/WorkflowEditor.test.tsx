@@ -84,6 +84,10 @@ const serving = (body: unknown): FetchRoute => request =>
 
 const stubServer = (body: unknown = definition) => stubFetch(serving(body));
 
+// The same, but the version's own node, as read back after a save, is `node`
+const stubServerReadingBack = (node: Record<string, unknown>) =>
+  stubFetch({ [`${VERSION_PATH}.0.json`]: jsonResponse(node) }, serving(definition));
+
 // Wherever the router stands, query and all: which page a version is opened on is asked for there,
 // so a URL without it would not say whether the editor or the viewer was arrived at.
 function CurrentUrl() {
@@ -321,6 +325,56 @@ describe("WorkflowEditor", () => {
 
     expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
     expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
+  });
+
+  it("says what could not be stored when the saved diagram had problems, and stays on the page", async () => {
+    const user = userEvent.setup();
+    const problems = [ "A task has no type (task1)", "An arc has no target (flow2)" ];
+    stubServerReadingBack({ ...definition["2-0"], "parseProblems": problems });
+    renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    await user.click(screen.getByRole("button", { name: "pretend to draw" }));
+
+    await user.click(screen.getByRole("button", { name: "Save and close" }));
+
+    expect(await screen.findByText("The workflow was partly saved. Some nodes could not be read.")).toBeInTheDocument();
+    expect(screen.getByText(/A task has no type \(task1\)\s*An arc has no target \(flow2\)/)).toBeInTheDocument();
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+    expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
+  });
+
+  it("reports an error rather than a warning when the saved version is invalid", async () => {
+    const user = userEvent.setup();
+    stubServerReadingBack({
+      ...definition["2-0"], "parseProblems": "A task has no type (task1)", "tags": [ "draft", "invalid" ],
+    });
+    renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const report = (await screen.findByText("The workflow was partly saved. Some nodes could not be read."))
+      .closest("[role=alert]");
+    expect(report).toHaveTextContent("A task has no type (task1)");
+    expect(report?.className).toMatch(/colorError/);
+  });
+
+  it("keeps the plain confirmation when the saved version cannot be read back", async () => {
+    const user = userEvent.setup();
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    stubFetch({ [`GET ${VERSION_PATH}.0.json`]: new Response(null, { status: 500, statusText: "Broken" }) },
+      serving(definition));
+    renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("The process was saved")).toBeInTheDocument();
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("has the browser warn before a page with unsaved changes is left", async () => {

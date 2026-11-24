@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import io.uhndata.iap.workflows.models.Parameter;
 
 import static io.uhndata.iap.workflows.ParseFixture.parse;
+import static io.uhndata.iap.workflows.ParseFixture.problemLines;
 import static io.uhndata.iap.workflows.ParseFixture.serviceTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -410,6 +411,19 @@ class StructuredParameterTest
             assertEquals(List.of("a structured parameter is not written inside an extension element",
                 "a structured parameter is not written inside an extension element"), problems.names());
         }
+    }
+
+    @Test
+    void asksForAnAdministratorWhenAStructureIsDeclaredOutsideAnExtensionElement() throws Exception
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        structure(VocabularyFixture.handler(root, "Inline", "inline"), "elsewhere", 1)
+            .setProperty(XML_LOCATION, "attribute");
+
+        final List<String> lines = problemLines(root, serviceTask("<iap:inline/>"));
+
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0).endsWith(". Please contact an administrator"));
     }
 
     @Test

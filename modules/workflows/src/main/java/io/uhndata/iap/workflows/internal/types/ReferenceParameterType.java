@@ -51,8 +51,6 @@ public class ReferenceParameterType implements ParameterType
     public Object convert(final String raw, final NodeState declaration, final NodeState root,
         final Consumer<String> report)
     {
-        // Absolute, because a stored reference is read from wherever the engine happens to be. Oak throws on an
-        // empty step, which would cost the whole save.
         final NodeState target = PathUtils.isValid(raw) && PathUtils.isAbsolute(raw)
             ? NodeStateUtils.getNode(root, raw) : null;
         final String referenceType = declaration.getString(REFERENCE_TYPE_PROPERTY);

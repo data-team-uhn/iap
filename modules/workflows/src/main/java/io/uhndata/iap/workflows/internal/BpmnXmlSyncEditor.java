@@ -19,6 +19,9 @@ package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -37,6 +40,7 @@ import org.xml.sax.SAXException;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.utils.NodeTypeUtils;
+import io.uhndata.iap.workflows.ParseProblems;
 import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
 
 /**
@@ -95,6 +99,12 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
     private static final String PARSED_HASH_PROPERTY = "bpmnXmlParsedHash";
+
+    private static final String PARSE_PROBLEMS_PROPERTY = "parseProblems";
+
+    private static final String TAGS_PROPERTY = "tags";
+
+    private static final String INVALID_TAG = "invalid";
 
     private static final String BPMN_AUTHORITATIVE_PROPERTY = "bpmnAuthoritative";
 
@@ -307,11 +317,16 @@ public class BpmnXmlSyncEditor extends DefaultEditor
                     BPMN_AUTHORITATIVE_PROPERTY);
                 return;
             }
+            final ParseProblems problems;
             try (InputStream reread = bpmnXml.getNewStream()) {
-                WorkflowDefinitionUtils.parse(reread, this.workflowVersion, this.context.after(),
+                problems = WorkflowDefinitionUtils.parse(reread, this.workflowVersion, this.context.after(),
                     this.context.author(), this.workflowVersionPath);
             }
-            this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
+            recordProblems(problems.lines());
+            // Left unset after a problem, so that saving the same diagram again parses it again
+            if (problems.lines().isEmpty()) {
+                this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
+            }
             LOGGER.debug("Synced flow nodes for WorkflowVersion {}", this.workflowVersionPath);
         } catch (final ParserConfigurationException | SAXException | IOException | RuntimeException e) {
             LOGGER.error("Failed to parse bpmnXml at {}: {}", this.workflowVersionPath, e.getMessage(), e);
@@ -320,6 +335,36 @@ public class BpmnXmlSyncEditor extends DefaultEditor
             // which, for a first upload, is none at all
             ErrorLogger.logError(e, ErrorContext.of(BpmnXmlSyncEditor.class, "syncFlowNodes")
                 .about(this.workflowVersionPath));
+            try {
+                recordProblems(List.of("The diagram could not be parsed (" + e.getClass().getSimpleName() + ")"));
+            } catch (final RuntimeException recordingFailure) {
+                LOGGER.error("Failed to record the parse failure at {}", this.workflowVersionPath, recordingFailure);
+            }
+        }
+    }
+
+    /**
+     * Records what a parse complained about on the version: the {@code parseProblems} lines, and the {@code invalid}
+     * tag while a problem stands. Other tags are left as they are.
+     */
+    private void recordProblems(final List<String> lines)
+    {
+        if (lines.isEmpty()) {
+            this.workflowVersion.removeProperty(PARSE_PROBLEMS_PROPERTY);
+        } else {
+            this.workflowVersion.setProperty(PARSE_PROBLEMS_PROPERTY, lines, Type.STRINGS);
+        }
+        final Set<String> tags = new LinkedHashSet<>();
+        final PropertyState existing = this.workflowVersion.getProperty(TAGS_PROPERTY);
+        if (existing != null) {
+            existing.getValue(Type.STRINGS).forEach(tags::add);
+        }
+        if (lines.isEmpty() ? tags.remove(INVALID_TAG) : tags.add(INVALID_TAG)) {
+            if (tags.isEmpty()) {
+                this.workflowVersion.removeProperty(TAGS_PROPERTY);
+            } else {
+                this.workflowVersion.setProperty(TAGS_PROPERTY, tags, Type.STRINGS);
+            }
         }
     }
 

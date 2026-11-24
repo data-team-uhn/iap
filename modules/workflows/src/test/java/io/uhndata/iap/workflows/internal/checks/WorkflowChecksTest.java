@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link StartEventCheck}, {@link SystemWorkflowTriggerCheck}, {@link SystemWorkflowWaitCheck},
- * {@link MessageEventCheck}, {@link CatchingEventCheck} and {@link SubjectCheck}.
+ * {@link MessageEventCheck}, {@link CatchingEventCheck}, {@link SubjectCheck} and {@link InvalidVersionCheck}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -244,6 +244,46 @@ class WorkflowChecksTest
             assertTrue(check.appliesTo(version));
             assertFalse(check.appliesTo(notes));
         }
+    }
+
+    @Test
+    void acceptsAVersionNotTaggedInvalid()
+    {
+        final Resource version = this.context.create().resource("/Workflows/clean/v1", Map.of(
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "tags", new String[] { "draft" },
+            "parseProblems", new String[] { "a warning (x)" }));
+
+        assertEquals(List.of(), new InvalidVersionCheck().check(version));
+        assertEquals(List.of(), new InvalidVersionCheck().check(version(USER_VERSION, null)));
+    }
+
+    @Test
+    void refusesAVersionTaggedInvalidWithEachStoredProblem()
+    {
+        final Resource version = this.context.create().resource("/Workflows/broken/v1", Map.of(
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "tags", new String[] { "draft", "invalid" },
+            "parseProblems", new String[] { "skipped element (a)", "unattached boundary event (b)" }));
+
+        assertEquals(List.of("its diagram was not fully saved: skipped element (a)",
+            "its diagram was not fully saved: unattached boundary event (b)"),
+            new InvalidVersionCheck().check(version));
+    }
+
+    @Test
+    void refusesAVersionTaggedInvalidWithNoStoredProblems()
+    {
+        final Resource version = this.context.create().resource("/Workflows/bare/v1", Map.of(
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "tags", new String[] { "invalid" }));
+
+        assertEquals(List.of("its diagram was not fully saved"), new InvalidVersionCheck().check(version));
+    }
+
+    @Test
+    void appliesToVersionsOnly()
+    {
+        assertTrue(new InvalidVersionCheck().appliesTo(version(USER_VERSION, null)));
+        assertFalse(new InvalidVersionCheck().appliesTo(this.context.create().resource("/Workflows/notes",
+            Map.of(WorkflowFixture.TYPE, "nt:unstructured"))));
     }
 
     private Resource version(final String path, final String targetType)

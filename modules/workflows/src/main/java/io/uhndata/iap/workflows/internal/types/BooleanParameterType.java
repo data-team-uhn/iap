@@ -24,7 +24,7 @@ import javax.jcr.PropertyType;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * A yes-or-no value, written {@code true} or {@code false} in any case.
+ * A yes-or-no value: {@code true}, in any letter case, is true, and anything else is false.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,10 +41,6 @@ public class BooleanParameterType implements ParameterType
     public Object convert(final String raw, final NodeState declaration, final NodeState root,
         final Consumer<String> report)
     {
-        if ("true".equalsIgnoreCase(raw) || "false".equalsIgnoreCase(raw)) {
-            return Boolean.valueOf(raw);
-        }
-        report.accept("a parameter has a value that is not a boolean");
-        return null;
+        return Boolean.valueOf(raw);
     }
 }

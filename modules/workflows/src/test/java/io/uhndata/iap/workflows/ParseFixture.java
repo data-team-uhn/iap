@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -86,9 +87,28 @@ public final class ParseFixture
     public static NodeState parse(final NodeBuilder root, final String elements) throws Exception
     {
         final NodeBuilder version = EmptyNodeState.EMPTY_NODE.builder();
-        final String xml = DEFS_OPEN + elements + DEFS_CLOSE;
-        WorkflowDefinitionUtils.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), version,
-            root.getNodeState(), "admin", "/Workflows/Approval/1.0");
+        parseInto(root, elements, version);
         return version.getNodeState();
+    }
+
+    /**
+     * Parses a process holding the given elements and returns what the parse reported.
+     *
+     * @param root the repository root, holding the vocabulary and the node type registry
+     * @param elements the process's contents
+     * @return one line per problem, as stored on the version
+     * @throws Exception if the parse fails outright
+     */
+    public static List<String> problemLines(final NodeBuilder root, final String elements) throws Exception
+    {
+        return parseInto(root, elements, EmptyNodeState.EMPTY_NODE.builder()).lines();
+    }
+
+    private static ParseProblems parseInto(final NodeBuilder root, final String elements, final NodeBuilder version)
+        throws Exception
+    {
+        final String xml = DEFS_OPEN + elements + DEFS_CLOSE;
+        return WorkflowDefinitionUtils.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), version,
+            root.getNodeState(), "admin", "/Workflows/Approval/1.0");
     }
 }

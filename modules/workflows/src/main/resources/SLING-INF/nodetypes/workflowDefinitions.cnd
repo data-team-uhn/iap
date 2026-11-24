@@ -123,6 +123,10 @@
   // SHA-256 hash of the bpmnXml file at the time of the last successful parse into flow nodes
   - bpmnXmlParsedHash (STRING)
 
+  // What the last parse of the diagram complained about, one line each, e.g.
+  // "boundary event has no attachedToRef (Event_1x2)". Absent when the diagram was stored as drawn.
+  - parseProblems (STRING) multiple
+
   // Whether this version's diagram is the source of its flow nodes. When true the editor owns them
   // outright: it derives them automatically from the bpmn.xml whenever it is updated.
   //
