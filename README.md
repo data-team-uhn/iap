@@ -28,7 +28,8 @@ git config --local include.path ../.gitconfig
 mvn clean install
 ```
 
-Tests are **skipped by default** for fast local builds. Useful Maven flags:
+Tests are **skipped by default** for fast local builds. How to write and run them, and the
+shared test fixtures, are in [TESTING.md](TESTING.md). Useful Maven flags:
 
 | Flag | Effect |
 | --- | --- |
