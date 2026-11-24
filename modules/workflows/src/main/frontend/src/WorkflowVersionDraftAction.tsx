@@ -19,19 +19,13 @@
 import { useState } from "react";
 
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
-import { Alert, Button, DialogActions, DialogContent, DialogContentText, Stack, TextField } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
-import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { messageOf } from "@iap/frontend-commons/requestFailure";
-import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
-import { nextVersionLabel } from "@iap/frontend-commons/versionNumbers";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
+import NewVersionDialog from "./NewVersionDialog";
 import { adminUrl } from "./workflowModel";
-import { draftFromVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
@@ -41,72 +35,28 @@ import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 // forward, and a trial or a draft is branched from rather than changed.
 function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersionActionProps) {
   const [ naming, setNaming ] = useState(false);
-  const [ label, setLabel ] = useState("");
   const navigate = useNavigate();
-  const fetchUtil = useAuthenticatedFetch();
-  const { working, failure, run } = useAsyncAction<string>({
-    onFailure: messageOf,
-    onSuccess: () => setNaming(false),
-  });
 
   if (!offers(workflow, "createVersion")) {
     return null;
   }
 
-  const source = version.version || version.name;
-  const used = workflow.versions.map(existing => existing.version);
-  const duplicate = label.trim() !== "" && used.includes(label.trim());
-  const valid = label.trim() !== "" && !duplicate;
-
-  const draft = (): Promise<void> =>
-    draftFromVersion(fetchUtil, version.path, label.trim()).then(created => {
-      // Straight into the editor: a draft that was just copied exists to be changed
-      reload();
-      void navigate(adminUrl(created, "edit"));
-    });
-
   return (
     <>
-      <ActionIcon label="New draft from this" icon={<ContentCopyOutlinedIcon fontSize="small" />} onClick={() => {
-        setLabel(nextVersionLabel(workflow.versions.map(existing => existing.name)));
-        setNaming(true);
-      }} />
+      <ActionIcon label="New draft from this" icon={<ContentCopyOutlinedIcon fontSize="small" />}
+        onClick={() => setNaming(true)} />
       { naming && (
-        <ResponsiveDialog
-          open
-          title={`New draft from version ${source}`}
-          width="sm"
-          withCloseButton
-          closeDisabled={working}
+        <NewVersionDialog
+          workflow={workflow}
+          source={version}
           onClose={() => setNaming(false)}
-        >
-          <DialogContent dividers>
-            <Stack spacing={2} sx={{ pt: 1 }}>
-              <DialogContentText>
-                The new version starts as a draft holding a copy of version {source}. Version {source} is left as
-                it is, and keeps running until the draft is activated in its place.
-              </DialogContentText>
-              <TextField
-                label="Version"
-                required
-                fullWidth
-                value={label}
-                onChange={event => setLabel(event.target.value)}
-                placeholder="e.g. 2.0"
-                error={duplicate}
-                helperText={duplicate ? "This workflow already has a version with that label" : undefined}
-              />
-              { failure && <Alert severity="error">{failure}</Alert> }
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setNaming(false)} disabled={working}>Cancel</Button>
-            <Button variant="contained" onClick={() => run(draft)} disabled={working || !valid}>
-              Create draft
-            </Button>
-          </DialogActions>
-        </ResponsiveDialog>
-      )}
+          onCreated={created => {
+            // Straight into the editor: a draft that was just copied exists to be changed
+            reload();
+            void navigate(adminUrl(created, "edit"));
+          }}
+        />
+      ) }
     </>
   );
 }

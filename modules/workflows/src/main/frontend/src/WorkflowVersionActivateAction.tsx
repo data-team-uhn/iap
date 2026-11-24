@@ -21,7 +21,7 @@ import PublishOutlinedIcon from "@mui/icons-material/PublishOutlined";
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { ACTIVE_TAG } from "./workflowModel";
+import { ACTIVE_TAG, versionLabel } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
@@ -33,7 +33,7 @@ function WorkflowVersionActivateAction({ version, workflow, reload }: WorkflowVe
   if (!offers(version, "activate")) {
     return null;
   }
-  const label = version.version || version.name;
+  const label = versionLabel(version);
   const outgoing = workflow.versions.find(candidate => candidate.tags.includes(ACTIVE_TAG));
   return (
     <EventAction
@@ -45,7 +45,7 @@ function WorkflowVersionActivateAction({ version, workflow, reload }: WorkflowVe
       title={`Activate version ${label}?`}
       explanation={`New instances of ${workflow.title} will be created from version ${label}.`
         + (outgoing
-          ? ` Version ${outgoing.version || outgoing.name} is retired in the same step: the instances already`
+          ? ` Version ${versionLabel(outgoing)} is retired in the same step: the instances already`
             + " running against it carry on, but no new ones start from it."
           : " Nothing is retired: this workflow has no active version at the moment.")}
       done={`Version ${label} is now the active version of ${workflow.title}`}

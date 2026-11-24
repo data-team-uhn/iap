@@ -25,17 +25,13 @@ import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
+import { formatDate } from "@iap/frontend-commons/dates";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 
 import { useWorkflow } from "./useWorkflow";
 import WorkflowActions from "./WorkflowActions";
 import { adminUrl, type WorkflowHomepage, type WorkflowSummary } from "./workflowModel";
 import WorkflowVersionList from "./WorkflowVersionList";
-
-// A repository timestamp as a sentence-worthy date, or nothing at all when it is absent.
-function formatDate(value: string): string {
-  return value === "" ? "" : new Date(value).toLocaleString();
-}
 
 function Property({ label, children }: { label: string; children: ReactNode }) {
   return (

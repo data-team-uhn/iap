@@ -23,6 +23,7 @@ describe("dateValue", () => {
     expect(dateValue("2026-10-08T09:30:00.000-04:00")).toEqual(new Date("2026-10-08T09:30:00.000-04:00"));
     expect(dateValue(0)).toEqual(new Date(0));
     expect(dateValue(undefined)).toBeNull();
+    expect(dateValue("")).toBeNull();
     expect(dateValue({})).toBeNull();
   });
 });

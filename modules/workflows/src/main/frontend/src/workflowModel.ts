@@ -61,6 +61,9 @@ export interface WorkflowVersionSummary {
   "@events": string[];
 }
 
+// What a version is called: its label, or its node name when it has none
+export const versionLabel = (version: WorkflowVersionSummary): string => version.version || version.name;
+
 // One workflow definition with the versions stored under it, as its own page displays it.
 export interface WorkflowSummary {
   path: string;

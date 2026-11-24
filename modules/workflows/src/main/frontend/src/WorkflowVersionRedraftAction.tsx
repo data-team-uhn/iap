@@ -21,6 +21,8 @@ import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
+import { versionLabel } from "./workflowModel";
+
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Takes a trial back to draft, so the same node becomes editable again rather than a copy being
@@ -29,7 +31,7 @@ function WorkflowVersionRedraftAction({ version, workflow, reload }: WorkflowVer
   if (!offers(version, "returnToDraft")) {
     return null;
   }
-  const label = version.version || version.name;
+  const label = versionLabel(version);
   return (
     <EventAction
       path={version.path}

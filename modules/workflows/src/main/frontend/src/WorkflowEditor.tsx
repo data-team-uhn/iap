@@ -43,7 +43,7 @@ import LifecycleChip from "@iap/tags/LifecycleChip";
 
 import BpmnEditor from "./BpmnEditor";
 import { useWorkflow } from "./useWorkflow";
-import { adminUrl, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
+import { adminUrl, versionLabel, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
 import WorkflowVersionActions from "./WorkflowVersionActions";
 import { saveDiagram } from "./workflowWrites";
 
@@ -141,7 +141,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   // Editable where the server offers to save the diagram, which is on a draft. Anything else opens
   // read-only, with an explanation.
   const editable = requestedEdit && version !== undefined && offers(version, "save");
-  const label = version ? version.version || version.name : lastSegmentOf(path);
+  const label = version ? versionLabel(version) : lastSegmentOf(path);
 
   // Saves the diagram, then navigates to `destination` if one was given and the save succeeded. A
   // refused save stays on the page, reports itself, and offers to retry.
