@@ -347,7 +347,7 @@ function homes(items: FormItem[], data: ReviewData): Map<string, string> {
 // The questions of a form requirement, section by section, every one of them: the group chips say which concern
 // the reviewer.
 export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf,
-  notesWidth = 320, onNotesWidth, selected, onSelect }: {
+  notesWidth = 320, onNotesWidth, selected, onSelect, heading }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
@@ -364,6 +364,8 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   // The note selected in the list beside a wide form, shared with whoever sends the reader to one
   selected?: string;
   onSelect?: (id: string | undefined) => void;
+  // What heads the questions' column, the title of the page they are on, beside their notes
+  heading?: ReactNode;
 }) {
   const home = homeOf ?? homes(items, data);
   const form = useRef<HTMLElement>(null);
@@ -419,7 +421,10 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
       <FormNotes.Provider value={listing}>
         {/* The questions scroll on their own; the notes go down the page's right edge, as tall as it */}
         <Box ref={form} sx={{ display: "flex", height: "100%", minHeight: 0 }}>
-          <Box data-form-scroller sx={{ flex: 1, minWidth: 0, overflowY: "auto", pr: 1, pb: 3 }}>{body}</Box>
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            {heading && <Box sx={{ pl: 4, pr: 1, pt: 3 }}>{heading}</Box>}
+            <Questions>{body}</Questions>
+          </Box>
           {onNotesWidth ? (
             <SplitHandle
               width={width} onWidth={onNotesWidth} container={() => form.current} min={NOTES_MIN_WIDTH}
@@ -439,7 +444,8 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   }
   return (
     <Box ref={form} data-form-scroller sx={{ containerType: "inline-size", position: "relative",
-      [NOTES_WIDTH]: `${width}px`, height: { md: "100%" }, overflowY: { md: "auto" }, pr: { md: 4 }, pb: { md: 3 } }}>
+      [NOTES_WIDTH]: `${width}px`, height: { md: "100%" }, overflowY: { md: "auto" }, px: { md: 4 }, py: { md: 3 } }}>
+      {heading}
       {body}
       {/* Down the gap between the questions and their notes, where they sit side by side */}
       {onNotesWidth && (
@@ -450,6 +456,18 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
             right: `calc(${width}px + ${theme.spacing(GAP / 2)} - 8px)`, [WIDE]: { display: "block" } })}
         />
       )}
+    </Box>
+  );
+}
+
+// The questions of a wide form, under its title, scrolling on their own, faded where there are more
+function Questions({ children }: { children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(box);
+  return (
+    <Box ref={box} data-form-scroller
+      sx={{ flex: 1, minHeight: 0, overflowY: "auto", pl: 4, pr: 1, pb: 3, maskImage: fadeEdges(edges) }}>
+      {children}
     </Box>
   );
 }

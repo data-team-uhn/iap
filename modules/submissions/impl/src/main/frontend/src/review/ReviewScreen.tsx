@@ -673,6 +673,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const unconsidered = risks.filter(risk => !risk.considered).length;
   const aiOpen = risks.reduce((sum, risk) => sum + risk.aiOpen.length, 0);
   const contradicted = new Set(risks.flatMap(risk => risk.mismatches.map(one => one.question))).size;
+  // The title of the page being read, heading the form's or the document's own column, beside its notes
+  const title = current && <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{current.label}</Typography>;
   const shownDocument = current ? data.documents.get(current.name) : undefined;
 
   // A contents entry: navigation, so it looks it, names in the link colour, a tint under the pointer, and the one
@@ -894,13 +896,11 @@ export default function ReviewScreen({ path }: { path: string }) {
           <GroupLabels.Provider value={groupLabels}>
             <ReviewerTopics.Provider value={reviewerTopics}>
               <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%",
-                ...current && isFormRequirement(current) ? { pl: { md: 4 }, pt: { md: 3 } } : {},
-                ...narrow ? {} : { pr: 0, pb: 0, height: "100%", display: "flex", flexDirection: "column",
+                ...narrow ? {} : { p: 0, height: "100%", display: "flex", flexDirection: "column",
                   overflow: "hidden" },
                 ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
                 {current && (
                   <>
-                    <Typography variant="h6" component="h2" sx={{ mb: 0.5, pr: { md: 2 } }}>{current.label}</Typography>
                     {isFormRequirement(current) && (
                       <Box sx={{ flex: { md: 1 }, minHeight: { md: 0 } }}>
                         <SearchContext.Provider value={searchContext}>
@@ -910,12 +910,13 @@ export default function ReviewScreen({ path }: { path: string }) {
                             onEvidence={openEvidence} actions={actions}
                             notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                             selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
+                            heading={title}
                           />
                         </SearchContext.Provider>
                       </Box>
                     )}
                     {isDocumentRequirement(current) && shownDocument && (
-                      <Box sx={{ mt: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                         <DocumentReview
                           key={current.name}
                           document={shownDocument} data={data} shown={shown} selected={mark.id}
@@ -923,6 +924,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                           actions={actions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
                           notesWidth={notesWidth} onNotesWidth={setNotesWidth}
+                          heading={title}
                           onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
                         />
                       </Box>

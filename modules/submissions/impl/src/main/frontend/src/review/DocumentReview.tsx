@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { Box } from "@mui/material";
 
@@ -40,7 +40,7 @@ const DRAFT = "draft";
 const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, notesWidth, onNotesWidth, onClose }: {
+  search, onSearch, notesWidth, onNotesWidth, heading, onClose }: {
   document: ReviewedDocument;
   data: ReviewData;
   shown: Set<NoteKind>;
@@ -56,6 +56,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   // How wide the notes beside the document are, which the reader sizes
   notesWidth: number;
   onNotesWidth: (width: number) => void;
+  // What heads the document's column, the title of the page it is on, beside its notes
+  heading?: ReactNode;
   onClose: () => void;
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
@@ -175,6 +177,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         onListWidth={onNotesWidth}
         markHeading={markHeading}
         markHeadingActions={markHeadingActions}
+        lead={heading}
         plain
         onClose={onClose}
       />
