@@ -170,7 +170,8 @@ final class ParameterTranslation
     }
 
     /**
-     * Applies every parameter of the matched vocabulary entry to the node being written.
+     * Applies every parameter of the matched vocabulary entry to the node being written, having reported whatever
+     * the diagram says that none of them reads.
      *
      * @param type the vocabulary entry the element matched
      * @param element the BPMN element being translated
@@ -186,6 +187,7 @@ final class ParameterTranslation
             : WorkflowDefinitionUtils.extensionElement(element, type.xmlExtensionElement());
         final Context context = new Context(type, element, root, nodeTypesRoot, problems,
             new Level(extension, node, type.jcrNodeType(), ""));
+        UnclaimedMarkup.report(element, type, problems);
         type.parameters().unread().forEach(path -> reportDeclaration(
             "a vocabulary entry holds a parameter that is not a wf:Parameter node", path, type, element, problems));
         // Nothing reads such a field, so a structure missing one would otherwise just look short of a field
@@ -331,13 +333,15 @@ final class ParameterTranslation
 
     /**
      * Reads the fields of one element of a structure into the node it is stored as, except the key, which names
-     * the node instead. A field can only live inside the element, so one declaring another location is reported
-     * and not read.
+     * the node instead. What the element holds that no field reads is reported. A field can only live inside the
+     * element, so one declaring another location is reported and not read.
      */
     private static void fields(final ParameterInfo parameter, final Element holder, final NodeBuilder stored,
         final String prefix, final Context context, final String key)
     {
         final Context inner = context.into(new Level(holder, stored, parameter.nodeType(), prefix));
+        UnclaimedMarkup.reportInside(holder, parameter.fields().stream().map(ParameterInfo::name).toList(), prefix,
+            context.element(), context.type(), context.problems());
         for (final ParameterInfo field : parameter.fields()) {
             if (field.name().equals(key)) {
                 continue;

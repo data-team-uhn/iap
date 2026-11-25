@@ -722,7 +722,7 @@ public final class WorkflowDefinitionUtils
      * @param namespace the namespace wanted
      * @return those children, in document order
      */
-    private static Stream<Element> childElements(final Element element, final String namespace)
+    static Stream<Element> childElements(final Element element, final String namespace)
     {
         final NodeList children = element.getChildNodes();
         return IntStream.range(0, children.getLength())
@@ -937,7 +937,7 @@ public final class WorkflowDefinitionUtils
      * @param element the BPMN element being translated
      * @return its {@code extensionElements} child, or {@code null} when it has none
      */
-    private static Element extensions(final Element element)
+    static Element extensions(final Element element)
     {
         return childElement(element, EXTENSION_ELEMENTS);
     }

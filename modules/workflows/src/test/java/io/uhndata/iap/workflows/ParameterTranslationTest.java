@@ -70,9 +70,13 @@ class ParameterTranslationTest
 
     private static final String XML_LOCATION = "xmlLocation";
 
+    private static final String EXTENSION_ELEMENT_DETAIL = "extensionElement";
+
     private static final String PARAMETER_DETAIL = "parameter";
 
     private static final String ELEMENT_DETAIL = "element";
+
+    private static final String ATTRIBUTE_DETAIL = "attribute";
 
     private static final String GENERIC_SERVICE_TASK = "ServiceTask";
 
@@ -105,6 +109,40 @@ class ParameterTranslationTest
     private static final String TASK = ParseFixture.TASK;
 
     private static final String CHILD_ORDER = ":childOrder";
+
+    @Test
+    void reportsOnlyTheExtensionElementsBesideTheMatchedOne() throws Exception
+    {
+        final NodeBuilder root = withSetState();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, serviceTask("<iap:setState toState=\"ACTIVE\">"
+                + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>\n"
+                + "        <iap:notify urgency=\"immediate\"/>"));
+
+            assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
+            assertEquals(List.of("an IAP extension element belongs to no matching FlowNodeType"),
+                problems.names());
+            final RecordedProblems.Problem problem = problems.all().get(0);
+            assertEquals(TASK, problem.details().get(ELEMENT_DETAIL));
+            assertEquals("notify", problem.details().get(EXTENSION_ELEMENT_DETAIL));
+            assertEquals("SetState", problem.details().get(FLOW_NODE_TYPE));
+        }
+    }
+
+    @Test
+    void leavesExtensionElementsInOtherNamespacesAlone() throws Exception
+    {
+        final NodeBuilder root = withGenericServiceTask();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, serviceTask(
+                "<camunda:executionListener xmlns:camunda=\"urn:camunda\" event=\"start\"/>"));
+
+            assertTrue(after.getChildNode(TASK).exists());
+            assertEquals(List.of(), problems.messages());
+        }
+    }
 
     @Test
     void breaksATieOfEqualPrioritiesByEntryName() throws Exception
@@ -289,6 +327,95 @@ class ParameterTranslationTest
                 after.getChildNode(TASK).getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
             assertEquals(List.of("FlowNodeType declares no jcrNodeType"), problems.names());
             assertEquals("Broken", problems.all().get(0).details().get(FLOW_NODE_TYPE));
+        }
+    }
+
+    @Test
+    void reportsASecondCopyOfTheMatchedExtensionElement() throws Exception
+    {
+        final NodeBuilder root = withSetState();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, serviceTask(setState("ACTIVE") + setState("RETIRED")));
+
+            assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
+            assertEquals(List.of("an IAP extension element is written more than once"), problems.names());
+        }
+    }
+
+    @Test
+    void reportsAnIapAttributeNoParameterReads() throws Exception
+    {
+        // A handler the generic entry dispatches to, with configuration it has no parameter for
+        final NodeBuilder root = withGenericServiceTask();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" name=\"Move it\""
+                + " iap:handler=\"moveContent\" iap:within=\"wf/Workflows\"/>\n");
+
+            assertEquals("moveContent", after.getChildNode(TASK).getString(HANDLER));
+            assertFalse(after.getChildNode(TASK).hasProperty("within"));
+            assertEquals(List.of("an IAP attribute belongs to no parameter of the matching FlowNodeType"),
+                problems.names());
+            assertEquals("within", problems.all().get(0).details().get(ATTRIBUTE_DETAIL));
+        }
+    }
+
+    @Test
+    void reportsAHandlerAttributeBesideAHandlerElement() throws Exception
+    {
+        // The element decides the handler, so an attribute naming another one is a disagreement nothing settles
+        final NodeBuilder root = withSetState();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:handler=\"notify\">\n"
+                + "      <bpmn:extensionElements>" + setState("ACTIVE") + "</bpmn:extensionElements>\n"
+                + "    </bpmn:serviceTask>\n");
+
+            assertEquals(List.of("an IAP attribute belongs to no parameter of the matching FlowNodeType"),
+                problems.names());
+            assertEquals(HANDLER, problems.all().get(0).details().get(ATTRIBUTE_DETAIL));
+            assertEquals("SetState", problems.all().get(0).details().get(FLOW_NODE_TYPE));
+        }
+    }
+
+    @Test
+    void reportsValuesWrittenWhereTheirParameterDoesNotLive() throws Exception
+    {
+        // Each of these is a value the panel would have written in the other place, or a name it never offered
+        final NodeBuilder root = withSetState();
+        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child("SetState"), COLOUR, TEXT, 1);
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:toState=\"RETIRED\">\n"
+                + "      <bpmn:extensionElements><iap:setState toState=\"ACTIVE\" colour=\"green\">"
+                + "<iap:fromStates>DRAFT</iap:fromStates><iap:fromState>TRIAL</iap:fromState>"
+                + "</iap:setState></bpmn:extensionElements>\n"
+                + "    </bpmn:serviceTask>\n");
+
+            assertEquals(List.of("an IAP attribute belongs to no parameter of the matching FlowNodeType",
+                "an attribute of an IAP extension element belongs to no parameter of the matching FlowNodeType",
+                "a child of an IAP extension element belongs to no parameter of the matching FlowNodeType"),
+                problems.names());
+            assertEquals(List.of(TO_STATE, COLOUR, "fromState"), problems.all().stream()
+                .map(problem -> problem.details().getOrDefault(ATTRIBUTE_DETAIL, problem.details().get("child")))
+                .toList());
+        }
+    }
+
+    @Test
+    void leavesBpmnsOwnAttributesAndNamespaceDeclarationsAlone() throws Exception
+    {
+        final NodeBuilder root = withSetState();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" name=\"Activate\">\n"
+                + "      <bpmn:extensionElements><iap:setState xmlns:x=\"urn:x\" x:note=\"n\""
+                + " toState=\"ACTIVE\"><iap:fromStates>DRAFT</iap:fromStates></iap:setState>"
+                + "</bpmn:extensionElements>\n"
+                + "    </bpmn:serviceTask>\n");
+
+            assertEquals(List.of(), problems.messages());
         }
     }
 

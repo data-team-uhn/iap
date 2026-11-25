@@ -183,6 +183,19 @@ orderable and which entry a diagram is read as must not depend on the order the 
 An entry is a node of
 type `wf:FlowNodeType` or a subtype; a matching one missing its `jcrNodeType` or its identity is reported and
 passed over for the next candidate.
+
+**IAP markup the winning entry does not read is reported**, since nothing in the diagram shows that it was
+dropped. That is:
+- an IAP extension element other than the entry's own. A misspelled handler element, or one from a module
+  this instance does not have installed, otherwise falls back on the generic entry and parks as a task nobody
+  can complete;
+- a second copy of the entry's own element, of which only the first is read;
+- an IAP attribute of the element that no `attribute` parameter names;
+- an attribute or child of the extension element that no other parameter names.
+
+Between them these catch a value written in the wrong one of the two places IAP markup can live, and an
+`iap:handler` attribute beside a handler element, which the element overrules.
+
 `jcrProperties` sets fixed properties on the stored node, which is how a terminate end
 event and an ordinary one share `wf:EndEvent`. It is only for what varies between
 entries sharing a node type: what the node type already determines, such as whether an
@@ -309,7 +322,8 @@ escaped where a node name cannot hold it as written, and does not hold it again 
 are of the structure's `jcrNodeType`, `nt:unstructured` when it names none. The example stores
 `fields/workflow`, holding `label`, `referenceType`, `referenceRoot`, `choices/a` and `appliesWhen`. Every check
 a parameter gets applies to each field at every level, and a problem names the field by its path,
-`fields/workflow/label`.
+`fields/workflow/label`. A record's attributes and children that no
+field reads are reported as well.
 
 The properties panel edits a structure in `StructureParameterField`, the one field given records rather than
 strings: each record holds the values of each field by name, recursively (`StructureRecord` in
@@ -361,7 +375,8 @@ named after the handler — `RecordReview.json` under `modules/submissions`, `Co
 entry declares only `handler`, an `attribute`, and is what a service task falls back on
 when it carries no extension element that a per-handler entry matches. Matching never reads `iap:handler`:
 a task that names `recordReview` there without an `<iap:recordReview>` element is a generic service task, so none of
-RecordReview's parameters are read or checked. A call activity is a BPMN element of its own rather than a
+RecordReview's parameters are read or checked, and any other IAP attribute
+it carries is reported as one no parameter reads. A call activity is a BPMN element of its own rather than a
 configured service task, so its `CallActivity` entry fixes the `callActivity` handler and carries `message`
 as an attribute.
 

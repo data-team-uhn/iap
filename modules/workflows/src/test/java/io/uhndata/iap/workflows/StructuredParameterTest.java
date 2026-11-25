@@ -64,6 +64,10 @@ class StructuredParameterTest
 
     private static final String KEY_DETAIL = "key";
 
+    private static final String ATTRIBUTE_DETAIL = "attribute";
+
+    private static final String CHILD_DETAIL = "child";
+
     private static final String TASK = ParseFixture.TASK;
 
     private static final String UPDATE_CONTENT = "updateContent";
@@ -170,17 +174,21 @@ class StructuredParameterTest
     {
         try (RecordedProblems problems = new RecordedProblems()) {
             final NodeState target = parse(withConfigure(), serviceTask(
-                "<iap:configure><iap:target depth=\"deep\"/><iap:target path=\"/b\"/></iap:configure>"))
-                .getChildNode(TASK).getChildNode(TARGET);
+                "<iap:configure><iap:target depth=\"deep\" colour=\"red\"><iap:extra/></iap:target>"
+                + "<iap:target path=\"/b\"/></iap:configure>")).getChildNode(TASK).getChildNode(TARGET);
 
             assertEquals(List.of(
                 "a parameter has more values than it accepts",
+                "an attribute of an IAP extension element belongs to no parameter of the matching FlowNodeType",
+                "a child of an IAP extension element belongs to no parameter of the matching FlowNodeType",
                 "a required parameter has no value",
                 "a parameter has a value that is not a whole number"),
                 problems.names());
             assertEquals(TARGET, problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("target/path", problems.all().get(1).details().get(PARAMETER_DETAIL));
-            assertEquals("target/depth", problems.all().get(2).details().get(PARAMETER_DETAIL));
+            assertEquals("target/colour", problems.all().get(1).details().get(ATTRIBUTE_DETAIL));
+            assertEquals("target/extra", problems.all().get(2).details().get(CHILD_DETAIL));
+            assertEquals("target/path", problems.all().get(3).details().get(PARAMETER_DETAIL));
+            assertEquals("target/depth", problems.all().get(4).details().get(PARAMETER_DETAIL));
             assertTrue(target.exists(), "the first element is read");
             assertFalse(target.hasProperty(PATH));
         }

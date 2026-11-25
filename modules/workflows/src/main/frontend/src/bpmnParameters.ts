@@ -379,7 +379,8 @@ const attributeNames = (type: FlowNodeType | undefined): Set<string> => new Set(
 // left goes. The one naming the entry taken over arrives empty, unless the node already carries it and
 // keeps what it holds. Anything else under `extensionElements`, such as another namespace's element or
 // a condition subtree, belongs to another feature and stays. An attribute-located value stays when the
-// entry taken over reads it too; one only the entry being left read goes, since nothing reads it after.
+// entry taken over reads it too. One only the entry being left read goes, or the parser would report it as
+// an attribute nothing reads.
 // BPMN's own markup always stays: it belongs to the element whatever entry reads it.
 export function typeEdit(
   moddle: Moddle,
