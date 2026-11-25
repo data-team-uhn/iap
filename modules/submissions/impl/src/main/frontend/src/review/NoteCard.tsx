@@ -310,6 +310,13 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           {" by "}<PersonName user={issue.author} />
         </Typography>
       ))}
+      {note.issuesOnAnswer?.map(issue => (
+        <Typography key={issue.id} variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+          <PersonName user={issue.author} />{" already raised "}
+          <TextLink text="an issue" variant="inherit" onShow={onShowNote && (() => onShowNote(issue.id))} />
+          {" on this answer"}
+        </Typography>
+      ))}
       {note.from && note.fromKind && FROM[note.fromKind] && (
         <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
           {"Raised from "}

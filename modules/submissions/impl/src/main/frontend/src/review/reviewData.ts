@@ -89,6 +89,8 @@ export interface ReviewNote {
   // An issue made of a note: that note, by path, and what kind it is, once it is found among the notes
   from?: string;
   fromKind?: NoteKind;
+  // An open AI comment: the issues its answers already have, made of other notes, with who raised each
+  issuesOnAnswer?: { id: string; author: string }[];
   // PRETOTYPE: who marked it resolved, a discussion entry, an issue or a note to self; whether the reader dismissed it,
   // an AI comment or a contradiction; and so whether it is done with, shown only when the reader asks
   resolvedBy?: string;
@@ -416,9 +418,10 @@ export async function raiseAsIssue(write: (fields: Record<string, string | strin
   }
 }
 
-// PRETOTYPE. Whether each note is done with, for the reader: an AI comment or a contradiction they dismissed, one
-// they made into an issue, which then addresses it, as does a discussion entry anyone made into one, and anything
-// marked resolved. The AI comments they settled come back among the notes, done, to be shown when asked.
+// PRETOTYPE. Whether each note is done with, for the reader: an AI comment or a contradiction they dismissed, an AI
+// comment they made into an issue, which then addresses it, as does a contradiction or a discussion entry anyone made
+// into one, and anything marked resolved. The AI comments they settled come back among the notes, done, to be shown
+// when asked.
 export function withDone(data: ReviewData): ReviewData {
   const done = (note: ReviewNote): ReviewNote["done"] => {
     if (note.kind === "aiIssue") {
@@ -427,7 +430,7 @@ export function withDone(data: ReviewData): ReviewData {
     if (note.dismissed) {
       return "dismissed";
     }
-    if (note.kind === "contradiction" ? note.raisedByMe : note.kind === "discussion" && (note.raisedAs?.length ?? 0) > 0) {
+    if ((note.kind === "contradiction" || note.kind === "discussion") && (note.raisedAs?.length ?? 0) > 0) {
       return "addressed";
     }
     return note.resolvedBy ? "resolved" : undefined;
@@ -435,6 +438,19 @@ export function withDone(data: ReviewData): ReviewData {
   // An issue says what kind of note it was made of, as that note now shows
   const all = [ ...data.notes, ...data.settledAi ];
   const kinds = new Map(all.map(note => [ note.id, note.kind ]));
-  return { ...data, notes: all.map(note => ({ ...note, done: done(note),
-    fromKind: note.from ? kinds.get(note.from) : undefined })) };
+  // An AI comment still open says which issues its answers already have, made of something else, as of a
+  // contradiction saying the same
+  const answers = new Set([ ...data.answers.values() ].map(answer => answer.uuid));
+  const issues = all.filter(note => note.kind === "issue" || note.kind === "otherIssue");
+  const issuesOn = (note: ReviewNote) => {
+    const on = note.subjects.filter(subject => answers.has(subject));
+    const found = issues.filter(issue => issue.from !== note.id && issue.subjects.some(one => on.includes(one)))
+      .map(issue => ({ id: issue.id, author: issue.author }));
+    return found.length > 0 ? found : undefined;
+  };
+  return { ...data, notes: all.map(note => {
+    const isDone = done(note);
+    return { ...note, done: isDone, fromKind: note.from ? kinds.get(note.from) : undefined,
+      issuesOnAnswer: note.kind === "aiIssue" && !isDone ? issuesOn(note) : undefined };
+  }) };
 }
