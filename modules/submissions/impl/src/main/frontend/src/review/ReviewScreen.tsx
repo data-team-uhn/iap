@@ -796,7 +796,12 @@ export default function ReviewScreen({ path }: { path: string }) {
     const setPaneMark = pane === "top" ? setMark : setBelowMark;
     const heading = (
       <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1 }}>
-        <Typography variant="h6" component="h2" sx={{ mb: 0.5, flex: 1, minWidth: 0 }}>{requirement.label}</Typography>
+        {/* Of two, the one whose notes are listed keeps its title's colour, as the notes' heading names it; the other's
+            is muted */}
+        <Typography variant="h6" component="h2"
+          sx={{ mb: 0.5, flex: 1, minWidth: 0, ...bottom && !isActive ? { color: "text.disabled" } : {} }}>
+          {requirement.label}
+        </Typography>
         {bottom && (
           <Tooltip title="Close" disableInteractive>
             <IconButton size="small" aria-label={`Close ${requirement.label}`} onClick={() => close(pane)}>
@@ -1150,13 +1155,21 @@ export default function ReviewScreen({ path }: { path: string }) {
                       width={notesShown} onWidth={setNotesWidth} container={() => workArea} min={NOTES_LEAST}
                       reserve={PAGE_LEAST} label="Resize the notes"
                     />
-                    <Box
-                      ref={setNotesSlot}
-                      sx={{ width: notesShown, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
-                        bgcolor: "background.tinted",
-                        "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
-                          typography: "body2", textAlign: "center", py: 2 } }}
-                    />
+                    <Box sx={{ width: notesShown, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
+                      bgcolor: "background.tinted" }}>
+                      {/* Of two parts, which one's notes these are */}
+                      {bottom && current && (
+                        <Typography variant="body2" sx={{ px: 1.5, pt: 1.25, color: "text.secondary" }}>
+                          Notes on <Box component="b" sx={{ color: "primary.main" }}>{current.label}</Box>
+                        </Typography>
+                      )}
+                      <Box
+                        ref={setNotesSlot}
+                        sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
+                          "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
+                            typography: "body2", textAlign: "center", py: 2 } }}
+                      />
+                    </Box>
                   </Box>
                 )}
                 {dialog === "letter" && (
