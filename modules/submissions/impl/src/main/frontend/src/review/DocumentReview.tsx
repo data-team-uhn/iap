@@ -127,6 +127,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
           onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
           onDismiss={() => actions.write({ dismiss: note.id })}
           write={actions.write}
+          onShowNote={actions.show}
           adopting={adopting === note.id}
           onAdopting={on => setAdopting(on ? note.id : undefined)}
           editing={editing === note.id}

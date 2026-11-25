@@ -91,6 +91,8 @@ function extractedText(question: FormQuestion, note: ReviewNote | undefined): st
 
 export interface ReviewActions {
   write: (fields: Record<string, string | string[]>) => Promise<void>;
+  // Going to a note, by path, wherever it is shown
+  show?: (id: string) => void;
 }
 
 // An answer as the submitter sees its options: the labels, not the stored values
@@ -268,6 +270,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                 onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
                 onDismiss={() => actions.write({ dismiss: note.id })}
                 write={actions.write}
+                onShowNote={actions.show}
                 adopting={adopting === note.id}
                 onAdopting={on => setAdopting(on ? note.id : undefined)}
                 editing={editing === note.id}
@@ -674,6 +677,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                     onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
                     onDismiss={() => actions.write({ dismiss: note.id })}
                     write={actions.write}
+                    onShowNote={actions.show}
                     adopting={adopting === note.id}
                     onAdopting={on => setAdopting(on ? note.id : undefined)}
                     editing={editing === note.id}

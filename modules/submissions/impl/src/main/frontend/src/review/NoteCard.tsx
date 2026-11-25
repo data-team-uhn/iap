@@ -92,12 +92,14 @@ function Field({ label, chip = false, children }: { label: string; chip?: boolea
   return <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{name}{children}</Typography>;
 }
 
-// A question named on a note, leading to it in the form where there is somewhere to go
-function QuestionLink({ text, onShow }: { text: string; onShow?: () => void }) {
+// Words on a note leading elsewhere, where there is somewhere to go: a question to it in the form, an issue to the
+// note it was made of, and back
+function TextLink({ text, onShow, variant = "body2" }: { text: string; onShow?: () => void;
+  variant?: "body2" | "inherit" }) {
   return onShow ? (
     // Underlined, as the review's tables link what an issue is about, and wrapping after its name as words do, which a
     // button cannot: a link acting as one
-    <Link component="span" role="button" tabIndex={0} variant="body2" onClick={onShow}
+    <Link component="span" role="button" tabIndex={0} variant={variant} onClick={onShow}
       onKeyDown={event => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -148,6 +150,10 @@ export function NoteActions({ note, onEdit, onRemove }: {
   );
 }
 
+// What an issue was made of, as it says
+const FROM: Partial<Record<ReviewNote["kind"], string>> = { contradiction: "a contradiction",
+  aiIssue: "the AI pre-review", discussion: "a discussion message" };
+
 // What each kind of note the reviewer writes is called, where they are asked before removing one
 const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", discussion: "message", note: "note to self" };
 
@@ -157,7 +163,7 @@ const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", disc
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
   onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question, formAnswer, onShowAnswer,
-  askedAs, write }: {
+  askedAs, write, onShowNote }: {
   note: ReviewNote;
   // For a source or a contradiction shown away from its question, as beside a document, the question it is about
   question?: string;
@@ -170,6 +176,8 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   askedAs?: { question: string; form?: string };
   // PRETOTYPE: writing what is done with it, resolving, reopening or taking back a dismissal
   write?: (fields: Record<string, string>) => Promise<void>;
+  // Going to another note, by path: the one an issue was made of, or an issue made of this one
+  onShowNote?: (id: string) => void;
   // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
   // changing or removing it, which then say when it is being changed
   headed?: boolean;
@@ -273,14 +281,14 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           question leads to it in the form */}
       {note.kind === "evidence" && (
         <Stack sx={{ gap: 0.5 }}>
-          {question && <Field label="Question"><QuestionLink text={question} onShow={onShowAnswer} /></Field>}
+          {question && <Field label="Question"><TextLink text={question} onShow={onShowAnswer} /></Field>}
           <Field label="Answer"><b>{answerLabel ?? note.extracted}</b></Field>
           {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
         </Stack>
       )}
       {note.kind === "contradiction" && (
         <Stack sx={{ gap: 0.5 }}>
-          {question && <Field label="Question"><QuestionLink text={question} onShow={onShowAnswer} /></Field>}
+          {question && <Field label="Question"><TextLink text={question} onShow={onShowAnswer} /></Field>}
           {formAnswer && <Field label="Form says">{formAnswer}</Field>}
           <Field label="Protocol says"><b>{answerLabel ?? note.extracted}</b></Field>
           {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
@@ -295,11 +303,18 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
         </Box>
       )}
       <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
-      {note.raisedBy && note.raisedBy.length > 0 && (
+      {/* An issue and the note it was made of each lead to the other */}
+      {note.raisedAs?.map(issue => (
+        <Typography key={issue.id} variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+          Raised as <TextLink text="an issue" variant="inherit" onShow={onShowNote && (() => onShowNote(issue.id))} />
+          {" by "}<PersonName user={issue.author} />
+        </Typography>
+      ))}
+      {note.from && note.fromKind && FROM[note.fromKind] && (
         <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
-          Raised as an issue by {note.raisedBy.map((user, index) => (
-            <span key={user}>{index > 0 ? ", " : ""}<PersonName user={user} /></span>
-          ))}
+          {"Raised from "}
+          <TextLink text={FROM[note.fromKind] ?? ""} variant="inherit"
+            onShow={onShowNote && (() => onShowNote(note.from ?? ""))} />
         </Typography>
       )}
       {/* Done with, it says how, and what takes it back */}
@@ -308,7 +323,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {note.done === "dismissed" ? "Dismissed by you"
               : note.done === "resolved" ? <>Resolved by <PersonName user={note.resolvedBy ?? ""} /></>
-                : (note.raisedBy?.length ?? 0) > 0 ? "" : "Addressed by an issue"}
+                : (note.raisedAs?.length ?? 0) > 0 ? "" : "Addressed by an issue"}
           </Typography>
           {write && note.done === "dismissed" && (
             <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}

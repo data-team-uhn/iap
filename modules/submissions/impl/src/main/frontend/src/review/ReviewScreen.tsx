@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
@@ -247,6 +247,10 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ shown, setShown ] = useState(storedKinds);
   // Whether notes dismissed, resolved or addressed by an issue are shown, faded, rather than left out
   const [ showDone, setShowDone ] = useStoredSetting("iap.review.showDone", false, isFlag);
+  // A note done with that a link led to, shown all the same, until another is
+  const [ peek, setPeek ] = useState<string>();
+  // Going to a note by path, for the cards, set once what is shown is known
+  const showNote = useRef<(id: string) => void>(undefined);
   // What is shown: the kinds the reviewer chose, and those always shown
   const showing = useMemo(() => new Set<NoteKind>([ ...shown, ...ALWAYS ]), [ shown ]);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
@@ -326,7 +330,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     : undefined, [ loaded, schema, me, topics ]);
   // What the pages and their notes show: what is done with only when the reviewer asks
   const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
-    : { ...data, notes: data.notes.filter(note => !note.done) }), [ data, showDone ]);
+    : { ...data, notes: data.notes.filter(note => !note.done || note.id === peek) }), [ data, showDone, peek ]);
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
   const groupLabels = useMemo(() => new Map((loaded?.approvals ?? []).map(approval =>
     [ text(approval.approverGroup), groupShortName(text(approval.label)) ] as const)), [ loaded ]);
@@ -369,19 +373,21 @@ export default function ReviewScreen({ path }: { path: string }) {
     return found.size > 0 ? [ ...found.values() ] : undefined;
   };
 
+  // What each part has to read, counted in the contents: a note done with that a link shows meanwhile is not
   const notesOf = useCallback((requirement: Requirement): ReviewNote[] => {
     if (!data) {
       return [];
     }
+    const counted = data.notes.filter(note => showDone || !note.done);
     if (isFormRequirement(requirement)) {
       const uuids = questions(requirement.items)
         .map(question => data.answers.get(question.path)?.uuid).filter((one): one is string => Boolean(one));
-      return notesAbout(viewData?.notes ?? [], uuids);
+      return notesAbout(counted, uuids);
     }
     const document = data.documents.get(requirement.name);
     return document
-      ? notesAbout(viewData?.notes ?? [], [ document.uuid, document.version ]).filter(note => note.passage) : [];
-  }, [ data, viewData ]);
+      ? notesAbout(counted, [ document.uuid, document.version ]).filter(note => note.passage) : [];
+  }, [ data, showDone ]);
 
 
   // The reviewer group the reviewer reviews this submission for
@@ -397,6 +403,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       }
       load();
     },
+    show: id => showNote.current?.(id),
   }), [ doFetch, path, load, myGroup ]);
 
   const questionLabel = useCallback((question: string | undefined, extracted: string | undefined) => {
@@ -647,15 +654,22 @@ export default function ReviewScreen({ path }: { path: string }) {
     return asked?.text ?? requirements.find(one => one.name === part)?.label ?? "";
   };
 
-  // Where an issue was raised: the passage it quotes, or the answer or document it is about
+  // Where a note was written: of the passage it quotes and the answers and documents it is about, one already shown,
+  // the one being worked in first, or else the passage, which then takes the place of the part being worked in
   const openIssue = (note: ReviewNote) => {
-    const source = note.passage?.source;
-    const part = (source ? data?.partOf.get(source) : undefined)
-      ?? note.subjects.map(subject => data?.partOf.get(subject)).find(Boolean);
+    const places = [ note.passage?.source, ...note.subjects ].map(uuid => uuid && data?.partOf.get(uuid))
+      .filter((part): part is string => Boolean(part));
+    const requirementOf = (part: string) => data?.documents.has(part) ? part : part.split("/")[0];
+    const panes = active === "top" ? [ top, bottom ] : [ bottom, top ];
+    const part = panes.map(pane => places.find(one => requirementOf(one) === pane?.name)).find(Boolean)
+      ?? places.at(0);
     if (!part) {
       return;
     }
-    if (source || data?.documents.has(part)) {
+    if (note.done) {
+      setPeek(note.id);
+    }
+    if (data?.documents.has(part)) {
       reveal(note);
       go(part, { id: note.id, page: note.passage?.page });
     } else {
@@ -663,6 +677,15 @@ export default function ReviewScreen({ path }: { path: string }) {
       go(part.split("/")[0], { id: note.id, question: part });
     }
   };
+  // From an issue to the note it was made of, and back
+  useEffect(() => {
+    showNote.current = (id: string) => {
+      const note = data?.notes.find(one => one.id === id);
+      if (note) {
+        openIssue(note);
+      }
+    };
+  });
 
   // The reviewer's own review task: the open one their groups perform
   const myTaskNode = (): Node | undefined => {

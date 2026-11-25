@@ -82,9 +82,13 @@ export interface ReviewNote {
   severity?: string;
   // An AI comment the reviewer settled: the issue they made of it, by path, or "dismissed"
   settled?: string;
-  // A discussion entry raised as an issue: who raised it, by principal name, and whether the reader did
-  raisedBy?: string[];
+  // A note raised as an issue: the issues made of it, by path, with who raised each, by principal name, and whether
+  // the reader did
+  raisedAs?: { id: string; author: string }[];
   raisedByMe?: boolean;
+  // An issue made of a note: that note, by path, and what kind it is, once it is found among the notes
+  from?: string;
+  fromKind?: NoteKind;
   // PRETOTYPE: who marked it resolved, a discussion entry, an issue or a note to self; whether the reader dismissed it,
   // an AI comment or a contradiction; and so whether it is done with, shown only when the reader asks
   resolvedBy?: string;
@@ -223,6 +227,7 @@ function comment(node: Node, kind: NoteKind, me: string, topic?: Node, topics?: 
     topicPath: topicPath || undefined,
     suggestion: text(node.suggestion) || undefined,
     resolvedBy: text(node.resolvedBy) || undefined,
+    from: text(node.from) || undefined,
   };
 }
 
@@ -234,8 +239,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   // The AI pre-review comments this reviewer made into issues or dismissed, which they no longer need to see
   // How each settled one was: the issue made of it, by path, or "dismissed"
   const settled = new Map<string, string>();
-  // Who made an issue of each note, by the note's path, whoever's review the issue is in
-  const raised = new Map<string, string[]>();
+  // The issues made of each note, by the note's path, whoever's review they are in, with who raised each
+  const raised = new Map<string, { id: string; author: string }[]>();
   let aiSummary: string | undefined;
   const assessments = new Map<string, string>();
   let considered = new Set<string>();
@@ -303,7 +308,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       comments.filter(one => one.author === me && text(one.from))
         .forEach(one => settled.set(text(one.from), text(one["@path"])));
       comments.filter(one => text(one.from))
-        .forEach(one => raised.set(text(one.from), [ ...raised.get(text(one.from)) ?? [], text(one.author) ]));
+        .forEach(one => raised.set(text(one.from), [ ...raised.get(text(one.from)) ?? [],
+          { id: text(one["@path"]), author: text(one.author) } ]));
       const group = text(node.group) || undefined;
       notes.push(...comments.map(one => ({ ...comment(one, one.author === me ? "issue" : "otherIssue", me, undefined,
         topics), group })));
@@ -313,12 +319,14 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "note", me)));
     }
   }
-  // Only the AI's comments are set aside once settled; a discussion entry made into an issue stays, saying so
+  // Only the AI's comments are set aside once settled; a discussion entry made into an issue stays. Each says which
+  // issues were made of it.
+  const withRaised = (note: ReviewNote): ReviewNote => raised.has(note.id)
+    ? { ...note, raisedAs: raised.get(note.id), raisedByMe: raised.get(note.id)?.some(one => one.author === me) }
+    : note;
   const isSettled = (note: ReviewNote) => note.kind === "aiIssue" && settled.has(note.id);
-  const settledAi = notes.filter(isSettled).map(note => ({ ...note, settled: settled.get(note.id) }));
-  const shown = notes.filter(note => !isSettled(note))
-    .map(note => note.kind !== "aiIssue" && raised.has(note.id)
-      ? { ...note, raisedBy: raised.get(note.id), raisedByMe: raised.get(note.id)?.includes(me) } : note);
+  const settledAi = notes.filter(isSettled).map(note => withRaised({ ...note, settled: settled.get(note.id) }));
+  const shown = notes.filter(note => !isSettled(note)).map(withRaised);
   return { answers, documents, notes: shown, settledAi, partOf, aiSummary,
     assessments, considered, decided, letters: letters.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)) };
 }
@@ -419,10 +427,14 @@ export function withDone(data: ReviewData): ReviewData {
     if (note.dismissed) {
       return "dismissed";
     }
-    if (note.kind === "contradiction" ? note.raisedByMe : note.kind === "discussion" && (note.raisedBy?.length ?? 0) > 0) {
+    if (note.kind === "contradiction" ? note.raisedByMe : note.kind === "discussion" && (note.raisedAs?.length ?? 0) > 0) {
       return "addressed";
     }
     return note.resolvedBy ? "resolved" : undefined;
   };
-  return { ...data, notes: [ ...data.notes, ...data.settledAi ].map(note => ({ ...note, done: done(note) })) };
+  // An issue says what kind of note it was made of, as that note now shows
+  const all = [ ...data.notes, ...data.settledAi ];
+  const kinds = new Map(all.map(note => [ note.id, note.kind ]));
+  return { ...data, notes: all.map(note => ({ ...note, done: done(note),
+    fromKind: note.from ? kinds.get(note.from) : undefined })) };
 }
