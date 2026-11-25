@@ -27,8 +27,8 @@ import { type SvgIconProps } from "@mui/material";
 
 import type { NoteKind } from "./reviewData";
 
-// PRETOTYPE. Each kind of note's icon, as its heading and the editor's choices show it: an answer's source the page it
-// is on, a contradiction a warning, the AI pre-review its sparkle, an issue a flag, raised for the study team, the reviewers' discussion speech bubbles, a note to self a sticky note,
+// PRETOTYPE. Each kind of note's icon, as its heading and the editor's choices show it: a linked answer the page it is
+// on, a contradiction a warning, the AI pre-review its sparkle, an issue a flag, raised for the study team, the reviewers' discussion speech bubbles, a note to self a sticky note,
 // as reviewers keep on printouts, and a note being written a pencil
 const ICONS = {
   evidence: ArticleOutlined,

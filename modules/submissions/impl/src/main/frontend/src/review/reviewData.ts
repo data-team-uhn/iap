@@ -40,9 +40,10 @@ export interface NoteKindInfo {
 }
 
 export const NOTE_KINDS: NoteKindInfo[] = [
-  // PRETOTYPE: on the review screen, what the AI read in the protocol for an answer shows as the answer's source, when
-  // the submitter kept it, or as a contradiction, when the protocol clearly says otherwise; these are always shown
-  { kind: "evidence", label: "Sources", single: "Source", choice: "Source", mark: "evidence" },
+  // PRETOTYPE: on the review screen, what the AI read in the protocol for an answer shows as the passage linked to the
+  // answer, when the submitter kept it, or as a contradiction, when the protocol clearly says otherwise; these are
+  // always shown
+  { kind: "evidence", label: "Linked answers", single: "Linked answer", choice: "Linked answer", mark: "evidence" },
   { kind: "contradiction", label: "Contradictions", single: "Contradiction", choice: "Contradiction",
     mark: "warning" },
   { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", choice: "AI pre-review", mark: "assistant" },

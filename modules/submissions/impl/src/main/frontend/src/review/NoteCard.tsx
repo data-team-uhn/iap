@@ -88,6 +88,24 @@ function Field({ label, chip = false, children }: { label: string; chip?: boolea
   return <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{name}{children}</Typography>;
 }
 
+// A question named on a note, leading to it in the form where there is somewhere to go
+function QuestionLink({ text, onShow }: { text: string; onShow?: () => void }) {
+  return onShow ? (
+    // Underlined, as the review's tables link what an issue is about, and wrapping after its name as words do, which a
+    // button cannot: a link acting as one
+    <Link component="span" role="button" tabIndex={0} variant="body2" onClick={onShow}
+      onKeyDown={event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onShow();
+        }
+      }}
+      sx={{ cursor: "pointer" }}>
+      {text}
+    </Link>
+  ) : text;
+}
+
 // Whose group raised an issue and how serious it is, each named, on one line as far as it goes
 function Chips({ note }: { note: ReviewNote }) {
   const labels = useContext(GroupLabels);
@@ -140,7 +158,8 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   question?: string;
   // For a contradiction, what the form answers, as its options call it
   formAnswer?: string;
-  // For a source or a contradiction shown beside a document, going to the answer in the form
+  // For a linked answer or a contradiction shown beside a document, going to the question in the form, which its
+  // question links to
   onShowAnswer?: () => void;
   // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
   // changing or removing it, which then say when it is being changed
@@ -225,27 +244,21 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           {!BY_THE_AI.has(note.kind) && <><PersonName user={note.author} /> · </>}{when(note.created)}
         </Typography>
       )}
-      {/* A source says which answer it backs; a contradiction, what the form says and what the protocol does, and
-          why the AI read it so */}
+      {/* A linked answer says which answer it backs; a contradiction, what the form says and what the protocol does,
+          and why the AI read it so. The question leads to it in the form */}
       {note.kind === "evidence" && (
         <Stack sx={{ gap: 0.5 }}>
-          {question && <Field label="Question">{question}</Field>}
+          {question && <Field label="Question"><QuestionLink text={question} onShow={onShowAnswer} /></Field>}
           <Field label="Answer"><b>{answerLabel ?? note.extracted}</b></Field>
         </Stack>
       )}
       {note.kind === "contradiction" && (
         <Stack sx={{ gap: 0.5 }}>
-          {question && <Field label="Question">{question}</Field>}
+          {question && <Field label="Question"><QuestionLink text={question} onShow={onShowAnswer} /></Field>}
           {formAnswer && <Field label="Form says">{formAnswer}</Field>}
           <Field label="Protocol says"><b>{answerLabel ?? note.extracted}</b></Field>
           {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
         </Stack>
-      )}
-      {onShowAnswer && (note.kind === "evidence" || note.kind === "contradiction") && (
-        <Link component="button" variant="caption" underline="hover" onClick={onShowAnswer}
-          sx={{ display: "block", mt: 0.5, textAlign: "start" }}>
-          Show the answer
-        </Link>
       )}
       {note.kind !== "evidence" && note.kind !== "contradiction" && (
         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>

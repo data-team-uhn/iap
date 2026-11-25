@@ -21,15 +21,15 @@ import { comparable, disagrees } from "./FormReview";
 import type { FormQuestion } from "../submissionForm";
 import type { ReviewData, ReviewNote } from "./reviewData";
 
-// How far the submitter's answer may be from what the AI read and still be its source, in percent, and how sure the
+// How far the submitter's answer may be from what the AI read and still be linked to it, in percent, and how sure the
 // AI must be for an answer the protocol says otherwise to show as a contradiction
 const KEPT = 20;
 const SURE = 0.7;
 
-// PRETOTYPE. What the AI read in the protocol for an answer, as a reviewer is shown it: the answer's source, where the
-// submitter kept what was read, or a contradiction, where the protocol clearly says otherwise; or nothing, where
-// neither can be told. Answers in words are a source only when kept, since rewording them says nothing of the
-// protocol. How sure the AI was is not shown.
+// PRETOTYPE. What the AI read in the protocol for an answer, as a reviewer is shown it: the passage linked to the
+// answer, where the submitter kept what was read, or a contradiction, where the protocol clearly says otherwise; or
+// nothing, where neither can be told. Answers in words are linked only when kept, since rewording them says nothing
+// of the protocol. How sure the AI was is not shown.
 function asSource(question: FormQuestion | undefined, note: ReviewNote): ReviewNote | undefined {
   if (!question || !note.extracted) {
     return undefined;
@@ -43,7 +43,7 @@ function asSource(question: FormQuestion | undefined, note: ReviewNote): ReviewN
   return note.distance !== undefined && note.distance <= KEPT ? note : undefined;
 }
 
-// The review data with the AI's readings of the answers turned into their sources and contradictions
+// The review data with the AI's readings of the answers turned into linked answers and contradictions
 export function withSources(data: ReviewData, questions: FormQuestion[]): ReviewData {
   const asked = new Map(questions.map(question => [ question.path, question ]));
   return { ...data, notes: data.notes.flatMap(note => {

@@ -209,7 +209,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
               <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
             </Typography>
-            {/* An answer the protocol contradicts says so, always; one it backs leads to where, when sources are shown */}
+            {/* An answer the protocol contradicts says so, always; one linked to a passage leads there, when linked answers
+                are shown */}
             {contradiction ? (
               <Link
                 component="button" variant="caption" underline="hover" onClick={() => onEvidence(contradiction)}
@@ -226,7 +227,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                   textAlign: "start" }}
               >
                 <ArticleOutlined sx={{ fontSize: "1rem" }} />
-                Source in the protocol{source.passage?.page ? `, page ${source.passage.page}` : ""}
+                In the protocol{source.passage?.page ? `, page ${source.passage.page}` : ""}
               </Link>
             )}
           </Box>
