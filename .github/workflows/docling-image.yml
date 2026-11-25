@@ -11,9 +11,10 @@ on:
     # runs the tests that need no Docling.
     paths:
       - modules/documents/processing/Dockerfile
-      - modules/documents/processing/.dockerignore
+      - modules/documents/.dockerignore
       - modules/documents/processing/requirements.txt
       - modules/documents/processing/src/main/python/**
+      - modules/documents/utils/src/main/python/**
       - .github/workflows/docling-image.yml
   workflow_dispatch:
 
@@ -48,11 +49,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # The same context and Dockerfile as `mvn install -Pdocker`: the module's two ignore files
-      # list the same patterns
+      # The same context and Dockerfile as `mvn install -Pdocker`: modules/documents, so the image
+      # can take the shared helpers from utils/. Its two ignore files list the same patterns.
       - name: Build the image
         run: |
-          docker build --tag "$IMAGE" modules/documents/processing
+          docker build --tag "$IMAGE" --file modules/documents/processing/Dockerfile modules/documents
           docker image ls "$IMAGE"
 
       # The tests that skip without Docling, which the main build never installs, run here
@@ -61,7 +62,7 @@ jobs:
       - name: Run the tests that need Docling
         run: |
           docker run --rm --entrypoint sh \
-            --volume "$PWD/modules/documents/processing:/module:ro" --workdir /module \
+            --volume "$PWD/modules/documents:/documents:ro" --workdir /documents/processing \
             --env PYTHONDONTWRITEBYTECODE=1 \
             "$IMAGE" -c 'python -c "import docling" \
               && pip install --user --quiet pytest \

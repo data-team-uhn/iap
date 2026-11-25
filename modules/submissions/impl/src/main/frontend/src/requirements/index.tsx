@@ -47,9 +47,11 @@ export const DocumentSection: RequirementComponent = ({ path, requirement, disab
     queueSave={queueSave} onAttached={onChanged} />
 );
 
-export const GeneratedDocumentSection: RequirementComponent = ({ path, requirement, disabled, onChanged }) => (
+export const GeneratedDocumentSection: RequirementComponent = (
+  { path, requirement, disabled, queueSave, onChanged },
+) => (
   <GeneratedDocument path={path} requirement={requirement as DocumentRequirement} disabled={disabled}
-    onGenerated={onChanged} />
+    queueSave={queueSave} onGenerated={onChanged} />
 );
 
 export const ApprovalSection: RequirementComponent = ({ requirement }) => (

@@ -81,7 +81,7 @@ export function FileButton({ label, ariaLabel, accepted, disabled, onPick }: Fil
 
 // How long the browser check of a file may take, in milliseconds. Past it, the file is sent unchecked,
 // and the server still checks its type and size.
-const CHECK_TIMEOUT_MS = 30_000;
+export const CHECK_TIMEOUT_MS = 30_000;
 
 export interface DocumentUploadProps {
   path: string;

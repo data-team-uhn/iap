@@ -21,11 +21,13 @@ import { Fragment, useState } from "react";
 import GenerateIcon from "@mui/icons-material/NoteAdd";
 import { Alert, Button, Link, Stack, Typography } from "@mui/material";
 
+import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { FileButton } from "./DocumentUpload";
+import { CHECK_TIMEOUT_MS, FileButton } from "./DocumentUpload";
 import { type AttachedDocument, type DocumentRequirement, attachDocument, toFileUrl } from "./submissionForm";
 
 export interface GeneratedDocumentProps {
@@ -33,6 +35,8 @@ export interface GeneratedDocumentProps {
   requirement: DocumentRequirement;
   // Whether this reader may still change the request at all, which is the server's `editable`
   disabled: boolean;
+  // The page's queue, which a preview and an upload wait in behind the answers being saved
+  queueSave: Enqueue;
   onGenerated: () => void;
 }
 
@@ -65,25 +69,32 @@ function Version({ document }: { document: AttachedDocument }) {
 
 // A document the platform fills in from the answers when the request is sent. Until then the submitter can
 // preview it, or upload a version of their own (e.g. an edited copy of a preview), which is sent instead.
-function GeneratedDocument({ path, requirement, disabled, onGenerated }: GeneratedDocumentProps) {
+function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated }: GeneratedDocumentProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
   const versions = requirement.attached;
   const name = requirement.label || requirement.name;
 
-  // Either way, the form is read again on success, since what is attached has changed
-  const send = (request: Promise<unknown>) => {
+  // Either way, the form is read again on success, since what is attached has changed. An upload is checked in
+  // the browser first, as any other is, and only a file that passes waits in the queue.
+  const send = (start: () => Promise<unknown>, check: Promise<string | undefined> = Promise.resolve(undefined)) => {
     setBusy(true);
     setFailure(undefined);
-    request.then(
+    check.then(problem => {
+      if (problem !== undefined) {
+        throw new Error(problem);
+      }
+      return queueSave(start);
+    }).then(
       () => {
         setBusy(false);
         onGenerated();
       },
       (error: unknown) => {
         setBusy(false);
-        // The engine's own reason, such as a template that does not fit this schema, or a type it does not allow
+        // Why the browser check refused the file, or the engine's own reason, such as a template that does not
+        // fit this schema
         setFailure(messageOf(error));
       }
     );
@@ -111,7 +122,7 @@ function GeneratedDocument({ path, requirement, disabled, onGenerated }: Generat
           startIcon={<GenerateIcon />}
           disabled={disabled || busy}
           aria-label={`Preview "${name}"`}
-          onClick={() => send(sendEvent(doFetch, path, "generateDocument", { requirement: requirement.name }))}
+          onClick={() => send(() => sendEvent(doFetch, path, "generateDocument", { requirement: requirement.name }))}
         >
           {versions.length > 0 ? "Preview again" : "Preview from my answers"}
         </Button>
@@ -120,7 +131,8 @@ function GeneratedDocument({ path, requirement, disabled, onGenerated }: Generat
           ariaLabel={`Upload your own version of "${name}"`}
           accepted={requirement.acceptedFileTypes}
           disabled={disabled || busy}
-          onPick={file => send(attachDocument(doFetch, path, requirement.name, file))}
+          onPick={file => send(() => attachDocument(doFetch, path, requirement.name, file),
+            validateUpload(file, { accepted: requirement.acceptedFileTypes, timeoutMs: CHECK_TIMEOUT_MS }))}
         />
       </Stack>
     </Stack>

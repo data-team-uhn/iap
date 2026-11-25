@@ -41,6 +41,7 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -145,8 +146,8 @@ class SetTemplateHandlerTest
     {
         final Resource consent = requirement("consent", false);
 
-        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(new TaskContext(consent,
-            Map.of(), Map.of())));
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
+            RecordingTaskContext.aimedAt(consent).forEvent(SetTemplateHandler.HANDLER_NAME, Map.of()).build()));
     }
 
     @Test
@@ -220,9 +221,10 @@ class SetTemplateHandlerTest
         return this.fixture.create(this.version.getPath(), name, "sch:DocumentRequirement", properties, "draft");
     }
 
-    private static TaskContext task(final Resource target, final EventAttachment file)
+    private static RecordingTaskContext task(final Resource target, final EventAttachment file)
     {
-        return new TaskContext(target, Map.of(SetTemplateHandler.FILE_PARAMETER, file), Map.of());
+        return RecordingTaskContext.aimedAt(target)
+            .forEvent(SetTemplateHandler.HANDLER_NAME, Map.of(SetTemplateHandler.FILE_PARAMETER, file)).build();
     }
 
     private static EventAttachment upload(final String fileName, final String mimeType, final byte[] content)

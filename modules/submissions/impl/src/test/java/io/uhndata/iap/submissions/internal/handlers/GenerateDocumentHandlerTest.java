@@ -51,12 +51,12 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.submissions.internal.Referenceables;
-import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.testing.PropertyTagging;
+import io.uhndata.iap.utils.testing.Referenceables;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -134,7 +134,7 @@ class GenerateDocumentHandlerTest
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, DocumentRequirement.class, Document.class, DocumentVersion.class, File.class,
             Submission.class, Activity.class);
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.context.create().resource("/Schemas/ethics", Map.of(TYPE, Schema.RESOURCE_TYPE, "title", "Ethics"));
         this.context.create().resource(VERSION_PATH, Map.of(
             TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] { "active" }));
@@ -148,7 +148,8 @@ class GenerateDocumentHandlerTest
         this.context.create().resource(VERSION_PATH + "/untemplated", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Untemplated letter",
             "generated", true));
-        Referenceables.identify(this.context, LETTER_PATH, VERSION_PATH + "/consent", VERSION_PATH + "/untemplated");
+        new Referenceables(this.context.resourceResolver())
+            .identify(LETTER_PATH, VERSION_PATH + "/consent", VERSION_PATH + "/untemplated");
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A study", "createdBy", REQUESTER,
             "tags", new String[] { "draft" }));
@@ -478,15 +479,15 @@ class GenerateDocumentHandlerTest
             }
 
             @Override
-            public void checkInAfterCommit(final String path)
-            {
-                throw new IllegalStateException("No check-in was expected to be deferred here");
-            }
-
-            @Override
             public void afterCommit(final Runnable work)
             {
                 throw new IllegalStateException("No work was expected to be left for after the commit");
+            }
+
+            @Override
+            public void onRollback(final Runnable action)
+            {
+                throw new IllegalStateException("No work was expected to be undone on a rollback");
             }
         };
     }
