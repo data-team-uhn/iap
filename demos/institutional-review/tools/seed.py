@@ -27,6 +27,7 @@ Needs Python 3 with `requests`. `--clear` deletes every submission first, to sta
 
 import argparse
 import datetime
+import difflib
 import html
 import json
 import pathlib
@@ -279,6 +280,16 @@ def as_text(value):
     return "; ".join(str(v).lower() if isinstance(v, bool) else str(v) for v in values)
 
 
+# How far the submitter's answer is from what the AI read, as the platform records once they keep or change it: the
+# characters changed, and those as a percentage
+def distance(given, extracted):
+    a, b = as_text(given).strip().lower(), as_text(extracted).strip().lower()
+    if a == b:
+        return 0, 0.0
+    ratio = difflib.SequenceMatcher(None, a, b).ratio()
+    return round(max(len(a), len(b)) * (1 - ratio)), round((1 - ratio) * 100, 1)
+
+
 def add_extractions(admin, study, answers, documents):
     protocol = documents["protocol"][1]
     for index, extraction in enumerate(study.get("extractions", [])):
@@ -286,7 +297,10 @@ def add_extractions(admin, study, answers, documents):
         if not answer:
             continue
         node = f"{answer[0]}/extraction{index}"
+        edits, percentage = distance(study["answers"].get(extraction["question"], ""), extraction["extractedAnswer"])
         create(admin, node, {
+            "editDistance": str(edits), "editDistance@TypeHint": "Long",
+            "percentageDistance": str(percentage), "percentageDistance@TypeHint": "Double",
             "jcr:primaryType": "sub:Extraction", "sources": protocol, "sources@TypeHint": "Reference[]",
             "extractedAnswer": as_text(extraction["extractedAnswer"]), "reasoning": extraction["reasoning"],
             "confidence": str(extraction["confidence"]), "confidence@TypeHint": "Double"})

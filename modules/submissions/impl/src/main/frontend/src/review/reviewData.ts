@@ -26,7 +26,7 @@ import type { Message } from "./reviewModel";
 type Node = Record<string, unknown>;
 
 // An issue is the reviewer's own, what their letter holds; another reviewer's, of their group or another, is apart
-export type NoteKind = "evidence" | "aiIssue" | "issue" | "otherIssue" | "discussion" | "note";
+export type NoteKind = "evidence" | "contradiction" | "aiIssue" | "issue" | "otherIssue" | "discussion" | "note";
 
 export interface NoteKindInfo {
   kind: NoteKind;
@@ -40,8 +40,11 @@ export interface NoteKindInfo {
 }
 
 export const NOTE_KINDS: NoteKindInfo[] = [
-  { kind: "evidence", label: "Extracted answers", single: "Extracted answer", choice: "Extracted answer",
-    mark: "evidence" },
+  // PRETOTYPE: on the review screen, what the AI read in the protocol for an answer shows as the answer's source, when
+  // the submitter kept it, or as a contradiction, when the protocol clearly says otherwise; these are always shown
+  { kind: "evidence", label: "Sources", single: "Source", choice: "Source", mark: "evidence" },
+  { kind: "contradiction", label: "Contradictions", single: "Contradiction", choice: "Contradiction",
+    mark: "warning" },
   { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", choice: "AI pre-review", mark: "assistant" },
   { kind: "issue", label: "Your issues", single: "Issue", choice: "Issue", mark: "issue" },
   { kind: "otherIssue", label: "Others' issues", single: "Issue", choice: "Issue", mark: "otherIssue" },
@@ -92,6 +95,8 @@ export interface ReviewNote {
   extracted?: string;
   reasoning?: string;
   confidence?: number;
+  // How far, in percent, the submitter's answer ended up from the extracted one, once they kept or changed it
+  distance?: number;
 }
 
 export interface ReviewedAnswer {
@@ -246,6 +251,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
           replies: [], question, extracted: text(extraction.extractedAnswer),
           reasoning: text(extraction.reasoning), confidence: typeof extraction.confidence === "number"
             ? extraction.confidence : undefined,
+          distance: typeof extraction.percentageDistance === "number" ? extraction.percentageDistance : undefined,
         });
       }
     } else if (type === "sub/Document") {

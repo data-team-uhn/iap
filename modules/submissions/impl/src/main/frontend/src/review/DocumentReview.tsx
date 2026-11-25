@@ -27,7 +27,8 @@ import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard, { DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
-import { kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
+import { kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument,
+  type ReviewNote } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
 
@@ -40,7 +41,7 @@ const DRAFT = "draft";
 const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, notesWidth, onNotesWidth, heading, onClose }: {
+  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, onClose }: {
   document: ReviewedDocument;
   data: ReviewData;
   shown: Set<NoteKind>;
@@ -49,7 +50,11 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   page?: number;
   actions: ReviewActions;
   // The question an extracted answer answers, and the answer as its options call it
-  questionLabel: (question: string | undefined, extracted: string | undefined) => { text: string; answer?: string };
+  questionLabel: (question: string | undefined, extracted: string | undefined) => {
+    text: string;
+    answer?: string;
+    given?: string;
+  };
   // The submission search, which finds in the document instead of its own search field
   search: { query: string; step: number; previous: boolean };
   onSearch: (search: DocumentSearch) => void;
@@ -58,6 +63,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   onNotesWidth: (width: number) => void;
   // What heads the document's column, the title of the page it is on, beside its notes
   heading?: ReactNode;
+  // Going from a passage to the answer in the form it backs or contradicts
+  onShowAnswer: (note: ReviewNote) => void;
   onClose: () => void;
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
@@ -100,11 +107,13 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     if (!selected && BRIEF_KINDS.has(note.kind)) {
       return <Box data-note={note.id}><NoteSummary note={note} headed /></Box>;
     }
-    const asked = note.kind === "evidence" ? questionLabel(note.question, note.extracted) : undefined;
+    const asked = note.kind === "evidence" || note.kind === "contradiction"
+      ? questionLabel(note.question, note.extracted) : undefined;
     return (
       <Box data-note={note.id} sx={{ px: 1.5, pb: 1 }}>
         <NoteCard
-          note={note} answerLabel={asked?.answer} question={asked?.text} headed
+          note={note} answerLabel={asked?.answer} question={asked?.text} formAnswer={asked?.given} headed
+          onShowAnswer={asked ? () => onShowAnswer(note) : undefined}
           onReply={text => actions.write({ replyTo: note.id, text })}
           onEditReply={(reply, text) => actions.write({ edit: reply, text })}
           onRemoveReply={reply => actions.write({ remove: reply })}
@@ -120,12 +129,12 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         />
       </Box>
     );
-  }, [ notes, draft, actions, document, questionLabel, adopting, editing, data.partOf ]);
+  }, [ notes, draft, actions, document, questionLabel, adopting, editing, data.partOf, onShowAnswer ]);
 
   const condensed = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
-    // Only an extracted answer needs the words it was read from beside the document, which shows every passage
-    if (!note || note.kind === "evidence") {
+    // Only a source or a contradiction needs the words it was read from beside the document, which shows every passage
+    if (!note || note.kind === "evidence" || note.kind === "contradiction") {
       return undefined;
     }
     return BRIEF_KINDS.has(note.kind) ? { quote: 0, details: 4 } : { quote: 0 };

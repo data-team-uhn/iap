@@ -19,7 +19,7 @@
 import { useContext, useState, type ReactNode } from "react";
 
 import EditOutlined from "@mui/icons-material/EditOutlined";
-import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Button, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
 import TagChip from "@iap/tags/TagChip";
 
@@ -43,7 +43,7 @@ function whenExactly(created: string): string {
     : date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-const BY_THE_AI = new Set<ReviewNote["kind"]>([ "aiIssue", "evidence" ]);
+const BY_THE_AI = new Set<ReviewNote["kind"]>([ "aiIssue", "evidence", "contradiction" ]);
 
 // A note's heading where a list heads each note, as beside a document: what kind it is, when it was written and by
 // whom, where these say something; the AI's notes are its own and undated, and the reader's notes to self theirs
@@ -134,10 +134,14 @@ const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", disc
 // changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
-  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question }: {
+  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question, formAnswer, onShowAnswer }: {
   note: ReviewNote;
-  // For an extracted answer shown away from its question, as beside a document, the question it answers
+  // For a source or a contradiction shown away from its question, as beside a document, the question it is about
   question?: string;
+  // For a contradiction, what the form answers, as its options call it
+  formAnswer?: string;
+  // For a source or a contradiction shown beside a document, going to the answer in the form
+  onShowAnswer?: () => void;
   // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
   // changing or removing it, which then say when it is being changed
   headed?: boolean;
@@ -218,19 +222,32 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       </Stack>
       {!headed && (
         <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
-          {note.kind !== "evidence" && <><PersonName user={note.author} /> · </>}{when(note.created)}
+          {!BY_THE_AI.has(note.kind) && <><PersonName user={note.author} /> · </>}{when(note.created)}
         </Typography>
       )}
-      {note.kind === "evidence" ? (
-        <>
-          <Stack sx={{ gap: 0.5 }}>
-            {question && <Field label="Question">{question}</Field>}
-            <Field label="Answer"><b>{answerLabel ?? note.extracted}</b></Field>
-            {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
-            {note.confidence !== undefined && <Field label="Confidence">{Math.round(note.confidence * 100)}%</Field>}
-          </Stack>
-        </>
-      ) : (
+      {/* A source says which answer it backs; a contradiction, what the form says and what the protocol does, and
+          why the AI read it so */}
+      {note.kind === "evidence" && (
+        <Stack sx={{ gap: 0.5 }}>
+          {question && <Field label="Question">{question}</Field>}
+          <Field label="Answer"><b>{answerLabel ?? note.extracted}</b></Field>
+        </Stack>
+      )}
+      {note.kind === "contradiction" && (
+        <Stack sx={{ gap: 0.5 }}>
+          {question && <Field label="Question">{question}</Field>}
+          {formAnswer && <Field label="Form says">{formAnswer}</Field>}
+          <Field label="Protocol says"><b>{answerLabel ?? note.extracted}</b></Field>
+          {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
+        </Stack>
+      )}
+      {onShowAnswer && (note.kind === "evidence" || note.kind === "contradiction") && (
+        <Link component="button" variant="caption" underline="hover" onClick={onShowAnswer}
+          sx={{ display: "block", mt: 0.5, textAlign: "start" }}>
+          Show the answer
+        </Link>
+      )}
+      {note.kind !== "evidence" && note.kind !== "contradiction" && (
         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
       )}
       {note.suggestion && (

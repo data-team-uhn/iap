@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 
+import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
+import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import FlagOutlined from "@mui/icons-material/FlagOutlined";
 import ForumOutlined from "@mui/icons-material/ForumOutlined";
 import StickyNote2Outlined from "@mui/icons-material/StickyNote2Outlined";
@@ -25,11 +27,12 @@ import { type SvgIconProps } from "@mui/material";
 
 import type { NoteKind } from "./reviewData";
 
-// PRETOTYPE. Each kind of note's icon, as its heading and the editor's choices show it: the AI's notes its sparkle,
-// an issue a flag, raised for the study team, the reviewers' discussion speech bubbles, a note to self a sticky note,
+// PRETOTYPE. Each kind of note's icon, as its heading and the editor's choices show it: an answer's source the page it
+// is on, a contradiction a warning, the AI pre-review its sparkle, an issue a flag, raised for the study team, the reviewers' discussion speech bubbles, a note to self a sticky note,
 // as reviewers keep on printouts, and a note being written a pencil
 const ICONS = {
-  evidence: AutoAwesomeOutlined,
+  evidence: ArticleOutlined,
+  contradiction: ErrorOutlineOutlined,
   aiIssue: AutoAwesomeOutlined,
   issue: FlagOutlined,
   otherIssue: FlagOutlined,

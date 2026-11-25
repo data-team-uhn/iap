@@ -66,16 +66,14 @@ interface Listing {
 }
 const FormNotes = createContext<Listing | undefined>(undefined);
 
-// The notes shown for a question: what the AI read for it first, then whatever else is about it, where it is the
-// first of the questions a note is about
+// The notes shown for a question: a contradiction first, then whatever else is about it, where it is the first of the
+// questions a note is about. Its source is not a note here: the answer itself leads to it
 function notesBeside(question: FormQuestion, data: ReviewData, shown: Set<NoteKind>,
   homeOf: Map<string, string>): ReviewNote[] {
   const answer = data.answers.get(question.path);
-  const notes = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
-  const evidence = notes.find(note => note.kind === "evidence");
-  const others = notes.filter(note => note.kind !== "evidence" && shown.has(note.kind)
-    && (homeOf.get(note.id) ?? question.path) === question.path);
-  return [ ...evidence && shown.has("evidence") ? [ evidence ] : [], ...others ];
+  const notes = (answer ? notesAbout(data.notes, [ answer.uuid ]) : []).filter(note => note.kind !== "evidence"
+    && shown.has(note.kind) && (homeOf.get(note.id) ?? question.path) === question.path);
+  return [ ...notes.filter(note => note.kind === "contradiction"), ...notes.filter(note => note.kind !== "contradiction") ];
 }
 
 // The questions of a form, every one, section by section
@@ -85,7 +83,7 @@ function questionsOf(items: FormItem[]): FormQuestion[] {
 
 // What the AI read for a question, as its options call it
 function extractedText(question: FormQuestion, note: ReviewNote | undefined): string | undefined {
-  return note?.kind === "evidence"
+  return note?.kind === "evidence" || note?.kind === "contradiction"
     ? answerText(question, note.extracted?.split(";").map(one => one.trim()) ?? []) : undefined;
 }
 
@@ -105,10 +103,15 @@ export function answerText(question: FormQuestion, values: string[]): string {
   return labels.join("; ");
 }
 
+// Whether a question's answers can be compared as values, a choice, a date, a number, rather than in words
+export function comparable(question: FormQuestion): boolean {
+  return question.options.length > 0 || [ "date", "boolean", "long", "double" ].includes(question.dataType);
+}
+
 // Whether what the AI read out of the protocol disagrees with the answer. Only for answers that can be compared
 // as values: free text is paraphrased either way.
 export function disagrees(question: FormQuestion, extracted: string | undefined): boolean {
-  if (!extracted || (question.options.length === 0 && ![ "date", "boolean", "long", "double" ].includes(question.dataType))) {
+  if (!extracted || !comparable(question)) {
     return false;
   }
   const normal = (values: string[]) => values.map(value => value.trim().toLowerCase()).sort().join(";");
@@ -156,9 +159,10 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   // The reviewer's own note being changed, whose card then shows its editor
   const [ editing, setEditing ] = useState<string>();
   const answer = data.answers.get(question.path);
-  const evidence = (answer ? notesAbout(data.notes, [ answer.uuid ]) : []).find(note => note.kind === "evidence");
-  const differs = disagrees(question, evidence?.extracted);
-  const extracted = extractedText(question, evidence);
+  const about = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
+  const source = about.find(note => note.kind === "evidence");
+  const contradiction = about.find(note => note.kind === "contradiction");
+  const extracted = extractedText(question, contradiction);
   const side = notesBeside(question, data, shown, homeOf);
   // Listed beside the form, its notes tint the answer, in the colour of the first, and the selected one outlines it;
   // a click on the answer selects its first note, then the next
@@ -205,15 +209,24 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
               <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
             </Typography>
-            {/* Whether or not extracted answers are shown, one the protocol contradicts is said, leading to where */}
-            {evidence && differs && (
+            {/* An answer the protocol contradicts says so, always; one it backs leads to where, when sources are shown */}
+            {contradiction ? (
               <Link
-                component="button" variant="caption" underline="hover" onClick={() => onEvidence(evidence)}
+                component="button" variant="caption" underline="hover" onClick={() => onEvidence(contradiction)}
                 sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "warning.main", mt: 0.25,
                   textAlign: "start" }}
               >
                 <ErrorOutlineOutlined sx={{ fontSize: "1rem" }} />
-                The protocol says {extracted}{evidence.passage?.page ? `, page ${evidence.passage.page}` : ""}
+                The protocol says {extracted}{contradiction.passage?.page ? `, page ${contradiction.passage.page}` : ""}
+              </Link>
+            ) : source && shown.has("evidence") && (
+              <Link
+                component="button" variant="caption" underline="hover" onClick={() => onEvidence(source)}
+                sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "evidence.main", mt: 0.25,
+                  textAlign: "start" }}
+              >
+                <ArticleOutlined sx={{ fontSize: "1rem" }} />
+                Source in the protocol{source.passage?.page ? `, page ${source.passage.page}` : ""}
               </Link>
             )}
           </Box>
@@ -240,7 +253,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                 />
               )}>
               <NoteCard
-                note={note} answerLabel={note.kind === "evidence" ? extracted : undefined} headed
+                note={note} answerLabel={extracted} formAnswer={answerText(question, question.value)} headed
                 onReply={text => actions.write({ replyTo: note.id, text })}
                 onEditReply={(reply, text) => actions.write({ edit: reply, text })}
                 onRemoveReply={reply => actions.write({ remove: reply })}
@@ -613,7 +626,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                   "&.Mui-focusVisible": { bgcolor: passageHover(theme, mark) } })}
               >
                 <NoteHeading note={note} />
-                {note.kind === "evidence" && note.passage && (
+                {(note.kind === "evidence" || note.kind === "contradiction") && note.passage && (
                   <Typography variant="body2" component="span" sx={{ mt: 0.5, ...isSelected ? { display: "block" }
                     : cutShort(2) }}>
                     “{note.passage.quote}”
@@ -623,7 +636,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
               {isSelected ? (
                 <Box data-note={note.id} sx={{ px: 1.5, pt: 1, pb: 1 }}>
                   <NoteCard
-                    note={note} answerLabel={extracted} headed
+                    note={note} answerLabel={extracted} formAnswer={answerText(question, question.value)} headed
                     onReply={text => actions.write({ replyTo: note.id, text })}
                     onEditReply={(reply, text) => actions.write({ edit: reply, text })}
                     onRemoveReply={reply => actions.write({ remove: reply })}
@@ -650,9 +663,15 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 </Box>
               ) : (
                 <Box data-note={note.id}>
-                  <CutShort lines={note.kind === "evidence" ? 3 : 4} onOpen={() => onSelect(note.id)}>
-                    {note.kind === "evidence"
-                      ? <Box sx={{ px: 1.5, pb: 1 }}><NoteCard note={note} answerLabel={extracted} headed /></Box>
+                  <CutShort lines={note.kind === "contradiction" ? 3 : 4} onOpen={() => onSelect(note.id)}>
+                    {note.kind === "contradiction"
+                      ? (
+                        <Box sx={{ px: 1.5, pb: 1 }}>
+                          <NoteCard
+                            note={note} answerLabel={extracted} formAnswer={answerText(question, question.value)} headed
+                          />
+                        </Box>
+                      )
                       : <NoteSummary note={note} headed />}
                   </CutShort>
                 </Box>

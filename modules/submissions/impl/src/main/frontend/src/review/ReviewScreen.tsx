@@ -71,7 +71,7 @@ import { kindChip, ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
-import FormReview, { answerText, disagrees, GroupChips, type ReviewActions } from "./FormReview";
+import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
 import LetterDialog, { SentLetter } from "./LetterDialog";
 import NoteKindIcon from "./noteIcons";
 import { GroupLabels, usePersonName } from "./people";
@@ -84,6 +84,7 @@ import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type R
 import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
+import { withSources } from "./sources";
 import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser, useMyGroups } from "./useCurrentUser";
 
@@ -139,11 +140,12 @@ function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => v
 
 // Every kind until the reviewer chooses, but the extracted answers, since those agreeing with the answer add little
 // and those that do not are said under the answer anyway; and other reviewers' issues, which are theirs to pursue
-const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind)
-  .filter(kind => kind !== "evidence" && kind !== "otherIssue");
+const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind).filter(kind => kind !== "otherIssue");
+// The kinds always shown, which the reviewer cannot turn off
+const ALWAYS: NoteKind[] = [ "contradiction" ];
 
 // The kinds of notes a contents entry counts, what the reviewer acts on first
-const COUNTED_KINDS: NoteKind[] = [ "issue", "aiIssue", "discussion", "note", "otherIssue", "evidence" ];
+const COUNTED_KINDS: NoteKind[] = [ "contradiction", "issue", "aiIssue", "discussion", "note", "otherIssue", "evidence" ];
 
 // A width in pixels, as one kept in the browser should be
 const isWidth = (value: unknown): value is number => typeof value === "number" && value > 0;
@@ -222,6 +224,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ error, setError ] = useState<string>();
   const [ selected, setSelected ] = useState<string>();
   const [ shown, setShown ] = useState(storedKinds);
+  // What is shown: the kinds the reviewer chose, and those always shown
+  const showing = useMemo(() => new Set<NoteKind>([ ...shown, ...ALWAYS ]), [ shown ]);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
   // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
   const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 320, isWidth);
@@ -271,7 +275,10 @@ export default function ReviewScreen({ path }: { path: string }) {
     ? String((loaded.submission.schemaVersion as Node)["@path"]) : "";
   const topics = useMemo(() => loaded ? parseTopics(loaded.approvals, schema) : new Map<string, Topic>(),
     [ loaded, schema ]);
-  const data: ReviewData | undefined = useMemo(() => loaded && me ? parseReview(loaded.submission, schema, me, topics)
+  // What the AI read for each answer is shown as its source or a contradiction, or not at all
+  const data: ReviewData | undefined = useMemo(() => loaded && me
+    ? withSources(parseReview(loaded.submission, schema, me, topics),
+      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))
     : undefined, [ loaded, schema, me, topics ]);
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
   const groupLabels = useMemo(() => new Map((loaded?.approvals ?? []).map(approval =>
@@ -345,7 +352,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     const asked = requirements.filter(isFormRequirement).flatMap(one => questions(one.items))
       .find(one => one.path === question);
     return { text: asked?.text ?? "", answer: asked && extracted !== undefined
-      ? answerText(asked, extracted.split(";").map(one => one.trim())) : undefined };
+      ? answerText(asked, extracted.split(";").map(one => one.trim())) : undefined,
+    given: asked ? answerText(asked, asked.value) : undefined };
   }, [ requirements ]);
 
   const toggleKind = (kind: NoteKind) => setShown(current => {
@@ -382,6 +390,16 @@ export default function ReviewScreen({ path }: { path: string }) {
       return card?.closest<HTMLElement>("li") ?? card
         ?? (question ? document.getElementById(`question-${question}`) : null);
     });
+  };
+
+  // From a passage to the answer in the form it backs or contradicts: a contradiction selected among the form's notes,
+  // and the answer outlined a moment, as "Show where" does
+  const openAnswer = (note: ReviewNote) => {
+    const question = note.question;
+    if (question) {
+      reveal(note, question);
+      go(question.split("/")[0], { id: note.kind === "contradiction" ? note.id : undefined, question });
+    }
   };
 
   const openEvidence = (note: ReviewNote) => {
@@ -598,8 +616,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   // The answers a risk draws on that the protocol contradicts, by what was read from it
   const mismatchesOf = (topic: Topic): Mismatch[] => asked.filter(question => topic.sources.includes(question.path))
     .flatMap(question => {
-      const evidence = data.notes.find(note => note.kind === "evidence" && note.question === question.path);
-      return evidence && disagrees(question, evidence.extracted) ? [ {
+      const evidence = data.notes.find(note => note.kind === "contradiction" && note.question === question.path);
+      return evidence ? [ {
         question: question.text, answer: answerText(question, question.value),
         protocol: answerText(question, evidence.extracted?.split(";").map(one => one.trim()) ?? []), evidence,
       } ] : [];
@@ -719,7 +737,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", flexShrink: 0 }}
       role="group" aria-label="Which notes to show, in the whole submission">
       <Typography variant="body2" sx={{ color: "text.secondary", mr: 0.5 }}>Show notes</Typography>
-      {NOTE_KINDS.map(info => (
+      {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => (
         <Chip
           key={info.kind}
           size="small"
@@ -745,14 +763,14 @@ export default function ReviewScreen({ path }: { path: string }) {
       {listed.map(requirement => (
         <MenuItem key={requirement.name} value={requirement.name}>
           {requirement.label} ({terms ? `${hitCount(requirement) ?? "…"} found`
-            : notesOf(requirement).filter(note => shown.has(note.kind)).length})
+            : notesOf(requirement).filter(note => showing.has(note.kind)).length})
         </MenuItem>
       ))}
     </TextField>
   ) : (
     <List dense disablePadding aria-label="Requirements">
       {listed.map(requirement => {
-        const counted = notesOf(requirement).filter(note => shown.has(note.kind));
+        const counted = notesOf(requirement).filter(note => showing.has(note.kind));
         // While searching, how many times it has the terms instead, and greyed out when none
         const found = hitCount(requirement);
         return (
@@ -921,7 +939,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                         <SearchContext.Provider value={searchContext}>
                           <FormReview
                             items={current.items} data={data} groups={focused ? othersGroups : groups}
-                            myGroups={myGroups} shown={shown}
+                            myGroups={myGroups} shown={showing}
                             onEvidence={openEvidence} actions={actions}
                             notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                             selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
@@ -934,12 +952,13 @@ export default function ReviewScreen({ path }: { path: string }) {
                       <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                         <DocumentReview
                           key={current.name}
-                          document={shownDocument} data={data} shown={shown} selected={mark.id}
+                          document={shownDocument} data={data} shown={showing} selected={mark.id}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                           actions={actions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
                           notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                           heading={title}
+                          onShowAnswer={openAnswer}
                           onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
                         />
                       </Box>

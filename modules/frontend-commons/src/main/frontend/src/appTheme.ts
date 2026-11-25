@@ -106,6 +106,8 @@ declare module "@mui/material/styles" {
     discussionCurrent: string;
     draft: string;
     draftCurrent: string;
+    warning: string;
+    warningCurrent: string;
     search: string;
     searchCurrent: string;
     added: string;
@@ -241,6 +243,8 @@ const DUSTY_CORAL = "#D2ADA6";
 const OTHER_ISSUE = accent(DUSTY_CORAL, "#7A524B");
 const DISCUSSION = accent(SKY, "#2F5F96");
 const GREY = "#A3A8B0";
+// PRETOTYPE: what a contradiction between an answer and the protocol marks, the amber of a warning
+const AMBER = "#F2A93B";
 // A draft's card is tinted as lightly as a muted surface
 const DRAFT = {
   light: { main: "#5F6670", light: "#D5D8DC", dark: "#474D55", contrastText: "#fff" },
@@ -275,6 +279,8 @@ const HIGHLIGHT = {
   discussionCurrent: alpha(SKY, 0.6),
   draft: alpha(GREY, 0.35),
   draftCurrent: alpha(GREY, 0.6),
+  warning: alpha(AMBER, 0.4),
+  warningCurrent: alpha(AMBER, 0.65),
   search: alpha(COBALT, 0.2),
   searchCurrent: alpha(COBALT, 0.45),
   added: ADDED_FILL,
