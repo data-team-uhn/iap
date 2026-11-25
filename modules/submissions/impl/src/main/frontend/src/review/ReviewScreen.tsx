@@ -152,6 +152,8 @@ const ALWAYS: NoteKind[] = [ "contradiction" ];
 
 // What the filters' counts take in, not only the part being read, as their numbers alone may suggest
 const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
+// The filters' names where a kind's own is long, to keep their rows few; the tooltip gives the full one
+const SHORT_LABELS: Partial<Record<NoteKind, string>> = { discussion: "Discussion" };
 
 // Which of two parts shown one above the other
 type Pane = "top" | "bottom";
@@ -954,10 +956,11 @@ export default function ReviewScreen({ path }: { path: string }) {
       {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => {
         const on = shown.has(info.kind);
         return (
-          <Tooltip key={info.kind} title={COUNTED_ACROSS} describeChild disableInteractive>
+          <Tooltip key={info.kind} describeChild disableInteractive
+            title={SHORT_LABELS[info.kind] ? `${info.label}. ${COUNTED_ACROSS}` : COUNTED_ACROSS}>
             <ButtonBase aria-pressed={on} onClick={() => toggleKind(info.kind)} sx={toggleSx(on, info.mark)}>
               <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
-              {info.label} ({kindCount(info.kind)})
+              {SHORT_LABELS[info.kind] ?? info.label} ({kindCount(info.kind)})
             </ButtonBase>
           </Tooltip>
         );
@@ -969,7 +972,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           disableInteractive>
           <ButtonBase aria-pressed={showDone} onClick={() => setShowDone(!showDone)} sx={toggleSx(showDone)}>
             <TaskAltOutlined sx={{ fontSize: "0.9rem", ...showDone ? {} : { opacity: 0.6 } }} />
-            Resolved and dismissed ({doneCount})
+            Resolved ({doneCount})
           </ButtonBase>
         </Tooltip>
       </Stack>
