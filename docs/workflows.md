@@ -196,6 +196,16 @@ dropped. That is:
 Between them these catch a value written in the wrong one of the two places IAP markup can live, and an
 `iap:handler` attribute beside a handler element, which the element overrules.
 
+**So is BPMN's own markup that nothing reads**, since the engine would run something simpler than what was
+drawn: a timer firing on a `timeCycle`, a task with a `multiInstanceLoopCharacteristics`, a signal event
+definition on a plain event. Every BPMN attribute and child of the element is checked, and so is every element
+on a parameter's `xmlPath` and the `xmlChildElement` the entry matched on. Whatever no parameter of the entry
+reads is reported, unless the parse needs it for the graph's structure: `id`, `name`, `sourceRef`,
+`targetRef`, `attachedToRef`, `default`, `incoming`, `outgoing`, `documentation` and `extensionElements`. A
+message event definition's `messageRef` is exempt too, since the parse resolves it to `messageName` itself. A
+`conditionExpression` has its own refusal (see [Known gaps](#known-gaps)).
+Markup in any other namespace is left alone.
+
 `jcrProperties` sets fixed properties on the stored node, which is how a terminate end
 event and an ordinary one share `wf:EndEvent`. It is only for what varies between
 entries sharing a node type: what the node type already determines, such as whether an
@@ -1340,8 +1350,8 @@ each completed on its own.
   the diagram's XML. A `condition` parameter type built on the conditions module's
   `ConditionBuilder` would close this; its operand catalogue is keyed by content path,
   which a draft diagram does not have.
-- **Only `timeDuration` timers.** A `timeCycle` or `timeDate` timer is imported with no
-  duration and never fires.
+- **Only `timeDuration` timers.** A `timeCycle` or `timeDate` timer is reported and
+  imported with no duration, so it never fires.
 - **Shipped system workflows are not yet `bpmnAuthoritative`.** Every one of them ships a
   `bpmn.xml` beside its hand-authored flow nodes, and reparsing the diagram is proven to
   reproduce those nodes exactly: `ShippedDefinitionParityTest` does it in Surefire for this
@@ -1370,6 +1380,7 @@ each completed on its own.
 - **No subprocesses or multi-instance markers.** "One review per assigned reviewer" is a
   multi-instance activity, the first of these likely to be wanted.
 - **Signal, escalation, conditional and link events** are unmapped; the vocabulary
-  covers timer, message, error and terminate. A timer reads only a `timeDuration`.
+  covers timer, message, error and terminate. A timer reads only a `timeDuration`: one written with a
+  `timeCycle` or a `timeDate` is reported as BPMN its entry does not read.
 - **No `oak:index` definitions.** The console's listings and homepage discovery both
   query without one.

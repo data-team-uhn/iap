@@ -739,6 +739,55 @@ class ParameterTranslationTest
     }
 
     @Test
+    void reportsTheBpmnAnEntryDoesNotRead() throws Exception
+    {
+        final NodeBuilder root = withTimerBoundaryEvent();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            parse(root, "    <bpmn:userTask id=\"" + TASK + "\">\n"
+                + "      <bpmn:multiInstanceLoopCharacteristics/>\n"
+                + "    </bpmn:userTask>\n"
+                + "    <bpmn:boundaryEvent id=\"" + DEADLINE + "\" attachedToRef=\"" + TASK + "\""
+                + " parallelMultiple=\"true\">\n"
+                + "      <bpmn:timerEventDefinition unit=\"days\"><bpmn:timeCycle>R3/P1D</bpmn:timeCycle>"
+                + "</bpmn:timerEventDefinition>\n"
+                + "    </bpmn:boundaryEvent>\n");
+
+            assertEquals(List.of("multiInstanceLoopCharacteristics", "parallelMultiple", "timerEventDefinition/unit",
+                "timerEventDefinition/timeCycle"), problems.all().stream()
+                    .map(problem -> problem.details().getOrDefault(ATTRIBUTE_DETAIL, problem.details().get("child")))
+                    .toList());
+            assertEquals(List.of("a BPMN element is read by no parameter of the matching FlowNodeType",
+                "a BPMN attribute is read by no parameter of the matching FlowNodeType",
+                "a BPMN attribute is read by no parameter of the matching FlowNodeType",
+                "a BPMN element is read by no parameter of the matching FlowNodeType"), problems.names());
+        }
+    }
+
+    @Test
+    void leavesTheBpmnTheGraphIsBuiltFromAlone() throws Exception
+    {
+        final NodeBuilder root = withTimerBoundaryEvent();
+        VocabularyFixture.entry(root, "MessageStartEvent", "bpmn:startEvent", "wf:StartEvent", 10)
+            .setProperty("xmlChildElement", "bpmn:messageEventDefinition");
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, "    <bpmn:startEvent id=\"start\" name=\"Start\">\n"
+                + "      <bpmn:documentation>Begins it</bpmn:documentation>\n"
+                + "      <bpmn:outgoing>flow</bpmn:outgoing>\n"
+                + "      <bpmn:messageEventDefinition id=\"def\" messageRef=\"go\"/>\n"
+                + "    </bpmn:startEvent>\n"
+                + "    <bpmn:userTask id=\"" + TASK + "\" default=\"flow\"><bpmn:incoming>flow</bpmn:incoming>"
+                + "</bpmn:userTask>\n"
+                + "    <bpmn:sequenceFlow id=\"flow\" name=\"Go\" sourceRef=\"start\" targetRef=\"" + TASK
+                + "\"/>\n");
+
+            assertTrue(after.getChildNode("start").getChildNode("flow").exists());
+            assertEquals(List.of(), problems.messages());
+        }
+    }
+
+    @Test
     void appliesASequenceFlowsEntryButRefusesItsConditionExpression() throws Exception
     {
         final NodeBuilder root = withTimerBoundaryEvent();
