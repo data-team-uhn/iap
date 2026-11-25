@@ -590,8 +590,8 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
       {entries.length > 0 ? (
         <StepControls
           position={position} count={entries.length} itemName="note"
-          heading={position > 0 ? `Note ${position} of ${entries.length}` : total}
-          widest={[ `Note ${entries.length} of ${entries.length}`, total ]}
+          heading={position > 0 ? `${position} of ${entries.length}` : total}
+          widest={[ `${entries.length} of ${entries.length}`, total ]}
           onStep={next => onSelect(ids[next - 1])}
         />
       ) : (
