@@ -1143,7 +1143,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                   : "Only what your review covers"}>
                   <ToggleButton value="focused">Focused</ToggleButton>
                 </Tooltip>
-                <Tooltip describeChild disableInteractive title="The whole submission, including the parts that concern other reviewer groups">
+                <Tooltip describeChild disableInteractive title="The whole submission">
                   <ToggleButton value="all">All</ToggleButton>
                 </Tooltip>
               </ToggleButtonGroup>
