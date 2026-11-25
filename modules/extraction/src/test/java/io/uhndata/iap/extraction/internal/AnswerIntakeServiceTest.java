@@ -36,7 +36,6 @@ import org.mockito.Mockito;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
-import io.uhndata.iap.llm.CallBudget;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMClientFactory;
 import io.uhndata.iap.llm.LLMConfigurationService;
@@ -61,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class AnswerIntakeServiceTest
 {
-    /** A paragraph break. A long document is cut at one. */
+    /** A paragraph break, between the parts of a test document. */
     private static final String BREAK = "\n\n";
 
     private static final String FILE_PATH = "/Submissions/aa/proposal/v1/file";
@@ -77,6 +76,9 @@ class AnswerIntakeServiceTest
 
     /** A window that holds the prompt and some of a document, but not 20,000 characters of one. */
     private static final long SMALL_WINDOW = 5000;
+
+    /** Leaves room for less than {@link ExtractionPrompt#MIN_DOCUMENT_TOKENS} beside one question. */
+    private static final long TINY_WINDOW = 3000;
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -365,46 +367,49 @@ class AnswerIntakeServiceTest
     }
 
     @Test
-    void readsOnWhenTheSettingsCannotBeRead() throws IOException
+    void readsNothingWhenTheSettingsCannotBeRead() throws IOException
     {
         addMarkdown(DOCUMENT);
         this.settingsFailure = new IOException("no active provider");
-        this.client.replies.add(buildAnswer(AIMS, "Yes", REAL_QUOTE));
 
-        assertTrue(run(createStudyGroups(AIMS)).fields().get(AIMS).isFound(),
-            "a settings problem must not stop the reading");
+        final IntakeResult result = run(createStudyGroups(AIMS));
+
+        assertEquals(AnswerIntakeService.Status.NOT_READ, result.status());
+        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, result.message());
+        assertTrue(result.isModelFailing(), "a later reading may find the settings again");
+        assertTrue(this.client.asked.isEmpty(), "a guessed window would refuse documents the model can read");
+        Mockito.verify(this.errors).logError(Mockito.same(this.settingsFailure), Mockito.any());
     }
 
-    // Cutting the middle keeps the provider from refusing a long document. The end is kept because a protocol
-    // puts its appendices and signature page there.
     @Test
-    void cutsTheMiddleOfADocumentTooLongForTheWindowAndKeepsBothEnds() throws IOException
+    void readsNothingFromADocumentTooLongForTheWindow() throws IOException
     {
         this.window = SMALL_WINDOW;
         addMarkdown(DOCUMENT + BREAK + "x".repeat(20_000) + BREAK + "THE END");
-        this.client.replies.add("{}");
 
-        run(createStudyGroups(AIMS));
+        final IntakeResult result = run(createStudyGroups(AIMS));
 
-        final String asked = this.client.asked.get(0);
-        assertTrue(asked.contains("THE END"), "the end is sent");
-        assertTrue(asked.contains(CallBudget.OMISSION_MARKER.strip()), "and the gap is marked");
-        assertFalse(asked.contains("x".repeat(20_000)), "but not the whole middle");
+        assertEquals(AnswerIntakeService.Status.TOO_LONG, result.status());
+        assertTrue(result.isNothingRead());
+        assertEquals(IntakeResult.TOO_LONG_MESSAGE, result.message());
+        assertEquals(IntakeResult.TOO_LONG_MESSAGE, result.describeShortfall(), "the submitter is told why");
+        assertFalse(result.isModelFailing(), "another document can still be read");
+        assertTrue(this.client.asked.isEmpty(), "and the call is not made at all");
+        Mockito.verifyNoInteractions(this.errors);
     }
 
-    // A quote is real if it is anywhere in the file the submitter attached, not only in the part that was sent
+    // Room for less than a page is the window's fault, not the document's, so an administrator is told
     @Test
-    void checksQuotesAgainstTheWholeDocumentEvenWhenItWasCut() throws IOException
+    void blamesTheWindowWhenItLeavesRoomForLessThanAPage() throws IOException
     {
-        this.window = SMALL_WINDOW;
-        final String middle = "The middle says the sample is 182 adults.";
-        addMarkdown(DOCUMENT + BREAK + "x".repeat(10_000) + BREAK + middle + BREAK + "y".repeat(10_000));
-        this.client.replies.add(buildAnswer(AIMS, "182", middle));
+        this.window = TINY_WINDOW;
+        addMarkdown(DOCUMENT + BREAK + "x".repeat(20_000));
 
-        final FieldResult found = run(createStudyGroups(AIMS)).fields().get(AIMS);
+        final IntakeResult result = run(createStudyGroups(AIMS));
 
-        assertFalse(this.client.asked.get(0).contains(middle), "the middle was not sent");
-        assertEquals(1, found.passages().size(), "but the quote from it still counts");
+        assertEquals(IntakeResult.NO_ROOM_MESSAGE, result.message());
+        Mockito.verify(this.errors).logProblem(
+            Mockito.eq("The questions leave no room for the document in the model's context window"), Mockito.any());
     }
 
     @Test

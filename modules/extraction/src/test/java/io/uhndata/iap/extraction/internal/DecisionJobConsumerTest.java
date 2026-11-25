@@ -330,6 +330,28 @@ class DecisionJobConsumerTest
         assertNull(getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
+    // A document too long to read is answered by hand, not a reason to stop: the checks after it are still asked
+    @Test
+    void carriesOnAfterADocumentTooLongToRead() throws Exception
+    {
+        final Resource category = createStudyKind();
+        createWaitingTask();
+        Mockito.doAnswer(call -> isAskingForAVerdict(call) ? IntakeResult.createTooLong() : answer(call))
+            .when(this.intake).askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("verdict", "classification.study_kind"), getAskedKeys());
+        assertEquals(Validation.OUTCOME_UNSURE, getValidationModel().getOutcome());
+        assertEquals(List.of("observational"), getSuggestion(category));
+    }
+
+    private static boolean isAskingForAVerdict(final InvocationOnMock call)
+    {
+        final List<ExtractionPrompt.Group> groups = call.getArgument(2);
+        return DocumentValidator.VERDICT_KEY.equals(groups.get(0).fields().get(0).key());
+    }
+
     // The no stays a pending hand-over, so Read again carries the intake on instead of waiting at its task forever
     @Test
     void handsOverANoWhoseHandOverWasLost() throws Exception

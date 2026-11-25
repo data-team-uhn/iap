@@ -390,6 +390,21 @@ class MainExtractionJobConsumerTest
         assertEquals(NO_ROOM_MESSAGE, getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
+    // Its questions are left to the submitter, as for any form that could not be read
+    @Test
+    void readsTheFormsAfterOneWhoseDocumentIsTooLong() throws Exception
+    {
+        Mockito.doReturn(IntakeResult.createTooLong())
+            .doAnswer(MainExtractionJobConsumerTest::answer)
+            .when(this.intake).askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertNull(getSuggestion(SubmissionTree.FORM_PATH + "/title"));
+        assertEquals(List.of("withdrawal.can_withdraw"), getSuggestion(WITHDRAWAL_PATH + "/can_withdraw"));
+        assertEquals(IntakeResult.TOO_LONG_MESSAGE, getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
     @Test
     void givesUpWithTheFirstReasonWhenNoFormCouldBeRead() throws Exception
     {

@@ -86,8 +86,8 @@ class ExtractionPromptTest
         }
         assertEquals(documentBlock + "\n\n" + ExtractionPrompt.buildQuestionBlock(createFields("consent.", 1)),
             plan.calls().get(1).userMessage());
-        assertEquals(DOCUMENT, plan.document().text());
-        assertFalse(plan.document().wasCut());
+        assertEquals(CallBudget.estimateTokens(DOCUMENT), plan.documentTokens());
+        assertFalse(plan.isTooLong());
     }
 
     // After the document, so the checks and the forms read from it still open with the same text
@@ -152,39 +152,61 @@ class ExtractionPromptTest
     private static void assertPlansNothing(final ExtractionPrompt.Plan plan)
     {
         assertTrue(plan.calls().isEmpty());
-        assertEquals("", plan.document().text());
-        assertFalse(plan.document().wasCut());
+        assertEquals(0, plan.documentTokens());
+        assertFalse(plan.isTooLong());
     }
 
-    // The small group comes first, so a cut sized by the first call would not fit the large one
+    // The small group comes first, so a budget sized by the first call would not fit the large one
     @Test
-    void cutsALongDocumentOnceForEveryCall()
+    void sizesTheDocumentOnceAgainstTheLargestCall()
     {
-        final String paragraph = "This paragraph is long enough to count, and it says the same as the others.\n\n";
-        final String longDocument = "OPENING\n\n" + paragraph.repeat(400) + "THE VERY END";
         final List<long[]> asked = new ArrayList<>();
-        final LongBinaryOperator window = createBudget(12_000L);
+        final LongBinaryOperator window = createBudget(WINDOW);
 
-        final ExtractionPrompt.Plan plan = ExtractionPrompt.plan(longDocument, null, List.of(
+        final ExtractionPrompt.Plan plan = ExtractionPrompt.plan(DOCUMENT, null, List.of(
             new ExtractionPrompt.Group("small", createFields("small.", 1)),
             new ExtractionPrompt.Group("large", createFields("large.", 10))), (promptTokens, maxOutputTokens) -> {
                 asked.add(new long[] { promptTokens, maxOutputTokens });
                 return window.applyAsLong(promptTokens, maxOutputTokens);
             });
 
-        assertEquals(1, asked.size(), "the document is fitted once");
+        assertEquals(1, asked.size(), "the document is measured once");
         assertEquals(ExtractionPrompt.BASE_OUTPUT_TOKENS + 10 * ExtractionPrompt.OUTPUT_TOKENS_PER_FIELD,
             asked.get(0)[1]);
         final long largeCallTokens = CallBudget.estimateTokens(ExtractionPrompt.readSystemPrompt())
             + CallBudget.estimateTokens(ExtractionPrompt.buildQuestionBlock(createFields("large.", 10)));
         assertTrue(asked.get(0)[0] >= largeCallTokens, "the large call's questions are counted");
-        assertTrue(plan.document().wasCut());
-        assertTrue(plan.document().text().startsWith("OPENING"));
-        assertTrue(plan.document().text().endsWith("THE VERY END"));
-        assertTrue(plan.document().text().contains(CallBudget.OMISSION_MARKER.strip()));
-        final String documentBlock = ExtractionPrompt.buildDocumentBlock(plan.document().text());
+        assertEquals(window.applyAsLong(asked.get(0)[0], asked.get(0)[1]), plan.documentBudget());
         assertEquals(2, plan.calls().size());
-        assertTrue(plan.calls().stream().allMatch(call -> call.userMessage().startsWith(documentBlock)));
+    }
+
+    @Test
+    void plansNothingForADocumentTooLongToSendWhole()
+    {
+        final String longDocument = "OPENING\n\n" + "A paragraph long enough to count.\n\n".repeat(2_000) + "END";
+
+        final ExtractionPrompt.Plan plan = createPlan(longDocument,
+            List.of(new ExtractionPrompt.Group("common", createFields("common.", 1))), 12_000L);
+
+        assertTrue(plan.calls().isEmpty());
+        assertTrue(plan.isTooLong());
+        assertEquals(CallBudget.estimateTokens(longDocument), plan.documentTokens());
+    }
+
+    // A document of exactly the budget is sent whole, and one token more is not: the check has no slack of its own
+    @Test
+    void sendsADocumentThatFitsExactly()
+    {
+        final List<ExtractionPrompt.Group> groups =
+            List.of(new ExtractionPrompt.Group("common", createFields("common.", 1)));
+        final long budget = createPlan(DOCUMENT, groups, WINDOW).documentBudget();
+        final String exact = "x".repeat((int) budget * CallBudget.CHARS_PER_TOKEN);
+
+        final ExtractionPrompt.Plan plan = createPlan(exact, groups, WINDOW);
+
+        assertFalse(plan.isTooLong());
+        assertTrue(createPlan(exact + "x", groups, WINDOW).isTooLong());
+        assertEquals(1, plan.calls().size());
     }
 
     // Each half asks only its own questions, so its schema requires only their keys
@@ -215,8 +237,15 @@ class ExtractionPromptTest
             List.of(new ExtractionPrompt.Group("common", createFields("common.", 10))), 2_000L);
 
         assertTrue(plan.calls().isEmpty());
-        assertEquals("", plan.document().text());
-        assertTrue(plan.document().wasCut());
+        assertEquals(0, plan.documentBudget());
+        assertTrue(plan.isTooLong());
+        assertTrue(plan.isWindowTooSmall());
+    }
+
+    @Test
+    void leavesNoBudgetWithNothingToAsk()
+    {
+        assertEquals(0, ExtractionPrompt.calculateDocumentBudget(null, List.of(), createBudget(WINDOW)));
     }
 
     @Test

@@ -51,14 +51,14 @@ class DocumentReaderTest
     /** Plans one call per key, each asking that one question. */
     private static ExtractionPrompt.Plan createPlan(final String... keys)
     {
-        return TestFields.planWithoutCut(TEXT, Arrays.stream(keys).map(key -> TestFields.createGroup(key, key))
+        return TestFields.planInWideWindow(TEXT, Arrays.stream(keys).map(key -> TestFields.createGroup(key, key))
             .toList());
     }
 
     /** Plans one call asking every key's question. */
     private static ExtractionPrompt.Plan createOneCallPlan(final String... keys)
     {
-        return TestFields.planWithoutCut(TEXT, List.of(TestFields.createGroup("study", keys)));
+        return TestFields.planInWideWindow(TEXT, List.of(TestFields.createGroup("study", keys)));
     }
 
     private static String buildReply(final String key, final String value)

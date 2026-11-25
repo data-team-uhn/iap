@@ -364,7 +364,7 @@ The job fires `validated` with the verdict, the requirement and the file. Its
 requirement, made on the first run. The
 validation reads the run as `yes`, `no` or `unsure`: an answer less sure than the
 requirement's `confidenceThreshold` is `unsure`, and so is a question the model did not
-answer.
+answer, or was not asked because the document is too long to read.
 
 | Verdict | `recordValidation` | The intake's gateway |
 | --- | --- | --- |
@@ -545,12 +545,13 @@ than ten questions (`MAX_FIELDS_PER_CALL`) is split into several calls, in order
 smaller call gives a shorter reply, which a model gets right more often, and a reply
 that cannot be read loses only its own questions.
 
-### How much of the document fits
+### Whether the document fits
 
 Each call's reply gets `maxOutputTokens` = 500 + 400 per question. The document is
-fitted once, against the largest call of the reading, so it is the same in every call
-and the shared start stays the same. It gets what is left of the model's context window
-(`CallBudget.calculateDocumentTokenBudget`):
+measured once, against the largest call of the reading, so one check covers every call.
+It gets what is left of the model's context window
+(`ExtractionPrompt.calculateDocumentBudget`, through
+`CallBudget.calculateDocumentTokenBudget`):
 
 ```
 document budget = window - 15% safety margin - largest reply
@@ -562,30 +563,38 @@ with it.
 
 | Term | Why |
 | --- | --- |
-| window | The active model's `contextLimitTokens`. When the model does not say, or the settings cannot be read: 131072 (`DEFAULT_CONTEXT_LIMIT_TOKENS`), the smallest window of any model in the catalogue. |
-| 15% safety margin | Tokens are estimated at 4 characters each (`CHARS_PER_TOKEN`), which undercounts dense Markdown, and the provider's chat template adds tokens of its own. |
+| window | The active model's `contextLimitTokens`. When the model does not say: 131072 (`DEFAULT_CONTEXT_LIMIT_TOKENS`), the smallest window of any model in the catalogue. Settings that cannot be read stop the reading as a model failure, since a guessed window would refuse documents the model can read. |
+| 15% safety margin | Tokens are estimated at 4 characters each (`CHARS_PER_TOKEN`), a rough estimate, and the provider's chat template adds tokens of its own. |
 | `maxOutputTokens` | A vLLM-style provider refuses a request when the prompt plus the requested output would not fit. It does not stop writing early. |
 
-A document that does not fit keeps its opening (75% of the room) and its end (25%). The
-opening holds the cover page, the synopsis and the objectives; the end holds the
-appendices, the site list and the signature page. The opening stops at the last
-paragraph break before its limit, and the end starts at the first paragraph break after
-its own limit, so neither part starts or stops in the middle of a sentence. What the
-opening gives up goes to the end. A text with no paragraph breaks is cut exactly at the
-limits. The two parts are joined by `CallBudget.OMISSION_MARKER`, a line in brackets
-saying the middle was left out, and the system prompt tells the model that the text on
-the two sides does not follow on.
+A document is sent whole or not at all. A cut would leave the answers in the missing
+part unfound, with nothing to show they were missed, and a second call would read the
+document twice. So one that does not fit is not read: no call is made, the result is
+`TOO_LONG` with "The document is too long for the model to read", and the submitter
+answers by hand. `AnswerIntakeService` logs it as `Document too long to read`, with the
+file, its size and the budget, in tokens. A too-long document is not a failure: a check
+records an unsure verdict or no pick and the other checks go on, and the main extraction
+goes on with the other forms.
 
-`AnswerIntakeService` logs every cut as `Document cut to fit`, with the file and how
-many characters were sent and left out. If there is not even room for the omission note,
-no call is planned and the model is not asked: the step fails with "The questions leave
-no room to show the model the document". A blank document fails with "The document has
-no text that can be read". Quotes are always checked against the whole document, so a
-quote from the part that was cut still counts.
+When the budget is under `MIN_DOCUMENT_TOKENS` (1000, about a page), the window is too
+small for the questions. The step then fails with "The questions leave no room to show
+the model the document" and records the problem, since only an administrator can fix
+that. A blank document fails with "The document has no text that can be read".
 
-This is a real limit: an answer that is only in the middle of a very long protocol is
-not found, and the confidence does not show it. Sending the whole document instead would
-get the call refused, and nothing would be answered at all.
+The upload limits (500 PDF pages, 50 MB a file) do not bound the text: a DOCX has no
+pages to count, pages differ in density, and a requirement can read several documents
+joined with its template. So the size is checked here, on the text itself.
+
+The form also warns the submitter (`ReadingSizeDescriber`, a `RequirementDescriber`).
+Each time the form is read, every check and every form with open questions that reads a
+document requirement's newest upload is sized as its reading would be, for the model
+active then: its own questions, its template, and the other documents it joins
+(`RequirementReader.isTooLong`). The sizes are the `tokens` the parses recorded, so no
+text is read. When one does not fit, the requirement gets `readingNotice`, "This
+document is too long for the model to read. Nothing will be suggested from it.", which
+the form shows under the attached documents. A document nothing reads, one not parsed
+yet, and settings that cannot be read give no warning. The reading measures the text
+itself and decides.
 
 ### Two tries, no more
 
@@ -698,9 +707,6 @@ The three anchors are found quickly, and only the text around each hit is compar
 by edit: from half a quote length before it to 1.5 quote lengths after it
 (`WINDOW_FACTOR`). A model that changed all three anchors did not copy the passage. A
 quote over 1000 characters that is not there word for word was made up, not copied.
-
-A quote is checked against the whole document, not only the part that fitted in the
-call. Where the token budget fell says nothing about whether a passage is real.
 
 Both sides are normalized by the same function, `QuoteVerifier.normalize`.
 `DocumentScan` normalizes the document line by line with it, so the document comes out
@@ -1008,7 +1014,8 @@ Messages the submitter can see in `extractionMessage`:
 | Unable to identify the <label> | A validation said `no`, and the intake took it |
 | Confirm the category to continue | The checks ended while a category is not confirmed |
 | The document has no text that can be read | The Markdown is blank |
-| The questions leave no room to show the model the document | The prompt fills the window |
+| The questions leave no room to show the model the document | The prompt leaves less than `MIN_DOCUMENT_TOKENS` of the window |
+| The document is too long for the model to read | The document does not fit in one call whole |
 | The model's answer could not be read | Two unreadable replies |
 | The model could not be reached | The call failed: the model is down, there are no active settings, the call slot did not come free in time, or the model answered with empty text (for example, it ran out of output tokens) |
 | The document's text could not be read | The stored Markdown could not be read back from the repository |
@@ -1040,7 +1047,7 @@ without adding anything. In order, for one submission:
 | `Category recorded` | `RecordCategoryHandler` | The submission, the question, and whether a pick was found |
 | `Main extraction queued` | `QueueMainExtractionHandler` | The submission |
 | `Reading step ended` | `EndReadingHandler` | The submission and how many forms were read, none for the checks |
-| `Document cut to fit` | `AnswerIntakeService` | The file, and how many characters were sent and left out |
+| `Document too long to read` | `AnswerIntakeService` | The file, its size and the budget, in tokens |
 | `LLM request served` | `OpenAIClient` (llm) | The model, with `gateWaitMs` and `callMs` kept apart |
 | `LLM call done` | `DefaultLLMClient` (llm) | The stage, the prompt size, `maxOutputTokens`, the milliseconds, the reply size |
 
@@ -1115,6 +1122,7 @@ confirm what the model picked.
 | `DocumentValidator` | component | the decision job | `DecisionChain.hasVerdict`, `IntakeTasks.findWaitingTask`, `RequirementReader.ask`, `ReadingJobs.sendOutcome` (`validated`), `ReadingJobs.findStillRunning`, `ReadingJobs.giveUpOwnReading`, engine (`complete` on the intake's task) |
 | `DocumentCategoriser` | component | the decision job | `RequirementReader.ask`, `ReadingJobs.sendOutcome` (`categorised`), `ReadingJobs.giveUpOwnReading` |
 | `RequirementReader` | component | `DocumentValidator`, `DocumentCategoriser`, the main extraction job | `ReadingRuns.setFiles`, `ParsedDocuments`, `DocumentScan.join`, `AnswerIntakeService` |
+| `ReadingSizeDescriber` | `RequirementDescriber` | the form servlet, for each document requirement | `FormsToRead`, `RequirementReader.isTooLong`, `LLMConfigurationService` |
 | `RecordValidationHandler` | handler `recordValidation` | `validated` | `ExtractedAnswers.writeRun`, `ExtractionStatus`, `Validation.getOutcome` |
 | `RecordCategoryHandler` | handler `recordCategory` | `categorised` | `ExtractionFields.write` |
 | `QueueMainExtractionHandler` | handler `queueMainExtraction` | `runMainExtraction` | `ReadingRequests` |
@@ -1198,7 +1206,6 @@ a public dataset from ClinicalTrials.gov and run it:
 | --- | --- |
 | Nothing runs `parseDocuments` when the submitter clicks Next after uploading | No upload is parsed on its own. Only `retryParse` sends one. |
 | The submission page only knows that a reading is running; the view that shows `extractionMessage` and where answers came from is not merged | Nobody sees why a reading failed, or which answers a model suggested |
-| Only the start and the end of a long document are read | The middle of a document longer than the context window is never read, and the confidence does not show it |
 | No workflow on this branch places `checkValid` and `recordSuggestionDistances` after its send task | A request can be sent while a document is read, and no answer is measured against its suggestion until a submission workflow places both |
 | No intake workflow on this branch waits for the validations | A schema whose workflow has no task for the decision job to complete gets its reading given up after the first verdict (see "Validating") |
 | Nothing completes the task of a validation whose optional document was left out | The intake must route around that task itself. If it waits there, the next validation finds no open task of its own, and the reading is given up |
@@ -1290,6 +1297,7 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `QueueMainExtractionHandler` | Service task `queueMainExtraction`: the submitter's Next; queues the main extraction once the category is confirmed |
 | `MainExtractionJobConsumer` | The background job that reads each form's open questions out of the documents it names |
 | `FormsToRead` | The forms the main extraction reads, their documents and their open questions |
+| `ReadingSizeDescriber` | Warns on a document requirement whose upload is too long for any reading of it |
 | `ReadingRequests` | What Next and Read again share: who may ask and when, and queueing the job |
 | `ReadingQueue` | Queues a reading job once the step that asks for it has committed, with the id of the reading it is for |
 | `ExtractedForm` | What the model read for one form, as the job hands it to `endReading` |

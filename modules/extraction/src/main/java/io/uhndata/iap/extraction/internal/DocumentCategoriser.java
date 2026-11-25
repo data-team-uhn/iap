@@ -18,7 +18,6 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,7 +28,6 @@ import org.osgi.service.component.annotations.Reference;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.OfferedOption;
-import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -71,22 +69,20 @@ public class DocumentCategoriser
     void categorise(final Resource submission, final String jobId, final ClassificationRequirement classification,
         final File file) throws ReadingEndedException, WorkflowException
     {
-        final Question question = Objects.requireNonNull(classification.getQuestion(),
-            "A classification's question is a mandatory reference");
-        final String key = ExtractionField.getKey(
-            SubmissionFiles.getSubmission(submission).getSchemaVersion().getPath(), question);
-        final IntakeResult result = this.reader.ask(submission.getPath(), RequirementReader.Request.of(classification,
-            file, ExtractionField.of(key, question, classification.getPrompt())));
+        final RequirementReader.Request request =
+            RequirementReader.Request.ofClassification(SubmissionFiles.getSubmission(submission), classification, file);
+        final String key = request.fields().get(0).key();
+        final IntakeResult result = this.reader.ask(submission.getPath(), request);
+        // A document too long to read gets no pick, as an unsure one, so the other checks still go on
         if (result.status() == AnswerIntakeService.Status.NOT_READ) {
             this.jobs.giveUpOwnReading(submission, jobId, result.message());
             throw new ReadingEndedException();
         }
         final FieldResult pick = result.fields().getOrDefault(key, FieldResult.createNotFound(key));
-        final boolean sure = isSurePick(pick, classification);
+        final FieldResult recorded = isSurePick(pick, classification) ? pick : FieldResult.createNotFound(key);
         this.jobs.sendOutcome(submission, new WorkflowEvent(CATEGORISED_EVENT, Map.of(
             ReadingEvents.JOB_KEY, jobId, ReadingEvents.REQUIREMENT_KEY, classification.getPath(),
-            ReadingEvents.FILE_KEY, file.getPath(),
-            ReadingEvents.RESULT_KEY, sure ? pick : FieldResult.createNotFound(key))));
+            ReadingEvents.FILE_KEY, file.getPath(), ReadingEvents.RESULT_KEY, recorded)));
     }
 
     /**

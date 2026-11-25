@@ -333,6 +333,24 @@ describe("SubmissionEditor", () => {
       expect(screen.queryByText("Nothing attached yet")).toBeNull();
     });
 
+    it("warns when the model cannot read the upload", async () => {
+      const notice = "This document is too long for the model to read. Nothing will be suggested from it.";
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ], readingNotice: notice })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(notice);
+    });
+
+    it("warns about nothing when the model can read the upload", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      await screen.findByRole("link", { name: "note.pdf" });
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
     it("names an attachment with no file yet without linking it", async () => {
       serving(asked({ attached: [ { title: "note.pdf" } ] }));
 

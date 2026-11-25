@@ -58,7 +58,7 @@ final class EvaluationRun
 
     private final List<Long> documentTokens = new ArrayList<>();
 
-    private int documentsCut;
+    private int documentsTooLong;
 
     private int unplanned;
 
@@ -155,8 +155,9 @@ final class EvaluationRun
         final DocumentReader.Reading reading, final JsonObject wanted, final long millis)
     {
         this.documentTokens.add(CallBudget.estimateTokens(text));
-        this.documentsCut += plan.document().wasCut() ? 1 : 0;
-        this.unplanned += plan.calls().isEmpty() ? 1 : 0;
+        this.documentsTooLong += plan.isTooLong() ? 1 : 0;
+        // A document too long to send is counted as such, not again as one not asked
+        this.unplanned += plan.calls().isEmpty() && !plan.isTooLong() ? 1 : 0;
         final JsonArrayBuilder callLines = Json.createArrayBuilder();
         for (final DocumentReader.Outcome outcome : reading.outcomes()) {
             this.outcomes.merge(outcome.getClass().getSimpleName(), 1, Integer::sum);
@@ -177,7 +178,7 @@ final class EvaluationRun
                 score));
         }));
         return Json.createObjectBuilder().add("document", id).add("millis", millis)
-            .add("cut", plan.document().wasCut()).add("omittedCharacters", plan.document().omittedCharacters())
+            .add("tooLong", plan.isTooLong()).add("documentTokens", plan.documentTokens())
             .add("calls", callLines).add("answers", answers).build();
     }
 
@@ -218,7 +219,7 @@ final class EvaluationRun
             .add("model", this.model)
             .add("promptFingerprint", computePromptFingerprint(ExtractionPrompt.readSystemPrompt()))
             .add("contextTokens", this.contextTokens)
-            .add("documents", this.documentTokens.size()).add("documentsCut", this.documentsCut)
+            .add("documents", this.documentTokens.size()).add("documentsTooLong", this.documentsTooLong)
             .add("documentsNotAsked", this.unplanned)
             .add("documentTokensMedian", sorted.isEmpty() ? 0 : sorted.get(sorted.size() / 2))
             .add("documentTokensMax", sorted.isEmpty() ? 0 : sorted.get(sorted.size() - 1))
@@ -236,9 +237,9 @@ final class EvaluationRun
      */
     static String toMarkdown(final JsonObject summary)
     {
-        final StringBuilder table = new StringBuilder(String.format("Model %s, prompt %s, %d documents (%d cut, %d"
+        final StringBuilder table = new StringBuilder(String.format("Model %s, prompt %s, %d documents (%d too long, %d"
             + " not asked, median %d tokens), %d calls (%d retried) %s, %d s%n%n", summary.getString("model"),
-            summary.getString("promptFingerprint"), summary.getInt("documents"), summary.getInt("documentsCut"),
+            summary.getString("promptFingerprint"), summary.getInt("documents"), summary.getInt("documentsTooLong"),
             summary.getInt("documentsNotAsked"), summary.getInt("documentTokensMedian"), summary.getInt("calls"),
             summary.getInt("callsRetried"), summary.getJsonObject("callOutcomes"), summary.getInt("seconds")));
         table.append("| Question | Found | Accuracy | Mean F1 | Quotes found | Unsupported | Confidence right/wrong |\n"

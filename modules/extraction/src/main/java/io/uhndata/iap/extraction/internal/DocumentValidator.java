@@ -106,8 +106,9 @@ public class DocumentValidator
     private void askAndRecordVerdict(final Resource submission, final String jobId,
         final ValidationRequirement requirement, final File file) throws ReadingEndedException, WorkflowException
     {
-        final IntakeResult result = this.reader.ask(submission.getPath(), RequirementReader.Request.of(requirement,
-            file, ExtractionField.createYesNo(VERDICT_KEY, requirement.getLabel(), requirement.getPrompt())));
+        final IntakeResult result = this.reader.ask(submission.getPath(),
+            RequirementReader.Request.ofValidation(requirement, file));
+        // A document too long to read gets no verdict, as an unsure one, so the other checks still go on
         if (result.status() == AnswerIntakeService.Status.NOT_READ) {
             this.jobs.giveUpOwnReading(submission, jobId, result.message());
             throw new ReadingEndedException();

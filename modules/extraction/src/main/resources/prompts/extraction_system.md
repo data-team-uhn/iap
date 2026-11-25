@@ -11,9 +11,7 @@ The user message holds these blocks, in this order:
 - `<document>`: the document, converted to Markdown. `<!-- page: N -->` marks where page N
   starts; documents converted from a word processor file have no page markers. Several
   documents sent together each start under their own top-level heading, such as
-  `# Preamble`. A document too long to send whole is sent as its opening and its end, with a
-  bracketed note in place of the middle. The text on either side of that note does not
-  follow on.
+  `# Preamble`.
 - `<reference>`, sometimes: reference material for these questions, such as what a document
   of this kind usually looks like. Use it to understand the questions and the categories.
   Never quote it: quotes come only from the document.

@@ -19,7 +19,9 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
@@ -32,9 +34,15 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.extraction.internal.FormsToRead.FormToRead;
+import io.uhndata.iap.llm.CallBudget;
+import io.uhndata.iap.llm.LLMSettings;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DecisionRequirement;
+import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Submission;
 
 /**
  * Asks the model a requirement's questions about the documents it reads: a validation's verdict, a
@@ -85,10 +93,41 @@ public class RequirementReader
          * @param field what the model answers
          * @return the request
          */
-        static Request of(final DecisionRequirement decision, final File file, final ExtractionField field)
+        private static Request of(final DecisionRequirement decision, final File file, final ExtractionField field)
         {
             return new Request(decision, decision.getTemplate(), decision.getDocumentRequirementName(), List.of(file),
                 List.of(), List.of(field));
+        }
+
+        /**
+         * Asks a validation's verdict, yes or no, about the document it checks.
+         *
+         * @param validation the validation
+         * @param file the parsed upload it reads
+         * @return the request
+         */
+        static Request ofValidation(final ValidationRequirement validation, final File file)
+        {
+            return of(validation, file, ExtractionField.createYesNo(DocumentValidator.VERDICT_KEY,
+                validation.getLabel(), validation.getPrompt()));
+        }
+
+        /**
+         * Asks a classification's pick, the answer to its question, about the document it sorts.
+         *
+         * @param submission the submission, whose schema version keys the question
+         * @param classification the classification
+         * @param file the parsed upload it reads
+         * @return the request
+         */
+        static Request ofClassification(final Submission submission, final ClassificationRequirement classification,
+            final File file)
+        {
+            final Question question = Objects.requireNonNull(classification.getQuestion(),
+                "A classification's question is a mandatory reference");
+            return of(classification, file, ExtractionField.of(
+                ExtractionField.getKey(submission.getSchemaVersion().getPath(), question), question,
+                classification.getPrompt()));
         }
 
         /**
@@ -127,6 +166,30 @@ public class RequirementReader
         }
         return this.intake.askQuestions(request.files().get(0), scan,
             List.of(new ExtractionPrompt.Group(request.group(), request.fields())), readTemplate(request));
+    }
+
+    /**
+     * Whether a request's documents are too long to send in one call, by the sizes their parses recorded. The
+     * reading measures the text itself and decides; this is what the submitter is warned of before it runs.
+     *
+     * @param request what would be asked
+     * @param settings the active model's settings
+     * @return {@code true} when the documents do not fit whole; {@code false} when they fit or a size is unknown
+     */
+    boolean isTooLong(final Request request, final LLMSettings settings)
+    {
+        final List<Long> sizes = request.files().stream().map(File::getTokens).collect(Collectors.toList());
+        if (sizes.contains(null)) {
+            return false;
+        }
+        // Joined documents each get a heading, which the model is sent too
+        final long headings = sizes.size() == 1 ? 0 : CallBudget.estimateTokens(
+            DocumentScan.join(request.labels(), Collections.nCopies(sizes.size(), "")).getText());
+        final long budget = ExtractionPrompt.calculateDocumentBudget(readTemplate(request),
+            List.of(new ExtractionPrompt.Group(request.group(), request.fields())),
+            (promptTokens, maxOutputTokens) -> CallBudget.calculateDocumentTokenBudget(settings, promptTokens,
+                maxOutputTokens));
+        return sizes.stream().mapToLong(Long::longValue).sum() + headings > budget;
     }
 
     /** The text sent to the model: one document as parsed, or several joined, each under its document's label. */

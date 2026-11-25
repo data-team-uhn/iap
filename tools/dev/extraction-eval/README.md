@@ -45,13 +45,13 @@ relative `tolerance`. A question with no expected answer is counted but not scor
 | --- | --- | --- |
 | `extraction.dataset` | none | The dataset folder; nothing runs without it |
 | `extraction.questions` | `<dataset>/questions.json` | Another schema to ask |
-| `extraction.model` | `Qwen3.8-27B` | The model, as the provider names it |
-| `extraction.contextTokens` | 131072 | The model's context window |
+| `extraction.model` | the LLM module's default model | The model, as the provider names it |
+| `extraction.contextTokens` | the model's window in the LLM catalogue | The model's context window |
 | `extraction.endpoint` | Prompter's | Any OpenAI-compatible endpoint |
 | `extraction.projectId` | `ia45-data` | Sent as `project_id` |
 | `extraction.limit` | all | Read only the first N documents |
 | `extraction.documents` | all | Read only these, comma-separated |
-| `extraction.dryRun` | `false` | Plan every call and send none: shows how many calls each document needs and which documents have to be cut, without a key |
+| `extraction.dryRun` | `false` | Plan every call and send none: shows how many calls each document needs and which documents are too long to read, without a key |
 
 The key is read from `PROMPTER_API_KEY`, as the LLM module reads it.
 

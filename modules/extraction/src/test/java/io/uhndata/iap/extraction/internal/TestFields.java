@@ -36,7 +36,7 @@ final class TestFields
         new ExtractionField.Option("drug", "Drug", "Including biologics and vaccines"),
         new ExtractionField.Option("device", "Medical device", null));
 
-    /** A context window big enough that no test document is cut. */
+    /** A context window big enough to hold every test document. */
     static final long WIDE_WINDOW = 200_000L;
 
     private TestFields()
@@ -88,8 +88,8 @@ final class TestFields
         return new ExtractionPrompt.Group(name, Arrays.stream(keys).map(TestFields::createTextField).toList());
     }
 
-    /** Plans the calls for a document under {@link #WIDE_WINDOW}, so the document is never cut. */
-    static ExtractionPrompt.Plan planWithoutCut(final String text, final List<ExtractionPrompt.Group> groups)
+    /** Plans the calls for a document under {@link #WIDE_WINDOW}, so every test document fits. */
+    static ExtractionPrompt.Plan planInWideWindow(final String text, final List<ExtractionPrompt.Group> groups)
     {
         return ExtractionPrompt.plan(text, null, groups,
             (prompt, reply) -> CallBudget.calculateDocumentTokenBudget(WIDE_WINDOW, prompt, reply));

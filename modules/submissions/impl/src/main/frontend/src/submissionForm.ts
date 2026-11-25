@@ -104,6 +104,8 @@ export interface DocumentRequirement extends Requirement {
   templateName?: string;
   // The documents attached for it; empty when none is
   attached: AttachedDocument[];
+  // A warning about reading the newest upload, such as that it is too long for the model; absent when there is none
+  readingNotice?: string;
 }
 
 // A requirement somebody else grants, with where it stands.

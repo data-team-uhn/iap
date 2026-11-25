@@ -91,7 +91,7 @@ public class MainExtractionJobConsumer implements JobConsumer, ReadingJob
         String failure = null;
         for (final FormToRead reading : this.formsToRead.getFormsToRead(model)) {
             final IntakeResult result = this.reader.ask(model.getPath(), RequirementReader.Request.of(reading));
-            if (result.status() == AnswerIntakeService.Status.NOT_READ) {
+            if (result.isNothingRead()) {
                 failure = Objects.requireNonNullElse(failure, result.message());
             } else {
                 forms.add(toExtractedForm(reading, result));

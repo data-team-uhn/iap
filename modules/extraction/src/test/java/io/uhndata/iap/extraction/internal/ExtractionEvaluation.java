@@ -19,6 +19,7 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.io.Writer;
 import java.lang.reflect.Method;
@@ -38,6 +39,7 @@ import java.util.stream.Stream;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonReader;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
@@ -78,6 +80,12 @@ class ExtractionEvaluation
 {
     private static final Logger LOGGER = Logger.getLogger(ExtractionEvaluation.class.getName());
 
+    /** The model catalogue the LLM module installs, which names each model's context window. */
+    private static final String CATALOGUE = "SLING-INF/content/libs/iap/config/LLM.json";
+
+    /** The LLM module's default settings, which name the active model. */
+    private static final String ACTIVE_SETTINGS = "SLING-INF/content/apps/iap/config/LLM.json";
+
     private static final String SCHEMA_PATH = "/Schemas/evaluation";
 
     private static final String RESOURCE_TYPE = "sling:resourceType";
@@ -94,13 +102,14 @@ class ExtractionEvaluation
     {
         final Path dataset = Path.of(System.getProperty("extraction.dataset"));
         final boolean dryRun = Boolean.getBoolean("extraction.dryRun");
-        final String model = System.getProperty("extraction.model", "Qwen3.8-27B");
-        final long contextTokens = Long.getLong("extraction.contextTokens", CallBudget.DEFAULT_CONTEXT_LIMIT_TOKENS);
+        final String model = System.getProperty("extraction.model",
+            readBundledJson(ACTIVE_SETTINGS).getString("activeModel"));
+        final long contextTokens = Long.getLong("extraction.contextTokens", findContextTokens(model));
         final List<ExtractionPrompt.Group> groups = loadQuestions(Path.of(System.getProperty("extraction.questions",
             dataset.resolve("questions.json").toString())));
         final JsonObject expected = Files.exists(dataset.resolve("expected.json"))
             ? readJson(Files.readString(dataset.resolve("expected.json"))) : JsonValue.EMPTY_JSON_OBJECT;
-        final LLMClient client = dryRun ? (system, messages, options) -> "{}" : buildClient(model, contextTokens);
+        final LLMClient client = createClient(dryRun, model, contextTokens);
         final Path results = dataset.resolve("results").resolve(
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-"
             + (dryRun ? "dry-run" : model.replaceAll("[^A-Za-z0-9.-]", "_")));
@@ -113,7 +122,8 @@ class ExtractionEvaluation
                 final String text = Files.readString(document);
                 final ExtractionPrompt.Plan plan = ExtractionPrompt.plan(text, null, groups,
                     (prompt, reply) -> CallBudget.calculateDocumentTokenBudget(contextTokens, prompt, reply));
-                if (!Files.exists(results.resolve(PROMPTS_FILE))) {
+                // From the first document that is sent, since a document too long to send has no calls to show
+                if (!plan.calls().isEmpty() && !Files.exists(results.resolve(PROMPTS_FILE))) {
                     writePrompts(results.resolve(PROMPTS_FILE), plan);
                 }
                 final long started = System.nanoTime();
@@ -124,7 +134,7 @@ class ExtractionEvaluation
                 details.write(run.scoreDocument(id, text, plan, reading, wanted, milliseconds).toString() + "\n");
                 details.flush();
                 LOGGER.info(() -> id + ": " + plan.calls().size() + " calls, "
-                    + (plan.document().wasCut() ? "cut" : "whole"));
+                    + (plan.isTooLong() ? "too long" : "whole"));
             }
         }
         final JsonObject summary = run.summarize();
@@ -132,6 +142,44 @@ class ExtractionEvaluation
         final String table = EvaluationRun.toMarkdown(summary);
         Files.writeString(results.resolve("summary.md"), table);
         LOGGER.info(() -> table + "\nResults in " + results);
+    }
+
+    /** The model to ask, or for a dry run a stand-in that answers nothing. */
+    private static LLMClient createClient(final boolean dryRun, final String model, final long contextTokens)
+        throws ReflectiveOperationException
+    {
+        return dryRun ? (system, messages, options) -> "{}"
+            : buildClient(model, contextTokens);
+    }
+
+    /**
+     * A model's context window, as the catalogue gives it.
+     *
+     * @param model the model's name, as the provider names it
+     * @return its window; the smallest window of any model when the catalogue does not list it
+     */
+    private static long findContextTokens(final String model) throws IOException
+    {
+        return readBundledJson(CATALOGUE).values().stream()
+            .filter(JsonObject.class::isInstance)
+            .map(provider -> ((JsonObject) provider).get(model))
+            .filter(JsonObject.class::isInstance)
+            .map(entry -> ((JsonObject) entry).getJsonNumber("contextLimitTokens").longValue())
+            .findFirst()
+            .orElse(CallBudget.DEFAULT_CONTEXT_LIMIT_TOKENS);
+    }
+
+    /** A JSON file the LLM module bundles, read from the test's classpath. */
+    private static JsonObject readBundledJson(final String path) throws IOException
+    {
+        try (InputStream in = ExtractionEvaluation.class.getClassLoader().getResourceAsStream(path)) {
+            if (in == null) {
+                throw new IOException("The LLM module does not bundle " + path);
+            }
+            try (JsonReader reader = Json.createReader(in)) {
+                return reader.readObject();
+            }
+        }
     }
 
     /**

@@ -34,15 +34,17 @@ import io.uhndata.iap.llm.CallBudget;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMClientFactory;
 import io.uhndata.iap.llm.LLMConfigurationService;
+import io.uhndata.iap.llm.LLMSettings;
 import io.uhndata.iap.submissions.models.File;
 
 /**
  * Asks the model a document's questions and checks its answers against the document. The calls are planned by
  * {@link ExtractionPrompt} and made by {@link DocumentReader}.
  *
- * <p>A long document is cut to its start and its end to fit the calls, but quotes are still checked against the
- * whole document. A call whose reply cannot be read twice loses only its own questions, and a model that cannot be
- * reached loses the questions of every call left. Lost questions get no run, so the next reading asks them again.</p>
+ * <p>The document is sent whole or not at all: one too long for the model's context window is not read, and the
+ * submitter is told so. A call whose reply cannot be read twice loses only its own questions, and a model that
+ * cannot be reached loses the questions of every call left. Lost questions get no run, so the next reading asks
+ * them again.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,9 +53,6 @@ import io.uhndata.iap.submissions.models.File;
 public class AnswerIntakeService
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(AnswerIntakeService.class);
-
-    /** The name of this step in the logs and in the budget warning. */
-    private static final String STAGE_NAME = "extraction";
 
     /** The operation a failure to reach the model is recorded under. */
     private static final String ASK_MODEL_OPERATION = "askModel";
@@ -77,7 +76,12 @@ public class AnswerIntakeService
         /** Some calls went through and others did not; the questions of the others are left unanswered. */
         INCOMPLETE,
         /** Nothing was read, and every question is left unanswered. */
-        NOT_READ
+        NOT_READ,
+        /**
+         * Nothing was read because the document does not fit in one call whole, so the submitter answers by hand.
+         * Unlike {@link #NOT_READ}, nothing failed: a step that reads several documents goes on with the others.
+         */
+        TOO_LONG
     }
 
     /**
@@ -108,6 +112,9 @@ public class AnswerIntakeService
 
         /** What the submitter is told when the model's context window cannot hold any of the document. */
         static final String NO_ROOM_MESSAGE = "The questions leave no room to show the model the document";
+
+        /** What the submitter is told when the document is too long for one request to the model. */
+        static final String TOO_LONG_MESSAGE = "The document is too long for the model to read";
 
         /** What the submitter is told when only some questions could be read. */
         static final String INCOMPLETE_MESSAGE = "Some questions could not be read. Read again to try them again";
@@ -170,7 +177,17 @@ public class AnswerIntakeService
             if (this.status == Status.READ) {
                 return null;
             }
-            return this.status == Status.NOT_READ && !this.isModelFailing ? this.message : INCOMPLETE_MESSAGE;
+            return isNothingRead() && !this.isModelFailing ? this.message : INCOMPLETE_MESSAGE;
+        }
+
+        /**
+         * Whether no question was read, because something failed or because the document is too long.
+         *
+         * @return {@code true} for {@link Status#NOT_READ} and {@link Status#TOO_LONG}
+         */
+        boolean isNothingRead()
+        {
+            return this.status == Status.NOT_READ || this.status == Status.TOO_LONG;
         }
 
         /**
@@ -182,6 +199,16 @@ public class AnswerIntakeService
         static IntakeResult createNotRead(final String message)
         {
             return new IntakeResult(Map.of(), Status.NOT_READ, message, false);
+        }
+
+        /**
+         * The result when the document does not fit in one call whole.
+         *
+         * @return a result with no fields, telling the submitter to answer by hand
+         */
+        static IntakeResult createTooLong()
+        {
+            return new IntakeResult(Map.of(), Status.TOO_LONG, TOO_LONG_MESSAGE, false);
         }
 
         /**
@@ -216,10 +243,45 @@ public class AnswerIntakeService
             LOGGER.warn("There is nothing to read for {}", file.getPath());
             return IntakeResult.createNotRead(IntakeResult.NO_TEXT_MESSAGE);
         }
+        try {
+            // Read before planning: a budget worked out without the model's own window would refuse documents
+            // the model can read
+            final LLMSettings settings = this.configurationService.getActiveSettings();
+            return askModel(this.llmClientFactory.getActiveClient(), settings, file, document, groups, references);
+        } catch (final IOException e) {
+            LOGGER.warn("No model can be asked about {}: {}", file.getPath(), e.getMessage());
+            // No active model is configured, or its settings cannot be read, which an administrator has to fix
+            ErrorLogger.logError(e, ErrorContext.of(AnswerIntakeService.class, ASK_MODEL_OPERATION)
+                .about(file.getPath()));
+            return IntakeResult.createModelFailure(IntakeResult.UNREACHABLE_MESSAGE);
+        }
+    }
+
+    /** Plans the calls for the active model, and makes them when the document fits. */
+    private static IntakeResult askModel(final LLMClient client, final LLMSettings settings, final File file,
+        final DocumentScan document, final List<ExtractionPrompt.Group> groups, final String references)
+    {
         final ExtractionPrompt.Plan plan = ExtractionPrompt.plan(document.getText(), references, groups,
-            (promptTokens, maxOutputTokens) -> CallBudget.calculateDocumentTokenBudget(this.configurationService,
-                promptTokens, maxOutputTokens, STAGE_NAME));
-        if (plan.calls().isEmpty()) {
+            (promptTokens, maxOutputTokens) -> CallBudget.calculateDocumentTokenBudget(settings, promptTokens,
+                maxOutputTokens));
+        if (plan.isTooLong()) {
+            return refuseDocument(file, plan);
+        }
+        final DocumentReader.Reading reading = DocumentReader.read(client, plan, document);
+        reportProblems(file, reading);
+        return summarize(reading);
+    }
+
+    /**
+     * The result for a document that does not fit in one call whole.
+     *
+     * @param file the parsed file, used to name it in the logs
+     * @param plan the plan that found it too long
+     * @return the refusal: too long, or no room at all when the window cannot hold a page beside the questions
+     */
+    private static IntakeResult refuseDocument(final File file, final ExtractionPrompt.Plan plan)
+    {
+        if (plan.isWindowTooSmall()) {
             // Without the document the model could only make answers up, so it is not asked
             LOGGER.warn("No room was left to show the model any of {}", file.getPath());
             // The model's context window is too small for the questions, which only an administrator can fix
@@ -227,23 +289,9 @@ public class AnswerIntakeService
                 ErrorContext.of(AnswerIntakeService.class, "plan").about(file.getPath()));
             return IntakeResult.createNotRead(IntakeResult.NO_ROOM_MESSAGE);
         }
-        if (plan.document().wasCut()) {
-            LOGGER.info("Document cut to fit: file={} documentChars={} sentChars={} omittedChars={}", file.getPath(),
-                document.getText().length(), plan.document().text().length(), plan.document().omittedCharacters());
-        }
-        final LLMClient client;
-        try {
-            client = this.llmClientFactory.getActiveClient();
-        } catch (final IOException e) {
-            LOGGER.warn("No model can be asked about {}: {}", file.getPath(), e.getMessage());
-            // No active model is configured, which an administrator has to fix
-            ErrorLogger.logError(e, ErrorContext.of(AnswerIntakeService.class, ASK_MODEL_OPERATION)
-                .about(file.getPath()));
-            return IntakeResult.createModelFailure(IntakeResult.UNREACHABLE_MESSAGE);
-        }
-        final DocumentReader.Reading reading = DocumentReader.read(client, plan, document);
-        reportProblems(file, reading);
-        return summarize(reading);
+        LOGGER.info("Document too long to read: file={} tokens={} budget={}", file.getPath(), plan.documentTokens(),
+            plan.documentBudget());
+        return IntakeResult.createTooLong();
     }
 
     /** Reports, once per reading, an outage of the model and a model that does not follow the reply's schema. */

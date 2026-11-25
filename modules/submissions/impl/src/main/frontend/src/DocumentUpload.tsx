@@ -93,8 +93,9 @@ export interface DocumentUploadProps {
   onAttached: () => void;
 }
 
-// Answers a document requirement: what has been attached for it, and a way to attach a file. It
-// offers no removal. A newer upload for the same requirement becomes a new version of the document.
+// Answers a document requirement: what has been attached for it, a way to attach a file, and any
+// warning about reading the upload. It offers no removal. A newer upload for the same requirement
+// becomes a new version of the document.
 function DocumentUpload({ path, requirement, disabled, queueSave, onAttached }: DocumentUploadProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -169,6 +170,7 @@ function DocumentUpload({ path, requirement, disabled, queueSave, onAttached }: 
             onPick={upload}
           />
         )}
+      {requirement.readingNotice ? <Alert severity="warning">{requirement.readingNotice}</Alert> : null}
     </Stack>
   );
 }

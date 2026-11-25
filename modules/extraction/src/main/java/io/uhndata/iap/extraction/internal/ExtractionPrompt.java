@@ -34,7 +34,7 @@ import io.uhndata.iap.llm.CallBudget;
  * then be asked in several small calls of at most {@link #MAX_FIELDS_PER_CALL}. A small call gives a short reply,
  * and a reply that cannot be read loses only its own questions.</p>
  *
- * <p>The document is fitted once, against the largest call, so it is the same in every call.</p>
+ * <p>The document is measured once, against the largest call, and is sent whole in every call or not at all.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,6 +49,12 @@ final class ExtractionPrompt
 
     /** The reply's room for each question: its quotes, its reasoning and its value. */
     static final long OUTPUT_TOKENS_PER_FIELD = 400;
+
+    /**
+     * The least room a document needs: about a page. A budget under it means the model's window is too small for
+     * the questions, so a document refused then is refused for the setting, not for its own length.
+     */
+    static final long MIN_DOCUMENT_TOKENS = 1000;
 
     private static final String DOCUMENT_START = "<document>\n";
 
@@ -106,13 +112,33 @@ final class ExtractionPrompt
     /**
      * The calls that ask every question of a document.
      *
-     * @param calls the calls, empty when there is nothing to ask or no room to show the document
-     * @param document the document as every call carries it, and how much of it had to be left out
+     * @param calls the calls, empty when there is nothing to ask or the document is too long to send whole
+     * @param documentTokens the document's estimated size, 0 when there is nothing to ask or read
+     * @param documentBudget the most tokens of document one call can carry, 0 when there is nothing to ask or read
      * @version $Id$
      * @since 0.1.0
      */
-    record Plan(List<Call> calls, CallBudget.FittedText document)
+    record Plan(List<Call> calls, long documentTokens, long documentBudget)
     {
+        /**
+         * Whether the document was left unread because it does not fit in one call whole.
+         *
+         * @return {@code true} when the document is too long for the model
+         */
+        boolean isTooLong()
+        {
+            return this.documentTokens > this.documentBudget;
+        }
+
+        /**
+         * Whether the model's window leaves too little room for any real document beside the questions.
+         *
+         * @return {@code true} when the budget is under {@link #MIN_DOCUMENT_TOKENS}
+         */
+        boolean isWindowTooSmall()
+        {
+            return this.documentBudget < MIN_DOCUMENT_TOKENS;
+        }
     }
 
     /**
@@ -123,35 +149,55 @@ final class ExtractionPrompt
      * @param groups the questions, grouped as they should be asked
      * @param documentBudget gives how many tokens the document may use, from the tokens of everything else in the
      *     call and the room the reply needs
-     * @return the plan; no calls when there is nothing to ask, the document is blank, or it does not fit at all
+     * @return the plan; no calls when there is nothing to ask, the document is blank, or it does not fit whole
      */
     static Plan plan(final String markdown, final String references, final List<Group> groups,
         final LongBinaryOperator documentBudget)
     {
         final List<Group> batches = splitIntoBatches(groups);
         if (batches.isEmpty() || markdown.isBlank()) {
-            return new Plan(List.of(), new CallBudget.FittedText("", false, 0));
+            return new Plan(List.of(), 0, 0);
+        }
+        final String document = markdown.strip();
+        final long documentTokens = CallBudget.estimateTokens(document);
+        final long budget = calculateDocumentBudget(references, groups, documentBudget);
+        if (documentTokens > budget) {
+            return new Plan(List.of(), documentTokens, budget);
         }
         final String systemPrompt = readSystemPrompt();
         final String referenceBlock = buildReferenceBlock(references);
-        final long largestQuestionBlockTokens = batches.stream()
-            .mapToLong(batch -> CallBudget.estimateTokens(buildQuestionBlock(batch.fields()))).max().orElse(0);
-        final long largestReplyTokens = batches.stream()
-            .mapToLong(batch -> calculateMaxOutputTokens(batch.fields())).max().orElse(0);
-        final long promptTokens = CallBudget.estimateTokens(systemPrompt)
-            + CallBudget.estimateTokens(DOCUMENT_START + DOCUMENT_END + PARAGRAPH_BREAK + referenceBlock)
-            + largestQuestionBlockTokens;
-        final CallBudget.FittedText document = CallBudget.fitToTokens(markdown.strip(),
-            documentBudget.applyAsLong(promptTokens, largestReplyTokens));
-        if (document.text().isEmpty()) {
-            return new Plan(List.of(), document);
-        }
-        final String opening = buildDocumentBlock(document.text()) + PARAGRAPH_BREAK + referenceBlock;
+        final String opening = buildDocumentBlock(document) + PARAGRAPH_BREAK + referenceBlock;
         final List<Call> calls = batches.stream()
             .map(batch -> new Call(batch.name(), batch.fields(), systemPrompt, opening,
                 ResponseSchema.build(batch.fields()), calculateMaxOutputTokens(batch.fields())))
             .toList();
-        return new Plan(calls, document);
+        return new Plan(calls, documentTokens, budget);
+    }
+
+    /**
+     * How many tokens of document one call can carry: what the model's window leaves beside the system prompt, the
+     * reference text, the largest call's questions and the room its reply needs.
+     *
+     * @param references reference text for these questions, or {@code null} for none
+     * @param groups the questions, grouped as they are asked
+     * @param documentBudget gives how many tokens the document may use, as for {@link #plan}
+     * @return the budget for the document, 0 when there is nothing to ask
+     */
+    static long calculateDocumentBudget(final String references, final List<Group> groups,
+        final LongBinaryOperator documentBudget)
+    {
+        final List<Group> batches = splitIntoBatches(groups);
+        if (batches.isEmpty()) {
+            return 0;
+        }
+        final long largestQuestionBlockTokens = batches.stream()
+            .mapToLong(batch -> CallBudget.estimateTokens(buildQuestionBlock(batch.fields()))).max().orElse(0);
+        final long largestReplyTokens = batches.stream()
+            .mapToLong(batch -> calculateMaxOutputTokens(batch.fields())).max().orElse(0);
+        final String wrapping = DOCUMENT_START + DOCUMENT_END + PARAGRAPH_BREAK + buildReferenceBlock(references);
+        final long promptTokens = CallBudget.estimateTokens(readSystemPrompt()) + CallBudget.estimateTokens(wrapping)
+            + largestQuestionBlockTokens;
+        return documentBudget.applyAsLong(promptTokens, largestReplyTokens);
     }
 
     /**
