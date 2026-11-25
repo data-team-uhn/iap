@@ -794,23 +794,24 @@ export default function ReviewScreen({ path }: { path: string }) {
     const isActive = active === pane;
     const paneMark = pane === "top" ? mark : belowMark;
     const setPaneMark = pane === "top" ? setMark : setBelowMark;
-    const heading = (
-      <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1 }}>
-        {/* Of two, the one whose notes are listed keeps its title's colour, as the notes' heading names it; the other's
-            is muted */}
+    // Alone, a part is headed by its title; of two, each has a title bar, as a dialog has, with the button closing it
+    // in its corner, the one whose notes are listed on their tint, its title in its colour, the other's muted
+    const title = <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{requirement.label}</Typography>;
+    const bar = bottom && (
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, pl: 2, pr: 1, py: 0.5, flexShrink: 0,
+        borderBottom: 1, borderColor: "divider", bgcolor: isActive ? "background.tinted" : "background.paper" }}>
         <Typography variant="h6" component="h2"
-          sx={{ mb: 0.5, flex: 1, minWidth: 0, ...bottom && !isActive ? { color: "text.disabled" } : {} }}>
+          sx={{ flex: 1, minWidth: 0, ...isActive ? {} : { color: "text.disabled" } }}>
           {requirement.label}
         </Typography>
-        {bottom && (
-          <Tooltip title="Close" disableInteractive>
-            <IconButton size="small" aria-label={`Close ${requirement.label}`} onClick={() => close(pane)}>
-              <CloseOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
+        <Tooltip title="Close" disableInteractive>
+          <IconButton aria-label={`Close ${requirement.label}`} onClick={() => close(pane)}>
+            <CloseOutlined />
+          </IconButton>
+        </Tooltip>
       </Stack>
     );
+    const heading = bar ? undefined : title;
     const document = isDocumentRequirement(requirement) ? data.documents.get(requirement.name) : undefined;
     return (
       <Box
@@ -819,6 +820,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           display: "flex", flexDirection: "column",
           ...bottom && isActive ? { boxShadow: theme => `inset 3px 0 0 ${theme.palette.primary.main}` } : {} }}
       >
+        {bar}
         {isFormRequirement(requirement) && (
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <SearchContext.Provider value={searchContext}>
@@ -840,7 +842,8 @@ export default function ReviewScreen({ path }: { path: string }) {
               actions={actions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
               onSearch={isActive ? setDocumentFound : ignore}
-              notesWidth={notesWidth} onNotesWidth={setNotesWidth} heading={heading} onShowAnswer={openAnswer}
+              notesWidth={notesWidth} onNotesWidth={setNotesWidth} heading={heading ?? <Box />}
+              onShowAnswer={openAnswer}
               notesSlot={isActive ? notesSlot : null}
               onClose={() => close(pane)}
             />

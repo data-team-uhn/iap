@@ -449,7 +449,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
       return (
         <FormNotes.Provider value={listing}>
           <Box ref={form} sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-            {heading && <Box sx={{ pl: 4, pr: 2, pt: 3 }}>{heading}</Box>}
+            {heading ? <Box sx={{ pl: 4, pr: 2, pt: 3 }}>{heading}</Box> : <Box sx={{ pt: 1.5 }} />}
             <Questions>{body}</Questions>
           </Box>
           {notesSlot && createPortal(list, notesSlot)}
