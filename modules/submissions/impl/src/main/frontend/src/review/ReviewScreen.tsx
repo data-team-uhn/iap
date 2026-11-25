@@ -841,11 +841,13 @@ export default function ReviewScreen({ path }: { path: string }) {
     const paneMark = pane === "top" ? mark : belowMark;
     const setPaneMark = pane === "top" ? setMark : setBelowMark;
     // Alone, a part is headed by its title; of two, each has a title bar, as a dialog has, with the button closing it
-    // in its corner, the one whose notes are listed on their tint, its title in its colour, the other's muted
+    // in its corner, the one whose notes are listed on their tint, its title in its colour and underlined, the other's
+    // muted
     const title = <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{requirement.label}</Typography>;
     const bar = bottom && (
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, pl: 2, pr: 1, py: 0.5, flexShrink: 0,
-        borderBottom: 1, borderColor: "divider", bgcolor: isActive ? "background.tinted" : "background.paper" }}>
+        borderBottom: 1, borderColor: "divider", bgcolor: isActive ? "background.tinted" : "background.paper",
+        ...isActive ? { boxShadow: theme => `inset 0 -2px 0 ${(theme.vars ?? theme).palette.primary.main}` } : {} }}>
         <Typography variant="h6" component="h2"
           sx={{ flex: 1, minWidth: 0, ...isActive ? {} : { color: "text.disabled" } }}>
           {requirement.label}
@@ -863,10 +865,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       <Box
         data-pane={pane} onPointerDownCapture={() => setActive(pane)} onFocusCapture={() => setActive(pane)}
         sx={{ flex: bottom ? `${pane === "top" ? splitAt : 1 - splitAt} 1 0` : "1 1 0", minHeight: 0,
-          display: "flex", flexDirection: "column", position: "relative",
-          // Of two, the one being worked in marked down its whole side, its title bar included, over what it shows
-          ...bottom && isActive ? { "&::before": { content: "\"\"", position: "absolute", left: 0, top: 0, bottom: 0,
-            width: 3, bgcolor: "primary.main", zIndex: 2, pointerEvents: "none" } } : {} }}
+          display: "flex", flexDirection: "column", position: "relative" }}
       >
         {bar}
         {isFormRequirement(requirement) && (
