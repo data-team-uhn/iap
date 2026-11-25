@@ -25,12 +25,12 @@ import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import HorizontalSplitOutlined from "@mui/icons-material/HorizontalSplitOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
+import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
   Box,
   Button,
   ButtonBase,
   DialogContentText,
-  FormControlLabel,
   IconButton,
   List,
   ListItemButton,
@@ -38,7 +38,6 @@ import {
   MenuItem,
   Paper,
   Stack,
-  Switch,
   Tooltip,
   TextField,
   ToggleButton,
@@ -49,6 +48,7 @@ import {
   type Theme,
 } from "@mui/material";
 
+import type { MarkKind } from "@iap/documents-pdf-viewer/marksModel";
 import { passageCard } from "@iap/documents-pdf-viewer/passageStyles";
 import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
@@ -929,41 +929,36 @@ export default function ReviewScreen({ path }: { path: string }) {
     </Box>
   );
   // Which kinds of notes are shown, for the whole submission: the contents' counts, what the page marks, and the notes
-  // listed. Each kind as the contents count it, on its tint with its icon, when shown; plain when not. Whether what is
-  // done with is shown too is a switch apart, about state rather than kind.
+  // listed. Each kind as the contents count it, on its tint with its icon, when shown; plain when not. Last, whether
+  // what is done with is shown too, the same way, on a neutral tint, having no kind's.
+  const toggleSx = (on: boolean, mark?: MarkKind) => (theme: Theme) => ({ display: "inline-flex", alignItems: "center",
+    gap: 0.5, px: 0.75, py: 0.25, borderRadius: 1, typography: "caption", lineHeight: 1.6,
+    ...!on ? { color: "text.secondary" } : mark ? { ...passageCard(theme, mark, 0.5), borderInlineStart: "none",
+      color: `${mark}.main`, fontWeight: "fontWeightMedium" }
+      : { bgcolor: "action.selected", color: "text.primary", fontWeight: "fontWeightMedium" },
+    "&:hover": on && mark ? { backgroundImage: passageCard(theme, mark, 0.8).backgroundImage }
+      : { bgcolor: on ? "action.focus" : "action.hover" },
+    "&.Mui-focusVisible": { outline: 2, outlineColor: "primary.main" } });
   const noteFilters = (
-    <Stack sx={{ gap: 0.75, flexShrink: 0, ...narrow ? {} : { px: 1.5, pt: 1.25, pb: 1, borderBottom: 1,
-      borderColor: "divider" } }}>
-      <Stack direction="row" role="group" aria-label="Which notes to show, in the whole submission"
-        sx={{ flexWrap: "wrap", alignItems: "center", gap: 0.5 }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
-        {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => {
-          const on = shown.has(info.kind);
-          return (
-            <ButtonBase
-              key={info.kind} aria-pressed={on} onClick={() => toggleKind(info.kind)}
-              sx={theme => ({ display: "inline-flex", alignItems: "center", gap: 0.5, px: 0.75, py: 0.25,
-                borderRadius: 1, typography: "caption", lineHeight: 1.6,
-                ...on ? { ...passageCard(theme, info.mark, 0.5), borderInlineStart: "none", color: `${info.mark}.main`,
-                  fontWeight: "fontWeightMedium" } : { color: "text.secondary" },
-                "&:hover": on ? { backgroundImage: passageCard(theme, info.mark, 0.8).backgroundImage }
-                  : { bgcolor: "action.hover" },
-                "&.Mui-focusVisible": { outline: 2, outlineColor: "primary.main" } })}
-            >
-              <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
-              {info.label}
-            </ButtonBase>
-          );
-        })}
-      </Stack>
-      <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive
-        placement="bottom-start">
-        <FormControlLabel
-          control={<Switch size="small" checked={showDone} onChange={(_event, checked) => setShowDone(checked)} />}
-          label="Resolved and dismissed"
-          slotProps={{ typography: { variant: "caption", sx: { color: "text.secondary" } } }}
-          sx={{ ml: -0.5, mr: 0, alignSelf: "flex-start" }}
-        />
+    <Stack direction="row" role="group" aria-label="Which notes to show, in the whole submission"
+      sx={{ flexWrap: "wrap", alignItems: "center", gap: 0.5, flexShrink: 0,
+        ...narrow ? {} : { px: 1.5, pt: 1.25, pb: 1, borderBottom: 1, borderColor: "divider" } }}>
+      <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
+      {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => {
+        const on = shown.has(info.kind);
+        return (
+          <ButtonBase key={info.kind} aria-pressed={on} onClick={() => toggleKind(info.kind)}
+            sx={toggleSx(on, info.mark)}>
+            <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
+            {info.label}
+          </ButtonBase>
+        );
+      })}
+      <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive>
+        <ButtonBase aria-pressed={showDone} onClick={() => setShowDone(!showDone)} sx={toggleSx(showDone)}>
+          <TaskAltOutlined sx={{ fontSize: "0.9rem", ...showDone ? {} : { opacity: 0.6 } }} />
+          Resolved and dismissed
+        </ButtonBase>
       </Tooltip>
     </Stack>
   );
