@@ -373,11 +373,11 @@ export default function ReviewScreen({ path }: { path: string }) {
   };
 
   // What each part has to read, counted in the contents: a note done with that a link shows meanwhile is not
-  const notesOf = useCallback((requirement: Requirement): ReviewNote[] => {
+  const notesOf = useCallback((requirement: Requirement, withDone = showDone): ReviewNote[] => {
     if (!data) {
       return [];
     }
-    const counted = data.notes.filter(note => showDone || !note.done);
+    const counted = data.notes.filter(note => withDone || !note.done);
     if (isFormRequirement(requirement)) {
       const uuids = questions(requirement.items)
         .map(question => data.answers.get(question.path)?.uuid).filter((one): one is string => Boolean(one));
@@ -387,6 +387,12 @@ export default function ReviewScreen({ path }: { path: string }) {
     return document
       ? notesAbout(counted, [ document.uuid, document.version ]).filter(note => note.passage) : [];
   }, [ data, showDone ]);
+  // What the filters count: the notes of the parts the contents list, each once though it is about two of them, as a
+  // contradiction is about an answer and the protocol
+  const listedNotes = [ ...new Map(listed.flatMap(one => notesOf(one, true)).map(note => [ note.id, note ])).values() ];
+  const kindCount = (kind: NoteKind) => listedNotes.filter(note => note.kind === kind && (showDone || !note.done))
+    .length;
+  const doneCount = listedNotes.filter(note => note.done && showing.has(note.kind)).length;
 
 
   // The reviewer group the reviewer reviews this submission for
@@ -948,7 +954,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           <ButtonBase key={info.kind} aria-pressed={on} onClick={() => toggleKind(info.kind)}
             sx={toggleSx(on, info.mark)}>
             <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
-            {info.label}
+            {info.label} ({kindCount(info.kind)})
           </ButtonBase>
         );
       })}
@@ -958,7 +964,7 @@ export default function ReviewScreen({ path }: { path: string }) {
         <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive>
           <ButtonBase aria-pressed={showDone} onClick={() => setShowDone(!showDone)} sx={toggleSx(showDone)}>
             <TaskAltOutlined sx={{ fontSize: "0.9rem", ...showDone ? {} : { opacity: 0.6 } }} />
-            Resolved and dismissed
+            Resolved and dismissed ({doneCount})
           </ButtonBase>
         </Tooltip>
       </Stack>
