@@ -140,13 +140,6 @@ describe("choosing data for a requirement", () => {
     expect(await screen.findByText("Choosing from 2026-06")).toBeInTheDocument();
   });
 
-  it("says so when the catalogue has published nothing", () => {
-    draw({ catalogueVersion: undefined });
-
-    expect(screen.getByText(/published nothing to choose from/)).toBeInTheDocument();
-    expect(useNode).not.toHaveBeenCalled();
-  });
-
   it("reports a catalogue it could not read", async () => {
     nodeRead({ loadError: "The server could not be reached." });
     draw();
@@ -239,11 +232,10 @@ describe("choosing data for a requirement", () => {
     expect(screen.getByRole("checkbox", BIRTH_DATE)).toBeChecked();
   });
 
-  it("takes a projection that states no fields and no version label", async () => {
-    draw({ fields: undefined, catalogueVersionLabel: undefined });
+  it("takes a projection that states no fields", async () => {
+    draw({ fields: undefined });
 
     expect(await screen.findByRole("button", { name: "records database" })).toBeInTheDocument();
-    expect(screen.queryByText(/^Choosing from/)).not.toBeInTheDocument();
   });
 });
 

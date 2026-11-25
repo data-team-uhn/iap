@@ -32,8 +32,8 @@ import io.uhndata.iap.entities.models.Entity;
  * A Sling Model wrapping a {@code datareq:Catalogue} node: what data a submitter may be asked to choose from.
  *
  * <p>The catalogue itself holds only a title and a description. What it lists lives in its
- * {@code datareq:CatalogueVersion} children, so a catalogue can publish a new version without changing anything
- * already filed against it.</p>
+ * {@code datareq:CatalogueVersion} children, so a catalogue can publish a new version without changing what a
+ * schema version already offers.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -82,19 +82,5 @@ public class Catalogue extends Entity
     public List<CatalogueVersion> getVersions()
     {
         return this.getChildren(CatalogueVersion.RESOURCE_TYPE, CatalogueVersion.class);
-    }
-
-    /**
-     * The version this catalogue currently offers: the one carrying the {@code active} lifecycle tag.
-     *
-     * @return the active version, or {@code null} if none of the versions are active
-     */
-    @Nullable
-    public CatalogueVersion getActiveVersion()
-    {
-        return this.getVersions().stream()
-            .filter(CatalogueVersion::isActive)
-            .findFirst()
-            .orElse(null);
     }
 }

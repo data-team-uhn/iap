@@ -20,8 +20,8 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { adminAuth } from '../../support/auth';
 import {
-  CURRENT_REGISTRY_LABEL, DATA_REQUIREMENT_NAME, DATA_STUDY_SCHEMA_VERSION, DATA_STUDY_WORKFLOW_VERSION, IN_BOTH,
-  ONLY_IN_V1, ONLY_IN_V2, REGISTRY,
+  CURRENT_REGISTRY_LABEL, CURRENT_REGISTRY_VERSION, DATA_REQUIREMENT_NAME, DATA_STUDY_SCHEMA_VERSION,
+  DATA_STUDY_WORKFLOW_VERSION, IN_BOTH, ONLY_IN_V1, ONLY_IN_V2, REGISTRY,
 } from '../../support/dataStudyDemo';
 
 /** The workflow version with its flow nodes, as the engine derived them from the diagram. */
@@ -103,7 +103,7 @@ test.describe('the data study demo', () => {
     expect(older).not.toContain(ONLY_IN_V2);
   });
 
-  test('installs a schema whose data requirement names the registry', async ({ request }) => {
+  test('installs a schema whose data requirement names a version of the registry', async ({ request }) => {
     const response = await request.get(`${DATA_STUDY_SCHEMA_VERSION}/${DATA_REQUIREMENT_NAME}.json`,
       { headers: adminAuth });
 
@@ -111,11 +111,15 @@ test.describe('the data study demo', () => {
     const requirement = (await response.json()) as {
       'jcr:primaryType'?: string;
       label?: string;
-      catalogue?: { '@path'?: string };
+      catalogue?: { '@path'?: string; version?: string; catalogue?: { '@path'?: string; title?: string } };
     };
     expect(requirement['jcr:primaryType']).toBe('datareq:DataRequirement');
     expect(requirement.label).toBe('Which data do you need?');
-    expect(requirement.catalogue?.['@path']).toBe(REGISTRY);
+    expect(requirement.catalogue).toEqual({
+      '@path': CURRENT_REGISTRY_VERSION,
+      version: CURRENT_REGISTRY_LABEL,
+      catalogue: { '@path': REGISTRY, title: 'Demo clinical registry' },
+    });
   });
 
   test('installs the workflow, and ships its diagram as a file', async ({ request }) => {

@@ -103,7 +103,8 @@ Options:
                                  attaches - connect with `jdb -attach 5005` (or
                                  your IDE).
       --test                     Additionally load test content (the
-                                 `iap-test-data` feature).
+                                 `iap-test-data` feature), along with the
+                                 optional modules it is written for.
       --demo                     Additionally load the demo projects (the
                                  `iap-demo-*` features): complete, working
                                  processes rather than sample content, along
@@ -409,14 +410,15 @@ def main(argv):
 
     # Allow referring to the current version with the literal token `VERSION` in launcher arguments
     launcher_args = [arg.replace('VERSION', platform_version) for arg in options['passthrough']]
+    # The test content and the data study demo both need the optional data requirement module, which
+    # the launched distribution leaves out. Without it, their content names node types nobody registered.
+    features = []
     if options['test']:
-        launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-test-data/%s/slingosgifeature' % platform_version]
+        features += ['iap-data-requirement-impl', 'iap-test-data']
     if options['demo']:
-        # The data study demo needs the optional data requirement module, which the launched
-        # distribution leaves out. Without it, the demo's content names node types nobody registered.
-        for feature in ('iap-demo-time-off-request', 'iap-data-requirement-impl',
-                        'iap-demo-data-study'):
-            launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (feature, platform_version)]
+        features += ['iap-demo-time-off-request', 'iap-data-requirement-impl', 'iap-demo-data-study']
+    for feature in dict.fromkeys(features):
+        launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (feature, platform_version)]
     # The document daemon runs beside a local instance, not as the compose service the aggregated
     # feature names by default
     launcher_args += ['-V', 'docling.url=http://localhost:18765']

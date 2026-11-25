@@ -26,7 +26,6 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
@@ -52,9 +51,6 @@ public class Selection extends EntityPart
     private String fulfills;
 
     @ValueMapValue
-    private String catalogueVersion;
-
-    @ValueMapValue
     private String[] fields;
 
     /**
@@ -78,18 +74,6 @@ public class Selection extends EntityPart
     public boolean fulfills(@NotNull final Requirement requirement)
     {
         return requirement.getIdentifier().equals(this.fulfills);
-    }
-
-    /**
-     * The catalogue version these fields were chosen from.
-     *
-     * @return a catalogue version, or {@code null} until the first save records one, or if this session cannot
-     *     read the referenced node
-     */
-    @Nullable
-    public CatalogueVersion getCatalogueVersion()
-    {
-        return this.getReference(this.catalogueVersion, CatalogueVersion.class);
     }
 
     /**

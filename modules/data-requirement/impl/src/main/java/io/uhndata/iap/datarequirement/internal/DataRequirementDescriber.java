@@ -31,8 +31,8 @@ import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.RequirementDescriber;
 
 /**
- * What a data requirement adds to a form: which catalogue version to browse, as
- * {@link DataRequirement#getVersionFor(Selection)} names it, and what has been chosen out of it already.
+ * What a data requirement adds to a form: which catalogue version to browse, and what has been chosen out of it
+ * already.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,12 +57,10 @@ public class DataRequirementDescriber implements RequirementDescriber
             selection.getFieldKeys().forEach(chosen::add);
         }
         json.add("fields", chosen);
-        final CatalogueVersion version = requirement.getVersionFor(selection);
-        if (version != null) {
-            // The path only: the browser loads the catalogue itself. A version is hundreds of fields, too many to
-            // copy into every requirement on the form
-            json.add("catalogueVersion", version.getPath());
-            json.add("catalogueVersionLabel", version.getVersion());
-        }
+        final CatalogueVersion version = requirement.getCatalogueVersion();
+        // The path only: the browser loads the catalogue itself. A version is hundreds of fields, too many to copy
+        // into every requirement on the form
+        json.add("catalogueVersion", version.getPath());
+        json.add("catalogueVersionLabel", version.getVersion());
     }
 }

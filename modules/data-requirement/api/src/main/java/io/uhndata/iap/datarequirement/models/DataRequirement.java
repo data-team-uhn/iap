@@ -31,7 +31,7 @@ import io.uhndata.iap.schemas.models.Requirement;
 
 /**
  * A Sling Model wrapping a {@code datareq:DataRequirement} node: a requirement asking the submitter which data
- * they need, answered by choosing fields out of a catalogue.
+ * they need, answered by choosing fields out of one version of a catalogue.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,15 +47,30 @@ public class DataRequirement extends Requirement
     private String catalogue;
 
     /**
-     * The catalogue whose fields this requirement offers.
+     * The catalogue version this requirement offers to choose from.
      *
-     * @return a catalogue
+     * @return a catalogue version
+     * @throws NullPointerException if the {@code catalogue} reference does not lead to a catalogue version
      */
     @NotNull
-    public Catalogue getCatalogue()
+    public CatalogueVersion getCatalogueVersion()
     {
-        return Objects.requireNonNull(this.getReference(this.catalogue, Catalogue.class),
-            "A data requirement names a catalogue, and everyone may read catalogues");
+        return Objects.requireNonNull(findCatalogueVersion(),
+            "A data requirement names a catalogue version, and everyone may read catalogues");
+    }
+
+    /**
+     * The catalogue version this requirement offers to choose from, for a caller that must report a broken
+     * reference rather than fail on it. A reference resolves to any node it points at, so the type is checked here.
+     *
+     * @return a catalogue version, or {@code null} if the {@code catalogue} reference is missing, cannot be read, or
+     *     points at something that is not a {@code datareq:CatalogueVersion}
+     */
+    @Nullable
+    public CatalogueVersion findCatalogueVersion()
+    {
+        final CatalogueVersion pinned = this.getReference(this.catalogue, CatalogueVersion.class);
+        return pinned != null && pinned.isOfType(CatalogueVersion.RESOURCE_TYPE) ? pinned : null;
     }
 
     /**
@@ -71,23 +86,5 @@ public class DataRequirement extends Requirement
             .filter(selection -> selection.fulfills(this))
             .findFirst()
             .orElse(null);
-    }
-
-    /**
-     * The catalogue version a selection is read against: the one it records, or else the catalogue's active one.
-     *
-     * <p>Once a selection records a version, that version stays. A submitter who started before a new version was
-     * published carries on with the version they started in. A reviewer reading a filed request sees what was on
-     * offer at the time.</p>
-     *
-     * @param selection the selection answering this requirement, or {@code null} if there is none yet
-     * @return a catalogue version, or {@code null} if the selection records none and the catalogue has no active
-     *     version
-     */
-    @Nullable
-    public CatalogueVersion getVersionFor(@Nullable final Selection selection)
-    {
-        final CatalogueVersion recorded = selection == null ? null : selection.getCatalogueVersion();
-        return recorded == null ? this.getCatalogue().getActiveVersion() : recorded;
     }
 }

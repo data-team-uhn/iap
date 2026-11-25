@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "datareq/catalogueVersion/actions",
+  "ext:name": "Retire the version",
+  "ext:renderURL": "asset:iap-data-requirement.CatalogueVersionRetireAction.js",
+  "defaultOrder": 30
+}

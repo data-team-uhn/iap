@@ -1,0 +1,15 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Catalogue pinning",
+  "description": "A draft whose data requirement names a retired catalogue version, so it cannot be published.",
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "tags": ["draft"],
+    "data": {
+      "jcr:primaryType": "datareq:DataRequirement",
+      "label": "Which data do you need?",
+      "jcr:reference:catalogue": "/Catalogues/lifecycleUnchanged/v1"
+    }
+  }
+}

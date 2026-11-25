@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:widgetGroup": "Configuration",
+  "ext:name": "Catalogues",
+  "ext:subtitle": "Publish or retire the data catalogues schemas ask submitters to choose from",
+  "ext:targetURL": "/admin/catalogues",
+  "ext:actionLabel": "Manage",
+  "ext:renderURL": "asset:iap-data-requirement.CataloguesWidget.js",
+  "defaultOrder": 6
+}

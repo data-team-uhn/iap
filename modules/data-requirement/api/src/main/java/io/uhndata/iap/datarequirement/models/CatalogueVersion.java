@@ -33,7 +33,7 @@ import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * A Sling Model wrapping a {@code datareq:CatalogueVersion} node: one published state of a catalogue, and the
- * unit a selection is made against.
+ * unit a data requirement offers to choose from.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,6 +47,9 @@ public class CatalogueVersion extends Entity
 
     /** The lifecycle tag of the version a catalogue currently offers. */
     private static final String ACTIVE_TAG = "active";
+
+    /** The lifecycle tag of a closed version, or of a closed catalogue and with it every version. */
+    private static final String RETIRED_TAG = "retired";
 
     @ValueMapValue
     private String version;
@@ -78,14 +81,17 @@ public class CatalogueVersion extends Entity
 
     /**
      * Whether this is the version its catalogue currently offers: whether it carries the {@code active} lifecycle
-     * tag. At most one version of a catalogue is expected to be active at a time.
+     * tag while neither it nor its catalogue is retired. A retired catalogue closes every version under it, through
+     * the inheritable {@code retired} tag. At most one version of a catalogue is expected to be active at a time.
      *
-     * @return {@code true} if it carries the tag, {@code false} if it does not or the tags service is unavailable
+     * @return {@code true} if it carries the {@code active} tag and no {@code retired} one, placed or inherited;
+     *     {@code false} otherwise, or if the tags service is unavailable
      */
     public boolean isActive()
     {
+        // Agenda 267 moves this rule into a lifecycle API shared by every versioned type
         final Taggable tags = this.as(Taggable.class);
-        return tags != null && tags.hasOwnTag(ACTIVE_TAG);
+        return tags != null && tags.hasOwnTag(ACTIVE_TAG) && !tags.hasTag(RETIRED_TAG);
     }
 
     /**

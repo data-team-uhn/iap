@@ -32,7 +32,6 @@ import io.uhndata.iap.datarequirement.models.CatalogueVersion;
 import io.uhndata.iap.datarequirement.models.DataRequirement;
 import io.uhndata.iap.datarequirement.models.Selection;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -50,9 +49,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>Each save replaces the whole selection. Clearing it or ticking a whole collection changes many fields at once,
  * and the complete list carries that without separate messages for additions and removals.</p>
  *
- * <p>The keys are checked against the catalogue version that {@link DataRequirement#getVersionFor(Selection)}
- * names, and the selection records that version. That method returns the version a selection already records, so
- * every later save uses the same one.</p>
+ * <p>The keys are checked against the catalogue version the requirement names.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,9 +69,6 @@ public class SaveDataSelectionHandler implements ServiceTaskHandler
     /** Where a selection records the chosen field keys. */
     private static final String FIELDS_PROPERTY = "fields";
 
-    /** Where a selection records which version it was chosen from. */
-    private static final String CATALOGUE_VERSION_PROPERTY = "catalogueVersion";
-
     @Override
     public String getName()
     {
@@ -88,13 +82,11 @@ public class SaveDataSelectionHandler implements ServiceTaskHandler
         checkMaySave(submission, context.getActor());
         final DataRequirement requirement = getRequirement(submission, context);
         final Selection selection = getSelection(submission, requirement);
-        final CatalogueVersion version = getVersion(requirement, selection);
         final String[] chosen = getChosenKeys(context);
-        checkOffered(version, chosen);
+        checkOffered(requirement.getCatalogueVersion(), chosen);
 
         VersioningUtils.checkOut(context.getTarget());
         final Resource stored = getResource(context.getTarget(), selection);
-        ReferenceUtils.setReference(stored, CATALOGUE_VERSION_PROPERTY, version);
         recordFields(stored, chosen);
         context.recordRole(stored, "chose data for " + requirement.getLabel());
     }
@@ -170,24 +162,6 @@ public class SaveDataSelectionHandler implements ServiceTaskHandler
     {
         return Objects.requireNonNull(requirement.findSelectionIn(submission),
             "The parts step gives every data requirement that applies a selection");
-    }
-
-    /**
-     * The catalogue version the chosen keys are checked against.
-     *
-     * @param requirement the requirement being answered
-     * @param selection the selection answering it
-     * @return the version
-     * @throws InvalidPayloadException when the selection records no version and the catalogue has no active one
-     */
-    private CatalogueVersion getVersion(final DataRequirement requirement, final Selection selection)
-        throws InvalidPayloadException
-    {
-        final CatalogueVersion version = requirement.getVersionFor(selection);
-        if (version == null) {
-            throw new InvalidPayloadException("The catalogue this request asks about has no active version");
-        }
-        return version;
     }
 
     /**

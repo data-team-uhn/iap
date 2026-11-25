@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Records the fields a submitter chose for a data requirement, against the catalogue version of the first save.",
+    "description": "Records the fields a submitter chose for a data requirement, from the catalogue version it names.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

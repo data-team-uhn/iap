@@ -188,6 +188,7 @@ repository content does.
 | Tool | Path | Module | Group | `defaultOrder` |
 |---|---|---|---|---|
 | Schemas | `/admin/schemas` | `schemas/impl` | Configuration | 5 |
+| Catalogues | `/admin/catalogues` | `data-requirement/impl` | Configuration | 6 |
 | Submission categories | `/admin/categories` | `categories` | Configuration | 10 |
 | Workflows | `/admin/workflows` | `workflows` | Configuration | 20 |
 | LLM configuration | `/admin/llm` | `llm` | Configuration | 30 |
@@ -195,7 +196,8 @@ repository content does.
 | Archive | `/admin/archive` | `deletion` | Operations | 30 |
 | Caught mail | `/admin/mail` | `email-catcher` | Operations | 40 |
 
-Caught mail is a development tool. It ships everywhere and is off until somebody
+Catalogues ships with the optional data requirement module, so only a distribution that
+includes it has the tool. Caught mail is a development tool. It ships everywhere and is off until somebody
 switches it on. See [catching mail](notifications.md#catching-mail-in-development).
 
 ## Future work

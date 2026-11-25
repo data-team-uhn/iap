@@ -48,12 +48,12 @@ class CatalogueSummaryProcessorTest
 
     private static final String REQUIREMENT_TYPE = "datareq:DataRequirement";
 
-    private static final String SELECTION_TYPE = "datareq:Selection";
+    private static final String CATALOGUE = "catalogue";
 
-    /** Stands in for the catalogue as `dereference` inlined it, every version included. */
+    /** Stands in for the version as `dereference` inlined it, every database included. */
     private static final JsonValue INLINED = Json.createObjectBuilder()
-        .add("jcr:primaryType", "datareq:Catalogue")
-        .add("v1", Json.createObjectBuilder())
+        .add("jcr:primaryType", "datareq:CatalogueVersion")
+        .add("records", Json.createObjectBuilder())
         .build();
 
     private final CatalogueSummaryProcessor processor = new CatalogueSummaryProcessor();
@@ -69,50 +69,53 @@ class CatalogueSummaryProcessorTest
     }
 
     @Test
-    void summarizesTheCatalogueARequirementNames() throws RepositoryException
+    void summarizesTheCatalogueVersionARequirementNames() throws RepositoryException
     {
-        final JsonValue summary = process(REQUIREMENT_TYPE, "catalogue", target(CATALOGUE_PATH, "title", "Clinical"));
+        final Node version = named(VERSION_PATH, "version", "2026-08");
+        final Node catalogue = named(CATALOGUE_PATH, "title", "Clinical");
+        Mockito.when(version.getParent()).thenReturn(catalogue);
 
-        assertEquals(Json.createObjectBuilder().add("@path", CATALOGUE_PATH).add("title", "Clinical").build(),
-            summary);
+        final JsonValue summary = process(REQUIREMENT_TYPE, CATALOGUE, version);
+
+        assertEquals(Json.createObjectBuilder()
+            .add("@path", VERSION_PATH)
+            .add("version", "2026-08")
+            .add(CATALOGUE, Json.createObjectBuilder().add("@path", CATALOGUE_PATH).add("title", "Clinical"))
+            .build(), summary);
     }
 
     @Test
-    void summarizesTheVersionASelectionRecords() throws RepositoryException
+    void leavesOutNamesTheReaderCannotSee() throws RepositoryException
     {
-        final JsonValue summary = process(SELECTION_TYPE, "catalogueVersion", target(VERSION_PATH, "version", "2026"));
+        final Node version = unnamed(VERSION_PATH);
+        final Node catalogue = unnamed(CATALOGUE_PATH);
+        Mockito.when(version.getParent()).thenReturn(catalogue);
 
-        assertEquals(Json.createObjectBuilder().add("@path", VERSION_PATH).add("version", "2026").build(), summary);
-    }
+        final JsonValue summary = process(REQUIREMENT_TYPE, CATALOGUE, version);
 
-    @Test
-    void leavesOutANameTheReaderCannotSee() throws RepositoryException
-    {
-        final Node unnamed = Mockito.mock(Node.class);
-        Mockito.when(unnamed.getPath()).thenReturn(CATALOGUE_PATH);
-
-        final JsonValue summary = process(REQUIREMENT_TYPE, "catalogue", unnamed);
-
-        assertEquals(Json.createObjectBuilder().add("@path", CATALOGUE_PATH).build(), summary);
+        assertEquals(Json.createObjectBuilder()
+            .add("@path", VERSION_PATH)
+            .add(CATALOGUE, Json.createObjectBuilder().add("@path", CATALOGUE_PATH))
+            .build(), summary);
     }
 
     @Test
     void leavesOtherPropertiesAlone() throws RepositoryException
     {
-        assertSame(INLINED, process(SELECTION_TYPE, "fulfills", target(CATALOGUE_PATH, "title", "Clinical")));
+        assertSame(INLINED, process(REQUIREMENT_TYPE, "fulfills", unnamed(VERSION_PATH)));
     }
 
     @Test
     void leavesTheSamePropertyOnAnotherNodeAlone() throws RepositoryException
     {
-        assertSame(INLINED, process("sch:FormRequirement", "catalogue", target(CATALOGUE_PATH, "title", "Clinical")));
+        assertSame(INLINED, process("sch:FormRequirement", CATALOGUE, unnamed(VERSION_PATH)));
     }
 
     @Test
-    void leavesACatalogueTheReaderCannotReachAsItWas() throws RepositoryException
+    void leavesAVersionTheReaderCannotReachAsItWas() throws RepositoryException
     {
         final Node node = node(REQUIREMENT_TYPE);
-        final Property property = property("catalogue");
+        final Property property = property(CATALOGUE);
         Mockito.when(property.getNode()).thenThrow(new RepositoryException("unreachable"));
 
         assertSame(INLINED, this.processor.processProperty(node, property, INLINED, this.serializeNode));
@@ -140,12 +143,18 @@ class CatalogueSummaryProcessorTest
         return property;
     }
 
-    private static Node target(final String path, final String nameProperty, final String name)
-        throws RepositoryException
+    private static Node unnamed(final String path) throws RepositoryException
     {
         final Node target = Mockito.mock(Node.class);
-        final Property named = Mockito.mock(Property.class);
         Mockito.when(target.getPath()).thenReturn(path);
+        return target;
+    }
+
+    private static Node named(final String path, final String nameProperty, final String name)
+        throws RepositoryException
+    {
+        final Node target = unnamed(path);
+        final Property named = Mockito.mock(Property.class);
         Mockito.when(target.hasProperty(nameProperty)).thenReturn(true);
         Mockito.when(target.getProperty(nameProperty)).thenReturn(named);
         Mockito.when(named.getString()).thenReturn(name);
