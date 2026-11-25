@@ -48,9 +48,9 @@ export const NOTE_KINDS: NoteKindInfo[] = [
     mark: "warning" },
   { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", choice: "AI pre-review", mark: "assistant" },
   { kind: "issue", label: "Your issues", single: "Issue", choice: "Issue", mark: "issue" },
-  { kind: "otherIssue", label: "Others' issues", single: "Issue", choice: "Issue", mark: "otherIssue" },
   { kind: "discussion", label: "Reviewer discussion", single: "Discussion", choice: "Discussion", mark: "discussion" },
   { kind: "note", label: "Notes to self", single: "Note to self", choice: "Note to self", mark: "annotation" },
+  { kind: "otherIssue", label: "Others' issues", single: "Issue", choice: "Issue", mark: "otherIssue" },
 ];
 
 export function kindInfo(kind: NoteKind): NoteKindInfo {
