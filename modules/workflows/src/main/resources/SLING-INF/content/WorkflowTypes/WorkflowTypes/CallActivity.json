@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:ActivityType",
   "label": "Call Activity",
   "description": "Begins another workflow as a step here, and carries on once it finishes.",
-  "category": ["Activities"],
+  "category": ["Call Activity"],
   "priority": 0,
   "xmlElement": "bpmn:callActivity",
   "jcrNodeType": "wf:Activity",

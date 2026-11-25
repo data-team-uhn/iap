@@ -107,6 +107,7 @@ describe("ChoiceSelect", () => {
     renderSelect({ readOnly: true });
 
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(screen.getByText("Shown as: List")).toBeInTheDocument();
+    expect(screen.getByText("Shown as")).toBeInTheDocument();
+    expect(screen.getByText("List")).toBeInTheDocument();
   });
 });

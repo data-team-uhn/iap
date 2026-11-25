@@ -125,6 +125,7 @@ describe("MultiValueInput", () => {
     const { input } = renderInput({ choices: FORMATS, values: [ "pdf", "doc" ], readOnly: true });
 
     expect(input).toBeNull();
-    expect(screen.getByText("Tags: PDF, Word")).toBeInTheDocument();
+    expect(screen.getByText("Tags")).toBeInTheDocument();
+    expect(screen.getByText("PDF, Word")).toBeInTheDocument();
   });
 });

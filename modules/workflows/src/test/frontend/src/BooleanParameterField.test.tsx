@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 
 import BooleanParameterField from "@iap/workflows/BooleanParameterField";
 
@@ -25,16 +25,20 @@ import { renderField } from "./parameterField.fixture";
 describe("a parameter holding yes or no", () => {
   it("reads a boolean as a word rather than as a tick nobody can move", () => {
     renderField(BooleanParameterField, { dataType: "boolean" }, [ "true" ], { readOnly: true });
-    expect(screen.getByText("To state: Yes")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("Yes")).toBeInTheDocument();
 
+    cleanup();
     renderField(BooleanParameterField, { dataType: "boolean" }, [ "false" ], { readOnly: true });
-    expect(screen.getByText("To state: No")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("No")).toBeInTheDocument();
   });
 
   it("reads a word the server ignores as written rather than as no", () => {
     renderField(BooleanParameterField, { dataType: "boolean", maxValues: 0 }, [ "yes", "false" ], { readOnly: true });
 
-    expect(screen.getByText("To state: yes, No")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("yes, No")).toBeInTheDocument();
   });
 
   it("shows a word the server ignores as it was written, flagged, and lets a valid one replace it", async () => {
@@ -90,7 +94,8 @@ describe("a parameter holding yes or no", () => {
   it("reads several values each as a word", () => {
     renderField(BooleanParameterField, { dataType: "boolean", maxValues: 0 }, [ "true", "false" ], { readOnly: true });
 
-    expect(screen.getByText("To state: Yes, No")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("Yes, No")).toBeInTheDocument();
   });
 
   it("takes several values as chips picked from yes and no", async () => {

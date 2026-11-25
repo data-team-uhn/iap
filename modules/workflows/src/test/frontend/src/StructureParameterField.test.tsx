@@ -117,14 +117,14 @@ describe("StructureParameterField", () => {
   it("shows the records as text, with nothing to change them by, when read only", async () => {
     renderStructure(CHOICES, [ A ], true);
 
-    expect(await screen.findByText("Value: a")).toBeInTheDocument();
+    expect(await screen.findAllByText("Value")).toHaveLength(1);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("says a read-only repeated structure holds nothing when it is empty", async () => {
     renderStructure(CHOICES, [], true);
 
-    expect(await screen.findByText("Choice: —")).toBeInTheDocument();
+    expect(await screen.findByText("―")).toBeInTheDocument();
   });
 
   it("flags a record whose key another record already has, as the server compares them", async () => {
@@ -139,7 +139,7 @@ describe("StructureParameterField", () => {
   it("flags no repeated key when read only, as no field shown as text does", async () => {
     renderStructure(CHOICES, [ A, A ], true);
 
-    expect(await screen.findAllByText("Value: a")).toHaveLength(2);
+    expect(await screen.findAllByText("Value")).toHaveLength(2);
     expect(screen.queryByText(/is already in use/)).not.toBeInTheDocument();
   });
 

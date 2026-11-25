@@ -2,8 +2,9 @@
   "jcr:primaryType": "wf:GatewayType",
   "label": "Exclusive Gateway",
   "description": "Chooses exactly one path to follow: the first whose condition is met.",
-  "category": ["Gateways"],
+  "category": ["Gateway"],
   "priority": 0,
+  "elementTypeDefault": true,
   "xmlElement": "bpmn:exclusiveGateway",
   "jcrNodeType": "wf:ExclusiveGateway"
 }

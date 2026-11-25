@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import ChoiceSearch from "@iap/frontend-commons/inputs/ChoiceSearch";
 import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
 import MultiValueInput from "@iap/frontend-commons/inputs/MultiValueInput";
 import TextInput from "@iap/frontend-commons/inputs/TextInput";
@@ -25,6 +26,9 @@ import { countLimits, inputProps } from "./parameterWidget";
 import { isMultiple } from "./workflowTypes";
 
 import type { ParameterFieldProps } from "./parameterWidget";
+
+// Past this many choices a plain list is slow to scan, so it becomes a search.
+const SEARCH_ABOVE = 8;
 
 // A parameter edited as text: typed freely, or picked from the values its entry offers. This is also
 // the field for any type that has none of its own.
@@ -43,6 +47,9 @@ export default function TextParameterField(props: ParameterFieldProps) {
         chipError={value => refusal(parameter, value) !== undefined}
       />
     );
+  }
+  if (choices.length > SEARCH_ABOVE) {
+    return <ChoiceSearch {...inputProps(props)} choices={choices} />;
   }
   return choices.length > 0
     ? <ChoiceSelect {...inputProps(props)} choices={choices} />

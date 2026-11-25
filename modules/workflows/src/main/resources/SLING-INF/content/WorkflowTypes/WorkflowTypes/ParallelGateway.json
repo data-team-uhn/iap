@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:GatewayType",
   "label": "Parallel Gateway",
   "description": "Splits into paths that all run at once, or waits until every incoming path has arrived.",
-  "category": ["Gateways"],
+  "category": ["Gateway"],
   "priority": 0,
   "xmlElement": "bpmn:parallelGateway",
   "jcrNodeType": "wf:ParallelGateway"

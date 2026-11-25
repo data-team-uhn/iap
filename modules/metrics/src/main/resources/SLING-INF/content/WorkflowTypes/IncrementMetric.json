@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Increment Metric",
+  "category": ["Service Task", "Metrics"],
   "description": "Counts in a metric once the workflow's changes are saved.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

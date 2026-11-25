@@ -94,7 +94,8 @@ describe("PropertiesPanel", () => {
 
     await fire("selection.changed", { newSelection: [element("StartEvent_1", "Kick off")] });
 
-    expect(screen.getByText("Identifier: StartEvent_1")).toBeInTheDocument();
+    expect(screen.getByText("Identifier")).toBeInTheDocument();
+    expect(screen.getByText("StartEvent_1")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("Kick off");
     expect(screen.queryByText("Please select an element.")).not.toBeInTheDocument();
   });
@@ -146,8 +147,10 @@ describe("PropertiesPanel", () => {
 
     await fire("selection.changed", { newSelection: [element("StartEvent_1", "Kick off")] });
 
-    expect(screen.getByText("Identifier: StartEvent_1")).toBeInTheDocument();
-    expect(screen.getByText("Name: Kick off")).toBeInTheDocument();
+    expect(screen.getByText("Identifier")).toBeInTheDocument();
+    expect(screen.getByText("StartEvent_1")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Kick off")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
@@ -201,7 +204,8 @@ describe("PropertiesPanel", () => {
       businessObject: { $type: "bpmn:userTask", name: "Review" },
     } as unknown as Element ] });
 
-    expect(screen.getByText("Type: User task")).toBeInTheDocument();
+    expect(screen.getByText("Element Type")).toBeInTheDocument();
+    expect(screen.getByText("Service Task")).toBeInTheDocument();
   });
 
   it("ignores changes when nothing is selected, or when nothing changed", async () => {
@@ -232,7 +236,8 @@ describe("PropertiesPanel", () => {
 
     expect(canvas.updateLabel).toHaveBeenCalledWith(first, "Firstly");
     expect((first.businessObject as { name?: string }).name).toBe("Firstly");
-    expect(screen.getByText("Identifier: B")).toBeInTheDocument();
+    expect(screen.getByText("Identifier")).toBeInTheDocument();
+    expect(screen.getByText("B")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("Second");
   });
 

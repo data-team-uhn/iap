@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Rename Content",
+  "category": ["Service Task", "Content"],
   "description": "Renames the item this request is about to the name the request gives, keeping its place among its siblings.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

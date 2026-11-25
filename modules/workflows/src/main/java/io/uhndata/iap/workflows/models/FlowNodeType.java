@@ -88,6 +88,9 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     @ValueMapValue
     private String jcrProperties;
 
+    @ValueMapValue
+    private boolean elementTypeDefault;
+
     /**
      * How specific this entry is, used to pick a winner when several entries match the same XML element: a message
      * start event and a plain start event both match {@code bpmn:startEvent}, and the higher priority of the former
@@ -177,6 +180,17 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
+     * Whether an element changed to this entry's element type in the editor becomes this entry, e.g. Exclusive
+     * Gateway among the four gateways.
+     *
+     * @return {@code true} if this entry is its element type's default
+     */
+    public boolean isElementTypeDefault()
+    {
+        return this.elementTypeDefault;
+    }
+
+    /**
      * The values a node of this kind carries beyond the ones every flow node has, in the order they are declared.
      * Each says what it is called, what may be put in it and where a diagram writes it.
      *
@@ -210,9 +224,9 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
-     * The toolbar groups this entry appears under in the visual editor, e.g. {@code Start Events}. Falls back on
-     * the {@link #getDefaultCategory() group implied by the kind of entry} when none is declared, so that a new
-     * entry always lands somewhere sensible.
+     * The element type the visual editor lists this entry under, then optionally a group within it, e.g.
+     * {@code Service Task} and {@code Content}. Falls back on the {@link #getDefaultCategory() kind of entry}, such
+     * as {@code Events}, when none is declared, so that a new entry always lands somewhere sensible.
      *
      * @return a copy of the group names, never empty
      */
@@ -227,9 +241,9 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
-     * The toolbar group entries of this kind belong to when they do not declare one of their own.
+     * The category entries of this kind fall under when they do not declare one of their own, e.g. {@code Events}.
      *
-     * @return a group name
+     * @return a category name
      */
     @NotNull
     protected abstract String getDefaultCategory();
@@ -240,7 +254,8 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
      * <p>On top of the common fields, this adds what the visual editor needs to recognize this entry's elements
      * and to offer a field for each of its parameters. That is the {@code priority} and the {@code xmlElement},
      * {@code xmlChildElement} and {@code xmlExtensionElement} it is written as. Then come the {@code jcrNodeType}
-     * it is stored as, and the {@code jcrProperties} and {@code parameters} when the entry declares any.</p>
+     * it is stored as, and the {@code jcrProperties} and {@code parameters} when the entry declares any. Last is
+     * {@code elementTypeDefault}, present only when true.</p>
      *
      * <p>Every one of them is added only once there is something to add, the mandatory ones included: an entry
      * missing them is malformed, and the catalogue serving the rest of the vocabulary without it is a better
@@ -267,6 +282,9 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
         final JsonObject fixedProperties = this.getJcrProperties();
         if (fixedProperties != null) {
             json.add("jcrProperties", fixedProperties);
+        }
+        if (this.elementTypeDefault) {
+            json.add("elementTypeDefault", true);
         }
         final List<Parameter> parameters = this.getParameters();
         if (!parameters.isEmpty()) {

@@ -164,7 +164,7 @@ shipped as a file named after the entry — `MessageStartEvent.json`:
 {
   "jcr:primaryType": "wf:CatchingEventType",
   "label": "Message Start Event",
-  "category": ["Start Events"],
+  "category": ["Start Event"],
   "priority": 10,
   "xmlElement": "bpmn:startEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
@@ -389,6 +389,19 @@ and which fields to offer for it, grouped by each entry's `category`. Each item 
 its `parameters`, each with the `label`, `description`, `dataType`, cardinality and options a field needs,
 and the `xmlLocation` and `xmlPath` it is written at. A structure also carries its `keyParameter`, and its
 fields as `parameters` of its own. **The shape of that output is a contract** the editor depends on.
+
+An entry's `category` is `[element type, group]`. The element type is what the panel's **Element Type** field
+lists (Task, User Task, Service Task, Call Activity, Start Event, Intermediate Event, End Event, Boundary Event,
+Gateway, Sequence Flow). The **"{Element Type} Type"** field appears when the element type has more than one
+entry. It lists them under group headings when they fall in more than one group, and an entry with no group falls
+under its element type. Service tasks are grouped by domain, such as Content or Workflows. Events and gateways
+have no group: their label already names what tells them apart, such as Message or Timer. Changing Element Type
+replaces the BPMN element, in one undo step, with the entry of that type flagged `elementTypeDefault`. With none flagged, it is
+the first entry by label that needs neither an extension element nor an event definition. Two shipped entries
+carry the flag: Exclusive Gateway and Intermediate Throw Event, since their types have several such entries.
+A deployment that adds an element type with several plain entries flags one in its own content. A boundary
+event or sequence flow is never replaced, and an element no entry describes shows a "Not recognised" warning in
+place of both fields. The type field is a search, and so is a parameter with more than eight options.
 
 ### Runtime
 

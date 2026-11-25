@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Retire Active Versions",
+  "category": ["Service Task", "Workflows"],
   "description": "Retires the active versions of the workflow this request is about.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

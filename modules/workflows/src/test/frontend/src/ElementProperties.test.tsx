@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import ElementProperties from "@iap/workflows/ElementProperties";
@@ -55,8 +55,9 @@ const createViewer = () => {
       return moddleElement(name, { ...attributes, set: vi.fn() }, { prefix, uri });
     }),
   };
-  const canvas = createCanvas({ moddle }, definitions);
-  return { ...canvas, moddle, definitions, destroy: () => canvas.fire("diagram.destroy") };
+  const bpmnReplace = { replaceElement: vi.fn() };
+  const canvas = createCanvas({ moddle, bpmnReplace }, definitions);
+  return { ...canvas, moddle, bpmnReplace, definitions, destroy: () => canvas.fire("diagram.destroy") };
 };
 
 const VOCABULARY = [ SET_STATE, RETIRE_ACTIVE_VERSIONS, SERVICE_TASK ];
@@ -94,7 +95,8 @@ describe("ElementProperties", () => {
 
     renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, viewer);
 
-    expect(screen.getByText("Identifier: Task_1")).toBeInTheDocument();
+    expect(screen.getByText("Identifier")).toBeInTheDocument();
+    expect(screen.getByText("Task_1")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("Review");
   });
 
@@ -122,7 +124,8 @@ describe("ElementProperties", () => {
     renderProperties(task("Promote", { $attrs: { "iap:colour": "promoted" } }), viewer,
       { types: VOCABULARY });
 
-    expect(screen.getByText("Identifier: promote")).toBeInTheDocument();
+    expect(screen.getByText("Identifier")).toBeInTheDocument();
+    expect(screen.getByText("promote")).toBeInTheDocument();
     expect(field("Colour")).toHaveValue("promoted");
   });
 
@@ -132,8 +135,10 @@ describe("ElementProperties", () => {
     renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, viewer,
       { readOnly: true });
 
-    expect(screen.getByText("Identifier: Task_1")).toBeInTheDocument();
-    expect(screen.getByText("Name: Review")).toBeInTheDocument();
+    expect(screen.getByText("Identifier")).toBeInTheDocument();
+    expect(screen.getByText("Task_1")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Review")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
@@ -185,9 +190,10 @@ describe("ElementProperties", () => {
     renderProperties({ id: "Flow_1", businessObject: { $type: "bpmn:sequenceFlow" } } as unknown as Element,
       viewer, { types: VOCABULARY });
 
-    expect(screen.getByText("Identifier: Flow_1")).toBeInTheDocument();
+    expect(screen.getByText("Identifier")).toBeInTheDocument();
+    expect(screen.getByText("Flow_1")).toBeInTheDocument();
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
-    expect(noField("Type")).not.toBeInTheDocument();
+    expect(noField("Element Type")).not.toBeInTheDocument();
   });
 
   it("offers the name alone while the vocabulary has not arrived", () => {
@@ -214,27 +220,41 @@ describe("ElementProperties", () => {
     expect(screen.getByText("TRIAL")).toBeInTheDocument();
   });
 
-  it("reports the kind of node as text when there is only one it could be", () => {
+  it("reports the element type as text when there is only one it could be", () => {
     const { viewer } = createViewer();
 
     renderProperties({ id: "start", businessObject: bpmnElement("StartEvent", { name: "Kick off" }) } as unknown as Element,
-      viewer, { types: [ type("StartEvent", { label: "Start event", xmlElement: "bpmn:startEvent" }) ] });
+      viewer, { types: [ type("StartEvent", { xmlElement: "bpmn:startEvent", category: [ "Start Event" ] }) ] });
 
-    expect(screen.getByText("Type: Start event")).toBeInTheDocument();
-    expect(noField("Type")).not.toBeInTheDocument();
+    expect(screen.getByText("Element Type")).toBeInTheDocument();
+    expect(screen.getByText("Start Event")).toBeInTheDocument();
+    expect(noField("Element Type")).not.toBeInTheDocument();
+    expect(noField("Start Event Type")).not.toBeInTheDocument();
   });
 
-  it("offers a choice of kinds when the element could be read as several", async () => {
+  it("lists the entries of an element type under their groups when there are several", async () => {
     const user = userEvent.setup();
-    const { viewer, updateModdleProperties, moddle } = createViewer();
+    const { viewer } = createViewer();
+    const grouped = { ...SET_STATE, category: [ "Service Task", "Workflows" ] };
+    renderProperties(task("Promote", carrying(setState("ACTIVE", []))), viewer, { types: [ SERVICE_TASK, grouped ] });
+
+    await user.click(field("Service Task Type"));
+
+    expect(within(screen.getByRole("listbox")).getByText("Workflows")).toBeInTheDocument();
+  });
+
+  it("offers a choice of entries within the element type when the element could be read as several", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties, moddle, bpmnReplace } = createViewer();
     const element = task("Promote", carrying(setState("ACTIVE", [])));
     renderProperties(element, viewer, { types: VOCABULARY });
-    expect(field("Type")).toHaveTextContent("Set state");
+    expect(field("Service Task Type")).toHaveValue("Set state");
 
-    await user.click(field("Type"));
+    await user.click(field("Service Task Type"));
     await user.click(screen.getByRole("option", { name: "Retire active versions" }));
 
-    // The element naming the kind being taken over arrives; the one naming the kind left behind goes
+    // The element naming the entry being taken over arrives; the one naming the entry left behind goes
+    expect(bpmnReplace.replaceElement).not.toHaveBeenCalled();
     expect(moddle.createAny).toHaveBeenCalledWith("iap:retireActiveVersions", IAP_NS, {});
     expect(updateModdleProperties).toHaveBeenCalledTimes(1);
     const [ reported, target, properties ] = updateModdleProperties.mock.calls[0] as unknown as
@@ -244,27 +264,105 @@ describe("ElementProperties", () => {
     expect(properties.extensionElements.values?.map(value => value.$type)).toEqual([ "iap:retireActiveVersions" ]);
   });
 
-  it("shows no kind at all for an element that matches none of the kinds it could be", () => {
+  it("says an element matching none of the entries is not recognised, and that the server skips it", () => {
     const { viewer } = createViewer();
 
     // Both candidates name an extension element, and the element carries neither
     renderProperties(task("Promote"), viewer, { types: [ SET_STATE, RETIRE_ACTIVE_VERSIONS ] });
 
-    const chosen = field("Type");
-    expect(chosen).not.toHaveTextContent("Set state");
-    expect(chosen).not.toHaveTextContent("Retire active versions");
+    expect(screen.getByText("Not recognised (serviceTask)")).toBeInTheDocument();
+    expect(screen.getByText("The server skips this element when it reads the diagram.")).toBeInTheDocument();
+    expect(noField("Service Task Type")).not.toBeInTheDocument();
     expect(noField("To state")).not.toBeInTheDocument();
   });
 
-  it("leaves the element alone when the choice is left at none", async () => {
-    const user = userEvent.setup();
-    const { viewer, updateModdleProperties } = createViewer();
-    renderProperties(task("Promote"), viewer, { types: [ SET_STATE, RETIRE_ACTIVE_VERSIONS ] });
+  it("names the BPMN element while there is no vocabulary to say more", () => {
+    const { viewer } = createViewer();
 
-    await user.click(field("Type"));
-    await user.click(screen.getByRole("option", { name: "None" }));
+    renderProperties(task("Promote"), viewer);
 
-    expect(updateModdleProperties).not.toHaveBeenCalled();
+    expect(screen.getByText("Element Type")).toBeInTheDocument();
+    expect(screen.getByText("serviceTask")).toBeInTheDocument();
+    expect(screen.queryByText(/Not recognised/)).not.toBeInTheDocument();
+  });
+
+  describe("changing the element type", () => {
+    const entry = (name: string, xmlElement: string, category: string[], extra: Partial<FlowNodeType> = {}) =>
+      type(name, { label: name, xmlElement: `bpmn:${xmlElement}`, category, priority: 0, ...extra });
+    const START = entry("StartEvent", "startEvent", [ "Start Event" ], { jcrNodeType: "wf:StartEvent" });
+    const TIMER = entry("TimerStart", "startEvent", [ "Start Event" ],
+      { jcrNodeType: "wf:StartEvent", xmlChildElement: "bpmn:timerEventDefinition", priority: 10 });
+    const TASK = entry("Task", "task", [ "Task" ]);
+    const BOUNDARY = entry("TimerBoundary", "boundaryEvent", [ "Boundary Event" ],
+      { xmlChildElement: "bpmn:timerEventDefinition" });
+    const ENTRIES = [ SERVICE_TASK, SET_STATE, START, TIMER, TASK, BOUNDARY ];
+
+    const taskElement = () =>
+      ({ id: "t", businessObject: bpmnElement("Task", { name: "Do" }) }) as unknown as Element;
+
+    it("redraws the element as the default entry of the element type chosen", async () => {
+      const user = userEvent.setup();
+      const { viewer, bpmnReplace, updateModdleProperties } = createViewer();
+      const replaced = { id: "t", businessObject: bpmnElement("ServiceTask", { name: "Do" }) } as unknown as Element;
+      bpmnReplace.replaceElement.mockReturnValue(replaced);
+      const element = taskElement();
+      renderProperties(element, viewer, { types: ENTRIES });
+
+      await user.click(field("Element Type"));
+      await user.click(screen.getByRole("option", { name: "Service Task" }));
+
+      expect(bpmnReplace.replaceElement)
+        .toHaveBeenCalledWith(element, { type: "bpmn:ServiceTask", eventDefinitionType: undefined });
+      expect(updateModdleProperties).toHaveBeenCalledWith(replaced, replaced.businessObject, expect.anything());
+    });
+
+    it("lists the element types it can change to, and none it cannot", async () => {
+      const user = userEvent.setup();
+      const { viewer } = createViewer();
+      renderProperties(taskElement(), viewer, { types: ENTRIES });
+
+      await user.click(field("Element Type"));
+
+      expect(screen.getAllByRole("option").map(option => option.textContent))
+        .toEqual([ "Service Task", "Start Event", "Task" ]);
+    });
+
+    it("redraws the element, with its event, when the entry chosen needs one", async () => {
+      const user = userEvent.setup();
+      const { viewer, bpmnReplace } = createViewer();
+      bpmnReplace.replaceElement.mockImplementation((element: Element) => element);
+      const element = { id: "s", businessObject: bpmnElement("StartEvent") } as unknown as Element;
+      renderProperties(element, viewer, { types: ENTRIES });
+
+      await user.click(field("Start Event Type"));
+      await user.click(screen.getByRole("option", { name: "TimerStart" }));
+
+      expect(bpmnReplace.replaceElement).toHaveBeenCalledWith(element,
+        { type: "bpmn:StartEvent", eventDefinitionType: "bpmn:TimerEventDefinition" });
+    });
+
+    it("lists the entries of an element type with one group under no heading", async () => {
+      const user = userEvent.setup();
+      const { viewer } = createViewer();
+      renderProperties({ id: "s", businessObject: bpmnElement("StartEvent") } as unknown as Element, viewer,
+        { types: ENTRIES });
+
+      await user.click(field("Start Event Type"));
+
+      expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(2);
+      expect(within(screen.getByRole("listbox")).queryByText("Start Event")).not.toBeInTheDocument();
+    });
+
+    it("offers a boundary event no other element type", () => {
+      const { viewer } = createViewer();
+      const element = { id: "b", businessObject: bpmnElement("BoundaryEvent", {
+        eventDefinitions: [ bpmnElement("TimerEventDefinition") ],
+      }) } as unknown as Element;
+      renderProperties(element, viewer, { types: ENTRIES });
+
+      expect(screen.getByText("Boundary Event")).toBeInTheDocument();
+      expect(noField("Element Type")).not.toBeInTheDocument();
+    });
   });
 
   it("writes one edit per value typed, not one per keystroke", async () => {
@@ -318,10 +416,14 @@ describe("ElementProperties", () => {
       ...carrying(setState("ACTIVE", [ "DRAFT", "TRIAL" ])),
     }), viewer, { types: VOCABULARY, readOnly: true });
 
-    expect(screen.getByText("Type: Set state")).toBeInTheDocument();
-    expect(screen.getByText("Colour: promoted")).toBeInTheDocument();
-    expect(screen.getByText("To state: ACTIVE")).toBeInTheDocument();
-    expect(screen.getByText("From states: DRAFT, TRIAL")).toBeInTheDocument();
+    expect(screen.getByText("Service Task Type")).toBeInTheDocument();
+    expect(screen.getByText("Set state")).toBeInTheDocument();
+    expect(screen.getByText("Colour")).toBeInTheDocument();
+    expect(screen.getByText("promoted")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("From states")).toBeInTheDocument();
+    expect(screen.getByText("DRAFT, TRIAL")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 

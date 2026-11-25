@@ -21,17 +21,23 @@ import { BpmnModdle } from "bpmn-moddle";
 import { elementName, localName } from "@iap/workflows/moddle";
 import type { ModdleElement } from "@iap/workflows/moddle";
 import {
+  applicableTypes,
+  elementTypeOf,
+  entriesOf,
   isMultiple,
   isRequired,
   isStructure,
   loadWorkflowTypes,
   matchFlowNodeType,
   parseWorkflowTypes,
-  selectableTypes,
+  replacementFor,
+  switchableTypes,
+  typeGroupOf,
   WORKFLOW_TYPES_PATH,
 } from "@iap/workflows/workflowTypes";
+import type { FlowNodeType } from "@iap/workflows/workflowTypes";
 
-import { bpmnElement, carrying, iapElement, parameter } from "./vocabulary.fixture";
+import { bpmnElement, carrying, iapElement, parameter, type } from "./vocabulary.fixture";
 
 // The vocabulary as the server documents it: one entry per kind of node, grouped by category, with an
 // entry in several categories repeated under each.
@@ -89,6 +95,7 @@ const START_EVENT = {
   priority: 0,
   xmlElement: "bpmn:startEvent",
   jcrNodeType: "wf:StartEvent",
+  elementTypeDefault: true,
 };
 
 const MESSAGE_START_EVENT = {
@@ -156,6 +163,12 @@ describe("parseWorkflowTypes", () => {
     expect(type?.parameters).toEqual([]);
     expect(type?.xmlChildElement).toBeUndefined();
     expect(type?.xmlExtensionElement).toBeUndefined();
+  });
+
+  it("reads whether an entry is its element type's default", () => {
+    const flagged = documented().filter(candidate => candidate.elementTypeDefault).map(candidate => candidate.name);
+
+    expect(flagged).toEqual([ "StartEvent" ]);
   });
 
   it("fills in what a parameter leaves out", () => {
@@ -252,7 +265,8 @@ describe("parseWorkflowTypes", () => {
   it("falls back on the entry's own name, no categories and no priority when it documents none", () => {
     const types = parseWorkflowTypes({ items: { Activities: [ { name: "Odd", xmlElement: "bpmn:task" } ] } });
 
-    expect(types[0]).toMatchObject({ name: "Odd", label: "Odd", category: [], priority: 0, parameters: [] });
+    expect(types[0]).toMatchObject({ name: "Odd", label: "Odd", category: [], priority: 0,
+      elementTypeDefault: false, parameters: [] });
   });
 
   it("reads an entry's element name without whatever prefix it was written with", () => {
@@ -326,14 +340,14 @@ describe("matching an element against the vocabulary", () => {
   });
 
   it("offers every entry drawn as this element, most specific first", () => {
-    const candidates = selectableTypes(bpmnElement("ServiceTask"), documented());
+    const candidates = applicableTypes(bpmnElement("ServiceTask"), documented());
 
     expect(candidates.map(type => type.name)).toEqual([ "SetState", "ServiceTask" ]);
   });
 
   it("ranks two entries of equal priority by name, whichever order they are documented in", () => {
     const ranked = (...entries: unknown[]) =>
-      selectableTypes(bpmnElement("ServiceTask"), parseWorkflowTypes({ items: { Activities: entries } }))
+      applicableTypes(bpmnElement("ServiceTask"), parseWorkflowTypes({ items: { Activities: entries } }))
         .map(type => type.name);
     const zebra = { name: "Zebra", xmlElement: "bpmn:serviceTask", jcrNodeType: "wf:Activity", xmlExtensionElement: "zebra" };
     const antelope = { name: "Antelope", xmlElement: "bpmn:serviceTask", jcrNodeType: "wf:Activity",
@@ -356,8 +370,8 @@ describe("matching an element against the vocabulary", () => {
   });
 
   it("offers nothing for an element the vocabulary does not describe", () => {
-    expect(selectableTypes(bpmnElement("SequenceFlow"), documented())).toEqual([]);
-    expect(selectableTypes({}, documented())).toEqual([]);
+    expect(applicableTypes(bpmnElement("SequenceFlow"), documented())).toEqual([]);
+    expect(applicableTypes({}, documented())).toEqual([]);
     expect(matchFlowNodeType({}, documented())).toBeUndefined();
   });
 
@@ -367,20 +381,9 @@ describe("matching an element against the vocabulary", () => {
       eventDefinitions: [ bpmnElement("MessageEventDefinition") ],
     });
 
-    expect(selectableTypes(plain, documented()).map(type => type.name)).toEqual([ "StartEvent" ]);
+    expect(applicableTypes(plain, documented()).map(type => type.name)).toEqual([ "StartEvent" ]);
     expect(matchFlowNodeType(plain, documented())?.name).toBe("StartEvent");
     expect(matchFlowNodeType(messaged, documented())?.name).toBe("MessageStartEvent");
-  });
-
-  it("offers as a choice only the kinds a choice can reach", () => {
-    // Choosing a plain start event adds nothing and removes nothing, so a start event carrying a message
-    // definition would still read as a message start event afterwards
-    const messaged = bpmnElement("StartEvent", { eventDefinitions: [ bpmnElement("MessageEventDefinition") ] });
-
-    expect(selectableTypes(messaged, documented()).map(type => type.name)).toEqual([ "MessageStartEvent" ]);
-    expect(selectableTypes(bpmnElement("ServiceTask"), documented()).map(type => type.name))
-      .toEqual([ "SetState", "ServiceTask" ]);
-    expect(selectableTypes(bpmnElement("ExclusiveGateway"), documented())).toEqual([]);
   });
 
   it("compares element names exactly, in the case a document writes them, as the server does", async () => {
@@ -437,7 +440,7 @@ describe("matching an element against the vocabulary", () => {
       requiring("Repeated", "bpmn:standardLoopCharacteristics"),
     ] } });
 
-    expect(selectableTypes(each, types).map(type => type.name)).toEqual([ "PerItem", "Reached", "Specified" ]);
+    expect(applicableTypes(each, types).map(type => type.name)).toEqual([ "PerItem", "Reached", "Specified" ]);
   });
 
   it("reads a sequence flow as the entry drawn as one", () => {
@@ -451,7 +454,7 @@ describe("matching an element against the vocabulary", () => {
     const promote = bpmnElement("ServiceTask", carrying(iapElement("setState")));
 
     // The entry naming the element wins over the generic one, which every service task also matches
-    expect(selectableTypes(promote, documented()).map(type => type.name))
+    expect(applicableTypes(promote, documented()).map(type => type.name))
       .toEqual([ "SetState", "ServiceTask" ]);
     expect(matchFlowNodeType(promote, documented())?.name).toBe("SetState");
   });
@@ -465,7 +468,7 @@ describe("matching an element against the vocabulary", () => {
     const promote = bpmnElement("ServiceTask", carrying(iapElement("setState")));
 
     expect(matchFlowNodeType(promote, types)?.name).toBe("ServiceTask");
-    expect(selectableTypes(promote, types).map(type => type.name)).toEqual([ "ServiceTask" ]);
+    expect(applicableTypes(promote, types).map(type => type.name)).toEqual([ "ServiceTask" ]);
   });
 
   it("reads a service task with no extension element as the generic one", () => {
@@ -497,5 +500,93 @@ describe("what a parameter accepts", () => {
     // A nonsensical bound still has to be read the way the server reads it, or the two would store
     // the same entry's value in two different shapes
     expect(isMultiple(parameter("value", { maxValues: -1 }))).toBe(true);
+  });
+});
+
+describe("element types and switching between them", () => {
+  const entry = (name: string, xmlElement: string, category: string[], extra: Partial<FlowNodeType> = {}) =>
+    type(name, { label: name, xmlElement: `bpmn:${xmlElement}`, category, priority: 0, ...extra });
+  const SERVICE = entry("ServiceTask", "serviceTask", [ "Service Task", "General" ]);
+  const COUNT = entry("Count", "serviceTask", [ "Service Task", "Metrics" ], { xmlExtensionElement: "count" });
+  const TASK = entry("Task", "task", [ "Task" ]);
+  const START = entry("StartEvent", "startEvent", [ "Start Event" ]);
+  const TIMER = entry("TimerStart", "startEvent", [ "Start Event" ],
+    { xmlChildElement: "bpmn:timerEventDefinition" });
+  const EXCLUSIVE = entry("ExclusiveGateway", "exclusiveGateway", [ "Gateway" ]);
+  const PARALLEL = entry("ParallelGateway", "parallelGateway", [ "Gateway" ]);
+  const CATCH = entry("IntermediateCatchEvent", "intermediateCatchEvent", [ "Intermediate Event" ]);
+  const THROW = entry("IntermediateThrowEvent", "intermediateThrowEvent", [ "Intermediate Event" ],
+    { elementTypeDefault: true });
+  const BOUNDARY = entry("TimerBoundary", "boundaryEvent", [ "Boundary Event" ],
+    { xmlChildElement: "bpmn:timerEventDefinition" });
+  const FLOW = entry("SequenceFlow", "sequenceFlow", [ "Sequence Flow" ]);
+  const ONLY_EXTENDED = entry("Notify", "sendTask", [ "Send Task" ], { xmlExtensionElement: "notify" });
+  const UNLISTED = entry("Unlisted", "manualTask", []);
+  const ALL = [ COUNT, SERVICE, TASK, START, TIMER, EXCLUSIVE, PARALLEL, CATCH, THROW, BOUNDARY, FLOW, ONLY_EXTENDED,
+    UNLISTED ];
+
+  it("lists an entry under its first category, or else under its element's name", () => {
+    expect(elementTypeOf(TIMER)).toBe("Start Event");
+    expect(elementTypeOf(UNLISTED)).toBe("manualTask");
+  });
+
+  it("groups the entries of an element type by its second category, or else by the element type", () => {
+    expect(typeGroupOf(COUNT)).toBe("Metrics");
+    expect(typeGroupOf(START)).toBe("Start Event");
+  });
+
+  it("lists the entries of an element type by label", () => {
+    expect(entriesOf(ALL, "Service Task").map(found => found.name)).toEqual([ "Count", "ServiceTask" ]);
+    expect(entriesOf(ALL, "Nothing")).toEqual([]);
+  });
+
+  it("offers the element types a flow node can be changed to, each with the entry it becomes", () => {
+    const switchable = switchableTypes(bpmnElement("Task"), ALL);
+
+    expect([ ...switchable.keys() ]).toEqual([
+      "Gateway", "Intermediate Event", "Service Task", "Start Event", "Task", "manualTask",
+    ]);
+    // The flagged entry, even when another plain one comes first; else the first plain entry
+    expect(switchable.get("Gateway")?.name).toBe("ExclusiveGateway");
+    expect(switchable.get("Intermediate Event")?.name).toBe("IntermediateThrowEvent");
+    expect(switchable.get("Service Task")?.name).toBe("ServiceTask");
+  });
+
+  it("offers no change for a boundary event, a sequence flow, or an element the vocabulary does not describe", () => {
+    expect(switchableTypes(bpmnElement("SequenceFlow"), ALL).size).toBe(0);
+    expect(switchableTypes(bpmnElement("BoundaryEvent", {
+      eventDefinitions: [ bpmnElement("TimerEventDefinition") ],
+    }), ALL).size).toBe(0);
+    expect(switchableTypes(bpmnElement("DataObjectReference"), ALL).size).toBe(0);
+  });
+
+  it("needs no new element for an entry the element is already drawn as", () => {
+    expect(replacementFor(bpmnElement("ServiceTask"), COUNT)).toBeUndefined();
+    expect(replacementFor(bpmnElement("StartEvent", { eventDefinitions: [ bpmnElement("TimerEventDefinition") ] }),
+      TIMER)).toBeUndefined();
+    expect(replacementFor(bpmnElement("StartEvent"), START)).toBeUndefined();
+  });
+
+  it("asks for another element, carrying the event the entry names", () => {
+    expect(replacementFor(bpmnElement("Task"), TIMER))
+      .toEqual({ type: "bpmn:StartEvent", eventDefinitionType: "bpmn:TimerEventDefinition" });
+    expect(replacementFor(bpmnElement("ExclusiveGateway"), PARALLEL))
+      .toEqual({ type: "bpmn:ParallelGateway", eventDefinitionType: undefined });
+  });
+
+  it("asks for the same element again to change or drop the event it carries", () => {
+    const timed = bpmnElement("StartEvent", { eventDefinitions: [ bpmnElement("TimerEventDefinition") ] });
+
+    expect(replacementFor(timed, START)).toEqual({ type: "bpmn:StartEvent", eventDefinitionType: undefined });
+    expect(replacementFor(bpmnElement("StartEvent"), TIMER))
+      .toEqual({ type: "bpmn:StartEvent", eventDefinitionType: "bpmn:TimerEventDefinition" });
+  });
+
+  it("names no event for a required child that is not an event definition", () => {
+    const looped = entry("Looped", "serviceTask", [ "Service Task" ],
+      { xmlChildElement: "bpmn:multiInstanceLoopCharacteristics" });
+
+    expect(replacementFor(bpmnElement("ServiceTask"), looped))
+      .toEqual({ type: "bpmn:ServiceTask", eventDefinitionType: undefined });
   });
 });

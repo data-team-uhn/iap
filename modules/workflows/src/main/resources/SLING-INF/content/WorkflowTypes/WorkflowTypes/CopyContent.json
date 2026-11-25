@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Copy Content",
+  "category": ["Service Task", "Content"],
   "description": "Copies whatever the request names as its source into the item this step works on (the item an earlier step created, or the item the request is about). If the request leaves its source empty, nothing is copied.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

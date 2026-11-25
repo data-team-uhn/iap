@@ -33,18 +33,21 @@ interface Found {
 
 /**
  * Reads the choices a source offers. They are empty while loading and after a failure, and `loadError` then says
- * why, worded for the person using the UI.
+ * why, worded for the person using the UI. With no source there are none, and nothing is loading.
  */
-export default function useChoices(source: ChoiceSource) {
+export default function useChoices(source?: ChoiceSource) {
   const doFetch = useAuthenticatedFetch();
   // A caller builds a new source on every render; only a new key reads again
   const [ wanted, setWanted ] = useState(source);
-  if (wanted.key !== source.key) {
+  if (wanted?.key !== source?.key) {
     setWanted(source);
   }
   const [ found, setFound ] = useState<Found>();
 
   useEffect(() => {
+    if (wanted === undefined) {
+      return undefined;
+    }
     let current = true;
     wanted.search(doFetch)
       .then(choices => {
@@ -62,6 +65,10 @@ export default function useChoices(source: ChoiceSource) {
     };
   }, [ doFetch, wanted ]);
 
-  const shown = found?.key === source.key ? found : undefined;
-  return { choices: shown?.choices ?? [], loading: shown === undefined, loadError: shown?.loadError };
+  const shown = found?.key === source?.key ? found : undefined;
+  return {
+    choices: shown?.choices ?? [],
+    loading: source !== undefined && shown === undefined,
+    loadError: shown?.loadError,
+  };
 }

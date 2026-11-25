@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:ActivityType",
   "label": "Service Task",
   "description": "An automatic step the system carries out without waiting for a person.",
-  "category": ["Activities"],
+  "category": ["Service Task", "General"],
   "priority": 0,
   "xmlElement": "bpmn:serviceTask",
   "jcrNodeType": "wf:Activity",

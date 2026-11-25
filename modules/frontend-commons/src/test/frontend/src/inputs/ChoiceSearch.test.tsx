@@ -40,6 +40,23 @@ const renderSearch = (props: Partial<Parameters<typeof ChoiceSearch>[0]> = {}) =
 describe("ChoiceSearch", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("offers a list it is handed, without fetching", () => {
+    const { input } = renderSearch({ source: undefined, choices: SCHEMA_CHOICES, values: [ "/Schemas/exit" ] });
+
+    expect(input).toHaveValue("Exit");
+  });
+
+  it("lists values under their group's heading, each group together", async () => {
+    const groupOf = (value: string) => value.endsWith("exit") ? "Leaving" : "Arriving";
+    const { input } = renderSearch({
+      choices: [ ...SCHEMA_CHOICES, { value: "/Schemas/entry", label: "Entry" } ], source: undefined, groupOf,
+    });
+
+    expect(await listedOptions(input!)).toEqual([ "Intake", "Entry", "Exit" ]);
+    expect(screen.getByText("Arriving")).toBeInTheDocument();
+    expect(screen.getByText("Leaving")).toBeInTheDocument();
+  });
+
   it("picks one value by its label, and commits it", async () => {
     const { onChange, onCommit, input } = renderSearch();
 
@@ -108,7 +125,7 @@ describe("ChoiceSearch", () => {
   it("shows the labels as text when read only", async () => {
     renderSearch({ values: [ "/Schemas/intake", "/Schemas/gone" ], readOnly: true, multiple: true });
 
-    expect(await screen.findByText("Schema: Intake, /Schemas/gone")).toBeInTheDocument();
+    expect(await screen.findByText("Intake, /Schemas/gone")).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 

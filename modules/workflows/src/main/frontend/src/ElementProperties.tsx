@@ -23,18 +23,27 @@ import {
   useState,
 } from "react";
 
-import { Stack } from "@mui/material";
+import { Alert, Stack } from "@mui/material";
 
+import ChoiceSearch from "@iap/frontend-commons/inputs/ChoiceSearch";
 import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
 import TextInput from "@iap/frontend-commons/inputs/TextInput";
 import { fromSingle, singleValue } from "@iap/frontend-commons/inputs/values";
 import ValueText from "@iap/frontend-commons/inputs/ValueText";
 
 import { commaSeparated, parameterEdit, readValues, typeEdit } from "./bpmnParameters";
+import { elementName } from "./moddle";
 import { PANEL_EDITS } from "./panelEdits";
 import ParameterField from "./ParameterField";
 import { sameValues, settled } from "./parameterValues";
-import { matchFlowNodeType, selectableTypes } from "./workflowTypes";
+import {
+  elementTypeOf,
+  entriesOf,
+  matchFlowNodeType,
+  replacementFor,
+  switchableTypes,
+  typeGroupOf,
+} from "./workflowTypes";
 
 import type { Moddle, ModdleElement } from "./moddle";
 import type { PanelEdit, PanelEditsContext } from "./panelEdits";
@@ -112,6 +121,19 @@ interface ElementPropertiesProps {
   onDraft?: () => void;
 }
 
+// What the element is when the vocabulary does not say. Without a vocabulary that is its BPMN element's
+// name. With one, the server skips the element, which the panel says.
+function ElementTypeUnknown({ name, described }: { name: string; described: boolean }) {
+  return described
+    ? (
+      <>
+        <ValueText label="Element Type" values={[ `Not recognised (${name})` ]} />
+        <Alert severity="warning">The server skips this element when it reads the diagram.</Alert>
+      </>
+    )
+    : <ValueText label="Element Type" values={[ name ]} />;
+}
+
 // Display the properties associated with a provided BPMN node.
 // Either a series of fields in edit mode, or a plain text output in view mode
 export default function ElementProperties(props: ElementPropertiesProps) {
@@ -126,14 +148,14 @@ export default function ElementProperties(props: ElementPropertiesProps) {
 
   // Worked out once per change to the diagram rather than on every keystroke. bpmn-js edits these objects
   // in place, so the revision is what says they changed.
-  const { businessObject, definitions, selectable, type } = useMemo(() => {
+  const { businessObject, definitions, switchable, type } = useMemo(() => {
     const object = objectOf(element);
     return {
       businessObject: object,
       // The prefix the document binds the IAP namespace to is declared here, so every read and write of a
       // parameter needs the document as well as the element.
       definitions: (viewer.getDefinitions() ?? {}) as ModdleElement,
-      selectable: selectableTypes(object, types),
+      switchable: switchableTypes(object, types),
       type: matchFlowNodeType(object, types),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,20 +285,42 @@ export default function ElementProperties(props: ElementPropertiesProps) {
     />
   ));
 
-  const changeType = (name: string) => {
-    const chosen = selectable.find(candidate => candidate.name === name);
+  // An entry that needs another BPMN element, or another event in it, redraws the element first. The extension
+  // element that names the entry is then written to the redrawn one, in the same step.
+  const switchTo = (chosen: FlowNodeType) => {
+    const moddle = viewer.get<Moddle>("moddle");
+    const written = (target: Element) =>
+      ({ element: target, ...typeEdit(moddle, objectOf(target), definitions, type, chosen) });
+    const replaceWith = replacementFor(businessObject, chosen);
+    apply([ replaceWith ? { element, replaceWith, then: written } : written(element) ]);
+  };
+
+  const changeElementType = (name: string) => {
+    const chosen = switchable.get(name);
     if (chosen) {
-      apply([ { element, ...typeEdit(viewer.get<Moddle>("moddle"), businessObject, definitions, type, chosen) } ]);
+      switchTo(chosen);
     }
   };
 
-  // Only worth asking for when the element could be read as more than one thing. With a single candidate
-  // the kind is reported rather than offered.
-  const choosable = !readOnly && selectable.length > 1;
+  const elementType = type === undefined ? "" : elementTypeOf(type);
+  const kinds = type === undefined ? [] : entriesOf(types, elementType);
+  const changeType = (name: string) => {
+    const chosen = kinds.find(candidate => candidate.name === name);
+    if (chosen) {
+      switchTo(chosen);
+    }
+  };
+  const groupOf = (name: string) => {
+    const entry = kinds.find(candidate => candidate.name === name);
+    return entry ? typeGroupOf(entry) : "";
+  };
+  const grouped = new Set(kinds.map(typeGroupOf)).size > 1;
+
+  const changeable = !readOnly && switchable.size > 1;
 
   return (
     <Stack spacing={2} key={ element.id }>
-      <ValueText label="Identifier" values={[ element.id ]} />
+      <ValueText label="Identifier" values={[ element.id ]} code />
 
       <TextInput
         label="Name"
@@ -287,13 +331,29 @@ export default function ElementProperties(props: ElementPropertiesProps) {
       />
 
       {
-        (choosable || type !== undefined) && (
-          <ChoiceSelect
-            label="Type"
-            values={fromSingle(type?.name ?? "")}
-            choices={selectable.map(candidate => ({ value: candidate.name, label: candidate.label }))}
-            allowNone={type === undefined}
-            readOnly={!choosable}
+        type === undefined
+          ? <ElementTypeUnknown name={elementName(businessObject)} described={types.length > 0} />
+          : (
+            <ChoiceSelect
+              label="Element Type"
+              values={fromSingle(elementType)}
+              choices={[ ...new Set([ elementType, ...switchable.keys() ]) ].sort()
+                .map(name => ({ value: name, label: name }))}
+              allowNone={false}
+              readOnly={!changeable}
+              onChange={values => changeElementType(singleValue(values))}
+            />
+          )
+      }
+
+      {
+        type && kinds.length > 1 && (
+          <ChoiceSearch
+            label={`${elementType} Type`}
+            values={fromSingle(type.name)}
+            choices={kinds.map(candidate => ({ value: candidate.name, label: candidate.label }))}
+            groupOf={grouped ? groupOf : undefined}
+            readOnly={readOnly}
             onChange={values => changeType(singleValue(values))}
           />
         )

@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:CatchingEventType",
   "label": "Message Boundary Event",
   "description": "Listen for a named message while the attached task is open.",
-  "category": ["Boundary Events"],
+  "category": ["Boundary Event"],
   "priority": 10,
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",

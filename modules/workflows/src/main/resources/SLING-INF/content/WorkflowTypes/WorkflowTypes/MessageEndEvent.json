@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:ThrowingEventType",
   "label": "Message End Event",
   "description": "The exit point of a workflow branch, telling people how it ended.",
-  "category": ["End Events"],
+  "category": ["End Event"],
   "priority": 10,
   "xmlElement": "bpmn:endEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",

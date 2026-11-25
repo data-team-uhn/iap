@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:CatchingEventType",
   "label": "Timer Boundary Event",
   "description": "A deadline on a task. Fires if the task is not done in time.",
-  "category": ["Boundary Events"],
+  "category": ["Boundary Event"],
   "priority": 10,
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:timerEventDefinition",

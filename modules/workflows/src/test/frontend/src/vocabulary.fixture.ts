@@ -40,10 +40,11 @@ export const parameter = (name: string, overrides: Partial<Parameter> = {}): Par
 export const type = (name: string, overrides: Partial<FlowNodeType> = {}): FlowNodeType => ({
   name,
   label: name,
-  category: [],
+  category: [ "Service Task" ],
   priority: 10,
   xmlElement: "bpmn:serviceTask",
   jcrNodeType: "wf:Activity",
+  elementTypeDefault: false,
   parameters: [],
   ...overrides,
 });

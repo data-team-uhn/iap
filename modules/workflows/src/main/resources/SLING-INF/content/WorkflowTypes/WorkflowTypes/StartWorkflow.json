@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Start Workflow",
+  "category": ["Service Task", "Workflows"],
   "description": "Starts the workflow that the newly created item refers to. That workflow is found by following the chain of references named in Workflow from.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

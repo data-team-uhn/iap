@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Update Content",
+  "category": ["Service Task", "Content"],
   "description": "Applies the request's changes to the item this step works on, changing only the fields listed here that its type declares. The same list describes the form that offers the change.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

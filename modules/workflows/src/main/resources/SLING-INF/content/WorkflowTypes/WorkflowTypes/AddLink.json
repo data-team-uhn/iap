@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Add Link",
+  "category": ["Service Task", "Links and tags"],
   "description": "Links the item this step works on (the one an earlier step created, or else the one this request is about) to provided item. If the request leaves the To field empty, no link is made.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

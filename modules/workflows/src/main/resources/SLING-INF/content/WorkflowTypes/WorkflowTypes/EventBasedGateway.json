@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:GatewayType",
   "label": "Event Based Gateway",
   "description": "Waits for a matching event, then follows the path of whichever event happens first.",
-  "category": ["Gateways"],
+  "category": ["Gateway"],
   "priority": 0,
   "xmlElement": "bpmn:eventBasedGateway",
   "jcrNodeType": "wf:EventBasedGateway"

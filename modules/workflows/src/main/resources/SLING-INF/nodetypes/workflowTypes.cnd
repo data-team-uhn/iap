@@ -79,12 +79,19 @@
   // catalogue and as the editor toolbar's tooltip
   - description (STRING)
 
-  // The toolbar groups this type belongs to, e.g. "Events". When absent, the
-  // group is derived from the concrete wf:FlowNodeType subtype.
+  // The element type the editor lists this entry under, then optionally a group
+  // within it, e.g. ["Service Task", "Content"]. When absent, the entry falls
+  // under its wf:FlowNodeType subtype's kind, e.g. "Events".
   - category (STRING) multiple
 
   // Higher priorities overrule lower priorities
   - priority (LONG) mandatory
+
+  // Whether an element the editor changes to this entry's element type, its first
+  // category, becomes this entry, e.g. Exclusive Gateway among the gateways. Set
+  // it where an element type has several entries with neither an extension
+  // element nor an event definition.
+  - elementTypeDefault (BOOLEAN)
 
 
   // XML properties to be used when parsing for this type

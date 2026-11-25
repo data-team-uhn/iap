@@ -19,16 +19,22 @@
 // The command that writes several of the properties panel's edits as one step to undo.
 
 import type { ModdleElement } from "./moddle";
+import type { ReplaceTarget } from "./workflowTypes";
 import type BpmnModeling from "bpmn-js/lib/features/modeling/Modeling";
+import type BpmnReplace from "bpmn-js/lib/features/replace/BpmnReplace";
+import type { TargetElement } from "bpmn-js/lib/features/replace/BpmnReplace";
 import type { Element } from "bpmn-js/lib/model/Types";
 import type CommandStack from "diagram-js/lib/command/CommandStack";
 
 export const PANEL_EDITS = "iap.properties.update";
 
-// One edit the panel makes: a new name, or new properties on one moddle object of the element.
+// One edit the panel makes: a new name, new properties on one moddle object of the element, or the element
+// redrawn as another kind. A redrawn element is a new object under the same id, so what is written to it after is
+// given as a function of it.
 export type PanelEdit =
   | { element: Element; label: string }
-  | { element: Element; moddleElement: ModdleElement; properties: Record<string, unknown> };
+  | { element: Element; moddleElement: ModdleElement; properties: Record<string, unknown> }
+  | { element: Element; replaceWith: ReplaceTarget; then?: (replaced: Element) => PanelEdit | undefined };
 
 export interface PanelEditsContext {
   edits: PanelEdit[];
@@ -37,18 +43,32 @@ export interface PanelEditsContext {
 // Each edit is a modeling command of its own. Run before the command itself, they share its place on
 // the stack, which is how bpmn-js groups the commands of one operation.
 class PanelEditsHandler {
-  static $inject = [ "modeling" ];
+  static $inject = [ "modeling", "bpmnReplace" ];
 
   private readonly modeling: BpmnModeling;
 
-  constructor(modeling: BpmnModeling) {
+  private readonly replace: BpmnReplace;
+
+  constructor(modeling: BpmnModeling, replace: BpmnReplace) {
     this.modeling = modeling;
+    this.replace = replace;
   }
 
   preExecute(context: PanelEditsContext) {
-    context.edits.forEach(edit => "label" in edit
-      ? this.modeling.updateLabel(edit.element, edit.label)
-      : this.modeling.updateModdleProperties(edit.element, edit.moddleElement, edit.properties));
+    context.edits.forEach(edit => this.run(edit));
+  }
+
+  private run(edit: PanelEdit | undefined) {
+    if (edit === undefined) {
+      return;
+    }
+    if ("label" in edit) {
+      this.modeling.updateLabel(edit.element, edit.label);
+    } else if ("replaceWith" in edit) {
+      this.run(edit.then?.(this.replace.replaceElement(edit.element, edit.replaceWith as TargetElement)));
+    } else {
+      this.modeling.updateModdleProperties(edit.element, edit.moddleElement, edit.properties);
+    }
   }
 }
 

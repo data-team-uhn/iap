@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Add Tag",
+  "category": ["Service Task", "Links and tags"],
   "description": "Adds a tag to the item this workflow is about.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

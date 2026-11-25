@@ -71,6 +71,7 @@ export function createCanvas(services: Record<string, unknown> = {}, definitions
     eventBus: [ "type", EventBus ],
     commandStack: [ "type", CommandStack ],
     modeling: [ "value", { updateLabel, updateModdleProperties } ],
+    bpmnReplace: [ "value", { replaceElement: vi.fn() } ],
     elementRegistry: [ "value", {
       get: (id: string) => registered.get(id),
       add: (element: Element) => registered.set(element.id, element),

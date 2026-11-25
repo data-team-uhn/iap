@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Save Properties",
+  "category": ["Service Task", "Content"],
   "description": "Saves plain text values from the submitted data onto the item this request is about. Which properties may be saved, and which must have a value, are set on this step rather than chosen by the caller.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

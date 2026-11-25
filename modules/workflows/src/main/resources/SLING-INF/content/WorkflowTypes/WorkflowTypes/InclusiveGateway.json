@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:GatewayType",
   "label": "Inclusive Gateway",
   "description": "Follows every path whose condition is met, which may be one or several.",
-  "category": ["Gateways"],
+  "category": ["Gateway"],
   "priority": 0,
   "xmlElement": "bpmn:inclusiveGateway",
   "jcrNodeType": "wf:InclusiveGateway"

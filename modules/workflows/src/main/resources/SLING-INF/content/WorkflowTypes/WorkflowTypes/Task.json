@@ -2,7 +2,7 @@
   "jcr:primaryType": "wf:ActivityType",
   "label": "Task",
   "description": "A step with no action of its own, as drawn from the palette. Choose another type to give it one.",
-  "category": ["Activities"],
+  "category": ["Task"],
   "priority": 0,
   "xmlElement": "bpmn:task",
   "jcrNodeType": "wf:Activity"

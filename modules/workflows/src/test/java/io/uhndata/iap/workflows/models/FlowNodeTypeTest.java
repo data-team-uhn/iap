@@ -82,6 +82,7 @@ class FlowNodeTypeTest
         assertEquals("wf:StartEvent", type.getJcrNodeType());
         assertNull(type.getXmlExtensionElement());
         assertTrue(type.getParameters().isEmpty());
+        assertFalse(type.isElementTypeDefault());
     }
 
     @Test
@@ -191,7 +192,8 @@ class FlowNodeTypeTest
             "xmlElement", "bpmn:startEvent",
             "xmlChildElement", "bpmn:messageEventDefinition",
             "jcrNodeType", "wf:StartEvent",
-            "jcrProperties", "{\"catching\": true}"));
+            "jcrProperties", "{\"catching\": true}",
+            "elementTypeDefault", true));
 
         final JsonObject json = type.toDocumentationJson();
 
@@ -206,6 +208,7 @@ class FlowNodeTypeTest
         assertEquals("bpmn:messageEventDefinition", json.getString("xmlChildElement"));
         assertEquals("wf:StartEvent", json.getString("jcrNodeType"));
         assertTrue(json.getJsonObject("jcrProperties").getBoolean("catching"));
+        assertTrue(json.getBoolean("elementTypeDefault"));
     }
 
     @Test
@@ -238,6 +241,7 @@ class FlowNodeTypeTest
         assertFalse(json.containsKey("jcrProperties"));
         assertFalse(json.containsKey("xmlExtensionElement"));
         assertFalse(json.containsKey("parameters"));
+        assertFalse(json.containsKey("elementTypeDefault"));
         // The category is never left out: it falls back on the one the kind of entry implies
         assertEquals(1, json.getJsonArray("category").size());
     }

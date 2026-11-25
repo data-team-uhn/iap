@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Save Workflow Diagram",
+  "category": ["Service Task", "Workflows"],
   "description": "Saves the diagram just drawn for a workflow version.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

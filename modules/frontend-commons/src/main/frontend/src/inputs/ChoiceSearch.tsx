@@ -31,7 +31,12 @@ import { changeAndCommit, fromSingle } from "./values";
 import ValueText from "./ValueText";
 
 interface ChoiceSearchProps extends ValueInputProps {
-  source: ChoiceSource;
+  // Where the choices are fetched from. Give this or `choices`.
+  source?: ChoiceSource;
+  // A list already in hand, such as `[ { value: "pdf", label: "PDF" } ]`
+  choices?: Choice[];
+  // The heading a value is listed under, with a single value only. Values sharing one are shown together.
+  groupOf?: (value: string) => string;
   multiple?: boolean;
   // Whether a value's chip is marked in error, when `multiple` shows the values as chips
   chipError?: (value: string) => boolean;
@@ -40,13 +45,21 @@ interface ChoiceSearchProps extends ValueInputProps {
 interface SingleChoiceProps extends ValueInputProps {
   choices: Choice[];
   loading: boolean;
+  groupOf?: (value: string) => string;
 }
 
 // A ChoiceSearch holding one value.
 function SingleChoiceSearch(props: SingleChoiceProps) {
-  const { values, choices, loading, onChange, onCommit, disabled } = props;
+  const { values, choices, loading, groupOf, onChange, onCommit, disabled } = props;
   const { field, visit } = useFieldProps(props);
-  const listed = useMemo(() => choices.map(choice => choice.value), [ choices ]);
+  const listed = useMemo(() => {
+    const offered = choices.map(choice => choice.value);
+    // A group's values have to be adjacent, or the list repeats its heading. The sort keeps each group's order.
+    return groupOf === undefined ? offered
+      : offered.map((value, index) => ({ value, index, group: groupOf(value) }))
+        .sort((one, other) => one.group.localeCompare(other.group) || one.index - other.index)
+        .map(entry => entry.value);
+  }, [ choices, groupOf ]);
   const labels = useMemo(() => new Map(choices.map(choice => [ choice.value, choice.label ])), [ choices ]);
   // Set when erasing the search text cleared the value, until that clear is committed
   const clearedByTyping = useRef(false);
@@ -57,6 +70,7 @@ function SingleChoiceSearch(props: SingleChoiceProps) {
   return (
     <Autocomplete<string>
       options={options}
+      groupBy={groupOf}
       getOptionLabel={value => labels.get(value) ?? value}
       getOptionKey={value => value}
       value={current ?? null}
@@ -87,7 +101,8 @@ function SingleChoiceSearch(props: SingleChoiceProps) {
 // One value or several, picked from a list that narrows as it is typed.
 export default function ChoiceSearch(props: ChoiceSearchProps) {
   const { label, values, source, multiple = false, chipError, problems = [], readOnly = false } = props;
-  const { choices, loading, loadError } = useChoices(source);
+  const { choices: found, loading, loadError } = useChoices(source);
+  const choices = props.choices ?? found;
   const shown = { ...props, problems: loadError ? [ ...problems, loadError ] : problems };
 
   if (readOnly) {

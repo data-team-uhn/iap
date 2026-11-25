@@ -71,6 +71,9 @@ export const text = (value: unknown): string => typeof value === "string" ? valu
 // document prefixes an element with is its own business, so only the local part is ever compared.
 export const localName = (qualified: string): string => qualified.slice(qualified.indexOf(":") + 1);
 
+// A name with its first letter in upper case, as moddle names the type an element's tag stands for.
+export const capitalised = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1);
+
 const lowerInitial = (name: string): string => name.charAt(0).toLowerCase() + name.slice(1);
 
 // The element name a moddle object is written as, whatever prefix the document gave it, as the

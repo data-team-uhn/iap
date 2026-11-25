@@ -26,20 +26,23 @@ describe("a parameter shown as text", () => {
   it("names what it holds", () => {
     renderField(TextParameterField, {}, [ "ACTIVE" ], { readOnly: true });
 
-    expect(screen.getByText("To state: ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("says so when it holds nothing", () => {
     renderField(TextParameterField, {}, [], { readOnly: true });
 
-    expect(screen.getByText("To state: —")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("―")).toBeInTheDocument();
   });
 
   it("lists several values under the labels the entry gives them", () => {
     renderField(TextParameterField, { maxValues: 0, options: STATES }, [ "DRAFT", "ACTIVE" ], { readOnly: true });
 
-    expect(screen.getByText("To state: Draft, Active")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("Draft, Active")).toBeInTheDocument();
   });
 });
 
@@ -98,6 +101,16 @@ describe("a parameter with a choice of values", () => {
 
     expect(onChange).toHaveBeenCalledWith([ "ACTIVE" ]);
     expect(onCommit).toHaveBeenCalledWith([ "ACTIVE" ]);
+  });
+
+  it("lets a long list of choices be searched", async () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ value: `V${i}`, label: `Value ${i}` }));
+    const { onChange, user } = renderField(TextParameterField, { options: many });
+
+    await user.type(screen.getByRole("combobox"), "Value 7");
+    await user.click(screen.getByRole("option", { name: "Value 7" }));
+
+    expect(onChange).toHaveBeenCalledWith([ "V7" ]);
   });
 
   it("offers no way back to none when a value has to be given", async () => {

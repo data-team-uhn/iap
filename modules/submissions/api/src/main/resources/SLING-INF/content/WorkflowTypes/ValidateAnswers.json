@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Validate Answers",
+  "category": ["Service Task", "Submissions"],
   "description": "Refuses to go on unless the answers just saved pass every validator that applies to them.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

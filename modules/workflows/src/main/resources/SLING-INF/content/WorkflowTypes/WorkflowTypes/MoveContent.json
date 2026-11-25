@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Move Content",
+  "category": ["Service Task", "Content"],
   "description": "Moves the item this request is about under the parent the request names, or reorders it within its current parent.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

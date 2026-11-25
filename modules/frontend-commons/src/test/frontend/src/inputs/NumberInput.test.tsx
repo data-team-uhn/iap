@@ -125,6 +125,7 @@ describe("NumberInput", () => {
     const { input } = renderInput({ readOnly: true });
 
     expect(input).toBeNull();
-    expect(screen.getByText("Age: 12")).toBeInTheDocument();
+    expect(screen.getByText("Age")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
   });
 });

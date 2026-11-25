@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Replace Content",
+  "category": ["Service Task", "Content"],
   "description": "Replaces one child of the item this step works on with the content the request gives. That is the item an earlier step created, or else the one this request is about. A request giving none removes the child.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

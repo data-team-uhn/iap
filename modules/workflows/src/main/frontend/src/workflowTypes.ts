@@ -23,7 +23,7 @@
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readNode } from "@iap/frontend-commons/useNode";
 
-import { bpmnChildren, elementName, iapExtensionNames, localName, text } from "./moddle";
+import { bpmnChildren, capitalised, elementName, iapExtensionNames, localName, text } from "./moddle";
 
 import type { ModdleElement } from "./moddle";
 
@@ -80,6 +80,8 @@ export interface FlowNodeType {
   // The IAP element under `bpmn:extensionElements` that names the entry, such as `"notify"`.
   xmlExtensionElement?: string;
   jcrNodeType?: string;
+  // Whether the Element Type field switches to this entry, as it does to Exclusive Gateway for Gateway.
+  elementTypeDefault: boolean;
   parameters: Parameter[];
 }
 
@@ -164,6 +166,7 @@ function parseEntry(raw: unknown): FlowNodeType | undefined {
     xmlChildElement: optionalText(raw.xmlChildElement),
     xmlExtensionElement: bareName(raw.xmlExtensionElement),
     jcrNodeType: optionalText(raw.jcrNodeType),
+    elementTypeDefault: raw.elementTypeDefault === true,
     parameters: Array.isArray(raw.parameters)
       ? raw.parameters.flatMap(parameter => parseParameter(parameter) ?? [])
       : [],
@@ -215,7 +218,7 @@ function candidateTypes(businessObject: ModdleElement, types: readonly FlowNodeT
 // The candidates this element could be made to mean: those whose required BPMN child it carries. The
 // extension element is not required, since a change of kind adds it. An entry naming no node type is
 // passed over, as the server parser does.
-function applicableTypes(
+export function applicableTypes(
   businessObject: ModdleElement,
   types: readonly FlowNodeType[]
 ): FlowNodeType[] {
@@ -223,18 +226,6 @@ function applicableTypes(
   return candidateTypes(businessObject, types)
     .filter(type => (type.jcrNodeType ?? "").trim() !== "")
     .filter(type => type.xmlChildElement === undefined || children.has(localName(type.xmlChildElement)));
-}
-
-// The applicable entries a change of kind can actually reach. Choosing an entry only brings its
-// extension element in. An entry ranked below one that asks for none would still read as the higher
-// one afterwards, so offering it would offer a choice that changes nothing.
-export function selectableTypes(
-  businessObject: ModdleElement,
-  types: readonly FlowNodeType[]
-): FlowNodeType[] {
-  const applicable = applicableTypes(businessObject, types);
-  const unconditional = applicable.findIndex(type => type.xmlExtensionElement === undefined);
-  return unconditional < 0 ? applicable : applicable.slice(0, unconditional + 1);
 }
 
 // What this element currently means: the most specific applicable entry whose extension element is
@@ -246,4 +237,74 @@ export function matchFlowNodeType(
   const extensions = iapExtensionNames(businessObject);
   return applicableTypes(businessObject, types)
     .find(type => type.xmlExtensionElement === undefined || extensions.has(type.xmlExtensionElement));
+}
+
+// The heading an entry is listed under as the kind of BPMN element it is drawn as, such as "Service Task"
+// or "Start Event": its first category. An entry without one is listed under its element's name.
+export const elementTypeOf = (type: FlowNodeType): string => type.category.at(0) ?? localName(type.xmlElement);
+
+// The finer heading within its element type, such as "Content" for Create Content. Its second category.
+export const typeGroupOf = (type: FlowNodeType): string => type.category.at(1) ?? elementTypeOf(type);
+
+// An element is never changed to these, or from them: a boundary event is attached to an activity, and a
+// sequence flow joins two elements.
+const FIXED_ELEMENTS = [ "boundaryEvent", "sequenceFlow" ];
+
+const fixed = (businessObject: ModdleElement): boolean => FIXED_ELEMENTS.includes(elementName(businessObject));
+
+// The entries of an element type, in label order.
+export const entriesOf = (types: readonly FlowNodeType[], elementType: string): FlowNodeType[] =>
+  types.filter(type => elementTypeOf(type) === elementType)
+    .sort((one, other) => one.label.localeCompare(other.label) || byName(one.name, other.name));
+
+// What an element changed to this element type becomes: the type's flagged default, else its first entry that
+// needs neither an extension element nor an event definition.
+function defaultEntry(types: readonly FlowNodeType[], elementType: string): FlowNodeType | undefined {
+  const entries = entriesOf(types, elementType);
+  return entries.find(type => type.elementTypeDefault)
+    ?? entries.find(type => type.xmlExtensionElement === undefined && type.xmlChildElement === undefined);
+}
+
+// The element types a drawn element can be changed to, as `[ name, entry it becomes ]` pairs. None for an
+// element that cannot change, or that the vocabulary does not describe.
+export function switchableTypes(
+  businessObject: ModdleElement,
+  types: readonly FlowNodeType[]
+): Map<string, FlowNodeType> {
+  const found = new Map<string, FlowNodeType>();
+  if (fixed(businessObject) || matchFlowNodeType(businessObject, types) === undefined) {
+    return found;
+  }
+  [ ...new Set(types.map(elementTypeOf)) ].sort().forEach(elementType => {
+    const entry = defaultEntry(types, elementType);
+    if (entry !== undefined && !FIXED_ELEMENTS.includes(localName(entry.xmlElement))) {
+      found.set(elementType, entry);
+    }
+  });
+  return found;
+}
+
+// What bpmn-js is asked to make: the type of element, and the event it carries if it is an event.
+export interface ReplaceTarget {
+  type: string;
+  eventDefinitionType?: string;
+}
+
+const isEventDefinition = (name: string): boolean => name.endsWith("EventDefinition");
+
+// What the element has to be redrawn as to mean the entry, or nothing if it already is drawn as it. Choosing
+// an entry that adds only an extension element leaves the shape as it is.
+export function replacementFor(businessObject: ModdleElement, entry: FlowNodeType): ReplaceTarget | undefined {
+  const wanted = localName(entry.xmlChildElement ?? "");
+  const children = childElementNames(businessObject);
+  const sameEvent = entry.xmlChildElement === undefined
+    ? !children.some(isEventDefinition) : children.includes(wanted);
+  if (elementName(businessObject) === localName(entry.xmlElement) && sameEvent) {
+    return undefined;
+  }
+  return {
+    type: `bpmn:${capitalised(localName(entry.xmlElement))}`,
+    eventDefinitionType: entry.xmlChildElement !== undefined && isEventDefinition(wanted)
+      ? `bpmn:${capitalised(wanted)}` : undefined,
+  };
 }

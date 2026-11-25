@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Create Parts",
+  "category": ["Service Task", "Submissions"],
   "description": "Creates an empty document or answer for each requirement. It acts on the submission an earlier step created, or else on the item this request is about.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

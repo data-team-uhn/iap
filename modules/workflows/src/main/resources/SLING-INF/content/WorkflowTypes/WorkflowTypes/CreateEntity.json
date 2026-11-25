@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Create Entity",
+  "category": ["Service Task", "Content"],
   "description": "Creates a new item of the configured type under the item this request is about. The request's title becomes its title and, in camelCase, its name.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",

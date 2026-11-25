@@ -91,7 +91,8 @@ describe("a parameter holding a whole number", () => {
   it("is shown as text when read only", () => {
     renderField(LongParameterField, { dataType: "long" }, [ "3" ], { readOnly: true });
 
-    expect(screen.getByText("To state: 3")).toBeInTheDocument();
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("takes several values as chips, the way text does", () => {
