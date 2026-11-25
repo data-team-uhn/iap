@@ -817,8 +817,10 @@ export default function ReviewScreen({ path }: { path: string }) {
       <Box
         data-pane={pane} onPointerDownCapture={() => setActive(pane)} onFocusCapture={() => setActive(pane)}
         sx={{ flex: bottom ? `${pane === "top" ? splitAt : 1 - splitAt} 1 0` : "1 1 0", minHeight: 0,
-          display: "flex", flexDirection: "column",
-          ...bottom && isActive ? { boxShadow: theme => `inset 3px 0 0 ${theme.palette.primary.main}` } : {} }}
+          display: "flex", flexDirection: "column", position: "relative",
+          // Of two, the one being worked in marked down its whole side, its title bar included, over what it shows
+          ...bottom && isActive ? { "&::before": { content: "\"\"", position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 3, bgcolor: "primary.main", zIndex: 2, pointerEvents: "none" } } : {} }}
       >
         {bar}
         {isFormRequirement(requirement) && (
