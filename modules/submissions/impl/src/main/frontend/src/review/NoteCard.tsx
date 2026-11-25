@@ -190,7 +190,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   // The AI's comments, the reader's notes to self and discussion entries can become issues; an entry the reader
   // already raised is not offered again
   const canAdopt = onMakeIssue && (note.kind === "aiIssue" || (note.kind === "note" && note.mine)
-    || (note.kind === "discussion" && !note.raisedByMe));
+    || ((note.kind === "discussion" || note.kind === "contradiction") && !note.raisedByMe));
   const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue" || note.kind === "otherIssue");
 
   if (isEditing && onEdit) {
@@ -207,10 +207,16 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     );
   }
   if (isAdopting && onMakeIssue) {
+    // A contradiction is put to the study team as what each says, with where the protocol says it
+    const page = note.passage?.page;
+    const initialText = note.kind === "contradiction"
+      ? `The form says ${formAnswer ?? ""}, but the protocol says ${answerLabel ?? note.extracted ?? ""}`
+        + `${page ? ` (page ${page})` : ""}. Please make them agree, or explain why they differ.`
+      : note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text;
     return (
       <Composer
-        kinds={[ "issue" ]} initialText={note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text}
-        initialSeverity={note.severity} initialTopic={note.topicPath ?? ""} saveLabel="Add issue"
+        kinds={[ "issue" ]} initialText={initialText} about={note.question ? [ note.question ] : []}
+        initialSeverity={note.severity} initialTopic={note.topicPath} saveLabel="Add issue"
         onCancel={() => setAdopting(false)}
         onSave={async (_kind, text, severity, topic) => {
           await onMakeIssue(text, severity, topic);

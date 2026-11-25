@@ -310,7 +310,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   const isSettled = (note: ReviewNote) => note.kind === "aiIssue" && settled.has(note.id);
   const settledAi = notes.filter(isSettled).map(note => ({ ...note, settled: settled.get(note.id) }));
   const shown = notes.filter(note => !isSettled(note))
-    .map(note => note.kind === "discussion" && raised.has(note.id)
+    .map(note => note.kind !== "aiIssue" && raised.has(note.id)
       ? { ...note, raisedBy: raised.get(note.id), raisedByMe: raised.get(note.id)?.includes(me) } : note);
   return { answers, documents, notes: shown, settledAi, partOf, aiSummary,
     assessments, considered, decided, letters: letters.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)) };
