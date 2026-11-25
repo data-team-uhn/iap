@@ -28,7 +28,7 @@
       <bpmn:outgoing>toFillIn</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toFillIn" sourceRef="requestRaised" targetRef="fillIn" />
-    <bpmn:userTask id="fillIn" iap:performers="@creator" name="Describe the data you need">
+    <bpmn:userTask id="fillIn" iap:performers="@creator" name="Send the request">
       <bpmn:incoming>toFillIn</bpmn:incoming>
       <bpmn:outgoing>toGenerate</bpmn:outgoing>
     </bpmn:userTask>

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { createElement, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, createElement, useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
 
@@ -68,11 +68,13 @@ function RequirementBody(props: RequirementComponentProps) {
 //
 // `onSaving` hears of each save as it is asked for, for whatever must wait until the answers are
 // stored. `onChanged` hears that a save or an attachment went through, so that the page can read
-// the submission again.
-function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
+// the submission again. `finish`, such as the button that sends the request, is shown below everything,
+// where filling it in ends.
+function SubmissionEditor({ path, onSaving = ignoreSave, onChanged, finish }: {
   path: string;
   onSaving?: (save: Promise<unknown>) => void;
   onChanged?: () => void;
+  finish?: ReactNode;
 }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
@@ -171,6 +173,7 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
       { form.requirements.length === 0 && (
         <Typography variant="placeholder">This request asks nothing yet.</Typography>
       ) }
+      { finish && <Stack direction="row" sx={{ justifyContent: "flex-end" }}>{finish}</Stack> }
     </Stack>
   );
 }

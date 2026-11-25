@@ -20,7 +20,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-import SubmissionTasks from "@iap/submissions/SubmissionTasks";
+import SubmissionTasks, { useTaskCompletion } from "@iap/submissions/SubmissionTasks";
 
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
 
@@ -55,13 +55,22 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ readinessNote, beforeComplete, onCompleted }: {
+interface TasksProps {
   readinessNote?: string;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
-} = {}) => render(
-  <SubmissionTasks path={PATH} readinessNote={readinessNote} beforeComplete={beforeComplete}
-    onCompleted={onCompleted} />,
+}
+
+// The buttons, shown in as many places as `copies` says, all of them sharing one completion
+function Tasks({ readinessNote, beforeComplete, onCompleted, copies = 1 }: TasksProps & { copies?: number }) {
+  const completion = useTaskCompletion(PATH, { beforeComplete, onCompleted });
+  return Array.from({ length: copies }, (_, copy) => (
+    <SubmissionTasks key={copy} completion={completion} readinessNote={readinessNote} />
+  ));
+}
+
+const renderTasks = (props: TasksProps & { copies?: number } = {}) => render(
+  <Tasks {...props} />,
   { wrapper: NoticeProvider },
 );
 
@@ -128,6 +137,21 @@ describe("SubmissionTasks", () => {
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
 
     await waitFor(() => expect(fetchMock.mock.calls.filter(call => call[1]?.method !== "POST")).toHaveLength(2));
+  });
+
+  it("turns every copy of the step off while one of them is completing it", async () => {
+    const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
+    vi.stubGlobal("fetch", fetchMock);
+    const saving = Promise.withResolvers<undefined>();
+
+    renderTasks({ beforeComplete: () => saving.promise, copies: 2 });
+    const [ top, bottom ] = await screen.findAllByRole("button", { name: SEND_LABEL });
+    await userEvent.click(bottom);
+
+    expect(top).toBeDisabled();
+    expect(bottom).toBeDisabled();
+    saving.resolve(undefined);
+    await waitFor(() => expect(posted(fetchMock)).toHaveLength(1));
   });
 
   it("waits for the answers still being saved before completing the step", async () => {

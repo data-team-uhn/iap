@@ -145,6 +145,16 @@ describe("SubmissionEditor", () => {
     expect(screen.getByLabelText(/several days/)).toBeInTheDocument();
   });
 
+  it("shows how to finish the request below everything it asks", async () => {
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} finish={<button type="button">Send</button>} />);
+    const send = await screen.findByRole("button", { name: "Send" });
+
+    expect(send.compareDocumentPosition(screen.getByLabelText(/several days/)) & Node.DOCUMENT_POSITION_PRECEDING)
+      .toBeTruthy();
+  });
+
   it("saves an answer and shows what the server then asks", async () => {
     // The return-date question arrives with the next read of the form
     const withEndDate = form({

@@ -28,19 +28,23 @@ import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 import { COMPLETE_EVENT, type SubmissionTask } from "./taskModel";
 import { useSubmissionTasks } from "./useSubmissionTasks";
 
-// The tasks a submission is waiting for, as buttons labelled with each task's label.
+export interface TaskCompletion {
+  offered: SubmissionTask[];
+  working: boolean;
+  complete: (task: SubmissionTask) => void;
+}
+
+// The tasks a submission is waiting for that the reader can complete with a click, and a way to
+// complete one.
 //
-// Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent,
-// not disabled. A task with outcome options is left out, since the button sends no outcome.
+// Only a task whose `@events` offers the reader `complete` is offered. Another person's task is absent,
+// not disabled. A task with outcome options is left out, since a click sends no outcome.
 // `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
 // still being saved. When it rejects, nothing is completed, and the reader is told why.
-// `readinessNote`, when given, says what still stands between the submission and its next step.
-function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
-  path: string;
-  readinessNote?: string;
+export function useTaskCompletion(path: string, { beforeComplete, onCompleted }: {
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
-}) {
+} = {}): TaskCompletion {
   const { tasks, reload } = useSubmissionTasks(path);
   const doFetch = useAuthenticatedFetch();
   const notify = useNotice();
@@ -57,6 +61,17 @@ function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
     .catch((error: unknown) => notify({ title: `${task.label} did not go through`, message: messageOf(error) })));
 
   const offered = tasks.filter(task => offers(task, COMPLETE_EVENT) && task.outcomeOptions.length === 0);
+  return { offered, working, complete };
+}
+
+// The tasks of `completion`, as buttons labelled with each task's label. The page may show them in
+// more than one place: each place shares the one completion, so a click on any of them turns all of
+// them off. `readinessNote`, when given, says what still stands between the submission and its next
+// step.
+function SubmissionTasks({ completion: { offered, working, complete }, readinessNote }: {
+  completion: TaskCompletion;
+  readinessNote?: string;
+}) {
   if (offered.length === 0) {
     return null;
   }

@@ -57,7 +57,7 @@ import {
   toFileUrl
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
-import SubmissionTasks from "./SubmissionTasks";
+import SubmissionTasks, { useTaskCompletion } from "./SubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
@@ -414,25 +414,33 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
+  const completion = useTaskCompletion(path, {
+    beforeComplete: readyForNextStep,
+    onCompleted: () => {
+      if (shownPath.current !== path) {
+        return;
+      }
+      // Back to the read-only page, read again
+      readAgain();
+      void navigate(path);
+    },
+  });
+  // The steps the request is waiting for, shown both above the request and below it. The editor puts them
+  // where filling the request in ends.
+  const tasks = <SubmissionTasks completion={completion} readinessNote={whyNotReady(submission)} />;
+  const footer = (
+    <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
+      {tasks}
+    </Stack>
+  );
+
   // The way back, the steps the request is waiting for, and the switch between the two modes. It is
   // shown in every state of the page. Loading and failure are where somebody most needs a way out.
   const header = (
     <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
       <Link component={RouterLink} to="/">← Back to the dashboard</Link>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-        <SubmissionTasks
-          path={path}
-          readinessNote={whyNotReady(submission)}
-          beforeComplete={readyForNextStep}
-          onCompleted={() => {
-            if (shownPath.current !== path) {
-              return;
-            }
-            // Back to the read-only page, read again
-            readAgain();
-            void navigate(path);
-          }}
-        />
+        {tasks}
         <ToggleButtonGroup
           exclusive
           value={editing ? "edit" : "view"}
@@ -468,7 +476,7 @@ function SubmissionView() {
         {header}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
-        <SubmissionEditor key={path} path={path} onSaving={trackSave} onChanged={readAgain} />
+        <SubmissionEditor key={path} path={path} onSaving={trackSave} onChanged={readAgain} finish={tasks} />
       </Stack>
     );
   }
@@ -526,6 +534,7 @@ function SubmissionView() {
           ? <Reviews reviews={reviews} />
           : <Typography variant="placeholder">No reviews yet</Typography>}
       </Panel>
+      {footer}
     </Stack>
   );
 }
