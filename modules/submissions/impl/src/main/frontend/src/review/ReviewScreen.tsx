@@ -957,7 +957,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       })}
       {/* Set apart from the kinds by a rule, which wraps with it */}
       <Stack direction="row" sx={{ alignItems: "stretch", gap: 0.5 }}>
-        <Divider orientation="vertical" flexItem sx={{ my: 0.25 }} />
+        <Divider orientation="vertical" flexItem sx={{ borderColor: "text.disabled" }} />
         <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive>
           <ButtonBase aria-pressed={showDone} onClick={() => setShowDone(!showDone)} sx={toggleSx(showDone)}>
             <TaskAltOutlined sx={{ fontSize: "0.9rem", ...showDone ? {} : { opacity: 0.6 } }} />
