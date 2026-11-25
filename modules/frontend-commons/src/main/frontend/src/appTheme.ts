@@ -98,16 +98,22 @@ declare module "@mui/material/styles" {
     annotationMarker: string;
     evidence: string;
     evidenceCurrent: string;
+    evidenceMarker: string;
     issue: string;
     issueCurrent: string;
+    issueMarker: string;
     otherIssue: string;
     otherIssueCurrent: string;
+    otherIssueMarker: string;
     discussion: string;
     discussionCurrent: string;
+    discussionMarker: string;
     draft: string;
     draftCurrent: string;
+    draftMarker: string;
     warning: string;
     warningCurrent: string;
+    warningMarker: string;
     search: string;
     searchCurrent: string;
     added: string;
@@ -267,20 +273,24 @@ const HIGHLIGHT = {
   annotation: alpha(SOFT_YELLOW, 0.55),
   annotationCurrent: alpha(SOFT_YELLOW, 0.85),
   annotationMarker: ANNOTATION_INK,
-  evidence: alpha(TEAL, 0.35),
-  evidenceCurrent: alpha(TEAL, 0.6),
   evidence: alpha(LAVENDER, 0.4),
   evidenceCurrent: alpha(LAVENDER, 0.65),
+  evidenceMarker: "#5A4A9E",
   issue: alpha(CORAL, 0.35),
   issueCurrent: alpha(CORAL, 0.6),
+  issueMarker: "#A8402F",
   otherIssue: alpha(DUSTY_CORAL, 0.4),
   otherIssueCurrent: alpha(DUSTY_CORAL, 0.7),
+  otherIssueMarker: "#7A524B",
   discussion: alpha(SKY, 0.35),
   discussionCurrent: alpha(SKY, 0.6),
+  discussionMarker: "#2F5F96",
   draft: alpha(GREY, 0.35),
   draftCurrent: alpha(GREY, 0.6),
+  draftMarker: "#5F6670",
   warning: alpha(AMBER, 0.4),
   warningCurrent: alpha(AMBER, 0.65),
+  warningMarker: darken(AMBER, 0.35),
   search: alpha(COBALT, 0.2),
   searchCurrent: alpha(COBALT, 0.45),
   added: ADDED_FILL,

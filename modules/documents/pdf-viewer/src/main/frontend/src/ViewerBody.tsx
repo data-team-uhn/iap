@@ -17,17 +17,28 @@
  */
 // The viewer's contents, wherever it is placed: its title, the comparison's controls, the passages and the
 // versions of the document.
-import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useContext,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { Box, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
+import { createPortal } from "react-dom";
 
 import LoadError from "@iap/frontend-commons/components/LoadError";
+import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 
 import CommentButton from "./CommentButton";
 import ComparisonControls from "./ComparisonControls";
-import MarkList from "./MarkList";
+import MarkList, { LIST_WIDTH } from "./MarkList";
 import { getMarkText, isLooking } from "./marksModel";
 import PageControls from "./PageControls";
 import PassageCard from "./PassageCard";
@@ -41,6 +52,7 @@ import {
   type MarkName,
   type StepDirection,
 } from "./pdfViewerModel";
+import { PlainViewer } from "./plainViewer";
 import StepControls from "./StepControls";
 import { useComparisonDisplay, type ComparisonPanes, type Progress } from "./useComparisonDisplay";
 import { useNarrowViewer } from "./useNarrowViewer";
@@ -60,6 +72,11 @@ const ROW_GAP = { xs: 0.5, sm: 1 };
 // The narrowest viewer, in pixels, that has room for two versions side by side and the list of marks beside
 // them. A narrower one shows the marks one at a time above the versions.
 const SPLIT_WITH_LIST_WIDTH = 1440;
+
+// PRETOTYPE: how narrow the passages beside the document may be dragged, and how much the document keeps, the
+// handle included
+const LIST_MIN_WIDTH = 240;
+const DOCUMENT_MIN_WIDTH = 376;
 
 interface ViewerBodyProps {
   titleId: string;
@@ -82,6 +99,16 @@ interface ViewerBodyProps {
   changeIds: Set<string>;
   // The button that moves the viewer between its container and the dialog, or null without a container.
   placeButton: ReactNode;
+  // PRETOTYPE: searched from outside, so without a search field of its own
+  searchedOutside?: boolean;
+  annotateLabel?: string;
+  condensedMarks?: (mark: Mark) => { quote: number; details?: number } | undefined;
+  listWidth?: number;
+  onListWidth?: (width: number) => void;
+  markHeading?: (mark: Mark) => ReactNode;
+  markHeadingActions?: (mark: Mark) => ReactNode;
+  lead?: ReactNode;
+  listContainer?: HTMLElement | null;
   // Whether the document spans the full width of a phone screen, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
@@ -92,12 +119,26 @@ interface ViewerBodyProps {
 export default function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
-  const { changeIds } = props;
+  const plain = useContext(PlainViewer);
+  const { changeIds, searchedOutside = false, annotateLabel, condensedMarks, listWidth, onListWidth } = props;
+  const { markHeading, markHeadingActions, lead, listContainer } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   // The document has opened once its pages are counted.
   const opened = pageCount !== undefined;
   const { search, find, findNext, findPrevious } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
+  // PRETOTYPE: the list's width as the reader chose it, as far as the viewer has room for it
+  const [bodyWidth, setBodyWidth] = useState<number>();
+  useLayoutEffect(() => {
+    if (body === null) {
+      return undefined;
+    }
+    const observer = new ResizeObserver(entries => setBodyWidth(entries[0]?.contentRect.width));
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [body]);
+  const shownListWidth = listWidth === undefined || bodyWidth === undefined ? listWidth
+    : Math.max(LIST_MIN_WIDTH, Math.min(listWidth, bodyWidth - DOCUMENT_MIN_WIDTH));
   // Where the card's step buttons last stepped to, and which of them was pressed. The card drawn for that
   // passage gives the same button the focus.
   const [steppedTo, setSteppedTo] = useState<{ at: number; direction: StepDirection } | undefined>(undefined);
@@ -123,7 +164,10 @@ export default function ViewerBody(props: ViewerBodyProps) {
       toolbarRef.current?.openSearch();
     }
   };
-  const listBeside = several && !(split ? noRoomForList : narrow);
+  // PRETOTYPE: a plain viewer lists even a single passage beside the document, as its page does with notes, and
+  // lists them in the page's own column when given one
+  const listBeside = listContainer !== undefined ? listed.length > 0
+    : (several || (plain && listed.length === 1)) && !(split ? noRoomForList : narrow);
   // The same object while the error and the page stay the same.
   const status = useMemo(() => ({ openError, page }), [openError, page]);
 
@@ -203,6 +247,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
         : (
           <CommentButton
             at={selectedText.selected}
+            label={annotateLabel}
             onPress={selectedText.hold}
             onComment={spans => void onAnnotate(spans)}
           />
@@ -224,19 +269,18 @@ export default function ViewerBody(props: ViewerBodyProps) {
       onKeyDown={onKeyDown}
       sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minHeight: 0 }}
     >
-      <ViewerTitle
-        titleId={titleId}
-        title={title}
-        placeButton={placeButton}
-        onClose={onClose}
-      />
+      {plain
+        ? <Typography id={titleId} sx={visuallyHidden}>{title}</Typography>
+        : <ViewerTitle titleId={titleId} title={title} placeButton={placeButton} onClose={onClose} />}
       {compared.controls === undefined
         ? null
         : <ComparisonControls {...compared.controls} onShowChange={showSelected} />}
       {card}
       {spoken}
-      <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0 }}>
+      <Box sx={{ display: "flex", gap: listBeside && onListWidth ? 0 : 2, flex: "1 1 auto", minHeight: 0 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0,
+          ...lead === undefined ? {} : { pl: 2, pt: 1.5 } }}>
+          {lead}
           <ViewerToolbar
             ref={toolbarRef}
             start={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
@@ -245,6 +289,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
             }
             opened={opened}
             search={search}
+            noSearchField={searchedOutside}
             onFind={find}
             onFindNext={findNext}
             onFindPrevious={findPrevious}
@@ -273,7 +318,22 @@ export default function ViewerBody(props: ViewerBodyProps) {
             {shownDocument}
           </VersionPanes>
         </Box>
-        {listBeside
+        {listBeside && onListWidth && listContainer === undefined && (
+          <SplitHandle
+            width={shownListWidth ?? LIST_WIDTH} onWidth={onListWidth} container={() => body}
+            min={LIST_MIN_WIDTH} reserve={DOCUMENT_MIN_WIDTH} label="Resize the notes"
+          />
+        )}
+        {listBeside && listContainer !== undefined && listContainer !== null && createPortal(
+          <MarkList
+            marks={listed} naming={naming} places={places} status={status} selectedId={selected?.id}
+            renderBody={renderBody} describeBody={describeBody} renderDetails={renderMarkDetails}
+            condensed={condensedMarks} width="100%" heading={markHeading} headingActions={markHeadingActions}
+            onSelect={showSelected}
+          />,
+          listContainer,
+        )}
+        {listBeside && listContainer === undefined
           ? (
             <MarkList
               marks={listed}
@@ -284,6 +344,10 @@ export default function ViewerBody(props: ViewerBodyProps) {
               renderBody={renderBody}
               describeBody={describeBody}
               renderDetails={renderMarkDetails}
+              condensed={condensedMarks}
+              width={shownListWidth}
+              heading={markHeading}
+              headingActions={markHeadingActions}
               onSelect={showSelected}
             />
           )

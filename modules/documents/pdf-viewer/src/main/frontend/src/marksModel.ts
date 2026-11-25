@@ -29,8 +29,11 @@ import {
   type QuoteMatch,
 } from "./quoteMatch";
 
-// Who marked a passage: an AI assistant, or a person annotating the document.
-export const PASSAGE_KINDS = [ "assistant", "annotation" ] as const;
+// Who marked a passage: an AI assistant, or a person annotating the document. PRETOTYPE: a review's evidence,
+// issues and discussion are passages of their own kinds.
+export const PASSAGE_KINDS = [
+  "assistant", "annotation", "evidence", "issue", "otherIssue", "discussion", "draft", "warning",
+] as const;
 // What a comparison of two versions of a document found: text added or text removed.
 export const CHANGE_KINDS = [ "added", "removed" ] as const;
 export const MARK_KINDS = [ ...PASSAGE_KINDS, ...CHANGE_KINDS ] as const;

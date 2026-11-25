@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
@@ -40,7 +40,7 @@ import {
   Tooltip, Typography, useMediaQuery, useTheme,
 } from "@mui/material";
 
-import { cutShort, passageCard } from "@iap/documents-pdf-viewer/passageStyles";
+import { getCutShortStyle, getPassageCardStyle } from "@iap/documents-pdf-viewer/passageStyles";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 import TagChip from "@iap/tags/TagChip";
 
@@ -216,8 +216,7 @@ function WholeReview(props: ReviewProps & {
   const { risks, doing, open, onClose } = props;
   // Measured once the list is there, which is only while the dialog is open
   const [ sideElement, setSideElement ] = useState<HTMLDivElement | null>(null);
-  const sideList = useMemo(() => ({ current: sideElement }), [ sideElement ]);
-  const sideEdges = useScrollEdges(sideList);
+  const sideEdges = useScrollEdges(sideElement);
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
   // Whether the AI pre-review found anything: it may have failed, or the submission left it nothing to say
@@ -689,7 +688,7 @@ function AiRow({ note, topic, dense, about, doing, onShow }: {
         </Box>
       ) : (
         <>
-          <Typography variant="body2" sx={dense ? cutShort(3) : undefined}>{note.text}</Typography>
+          <Typography variant="body2" sx={dense ? getCutShortStyle(3) : undefined}>{note.text}</Typography>
           {!dense && note.suggestion && (
             <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Suggestion. {note.suggestion}</Typography>
           )}
@@ -742,7 +741,7 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
           <RemoveButton what="issue" text={issue.text} onRemove={() => doing.removeIssue(issue)} />
         </Box>
       )} />
-      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...dense ? cutShort(3) : {} }}>{issue.text}</Typography>
+      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...dense ? getCutShortStyle(3) : {} }}>{issue.text}</Typography>
       {/* In full, its thread under it: the study team's and other reviewers' replies, and the reviewer's own */}
       {!dense && (
         <Thread replies={issue.replies} onEdit={(reply, text) => doing.editReply(reply, text)}
@@ -794,7 +793,7 @@ function Settled({ note, dense, doing, onShow }: {
           ? <Link component="button" variant="caption" onClick={() => void doing.undismiss(note)}>Undo</Link>
           : anchored(note) && <Link component="button" variant="caption" onClick={() => onShow(note)}>Show where</Link>}
       </Stack>
-      <Typography variant="body2" sx={{ ...dense ? cutShort(2) : {}, color: "text.secondary" }}>{note.text}</Typography>
+      <Typography variant="body2" sx={{ ...dense ? getCutShortStyle(2) : {}, color: "text.secondary" }}>{note.text}</Typography>
     </Box>
   );
 }
@@ -828,7 +827,7 @@ function AddIssue({ topic, doing }: { topic?: string; doing: ReviewDoing }) {
     );
   }
   return (
-    <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
+    <Box sx={theme => ({ ...getPassageCardStyle(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
       outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
       <Composer
         kinds={[ "issue" ]} initialTopic={topic ?? ""}
@@ -887,7 +886,7 @@ function SelfNotes({ notes, doing }: { notes: ReviewNote[]; doing: ReviewDoing }
         Notes to self{notes.length > 0 ? ` (${notes.length})` : ""}
       </Typography>
       {notes.map(note => (
-        <Box key={note.id} sx={theme => ({ ...passageCard(theme, "annotation"), px: 1.25, py: 0.75 })}>
+        <Box key={note.id} sx={theme => ({ ...getPassageCardStyle(theme, "annotation"), px: 1.25, py: 0.75 })}>
           <NoteCard
             note={note} onEdit={said => doing.editNote(note, said)} onRemove={() => doing.removeIssue(note)}
             onMakeIssue={(said, severity, topic) => doing.makeIssue(note, said, severity, topic)}
@@ -895,7 +894,7 @@ function SelfNotes({ notes, doing }: { notes: ReviewNote[]; doing: ReviewDoing }
         </Box>
       ))}
       {writing ? (
-        <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
+        <Box sx={theme => ({ ...getPassageCardStyle(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
           outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
           <Composer
             kinds={[ "note" ]}

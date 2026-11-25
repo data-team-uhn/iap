@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Box } from "@mui/material";
 
@@ -41,13 +41,13 @@ export function PanelBody({ children, follow, noScrollbar }: {
   follow?: string;
   noScrollbar?: boolean;
 }) {
-  const body = useRef<HTMLDivElement>(null);
+  const [ body, setBody ] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(body);
   useEffect(() => {
-    body.current?.querySelector(".Mui-selected")?.scrollIntoView({ block: "nearest" });
-  }, [follow]);
+    body?.querySelector(".Mui-selected")?.scrollIntoView({ block: "nearest" });
+  }, [ body, follow ]);
   return (
-    <Box ref={body} data-panel-body sx={{ flex: 1, minHeight: 0, overflowY: "auto", maskImage: fadeEdges(edges),
+    <Box ref={setBody} data-panel-body sx={{ flex: 1, minHeight: 0, overflowY: "auto", maskImage: fadeEdges(edges),
       ...noScrollbar ? { scrollbarWidth: "none" } : {} }}>
       {children}
     </Box>

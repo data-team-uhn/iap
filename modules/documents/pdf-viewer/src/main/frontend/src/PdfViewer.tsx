@@ -21,7 +21,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { getMarkPage, getMarksKey, isUnmarkable, NO_MARKS } from "./marksModel";
-import { getFileName, PASSAGES, type MarkName } from "./pdfViewerModel";
+import { getFileName, PASSAGES, type DocumentSearch, type MarkName } from "./pdfViewerModel";
+import { PlainViewer } from "./plainViewer";
 import { getNearestShown } from "./revisionDiffModel";
 import { getTextAnchor } from "./textAnchor";
 import { useComparedVersions } from "./useComparedVersions";
@@ -55,10 +56,14 @@ export interface PdfViewerProps {
   // Called with the anchor of the text the person selected in the document, when they press the Comment
   // button under it. Without it, the viewer offers no Comment button.
   onAnnotate?: (anchor: TextAnchor) => void;
+  // PRETOTYPE: what the button under a selected passage says; Comment when absent
+  annotateLabel?: string;
   // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
   // Give the same function on every render, such as one from useCallback, or the passages are drawn again
   // each time a search counts its matches.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
+  // PRETOTYPE: how many lines a passage not selected keeps of its quote and of its details beside the document
+  condensedMarks?: (mark: Mark) => { quote: number; details?: number } | undefined;
   // What the marks are called where the viewer counts and steps through them, such as comments ("Comment
   // 3 of 12"). Passages when absent. Changes are always called changes, and counted separately. The text a
   // mark covers is still called a passage, as in "Show the passage on page 2".
@@ -73,6 +78,25 @@ export interface PdfViewerProps {
   // What this version is called above it when shown beside the older one, such as "Version 3". "Newer
   // version" when absent.
   label?: string;
+  // PRETOTYPE: shown plain, in a page that already names the document: without the title row and its buttons, and
+  // on the page's own surface
+  plain?: boolean;
+  // PRETOTYPE: how wide the passages beside the document are, sized by dragging the edge between the two
+  listWidth?: number;
+  onListWidth?: (width: number) => void;
+  // PRETOTYPE: what heads each passage beside the document in place of the page it is on
+  markHeading?: (mark: Mark) => ReactNode;
+  markHeadingActions?: (mark: Mark) => ReactNode;
+  // PRETOTYPE: what heads the document's own column, beside the passages, such as the title of the page it is on
+  lead?: ReactNode;
+  // PRETOTYPE: a column of the page's own to list the passages in, however wide the viewer; null while it lists
+  // another's, when the viewer lists none
+  listContainer?: HTMLElement | null;
+  // PRETOTYPE: searched from outside, by a search covering more than this document, instead of its own search
+  // field. A new query is looked for from the page shown; each new step goes to the next match, or the previous
+  // one. What the search finds is told back.
+  search?: { query: string; step: number; previous: boolean };
+  onSearch?: (search: DocumentSearch) => void;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
   // height of its own. Without a container, the viewer opens in a dialog. While it is null, as a ref is
   // before React attaches it, the viewer shows nothing.
@@ -86,7 +110,11 @@ export interface PdfViewerProps {
 export default function PdfViewer(props: PdfViewerProps) {
   // Keyed by URL, so another document starts with nothing left from the last one. Another page of the same
   // document only moves the reader, who keeps the zoom and the search.
-  return <PdfViewerSession key={props.url} {...props} />;
+  return (
+    <PlainViewer.Provider value={Boolean(props.plain)}>
+      <PdfViewerSession key={props.url} {...props} />
+    </PlainViewer.Provider>
+  );
 }
 
 // Holds the open document and the reader's place in it above the placement, so both survive the viewer
@@ -139,6 +167,33 @@ function PdfViewerSession(props: PdfViewerProps) {
     },
   });
   const versions = useComparedVersions(comparing, view, { selectedId, select, changeIds });
+  // PRETOTYPE: a search from outside, once the document is open
+  const outside = props.search;
+  const { onSearch } = props;
+  const opened = view.pageCount !== undefined;
+  const { find: findHere, findNext: findHereNext, findPrevious: findHerePrevious, search: foundHere } = view;
+  // Only a query that changed is looked for: searching, even for nothing, stops taking the reader to a mark
+  const searched = useRef("");
+  useEffect(() => {
+    if (opened && outside !== undefined && outside.query !== searched.current) {
+      searched.current = outside.query;
+      findHere(outside.query);
+    }
+  }, [ opened, outside?.query, findHere ]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stepped = useRef(outside?.step ?? 0);
+  useEffect(() => {
+    if (outside !== undefined && outside.step !== stepped.current) {
+      stepped.current = outside.step;
+      if (outside.previous) {
+        findHerePrevious();
+      } else {
+        findHereNext();
+      }
+    }
+  }, [ outside?.step, outside?.previous, findHereNext, findHerePrevious ]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    onSearch?.(foundHere);
+  }, [ foundHere, onSearch ]);
   const { showMark, lead } = versions;
   const selectedText = useSelectedText(view.shown, onAnnotate !== undefined);
   const { dismiss } = selectedText;
@@ -218,6 +273,15 @@ function PdfViewerSession(props: PdfViewerProps) {
             ? undefined
             : { ...comparing, olderView: versions.olderView, olderLabel: compareWith?.label, newerLabel: props.label }}
           placeButton={placeButton}
+          searchedOutside={outside !== undefined}
+          annotateLabel={props.annotateLabel}
+          condensedMarks={props.condensedMarks}
+          listWidth={props.listWidth}
+          onListWidth={props.onListWidth}
+          markHeading={props.markHeading}
+          markHeadingActions={props.markHeadingActions}
+          lead={props.lead}
+          listContainer={props.listContainer}
           edgeToEdge={inDialog}
           onClose={onClose}
         />

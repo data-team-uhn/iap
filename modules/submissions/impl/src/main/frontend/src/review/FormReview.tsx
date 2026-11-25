@@ -25,12 +25,18 @@ import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 import { createPortal } from "react-dom";
 
-import { keepInView } from "@iap/documents-pdf-viewer/markLayer";
 import {
-  cutShort, getSelectedOutline, passageCard, passageDetails, passageHover, passageLayer, passageTint,
+  getCutShortStyle,
+  getSelectedOutline,
+  getPassageCardStyle,
+  getPassageDetailsStyle,
+  getPassageHover,
+  getPassageLayerStyle,
+  getPassageTint,
 } from "@iap/documents-pdf-viewer/passageStyles";
 import StepControls from "@iap/documents-pdf-viewer/StepControls";
 import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
+import { keepInView } from "@iap/frontend-commons/scrollWithin";
 import { useElementWidth } from "@iap/frontend-commons/useElementWidth";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
@@ -207,7 +213,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           <Box
             role={tint ? "presentation" : undefined} onClick={tint ? cycle : undefined}
             sx={theme => ({ flex: 1, minWidth: 0, ...tint ? {
-              mx: -0.5, px: 0.5, borderRadius: 0.5, cursor: "pointer", bgcolor: passageTint(theme, tint, 0.2),
+              mx: -0.5, px: 0.5, borderRadius: 0.5, cursor: "pointer", bgcolor: getPassageTint(theme, tint, 0.2),
               outline: outline ? "2px solid" : "none", outlineColor: outline ? getSelectedOutline(theme, outline) : undefined,
             } : {} })}
           >
@@ -280,7 +286,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           ))}
           {writing && answer && (
             // On a draft's card, as a document shows a note being started
-            <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.5, py: 1.25, outline: "2px solid",
+            <Box sx={theme => ({ ...getPassageCardStyle(theme, "draft"), px: 1.5, py: 1.25, outline: "2px solid",
               outlineColor: getSelectedOutline(theme, "draft"), outlineOffset: "-2px" })}>
               <Composer
                 kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
@@ -313,7 +319,7 @@ function SideCard({ note, kind, onOpen, actions, children }: {
   const hasActions = actions !== undefined && actions !== null && actions !== false;
   const strip = { display: "block", width: "100%", px: 1.5, pr: hasActions ? 10 : 1.5, py: 1, textAlign: "start" };
   return (
-    <Box data-note={note.id} sx={theme => ({ ...passageCard(theme, mark), overflow: "hidden", position: "relative" })}>
+    <Box data-note={note.id} sx={theme => ({ ...getPassageCardStyle(theme, mark), overflow: "hidden", position: "relative" })}>
       {hasActions && <Box sx={{ position: "absolute", top: 4, right: 12, zIndex: 1 }}>{actions}</Box>}
       {/* Headed by what it is, when and by whom, as beside a document; on a passage, the passage follows, leading
           to it, since the form does not show it */}
@@ -321,12 +327,12 @@ function SideCard({ note, kind, onOpen, actions, children }: {
         <ButtonBase
           onClick={onOpen}
           aria-label={`Show it in the document${note.passage.page ? `, page ${note.passage.page}` : ""}`}
-          sx={theme => ({ ...strip, ...passageLayer(theme, mark),
-            "@media (hover: hover)": { "&:hover": { bgcolor: passageHover(theme, mark) } },
-            "&.Mui-focusVisible": { bgcolor: passageHover(theme, mark) } })}
+          sx={theme => ({ ...strip, ...getPassageLayerStyle(theme, mark),
+            "@media (hover: hover)": { "&:hover": { bgcolor: getPassageHover(theme, mark) } },
+            "&.Mui-focusVisible": { bgcolor: getPassageHover(theme, mark) } })}
         >
           <Box sx={{ mb: 0.5 }}><NoteHeading note={note} /></Box>
-          <Typography variant="body2" component="span" sx={cutShort(3)}>“{note.passage.quote}”</Typography>
+          <Typography variant="body2" component="span" sx={getCutShortStyle(3)}>“{note.passage.quote}”</Typography>
           <Typography variant="caption" component="span" sx={{ display: "flex", alignItems: "center", gap: 0.5,
             color: "text.secondary" }}>
             <ArticleOutlined sx={{ fontSize: "1rem" }} />
@@ -334,7 +340,7 @@ function SideCard({ note, kind, onOpen, actions, children }: {
           </Typography>
         </ButtonBase>
       ) : (
-        <Box sx={theme => ({ ...strip, ...passageLayer(theme, mark) })}><NoteHeading note={note} /></Box>
+        <Box sx={theme => ({ ...strip, ...getPassageLayerStyle(theme, mark) })}><NoteHeading note={note} /></Box>
       )}
       <Box sx={{ px: 1.5, py: 1 }}>{children}</Box>
     </Box>
@@ -504,10 +510,10 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
 
 // The questions of a wide form, under its title, scrolling on their own, faded where there are more
 function Questions({ children }: { children: ReactNode }) {
-  const box = useRef<HTMLDivElement>(null);
+  const [ box, setBox ] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(box);
   return (
-    <Box ref={box} data-form-scroller
+    <Box ref={setBox} data-form-scroller
       sx={{ flex: 1, minHeight: 0, overflowY: "auto", pl: 4, pr: 1, pb: 3, maskImage: fadeEdges(edges) }}>
       {children}
     </Box>
@@ -532,10 +538,10 @@ function outOfView(element: HTMLElement): boolean {
 // A note not selected, cut short past some lines and faded where it is; a click anywhere on it selects it, as its
 // heading does for the keyboard
 function CutShort({ lines, onOpen, children }: { lines: number; onOpen: () => void; children: ReactNode }) {
-  const box = useRef<HTMLDivElement>(null);
+  const [ box, setBox ] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(box);
   return (
-    <Box ref={box} role="presentation" onClick={onOpen} sx={{ ...passageDetails(edges, lines), cursor: "pointer" }}>
+    <Box ref={setBox} role="presentation" onClick={onOpen} sx={{ ...getPassageDetailsStyle(edges, lines), cursor: "pointer" }}>
       {children}
     </Box>
   );
@@ -555,7 +561,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
   onEvidence: (note: ReviewNote) => void;
   onDraftDone: () => void;
 }) {
-  const list = useRef<HTMLUListElement>(null);
+  const [ list, setList ] = useState<HTMLUListElement | null>(null);
   const placed = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
   const [ adopting, setAdopting ] = useState<string>();
@@ -564,14 +570,14 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
   const question = entries.find(entry => (entry.note?.id ?? DRAFT) === selected)?.question.path;
   useEffect(() => {
     const entry = selected === undefined ? undefined : placed.current.get(selected);
-    if (list.current && entry) {
-      keepInView(list.current, entry);
+    if (list && entry) {
+      keepInView(list, entry);
     }
     const asked = question ? document.getElementById(`question-${question}`) : null;
     if (asked && outOfView(asked)) {
       asked.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-  }, [ selected, question ]);
+  }, [ list, selected, question ]);
   const place = (id: string) => (element: HTMLElement | null) => {
     if (element) {
       placed.current.set(id, element);
@@ -600,7 +606,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
         </Typography>
       )}
       <Box
-        ref={list} component="ul" aria-label="Notes"
+        ref={setList} component="ul" aria-label="Notes"
         sx={{ flex: "1 1 auto", minHeight: 0, overflow: "auto", listStyle: "none", m: 0, p: 0.5, display: "flex",
           flexDirection: "column", gap: 1, maskImage: fadeEdges(edges) }}
       >
@@ -609,7 +615,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
             const answer = data.answers.get(question.path);
             return (
               <Box component="li" key={DRAFT} ref={place(DRAFT)}
-                sx={theme => ({ ...passageCard(theme, "draft", 0.5), flexShrink: 0, px: 1.5, py: 1.25, outline: "2px solid",
+                sx={theme => ({ ...getPassageCardStyle(theme, "draft", 0.5), flexShrink: 0, px: 1.5, py: 1.25, outline: "2px solid",
                   outlineColor: getSelectedOutline(theme, "draft"), outlineOffset: "-2px" })}>
                 <Box sx={{ mb: 1 }}><DraftHeading /></Box>
                 <Composer
@@ -630,7 +636,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
           return (
             <Box
               component="li" key={note.id} ref={place(note.id)}
-              sx={theme => ({ ...passageCard(theme, mark, isSelected ? 0.5 : 0.25), position: "relative", flexShrink: 0,
+              sx={theme => ({ ...getPassageCardStyle(theme, mark, isSelected ? 0.5 : 0.25), position: "relative", flexShrink: 0,
                 overflow: "hidden", outline: isSelected ? "2px solid" : "none",
                 outlineColor: getSelectedOutline(theme, mark), outlineOffset: "-2px" })}
             >
@@ -651,14 +657,14 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 onClick={() => onSelect(note.id)} aria-current={isSelected ? "true" : undefined}
                 aria-label={`Select the note about: ${question.text}`}
                 sx={theme => ({ display: "block", width: "100%", px: 1.5, pr: note.mine ? 10 : 1.5, py: 1,
-                  textAlign: "start", ...passageLayer(theme, mark),
-                  "@media (hover: hover)": { "&:hover": { bgcolor: passageHover(theme, mark) } },
-                  "&.Mui-focusVisible": { bgcolor: passageHover(theme, mark) } })}
+                  textAlign: "start", ...getPassageLayerStyle(theme, mark),
+                  "@media (hover: hover)": { "&:hover": { bgcolor: getPassageHover(theme, mark) } },
+                  "&.Mui-focusVisible": { bgcolor: getPassageHover(theme, mark) } })}
               >
                 <NoteHeading note={note} />
                 {(note.kind === "evidence" || note.kind === "contradiction") && note.passage && (
                   <Typography variant="body2" component="span" sx={{ mt: 0.5, ...isSelected ? { display: "block" }
-                    : cutShort(2) }}>
+                    : getCutShortStyle(2) }}>
                     “{note.passage.quote}”
                   </Typography>
                 )}

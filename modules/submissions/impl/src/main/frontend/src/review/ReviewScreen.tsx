@@ -50,7 +50,7 @@ import {
 } from "@mui/material";
 
 import type { MarkKind } from "@iap/documents-pdf-viewer/marksModel";
-import { passageCard } from "@iap/documents-pdf-viewer/passageStyles";
+import { getPassageCardStyle } from "@iap/documents-pdf-viewer/passageStyles";
 import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import LoadError from "@iap/frontend-commons/components/LoadError";
@@ -942,10 +942,10 @@ export default function ReviewScreen({ path }: { path: string }) {
   // what is done with is shown too, the same way, on a neutral tint, having no kind's.
   const toggleSx = (on: boolean, mark?: MarkKind) => (theme: Theme) => ({ display: "inline-flex", alignItems: "center",
     gap: 0.5, px: 0.75, py: 0.25, borderRadius: 1, typography: "caption", lineHeight: 1.6,
-    ...!on ? { color: "text.secondary" } : mark ? { ...passageCard(theme, mark, 0.5), borderInlineStart: "none",
+    ...!on ? { color: "text.secondary" } : mark ? { ...getPassageCardStyle(theme, mark, 0.5), borderInlineStart: "none",
       color: `${mark}.main`, fontWeight: "fontWeightMedium" }
       : { bgcolor: "action.selected", color: "text.primary", fontWeight: "fontWeightMedium" },
-    "&:hover": on && mark ? { backgroundImage: passageCard(theme, mark, 0.8).backgroundImage }
+    "&:hover": on && mark ? { backgroundImage: getPassageCardStyle(theme, mark, 0.8).backgroundImage }
       : { bgcolor: on ? "action.focus" : "action.hover" },
     "&.Mui-focusVisible": { outline: 2, outlineColor: "primary.main" } });
   const noteFilters = (
@@ -1029,7 +1029,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                           return many > 0 && (
                           // Each on its kind's tint, as its notes are, to stand out on the contents' own
                             <Box component="span" key={kind}
-                              sx={theme => ({ ...passageCard(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
+                              sx={theme => ({ ...getPassageCardStyle(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
                                 display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
                                 color: `${kindInfo(kind).mark}.main` })}>
                               <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}

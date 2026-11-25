@@ -42,12 +42,15 @@ export interface ViewerToolbarHandle {
 // Where there is no room for the search field, a Search button opens it in place of the toolbar. The field
 // stays there while it is open or holds a query. It takes the focus when it opens, and closing it gives the
 // focus back to the Search button.
-export default function ViewerToolbar({ ref, start, tools, opened, search, onFind, onFindNext, onFindPrevious }: {
+export default function ViewerToolbar({ ref, start, tools, opened, search, noSearchField = false, onFind, onFindNext,
+  onFindPrevious }: {
   ref?: Ref<ViewerToolbarHandle>;
   start?: ReactNode;
   tools?: ReactNode;
   opened: boolean;
   search: DocumentSearch;
+  // PRETOTYPE: searched from outside the viewer
+  noSearchField?: boolean;
   onFind: (query: string) => void;
   onFindNext: () => void;
   onFindPrevious: () => void;
@@ -103,7 +106,7 @@ export default function ViewerToolbar({ ref, start, tools, opened, search, onFin
           <PdfToolbar
             start={start}
             tools={tools}
-            search={compact
+            search={noSearchField ? null : compact
               ? (
                 <ActionIcon
                   ref={searchButtonRef}
