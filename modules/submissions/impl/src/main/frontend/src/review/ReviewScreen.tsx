@@ -150,6 +150,9 @@ const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind).filter(kind 
 // The kinds always shown, which the reviewer cannot turn off
 const ALWAYS: NoteKind[] = [ "contradiction" ];
 
+// What the filters' counts take in, not only the part being read, as their numbers alone may suggest
+const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
+
 // Which of two parts shown one above the other
 type Pane = "top" | "bottom";
 
@@ -951,17 +954,19 @@ export default function ReviewScreen({ path }: { path: string }) {
       {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => {
         const on = shown.has(info.kind);
         return (
-          <ButtonBase key={info.kind} aria-pressed={on} onClick={() => toggleKind(info.kind)}
-            sx={toggleSx(on, info.mark)}>
-            <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
-            {info.label} ({kindCount(info.kind)})
-          </ButtonBase>
+          <Tooltip key={info.kind} title={COUNTED_ACROSS} describeChild disableInteractive>
+            <ButtonBase aria-pressed={on} onClick={() => toggleKind(info.kind)} sx={toggleSx(on, info.mark)}>
+              <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
+              {info.label} ({kindCount(info.kind)})
+            </ButtonBase>
+          </Tooltip>
         );
       })}
       {/* Set apart from the kinds by a rule, which wraps with it */}
       <Stack direction="row" sx={{ alignItems: "stretch", gap: 0.5 }}>
         <Divider orientation="vertical" flexItem sx={{ borderColor: "text.disabled" }} />
-        <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive>
+        <Tooltip title={`Also show notes dismissed, resolved, or addressed by an issue. ${COUNTED_ACROSS}`} describeChild
+          disableInteractive>
           <ButtonBase aria-pressed={showDone} onClick={() => setShowDone(!showDone)} sx={toggleSx(showDone)}>
             <TaskAltOutlined sx={{ fontSize: "0.9rem", ...showDone ? {} : { opacity: 0.6 } }} />
             Resolved and dismissed ({doneCount})
