@@ -136,12 +136,13 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Refuses a change to a submission that is not its submitter's, or that comes after it stopped being a draft.
+     * Refuses a change to a submission that is not its submitter's, or that comes while it is not open to changes:
+     * after it stopped being a draft, unless it was sent back for changes.
      *
      * @param submission the submission being changed
      * @param actor the user id of whoever is changing it
      * @throws NotAuthorizedException when somebody else is changing it
-     * @throws InvalidStateException when it is no longer a draft
+     * @throws InvalidStateException when it is neither a draft nor back for changes
      */
     static void checkMayEdit(final Submission submission, final String actor)
         throws NotAuthorizedException, InvalidStateException
@@ -150,7 +151,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         if (!actor.equals(submission.getCreatedBy())) {
             throw new NotAuthorizedException("Only the person who raised a request may change it");
         }
-        if (!submission.isDraft()) {
+        if (!submission.isOpenToChanges()) {
             throw new InvalidStateException("This request has been submitted and can no longer be changed");
         }
     }

@@ -347,6 +347,41 @@ class SubmissionTest
     }
 
     @Test
+    void isOpenToChangesAsADraft()
+    {
+        assertTrue(taggedSubmission("draft").isOpenToChanges());
+    }
+
+    @Test
+    void isOpenToChangesWhileBackForChanges()
+    {
+        assertTrue(taggedSubmission("changes-requested").isOpenToChanges());
+    }
+
+    @Test
+    void isClosedToChangesOnceInReview()
+    {
+        assertFalse(taggedSubmission("in-review").isOpenToChanges());
+    }
+
+    @Test
+    void isClosedToChangesWithoutTheTagsService()
+    {
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "draft" });
+
+        assertFalse(resource.adaptTo(Submission.class).isOpenToChanges());
+    }
+
+    // A submission carrying the given tags itself, its tags read through the tags service
+    private Submission taggedSubmission(final String... tags)
+    {
+        PropertyTagging.installIn(this.context);
+        return this.context.create().resource(SUBMISSION_PATH, SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE,
+            "tags", tags).adaptTo(Submission.class);
+    }
+
+    @Test
     void aggregatesUnresolvedCommentsAcrossAllFeedbackAndSeparatelyAcrossBindingFeedback()
     {
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
