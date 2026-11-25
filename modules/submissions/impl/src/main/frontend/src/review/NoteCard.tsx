@@ -244,12 +244,14 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           {!BY_THE_AI.has(note.kind) && <><PersonName user={note.author} /> · </>}{when(note.created)}
         </Typography>
       )}
-      {/* A linked answer says which answer it backs; a contradiction, what the form says and what the protocol does,
-          and why the AI read it so. The question leads to it in the form */}
+      {/* A linked answer says which answer it backs, and why the passage backs it, which is not always plain from the
+          words; a contradiction, what the form says and what the protocol does, and why the AI read it so. The
+          question leads to it in the form */}
       {note.kind === "evidence" && (
         <Stack sx={{ gap: 0.5 }}>
           {question && <Field label="Question"><QuestionLink text={question} onShow={onShowAnswer} /></Field>}
           <Field label="Answer"><b>{answerLabel ?? note.extracted}</b></Field>
+          {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
         </Stack>
       )}
       {note.kind === "contradiction" && (
