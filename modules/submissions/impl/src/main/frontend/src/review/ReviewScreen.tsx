@@ -247,7 +247,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ shown, setShown ] = useState(storedKinds);
   // Whether notes dismissed, resolved or addressed by an issue are shown, faded, rather than left out
   const [ showDone, setShowDone ] = useStoredSetting("iap.review.showDone", false, isFlag);
-  // A note done with that a link led to, shown all the same, until another is
+  // A note done with that a link led to, shown all the same while it is the one selected
   const [ peek, setPeek ] = useState<string>();
   // Going to a note by path, for the cards, set once what is shown is known
   const showNote = useRef<(id: string) => void>(undefined);
@@ -329,8 +329,9 @@ export default function ReviewScreen({ path }: { path: string }) {
       loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items))))
     : undefined, [ loaded, schema, me, topics ]);
   // What the pages and their notes show: what is done with only when the reviewer asks
+  const peeking = peek !== undefined && (mark.id === peek || belowMark.id === peek) ? peek : undefined;
   const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
-    : { ...data, notes: data.notes.filter(note => !note.done || note.id === peek) }), [ data, showDone, peek ]);
+    : { ...data, notes: data.notes.filter(note => !note.done || note.id === peeking) }), [ data, showDone, peeking ]);
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
   const groupLabels = useMemo(() => new Map((loaded?.approvals ?? []).map(approval =>
     [ text(approval.approverGroup), groupShortName(text(approval.label)) ] as const)), [ loaded ]);
