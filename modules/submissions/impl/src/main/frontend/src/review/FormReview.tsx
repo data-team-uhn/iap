@@ -369,7 +369,7 @@ function homes(items: FormItem[], data: ReviewData): Map<string, string> {
 // The questions of a form requirement, section by section, every one of them: the group chips say which concern
 // the reviewer.
 export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf,
-  notesWidth = 320, onNotesWidth, selected, onSelect, heading, notesSlot, formLabel }: {
+  notesWidth = 400, onNotesWidth, selected, onSelect, heading, notesSlot, formLabel }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;

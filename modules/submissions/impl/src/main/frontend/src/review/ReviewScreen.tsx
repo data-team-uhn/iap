@@ -279,7 +279,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   // How the contents and the review were before a second part was opened, folded away meanwhile, to restore after
   const [ beforeSplit, setBeforeSplit ] = useState<{ rail: boolean; issues: boolean }>();
   // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
-  const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 320, isWidth);
+  const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 400, isWidth);
   // The contents entry being read, and, when it has scrolled out of the list, the edge it left by, where a copy of it
   // stays pinned
   const [ readEntry, setReadEntry ] = useState<HTMLElement | null>(null);
