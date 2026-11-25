@@ -47,6 +47,8 @@ describe("NumberInput", () => {
     retype([ "12x" ]);
 
     expect(screen.getByText("Enter a whole number.")).toBeInTheDocument();
+    fireEvent.blur(input!);
+    expect(screen.getByText("Enter a whole number.")).toBeInTheDocument();
   });
 
   it("flags at once a number too large to hold", () => {
