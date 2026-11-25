@@ -170,10 +170,15 @@ def build():
                      ' iap:replaceExisting="true" iap:tag="changes-requested" />')
         d.shape(ident("markChanges"), 1090, y - 20, 100, 60)
         flow(ident("changesArc"), decision, ident("markChanges"), guard("variable", "outcome", "changes-requested"))
+        # PRETOTYPE: a copy of the study as it was sent back, for the reviewers to compare its answer with
+        nodes.append(f'    <bpmn:serviceTask id="{ident("keepCopy")}" name="Keep a copy of what was sent back"'
+                     f' iap:handler="keepCopy" iap:requirement="{requirement}" />')
+        d.shape(ident("keepCopy"), 1090, y - 110, 100, 60)
+        flow(ident("toKeepCopy"), ident("markChanges"), ident("keepCopy"))
         nodes.append(f'    <bpmn:serviceTask id="{ident("pauseClock")}" name="Pause the review clock" iap:handler="reviewClock"'
                      ' iap:action="pause" />')
-        d.shape(ident("pauseClock"), 1090, y - 110, 100, 60)
-        flow(ident("toPauseClock"), ident("markChanges"), ident("pauseClock"))
+        d.shape(ident("pauseClock"), 1160, y - 110, 60, 60)
+        flow(ident("toPauseClock"), ident("keepCopy"), ident("pauseClock"))
         nodes.append(f'    <bpmn:userTask id="{ident("respond")}" name="Answer the reviewers" iap:performers="@creator" />')
         d.shape(ident("respond"), 1230, y - 20, 120, 60)
         flow(ident("toRespond"), ident("pauseClock"), ident("respond"))

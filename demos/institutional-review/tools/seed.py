@@ -402,19 +402,10 @@ def send_back(admin, path, answers, documents, issues, url):
                   {"outcome": "changes-requested", "outcomeNote": letter(issues)})
 
 
-def keep_copy(admin, path, reviewer):
-    """Saves a copy of the submission as it was sent back, and says on the reviewer's review which one, as the
-    workflow will once it has a step for it."""
-    admin.post(f"/bin/cpm/nodes/version.checkin.json{path}")
-    admin.post(f"/bin/cpm/nodes/version.checkout.json{path}")
-    create(admin, f"{path}/review-{reviewer}", {"sentBackCopy": admin.get(f"{path}.json")["jcr:baseVersion"]})
-
-
 def resubmit(admin, researcher, path, content, nct, plan, answers, documents, url):
-    """The REB sends the study back, and its team answers: changes the answers, uploads the revised protocol and
-    sends it back into review."""
+    """The REB sends the study back, the workflow keeping a copy of it as it was, and its team answers: changes the
+    answers, uploads the revised protocol and sends it back into review."""
     send_back(admin, path, answers, documents, plan["issues"], url)
-    keep_copy(admin, path, "reb-reviewer")
     researcher.post(f"{path}.save.json", answer_payload(plan["answers"]))
     with open(content / "protocols" / nct / plan["protocol"], "rb") as protocol:
         researcher.post(f"{path}.attachDocument.json", {"requirement": "protocol"},
@@ -512,7 +503,6 @@ def main():
         open_review(admin, path, schema, "reb-reviewer", "reb")
         if nct in SENT_BACK:
             send_back(admin, path, answers, documents, SENT_BACK[nct], args.url)
-            keep_copy(admin, path, "reb-reviewer")
         if nct in RESUBMITTED:
             resubmit(admin, researcher, path, content, nct, RESUBMITTED[nct], answers, documents, args.url)
         add_activity(args.url, path, ACTIVITY.get(nct, {}))

@@ -38,6 +38,7 @@
     <bpmn:serviceTask id="rebRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="reb" />
     <bpmn:exclusiveGateway id="rebDecision" name="Research ethics review: decision" default="rebApproved" />
     <bpmn:serviceTask id="markChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="keepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="reb" />
     <bpmn:serviceTask id="pauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="respond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="markResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -49,6 +50,7 @@
     <bpmn:serviceTask id="digitalReviewRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="digitalReview" />
     <bpmn:exclusiveGateway id="digitalReviewDecision" name="Digital review: decision" default="digitalReviewApprovedArc" />
     <bpmn:serviceTask id="digitalReviewMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="digitalReviewKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="digitalReview" />
     <bpmn:serviceTask id="digitalReviewPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="digitalReviewRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="digitalReviewMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -57,6 +59,7 @@
     <bpmn:serviceTask id="deptHeadRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="deptHead" />
     <bpmn:exclusiveGateway id="deptHeadDecision" name="Department head review: decision" default="deptHeadApprovedArc" />
     <bpmn:serviceTask id="deptHeadMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="deptHeadKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="deptHead" />
     <bpmn:serviceTask id="deptHeadPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="deptHeadRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="deptHeadMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -65,6 +68,7 @@
     <bpmn:serviceTask id="rqiRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="rqi" />
     <bpmn:exclusiveGateway id="rqiDecision" name="Research quality review: decision" default="rqiApprovedArc" />
     <bpmn:serviceTask id="rqiMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="rqiKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="rqi" />
     <bpmn:serviceTask id="rqiPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="rqiRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="rqiMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -73,6 +77,7 @@
     <bpmn:serviceTask id="ctaRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="cta" />
     <bpmn:exclusiveGateway id="ctaDecision" name="Agreements review: decision" default="ctaApprovedArc" />
     <bpmn:serviceTask id="ctaMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="ctaKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="cta" />
     <bpmn:serviceTask id="ctaPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="ctaRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="ctaMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -81,6 +86,7 @@
     <bpmn:serviceTask id="lmpRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="lmp" />
     <bpmn:exclusiveGateway id="lmpDecision" name="Laboratory Medicine review: decision" default="lmpApprovedArc" />
     <bpmn:serviceTask id="lmpMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="lmpKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="lmp" />
     <bpmn:serviceTask id="lmpPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="lmpRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="lmpMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -89,6 +95,7 @@
     <bpmn:serviceTask id="jdmiRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="jdmi" />
     <bpmn:exclusiveGateway id="jdmiDecision" name="Medical Imaging review: decision" default="jdmiApprovedArc" />
     <bpmn:serviceTask id="jdmiMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="jdmiKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="jdmi" />
     <bpmn:serviceTask id="jdmiPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="jdmiRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="jdmiMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -97,6 +104,7 @@
     <bpmn:serviceTask id="crdacRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="crdac" />
     <bpmn:exclusiveGateway id="crdacDecision" name="Princess Margaret data review: decision" default="crdacApprovedArc" />
     <bpmn:serviceTask id="crdacMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="crdacKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="crdac" />
     <bpmn:serviceTask id="crdacPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="crdacRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="crdacMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -105,6 +113,7 @@
     <bpmn:serviceTask id="healthProfessionsRecorded" name="Write the decision down" iap:handler="recordReview" iap:requirement="healthProfessions" />
     <bpmn:exclusiveGateway id="healthProfessionsDecision" name="Health Professions acknowledgement: decision" default="healthProfessionsApprovedArc" />
     <bpmn:serviceTask id="healthProfessionsMarkChanges" name="Send it back for changes" iap:handler="addTag" iap:replaceExisting="true" iap:tag="changes-requested" />
+    <bpmn:serviceTask id="healthProfessionsKeepCopy" name="Keep a copy of what was sent back" iap:handler="keepCopy" iap:requirement="healthProfessions" />
     <bpmn:serviceTask id="healthProfessionsPauseClock" name="Pause the review clock" iap:handler="reviewClock" iap:action="pause" />
     <bpmn:userTask id="healthProfessionsRespond" name="Answer the reviewers" iap:performers="@creator" />
     <bpmn:serviceTask id="healthProfessionsMarkResubmitted" name="Back in review" iap:handler="addTag" iap:replaceExisting="true" iap:tag="in-review" />
@@ -136,7 +145,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="toPauseClock" sourceRef="markChanges" targetRef="pauseClock" />
+    <bpmn:sequenceFlow id="toKeepCopy" sourceRef="markChanges" targetRef="keepCopy" />
+    <bpmn:sequenceFlow id="toPauseClock" sourceRef="keepCopy" targetRef="pauseClock" />
     <bpmn:sequenceFlow id="toRespond" sourceRef="pauseClock" targetRef="respond" />
     <bpmn:sequenceFlow id="toMarkResubmitted" sourceRef="respond" targetRef="markResubmitted" />
     <bpmn:sequenceFlow id="toResumeClock" sourceRef="markResubmitted" targetRef="resumeClock" />
@@ -179,7 +189,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="digitalReviewToPauseClock" sourceRef="digitalReviewMarkChanges" targetRef="digitalReviewPauseClock" />
+    <bpmn:sequenceFlow id="digitalReviewToKeepCopy" sourceRef="digitalReviewMarkChanges" targetRef="digitalReviewKeepCopy" />
+    <bpmn:sequenceFlow id="digitalReviewToPauseClock" sourceRef="digitalReviewKeepCopy" targetRef="digitalReviewPauseClock" />
     <bpmn:sequenceFlow id="digitalReviewToRespond" sourceRef="digitalReviewPauseClock" targetRef="digitalReviewRespond" />
     <bpmn:sequenceFlow id="digitalReviewToMarkResubmitted" sourceRef="digitalReviewRespond" targetRef="digitalReviewMarkResubmitted" />
     <bpmn:sequenceFlow id="digitalReviewToResumeClock" sourceRef="digitalReviewMarkResubmitted" targetRef="digitalReviewResumeClock" />
@@ -205,7 +216,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="deptHeadToPauseClock" sourceRef="deptHeadMarkChanges" targetRef="deptHeadPauseClock" />
+    <bpmn:sequenceFlow id="deptHeadToKeepCopy" sourceRef="deptHeadMarkChanges" targetRef="deptHeadKeepCopy" />
+    <bpmn:sequenceFlow id="deptHeadToPauseClock" sourceRef="deptHeadKeepCopy" targetRef="deptHeadPauseClock" />
     <bpmn:sequenceFlow id="deptHeadToRespond" sourceRef="deptHeadPauseClock" targetRef="deptHeadRespond" />
     <bpmn:sequenceFlow id="deptHeadToMarkResubmitted" sourceRef="deptHeadRespond" targetRef="deptHeadMarkResubmitted" />
     <bpmn:sequenceFlow id="deptHeadToResumeClock" sourceRef="deptHeadMarkResubmitted" targetRef="deptHeadResumeClock" />
@@ -231,7 +243,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="rqiToPauseClock" sourceRef="rqiMarkChanges" targetRef="rqiPauseClock" />
+    <bpmn:sequenceFlow id="rqiToKeepCopy" sourceRef="rqiMarkChanges" targetRef="rqiKeepCopy" />
+    <bpmn:sequenceFlow id="rqiToPauseClock" sourceRef="rqiKeepCopy" targetRef="rqiPauseClock" />
     <bpmn:sequenceFlow id="rqiToRespond" sourceRef="rqiPauseClock" targetRef="rqiRespond" />
     <bpmn:sequenceFlow id="rqiToMarkResubmitted" sourceRef="rqiRespond" targetRef="rqiMarkResubmitted" />
     <bpmn:sequenceFlow id="rqiToResumeClock" sourceRef="rqiMarkResubmitted" targetRef="rqiResumeClock" />
@@ -273,7 +286,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="ctaToPauseClock" sourceRef="ctaMarkChanges" targetRef="ctaPauseClock" />
+    <bpmn:sequenceFlow id="ctaToKeepCopy" sourceRef="ctaMarkChanges" targetRef="ctaKeepCopy" />
+    <bpmn:sequenceFlow id="ctaToPauseClock" sourceRef="ctaKeepCopy" targetRef="ctaPauseClock" />
     <bpmn:sequenceFlow id="ctaToRespond" sourceRef="ctaPauseClock" targetRef="ctaRespond" />
     <bpmn:sequenceFlow id="ctaToMarkResubmitted" sourceRef="ctaRespond" targetRef="ctaMarkResubmitted" />
     <bpmn:sequenceFlow id="ctaToResumeClock" sourceRef="ctaMarkResubmitted" targetRef="ctaResumeClock" />
@@ -315,7 +329,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="lmpToPauseClock" sourceRef="lmpMarkChanges" targetRef="lmpPauseClock" />
+    <bpmn:sequenceFlow id="lmpToKeepCopy" sourceRef="lmpMarkChanges" targetRef="lmpKeepCopy" />
+    <bpmn:sequenceFlow id="lmpToPauseClock" sourceRef="lmpKeepCopy" targetRef="lmpPauseClock" />
     <bpmn:sequenceFlow id="lmpToRespond" sourceRef="lmpPauseClock" targetRef="lmpRespond" />
     <bpmn:sequenceFlow id="lmpToMarkResubmitted" sourceRef="lmpRespond" targetRef="lmpMarkResubmitted" />
     <bpmn:sequenceFlow id="lmpToResumeClock" sourceRef="lmpMarkResubmitted" targetRef="lmpResumeClock" />
@@ -357,7 +372,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="jdmiToPauseClock" sourceRef="jdmiMarkChanges" targetRef="jdmiPauseClock" />
+    <bpmn:sequenceFlow id="jdmiToKeepCopy" sourceRef="jdmiMarkChanges" targetRef="jdmiKeepCopy" />
+    <bpmn:sequenceFlow id="jdmiToPauseClock" sourceRef="jdmiKeepCopy" targetRef="jdmiPauseClock" />
     <bpmn:sequenceFlow id="jdmiToRespond" sourceRef="jdmiPauseClock" targetRef="jdmiRespond" />
     <bpmn:sequenceFlow id="jdmiToMarkResubmitted" sourceRef="jdmiRespond" targetRef="jdmiMarkResubmitted" />
     <bpmn:sequenceFlow id="jdmiToResumeClock" sourceRef="jdmiMarkResubmitted" targetRef="jdmiResumeClock" />
@@ -399,7 +415,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="crdacToPauseClock" sourceRef="crdacMarkChanges" targetRef="crdacPauseClock" />
+    <bpmn:sequenceFlow id="crdacToKeepCopy" sourceRef="crdacMarkChanges" targetRef="crdacKeepCopy" />
+    <bpmn:sequenceFlow id="crdacToPauseClock" sourceRef="crdacKeepCopy" targetRef="crdacPauseClock" />
     <bpmn:sequenceFlow id="crdacToRespond" sourceRef="crdacPauseClock" targetRef="crdacRespond" />
     <bpmn:sequenceFlow id="crdacToMarkResubmitted" sourceRef="crdacRespond" targetRef="crdacMarkResubmitted" />
     <bpmn:sequenceFlow id="crdacToResumeClock" sourceRef="crdacMarkResubmitted" targetRef="crdacResumeClock" />
@@ -441,7 +458,8 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="healthProfessionsToPauseClock" sourceRef="healthProfessionsMarkChanges" targetRef="healthProfessionsPauseClock" />
+    <bpmn:sequenceFlow id="healthProfessionsToKeepCopy" sourceRef="healthProfessionsMarkChanges" targetRef="healthProfessionsKeepCopy" />
+    <bpmn:sequenceFlow id="healthProfessionsToPauseClock" sourceRef="healthProfessionsKeepCopy" targetRef="healthProfessionsPauseClock" />
     <bpmn:sequenceFlow id="healthProfessionsToRespond" sourceRef="healthProfessionsPauseClock" targetRef="healthProfessionsRespond" />
     <bpmn:sequenceFlow id="healthProfessionsToMarkResubmitted" sourceRef="healthProfessionsRespond" targetRef="healthProfessionsMarkResubmitted" />
     <bpmn:sequenceFlow id="healthProfessionsToResumeClock" sourceRef="healthProfessionsMarkResubmitted" targetRef="healthProfessionsResumeClock" />
@@ -483,8 +501,11 @@
       <bpmndi:BPMNShape id="markChangesShape" bpmnElement="markChanges">
         <dc:Bounds x="1090" y="20" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="pauseClockShape" bpmnElement="pauseClock">
+      <bpmndi:BPMNShape id="keepCopyShape" bpmnElement="keepCopy">
         <dc:Bounds x="1090" y="-70" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="pauseClockShape" bpmnElement="pauseClock">
+        <dc:Bounds x="1160" y="-70" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="respondShape" bpmnElement="respond">
         <dc:Bounds x="1230" y="20" width="120" height="60" />
@@ -510,8 +531,11 @@
       <bpmndi:BPMNShape id="digitalReviewMarkChangesShape" bpmnElement="digitalReviewMarkChanges">
         <dc:Bounds x="1090" y="140" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="digitalReviewPauseClockShape" bpmnElement="digitalReviewPauseClock">
+      <bpmndi:BPMNShape id="digitalReviewKeepCopyShape" bpmnElement="digitalReviewKeepCopy">
         <dc:Bounds x="1090" y="50" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="digitalReviewPauseClockShape" bpmnElement="digitalReviewPauseClock">
+        <dc:Bounds x="1160" y="50" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="digitalReviewRespondShape" bpmnElement="digitalReviewRespond">
         <dc:Bounds x="1230" y="140" width="120" height="60" />
@@ -534,8 +558,11 @@
       <bpmndi:BPMNShape id="deptHeadMarkChangesShape" bpmnElement="deptHeadMarkChanges">
         <dc:Bounds x="1090" y="260" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="deptHeadPauseClockShape" bpmnElement="deptHeadPauseClock">
+      <bpmndi:BPMNShape id="deptHeadKeepCopyShape" bpmnElement="deptHeadKeepCopy">
         <dc:Bounds x="1090" y="170" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deptHeadPauseClockShape" bpmnElement="deptHeadPauseClock">
+        <dc:Bounds x="1160" y="170" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="deptHeadRespondShape" bpmnElement="deptHeadRespond">
         <dc:Bounds x="1230" y="260" width="120" height="60" />
@@ -558,8 +585,11 @@
       <bpmndi:BPMNShape id="rqiMarkChangesShape" bpmnElement="rqiMarkChanges">
         <dc:Bounds x="1090" y="380" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="rqiPauseClockShape" bpmnElement="rqiPauseClock">
+      <bpmndi:BPMNShape id="rqiKeepCopyShape" bpmnElement="rqiKeepCopy">
         <dc:Bounds x="1090" y="290" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="rqiPauseClockShape" bpmnElement="rqiPauseClock">
+        <dc:Bounds x="1160" y="290" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="rqiRespondShape" bpmnElement="rqiRespond">
         <dc:Bounds x="1230" y="380" width="120" height="60" />
@@ -582,8 +612,11 @@
       <bpmndi:BPMNShape id="ctaMarkChangesShape" bpmnElement="ctaMarkChanges">
         <dc:Bounds x="1090" y="500" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ctaPauseClockShape" bpmnElement="ctaPauseClock">
+      <bpmndi:BPMNShape id="ctaKeepCopyShape" bpmnElement="ctaKeepCopy">
         <dc:Bounds x="1090" y="410" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ctaPauseClockShape" bpmnElement="ctaPauseClock">
+        <dc:Bounds x="1160" y="410" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ctaRespondShape" bpmnElement="ctaRespond">
         <dc:Bounds x="1230" y="500" width="120" height="60" />
@@ -606,8 +639,11 @@
       <bpmndi:BPMNShape id="lmpMarkChangesShape" bpmnElement="lmpMarkChanges">
         <dc:Bounds x="1090" y="620" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="lmpPauseClockShape" bpmnElement="lmpPauseClock">
+      <bpmndi:BPMNShape id="lmpKeepCopyShape" bpmnElement="lmpKeepCopy">
         <dc:Bounds x="1090" y="530" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lmpPauseClockShape" bpmnElement="lmpPauseClock">
+        <dc:Bounds x="1160" y="530" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lmpRespondShape" bpmnElement="lmpRespond">
         <dc:Bounds x="1230" y="620" width="120" height="60" />
@@ -630,8 +666,11 @@
       <bpmndi:BPMNShape id="jdmiMarkChangesShape" bpmnElement="jdmiMarkChanges">
         <dc:Bounds x="1090" y="740" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="jdmiPauseClockShape" bpmnElement="jdmiPauseClock">
+      <bpmndi:BPMNShape id="jdmiKeepCopyShape" bpmnElement="jdmiKeepCopy">
         <dc:Bounds x="1090" y="650" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="jdmiPauseClockShape" bpmnElement="jdmiPauseClock">
+        <dc:Bounds x="1160" y="650" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="jdmiRespondShape" bpmnElement="jdmiRespond">
         <dc:Bounds x="1230" y="740" width="120" height="60" />
@@ -654,8 +693,11 @@
       <bpmndi:BPMNShape id="crdacMarkChangesShape" bpmnElement="crdacMarkChanges">
         <dc:Bounds x="1090" y="860" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="crdacPauseClockShape" bpmnElement="crdacPauseClock">
+      <bpmndi:BPMNShape id="crdacKeepCopyShape" bpmnElement="crdacKeepCopy">
         <dc:Bounds x="1090" y="770" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="crdacPauseClockShape" bpmnElement="crdacPauseClock">
+        <dc:Bounds x="1160" y="770" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="crdacRespondShape" bpmnElement="crdacRespond">
         <dc:Bounds x="1230" y="860" width="120" height="60" />
@@ -678,8 +720,11 @@
       <bpmndi:BPMNShape id="healthProfessionsMarkChangesShape" bpmnElement="healthProfessionsMarkChanges">
         <dc:Bounds x="1090" y="980" width="100" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="healthProfessionsPauseClockShape" bpmnElement="healthProfessionsPauseClock">
+      <bpmndi:BPMNShape id="healthProfessionsKeepCopyShape" bpmnElement="healthProfessionsKeepCopy">
         <dc:Bounds x="1090" y="890" width="100" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="healthProfessionsPauseClockShape" bpmnElement="healthProfessionsPauseClock">
+        <dc:Bounds x="1160" y="890" width="60" height="60" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="healthProfessionsRespondShape" bpmnElement="healthProfessionsRespond">
         <dc:Bounds x="1230" y="980" width="120" height="60" />
@@ -737,14 +782,18 @@
         <di:waypoint x="1040" y="80" />
         <di:waypoint x="1090" y="50" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toPauseClockEdge" bpmnElement="toPauseClock">
+      <bpmndi:BPMNEdge id="toKeepCopyEdge" bpmnElement="toKeepCopy">
         <di:waypoint x="1140" y="80" />
         <di:waypoint x="1140" y="120" />
         <di:waypoint x="1140" y="120" />
         <di:waypoint x="1140" y="-10" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toRespondEdge" bpmnElement="toRespond">
+      <bpmndi:BPMNEdge id="toPauseClockEdge" bpmnElement="toPauseClock">
         <di:waypoint x="1190" y="-40" />
+        <di:waypoint x="1160" y="-40" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRespondEdge" bpmnElement="toRespond">
+        <di:waypoint x="1220" y="-40" />
         <di:waypoint x="1230" y="50" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toMarkResubmittedEdge" bpmnElement="toMarkResubmitted">
@@ -787,14 +836,18 @@
         <di:waypoint x="1040" y="200" />
         <di:waypoint x="1090" y="170" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="digitalReviewToPauseClockEdge" bpmnElement="digitalReviewToPauseClock">
+      <bpmndi:BPMNEdge id="digitalReviewToKeepCopyEdge" bpmnElement="digitalReviewToKeepCopy">
         <di:waypoint x="1140" y="200" />
         <di:waypoint x="1140" y="240" />
         <di:waypoint x="1140" y="240" />
         <di:waypoint x="1140" y="110" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="digitalReviewToRespondEdge" bpmnElement="digitalReviewToRespond">
+      <bpmndi:BPMNEdge id="digitalReviewToPauseClockEdge" bpmnElement="digitalReviewToPauseClock">
         <di:waypoint x="1190" y="80" />
+        <di:waypoint x="1160" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="digitalReviewToRespondEdge" bpmnElement="digitalReviewToRespond">
+        <di:waypoint x="1220" y="80" />
         <di:waypoint x="1230" y="170" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="digitalReviewToMarkResubmittedEdge" bpmnElement="digitalReviewToMarkResubmitted">
@@ -833,14 +886,18 @@
         <di:waypoint x="1040" y="320" />
         <di:waypoint x="1090" y="290" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="deptHeadToPauseClockEdge" bpmnElement="deptHeadToPauseClock">
+      <bpmndi:BPMNEdge id="deptHeadToKeepCopyEdge" bpmnElement="deptHeadToKeepCopy">
         <di:waypoint x="1140" y="320" />
         <di:waypoint x="1140" y="360" />
         <di:waypoint x="1140" y="360" />
         <di:waypoint x="1140" y="230" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="deptHeadToRespondEdge" bpmnElement="deptHeadToRespond">
+      <bpmndi:BPMNEdge id="deptHeadToPauseClockEdge" bpmnElement="deptHeadToPauseClock">
         <di:waypoint x="1190" y="200" />
+        <di:waypoint x="1160" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="deptHeadToRespondEdge" bpmnElement="deptHeadToRespond">
+        <di:waypoint x="1220" y="200" />
         <di:waypoint x="1230" y="290" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="deptHeadToMarkResubmittedEdge" bpmnElement="deptHeadToMarkResubmitted">
@@ -879,14 +936,18 @@
         <di:waypoint x="1040" y="440" />
         <di:waypoint x="1090" y="410" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="rqiToPauseClockEdge" bpmnElement="rqiToPauseClock">
+      <bpmndi:BPMNEdge id="rqiToKeepCopyEdge" bpmnElement="rqiToKeepCopy">
         <di:waypoint x="1140" y="440" />
         <di:waypoint x="1140" y="480" />
         <di:waypoint x="1140" y="480" />
         <di:waypoint x="1140" y="350" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="rqiToRespondEdge" bpmnElement="rqiToRespond">
+      <bpmndi:BPMNEdge id="rqiToPauseClockEdge" bpmnElement="rqiToPauseClock">
         <di:waypoint x="1190" y="320" />
+        <di:waypoint x="1160" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="rqiToRespondEdge" bpmnElement="rqiToRespond">
+        <di:waypoint x="1220" y="320" />
         <di:waypoint x="1230" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="rqiToMarkResubmittedEdge" bpmnElement="rqiToMarkResubmitted">
@@ -925,14 +986,18 @@
         <di:waypoint x="1040" y="560" />
         <di:waypoint x="1090" y="530" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="ctaToPauseClockEdge" bpmnElement="ctaToPauseClock">
+      <bpmndi:BPMNEdge id="ctaToKeepCopyEdge" bpmnElement="ctaToKeepCopy">
         <di:waypoint x="1140" y="560" />
         <di:waypoint x="1140" y="600" />
         <di:waypoint x="1140" y="600" />
         <di:waypoint x="1140" y="470" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="ctaToRespondEdge" bpmnElement="ctaToRespond">
+      <bpmndi:BPMNEdge id="ctaToPauseClockEdge" bpmnElement="ctaToPauseClock">
         <di:waypoint x="1190" y="440" />
+        <di:waypoint x="1160" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="ctaToRespondEdge" bpmnElement="ctaToRespond">
+        <di:waypoint x="1220" y="440" />
         <di:waypoint x="1230" y="530" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="ctaToMarkResubmittedEdge" bpmnElement="ctaToMarkResubmitted">
@@ -971,14 +1036,18 @@
         <di:waypoint x="1040" y="680" />
         <di:waypoint x="1090" y="650" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="lmpToPauseClockEdge" bpmnElement="lmpToPauseClock">
+      <bpmndi:BPMNEdge id="lmpToKeepCopyEdge" bpmnElement="lmpToKeepCopy">
         <di:waypoint x="1140" y="680" />
         <di:waypoint x="1140" y="720" />
         <di:waypoint x="1140" y="720" />
         <di:waypoint x="1140" y="590" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="lmpToRespondEdge" bpmnElement="lmpToRespond">
+      <bpmndi:BPMNEdge id="lmpToPauseClockEdge" bpmnElement="lmpToPauseClock">
         <di:waypoint x="1190" y="560" />
+        <di:waypoint x="1160" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="lmpToRespondEdge" bpmnElement="lmpToRespond">
+        <di:waypoint x="1220" y="560" />
         <di:waypoint x="1230" y="650" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="lmpToMarkResubmittedEdge" bpmnElement="lmpToMarkResubmitted">
@@ -1017,14 +1086,18 @@
         <di:waypoint x="1040" y="800" />
         <di:waypoint x="1090" y="770" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="jdmiToPauseClockEdge" bpmnElement="jdmiToPauseClock">
+      <bpmndi:BPMNEdge id="jdmiToKeepCopyEdge" bpmnElement="jdmiToKeepCopy">
         <di:waypoint x="1140" y="800" />
         <di:waypoint x="1140" y="840" />
         <di:waypoint x="1140" y="840" />
         <di:waypoint x="1140" y="710" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="jdmiToRespondEdge" bpmnElement="jdmiToRespond">
+      <bpmndi:BPMNEdge id="jdmiToPauseClockEdge" bpmnElement="jdmiToPauseClock">
         <di:waypoint x="1190" y="680" />
+        <di:waypoint x="1160" y="680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="jdmiToRespondEdge" bpmnElement="jdmiToRespond">
+        <di:waypoint x="1220" y="680" />
         <di:waypoint x="1230" y="770" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="jdmiToMarkResubmittedEdge" bpmnElement="jdmiToMarkResubmitted">
@@ -1063,14 +1136,18 @@
         <di:waypoint x="1040" y="920" />
         <di:waypoint x="1090" y="890" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="crdacToPauseClockEdge" bpmnElement="crdacToPauseClock">
+      <bpmndi:BPMNEdge id="crdacToKeepCopyEdge" bpmnElement="crdacToKeepCopy">
         <di:waypoint x="1140" y="920" />
         <di:waypoint x="1140" y="960" />
         <di:waypoint x="1140" y="960" />
         <di:waypoint x="1140" y="830" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="crdacToRespondEdge" bpmnElement="crdacToRespond">
+      <bpmndi:BPMNEdge id="crdacToPauseClockEdge" bpmnElement="crdacToPauseClock">
         <di:waypoint x="1190" y="800" />
+        <di:waypoint x="1160" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="crdacToRespondEdge" bpmnElement="crdacToRespond">
+        <di:waypoint x="1220" y="800" />
         <di:waypoint x="1230" y="890" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="crdacToMarkResubmittedEdge" bpmnElement="crdacToMarkResubmitted">
@@ -1109,14 +1186,18 @@
         <di:waypoint x="1040" y="1040" />
         <di:waypoint x="1090" y="1010" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="healthProfessionsToPauseClockEdge" bpmnElement="healthProfessionsToPauseClock">
+      <bpmndi:BPMNEdge id="healthProfessionsToKeepCopyEdge" bpmnElement="healthProfessionsToKeepCopy">
         <di:waypoint x="1140" y="1040" />
         <di:waypoint x="1140" y="1080" />
         <di:waypoint x="1140" y="1080" />
         <di:waypoint x="1140" y="950" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="healthProfessionsToRespondEdge" bpmnElement="healthProfessionsToRespond">
+      <bpmndi:BPMNEdge id="healthProfessionsToPauseClockEdge" bpmnElement="healthProfessionsToPauseClock">
         <di:waypoint x="1190" y="920" />
+        <di:waypoint x="1160" y="920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="healthProfessionsToRespondEdge" bpmnElement="healthProfessionsToRespond">
+        <di:waypoint x="1220" y="920" />
         <di:waypoint x="1230" y="1010" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="healthProfessionsToMarkResubmittedEdge" bpmnElement="healthProfessionsToMarkResubmitted">
