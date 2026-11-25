@@ -39,6 +39,13 @@ MIN_RUN_LENGTH = 25
 _LINE_NUMBER = re.compile(r"^\d{1,9}$")
 _IMAGE_PLACEHOLDER = re.compile(r"^\s*<!--\s*image\s*-->\s*$")
 
+# Docling pads every cell to its column's width. The padding means nothing to a reader of the
+# text, but it can double a table's length, and the token estimate counts characters.
+_TABLE_ROW = re.compile(r"^\s*\|")
+_DIVIDER_CHARACTERS = "|:- \t"
+_SPACE_RUN = re.compile(r" {2,}")
+_DASH_RUN = re.compile(r"-{4,}")
+
 
 def _is_consecutive(values: list[int]) -> bool:
     """Return True when values form a +1 sequence."""
@@ -106,6 +113,27 @@ def get_source_file_basename(source_file: str) -> str:
     return " ".join(name.split())
 
 
+def compact_table_row(line: str) -> str:
+    """Drop a table row's padding: a run of spaces becomes one space, and in a divider row a run
+    of four or more dashes becomes three.
+
+    @param line: one line of Markdown
+    @return: the row without its padding, or the line unchanged when it is not a table row
+    """
+    if not _TABLE_ROW.match(line):
+        return line
+    compact = _SPACE_RUN.sub(" ", line).rstrip()
+    return _DASH_RUN.sub("---", compact) if _is_divider(compact) else compact
+
+
+def _is_divider(row: str) -> bool:
+    """Whether a table row is the divider under the header: only pipes, colons and dashes.
+
+    Plain string checks, not a regular expression, so a long run of dashes stays linear.
+    """
+    return "-" in row and not row.strip(_DIVIDER_CHARACTERS)
+
+
 def _clean_page(page_md: str) -> str:
     """Unescape and tidy one page body, which holds none of the parser's own page markers.
 
@@ -116,7 +144,7 @@ def _clean_page(page_md: str) -> str:
     unescaped = defang_page_markers(html.unescape(page_md))
     without_line_numbers = cleanup_page_leading_line_numbers(unescaped)
     kept_lines = [
-        line
+        compact_table_row(line)
         for line in without_line_numbers.split("\n")
         if not _GARBAGE_LINE.match(line) and not _IMAGE_PLACEHOLDER.match(line)
     ]
@@ -126,7 +154,7 @@ def _clean_page(page_md: str) -> str:
 def clean_markdown(md: str) -> str:
     """
     Unescape HTML entities, collapse blank lines, remove empty headings / image
-    placeholders, and strip decorative garbage lines.
+    placeholders, strip decorative garbage lines, and drop table padding.
 
     Docling often emits ``&amp;``, ``&lt;``, and numeric entities; turning those
     back into real characters keeps the extracted text readable.

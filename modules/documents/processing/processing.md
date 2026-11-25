@@ -146,7 +146,7 @@ failed to the caller — so no job is left waiting on a callback that will never
 | `docling_docx_parser.py` | DOCX → Markdown (Docling; no page markers) |
 | `docling_batch_sizing.py` | Worker-count / page-batch sizing from RAM + cores |
 | `docling_config.py` / `docling_error_detection.py` | Shared Docling pipeline options; parse-failure detection |
-| `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks (idempotent). Called **once per document**, by the converter only |
+| `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks, drop table padding (idempotent). Called **once per document**, by the converter only |
 | `markdown_markers.py` | The `<!-- page: N -->` format, the ATX heading rules, the accepted suffixes, and the `len//4` token estimate |
 | `heading_levels.py` | `correct_heading_levels` — set the assembled Markdown's heading levels from the PDF's bookmarks |
 | `pdf_bookmarks.py` | PDF bookmark extraction (pypdf) |
