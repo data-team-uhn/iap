@@ -150,9 +150,6 @@ const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind).filter(kind 
 // The kinds always shown, which the reviewer cannot turn off
 const ALWAYS: NoteKind[] = [ "contradiction" ];
 
-// The kinds of notes a contents entry counts, what the reviewer acts on first
-const COUNTED_KINDS: NoteKind[] = [ "contradiction", "issue", "aiIssue", "discussion", "note", "otherIssue", "evidence" ];
-
 // Which of two parts shown one above the other
 type Pane = "top" | "bottom";
 
@@ -1013,7 +1010,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                   {!terms && counted.length > 0 && (
                     <Tooltip title={countText(counted)} placement="right">
                       <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-                        {COUNTED_KINDS.map(kind => {
+                        {NOTE_KINDS.map(({ kind }) => {
                           const many = counted.filter(note => note.kind === kind).length;
                           return many > 0 && (
                           // Each on its kind's tint, as its notes are, to stand out on the contents' own
