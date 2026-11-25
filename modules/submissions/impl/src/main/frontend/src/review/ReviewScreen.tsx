@@ -23,8 +23,8 @@ import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import HorizontalSplitOutlined from "@mui/icons-material/HorizontalSplitOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
+import SplitscreenOutlined from "@mui/icons-material/SplitscreenOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
   Box,
@@ -1012,7 +1012,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 primary={
                 // What a requirement asks for: under the one being read, on hover over the name of the others
                   <Tooltip
-                    placement="right" describeChild
+                    placement="right" describeChild disableInteractive
                     title={requirement.name === current?.name ? "" : requirement.description ?? ""}
                   >
                     <span className="requirement-name">{requirement.label}</span>
@@ -1070,14 +1070,15 @@ export default function ReviewScreen({ path }: { path: string }) {
               </Stack>
             </ListItemButton>
             {requirement.name !== top?.name && requirement.name !== bottom?.name && (
-              <Tooltip title="Open below, to compare" placement="right" disableInteractive>
+              <Tooltip title="Open below in split view" placement="right" disableInteractive>
                 <IconButton
-                  className="open-below" size="small" aria-label={`Open ${requirement.label} below`}
+                  className="open-below" size="small" aria-label={`Open ${requirement.label} below in split view`}
                   onClick={() => openBelow(requirement.name)}
-                  sx={{ position: "absolute", top: 4, right: 28, opacity: 0, bgcolor: "background.paper",
+                  // Left of where the entry's caret shows on hover, clear of it
+                  sx={{ position: "absolute", top: 4, right: 44, opacity: 0, bgcolor: "background.paper",
                     "&:hover": { bgcolor: "background.paper" } }}
                 >
-                  <HorizontalSplitOutlined fontSize="small" />
+                  <SplitscreenOutlined fontSize="small" />
                 </IconButton>
               </Tooltip>
             )}
