@@ -20,18 +20,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
-import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import HorizontalSplitOutlined from "@mui/icons-material/HorizontalSplitOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import {
   Box,
   Button,
-  Chip,
+  ButtonBase,
   DialogContentText,
+  FormControlLabel,
   IconButton,
   List,
   ListItemButton,
@@ -39,6 +38,7 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Switch,
   Tooltip,
   TextField,
   ToggleButton,
@@ -70,7 +70,7 @@ import {
   isFormRequirement,
   isQuestion,
 } from "../submissionForm";
-import { kindChip, ReviewerTopics, WRITTEN } from "./Composer";
+import { ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
@@ -929,32 +929,40 @@ export default function ReviewScreen({ path }: { path: string }) {
     </Box>
   );
   // Which kinds of notes are shown, for the whole submission: the contents' counts, what the page marks, and the notes
-  // listed beside it
-  const notesBar = (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", flexShrink: 0 }}
-      role="group" aria-label="Which notes to show, in the whole submission">
-      <Typography variant="body2" sx={{ color: "text.secondary", mr: 0.5 }}>Show notes</Typography>
-      {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => (
-        <Chip
-          key={info.kind}
-          size="small"
-          label={info.label}
-          variant="outlined"
-          onClick={() => toggleKind(info.kind)}
-          aria-pressed={shown.has(info.kind)}
-          icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
-          // Shown, softly tinted in its colour as a tag is; hidden, plain grey, so it reads as off
-          sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
-            ...shown.has(info.kind) ? kindChip(theme, info.mark)
-              : { borderColor: "divider", color: "text.disabled" } })}
-        />
-      ))}
-      <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive>
-        <Chip
-          size="small" label="Resolved and dismissed" variant="outlined" onClick={() => setShowDone(!showDone)}
-          aria-pressed={showDone} icon={showDone ? <CheckCircleOutlined /> : <CircleOutlined />}
-          sx={{ ml: 1, "& .MuiChip-icon": { color: "inherit" },
-            ...showDone ? { borderColor: "text.secondary" } : { borderColor: "divider", color: "text.disabled" } }}
+  // listed. Each kind as the contents count it, on its tint with its icon, when shown; plain when not. Whether what is
+  // done with is shown too is a switch apart, about state rather than kind.
+  const noteFilters = (
+    <Stack sx={{ gap: 0.75, flexShrink: 0, ...narrow ? {} : { px: 1.5, pt: 1.25, pb: 1, borderBottom: 1,
+      borderColor: "divider" } }}>
+      <Stack direction="row" role="group" aria-label="Which notes to show, in the whole submission"
+        sx={{ flexWrap: "wrap", alignItems: "center", gap: 0.5 }}>
+        <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
+        {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => {
+          const on = shown.has(info.kind);
+          return (
+            <ButtonBase
+              key={info.kind} aria-pressed={on} onClick={() => toggleKind(info.kind)}
+              sx={theme => ({ display: "inline-flex", alignItems: "center", gap: 0.5, px: 0.75, py: 0.25,
+                borderRadius: 1, typography: "caption", lineHeight: 1.6,
+                ...on ? { ...passageCard(theme, info.mark, 0.5), borderInlineStart: "none", color: `${info.mark}.main`,
+                  fontWeight: "fontWeightMedium" } : { color: "text.secondary" },
+                "&:hover": on ? { backgroundImage: passageCard(theme, info.mark, 0.8).backgroundImage }
+                  : { bgcolor: "action.hover" },
+                "&.Mui-focusVisible": { outline: 2, outlineColor: "primary.main" } })}
+            >
+              <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
+              {info.label}
+            </ButtonBase>
+          );
+        })}
+      </Stack>
+      <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive
+        placement="bottom-start">
+        <FormControlLabel
+          control={<Switch size="small" checked={showDone} onChange={(_event, checked) => setShowDone(checked)} />}
+          label="Resolved and dismissed"
+          slotProps={{ typography: { variant: "caption", sx: { color: "text.secondary" } } }}
+          sx={{ ml: -0.5, mr: 0, alignSelf: "flex-start" }}
         />
       </Tooltip>
     </Stack>
@@ -1094,10 +1102,10 @@ export default function ReviewScreen({ path }: { path: string }) {
           </Typography>
         )}
       </Stack>
-      {/* On a wide screen, the workspace fills the window under the app bar: the notes shown above everything they
-          apply to, then the panels side by side, each as tall as the others, scrolling on its own */}
+      {/* On a wide screen, the workspace fills the window under the app bar, the panels side by side, each as tall as
+          the others, scrolling on its own; on a narrow one, which notes are shown is chosen above them */}
       <Stack sx={{ gap: 1.5, height: { md: PANEL_HEIGHT } }}>
-        {notesBar}
+        {narrow && noteFilters}
         <Stack direction={{ xs: "column", md: "row" }}
           sx={{ gap: 1.5, alignItems: { xs: "flex-start", md: "stretch" }, flex: { md: 1 }, minHeight: { md: 0 } }}>
           {railOpen || narrow ? (
@@ -1210,6 +1218,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                     />
                     <Box sx={{ width: notesShown, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
                       bgcolor: "background.tinted" }}>
+                      {noteFilters}
                       {/* Of two parts, which one's notes these are */}
                       {bottom && current && (
                         <Typography variant="body2" sx={{ px: 1.5, pt: 1.25, color: "text.secondary" }}>
