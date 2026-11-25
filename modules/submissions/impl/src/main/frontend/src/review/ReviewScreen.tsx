@@ -24,6 +24,8 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import HorizontalSplitOutlined from "@mui/icons-material/HorizontalSplitOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import {
   Box,
@@ -52,6 +54,7 @@ import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
 import { usePublishedPageContext } from "@iap/frontend-commons/pageContext";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { useStoredSetting } from "@iap/frontend-commons/useStoredSetting";
@@ -81,6 +84,7 @@ import { writeComment } from "./reviewApi";
 import { groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, raiseAsIssue,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
+import RowSplit from "./RowSplit";
 import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
@@ -146,6 +150,20 @@ const ALWAYS: NoteKind[] = [ "contradiction" ];
 
 // The kinds of notes a contents entry counts, what the reviewer acts on first
 const COUNTED_KINDS: NoteKind[] = [ "contradiction", "issue", "aiIssue", "discussion", "note", "otherIssue", "evidence" ];
+
+// Which of two parts shown one above the other
+type Pane = "top" | "bottom";
+
+// How narrow the notes may be dragged, and how much a part keeps beside them
+const NOTES_LEAST = 240;
+const PAGE_LEAST = 376;
+
+// A document not being searched, as the part not worked in is, and what it tells back, nothing
+const QUIET_SEARCH = { query: "", step: 0, previous: false };
+const ignore = () => undefined;
+
+// A share of a height, as kept in the browser
+const isShare = (value: unknown): value is number => typeof value === "number" && value > 0 && value < 1;
 
 // A width in pixels, as one kept in the browser should be
 const isWidth = (value: unknown): value is number => typeof value === "number" && value > 0;
@@ -227,6 +245,27 @@ export default function ReviewScreen({ path }: { path: string }) {
   // What is shown: the kinds the reviewer chose, and those always shown
   const showing = useMemo(() => new Set<NoteKind>([ ...shown, ...ALWAYS ]), [ shown ]);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
+  // PRETOTYPE: a second part shown under the first, to compare them, with its own selected note and page; the part
+  // being worked in, whose notes are listed; and how much of the height the upper one takes
+  const [ below, setBelow ] = useState<string>();
+  const [ belowMark, setBelowMark ] = useState<{ id?: string; page?: number }>({});
+  const [ active, setActive ] = useState<Pane>("top");
+  const [ splitAt, setSplitAt ] = useStoredSetting("iap.review.splitAt", 0.5, isShare);
+  // The column the notes of the part being worked in are listed in, the parts beside it, and its width
+  const [ notesSlot, setNotesSlot ] = useState<HTMLElement | null>(null);
+  const [ workArea, setWorkArea ] = useState<HTMLElement | null>(null);
+  const [ paneColumn, setPaneColumn ] = useState<HTMLElement | null>(null);
+  const [ workWidth, setWorkWidth ] = useState<number>();
+  useEffect(() => {
+    if (!workArea) {
+      return undefined;
+    }
+    const observer = new ResizeObserver(([ entry ]) => setWorkWidth(entry.contentRect.width));
+    observer.observe(workArea);
+    return () => observer.disconnect();
+  }, [ workArea ]);
+  // How the contents and the review were before a second part was opened, folded away meanwhile, to restore after
+  const [ beforeSplit, setBeforeSplit ] = useState<{ rail: boolean; issues: boolean }>();
   // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
   const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 320, isWidth);
   // The contents entry being read, and, when it has scrolled out of the list, the edge it left by, where a copy of it
@@ -307,8 +346,11 @@ export default function ReviewScreen({ path }: { path: string }) {
   const trimmed = useMemo(() => focused ? requirements.map(one => isFormRequirement(one)
     ? { ...one, items: prune(one.items, minePart) } : one) : requirements, [ focused, requirements, minePart ]);
   // The first requirement concerning the reviewer, until they choose another
-  const current = trimmed.find(one => one.name === selected) ?? trimmed.find(mine) ?? trimmed.at(0);
-  const listed = focused ? trimmed.filter(one => one === current || mine(one)) : trimmed;
+  const top = trimmed.find(one => one.name === selected) ?? trimmed.find(mine) ?? trimmed.at(0);
+  const bottom = below && below !== top?.name && !narrow ? trimmed.find(one => one.name === below) : undefined;
+  // The part being worked in: the one the search, the contents and the notes listed follow
+  const current = active === "bottom" && bottom ? bottom : top;
+  const listed = focused ? trimmed.filter(one => one === top || one === bottom || mine(one)) : trimmed;
 
   // The reviewer groups a requirement concerns: those any of its questions, or the document, matters to
   const groupsOf = (requirement: Requirement): ReviewGroup[] | undefined => {
@@ -366,15 +408,62 @@ export default function ReviewScreen({ path }: { path: string }) {
     return storeKinds(next);
   });
 
-  const go = (requirement: string, focus?: { id?: string; page?: number; question?: string }) => {
-    setSelected(requirement);
-    setMark({ id: focus?.id, page: focus?.page });
+  // Opening a second part under the first folds the contents and the review away, for room, until it is closed
+  const split = () => {
+    if (!bottom) {
+      setBeforeSplit({ rail: railOpen, issues: issuesOpen ?? !(current && isDocumentRequirement(current)) });
+      setRailOpen(false);
+      setIssuesOpen(false);
+    }
+  };
+  // Closing either part leaves the other alone, as it was, and the contents and the review as they were before
+  const close = (pane: Pane) => {
+    if (pane === "top" && bottom) {
+      setSelected(bottom.name);
+      setMark(belowMark);
+    }
+    setBelow(undefined);
+    setBelowMark({});
+    setActive("top");
+    if (beforeSplit) {
+      setRailOpen(beforeSplit.rail);
+      setIssuesOpen(beforeSplit.issues);
+      setBeforeSplit(undefined);
+    }
+  };
+  const openBelow = (requirement: string) => {
+    if (requirement !== top?.name) {
+      split();
+      setBelow(requirement);
+      setBelowMark({});
+      setActive("bottom");
+    }
+  };
+
+  // Going to a part: where it is shown already, that part is worked in; otherwise it takes the place of the one
+  // being worked in, or, following a link from one part to another, opens in the other place, to compare them
+  const go = (requirement: string, focus?: { id?: string; page?: number; question?: string }, beside = false) => {
+    const shownIn: Pane | undefined = top?.name === requirement ? "top"
+      : bottom?.name === requirement ? "bottom" : undefined;
+    const pane: Pane = shownIn ?? (beside && !narrow ? (active === "top" ? "bottom" : "top") : active);
+    if (pane === "bottom" && !bottom) {
+      split();
+    }
+    if (pane === "top") {
+      setSelected(requirement);
+      setMark({ id: focus?.id, page: focus?.page });
+    } else {
+      setBelow(requirement);
+      setBelowMark({ id: focus?.id, page: focus?.page });
+    }
+    setActive(pane);
     if (focus?.question) {
       const target = focus.question;
       setTimeout(() => document.getElementById(`question-${target}`)?.scrollIntoView({ behavior: "smooth" }), 50);
-    } else {
+    } else if (!shownIn) {
       window.scrollTo({ top: 0 });
-      document.querySelector("[data-form-scroller]")?.scrollTo({ top: 0 });
+      (document.querySelector(`[data-pane="${pane}"] [data-form-scroller]`)
+        ?? document.querySelector("[data-form-scroller]"))?.scrollTo({ top: 0 });
     }
   };
 
@@ -398,7 +487,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     const question = note.question;
     if (question) {
       reveal(note, question);
-      go(question.split("/")[0], { id: note.kind === "contradiction" ? note.id : undefined, question });
+      go(question.split("/")[0], { id: note.kind === "contradiction" ? note.id : undefined, question }, true);
     }
   };
 
@@ -406,7 +495,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     const document = [ ...data?.documents.entries() ?? [] ].find(([ , one ]) => one.version === note.passage?.source
       || one.uuid === note.passage?.source)?.[0] ?? "protocol";
     reveal(note);
-    go(document, { id: note.id, page: note.passage?.page });
+    go(document, { id: note.id, page: note.passage?.page }, true);
   };
 
   // The submission search, found in place as a browser finds in a page: where its terms occur in each requirement,
@@ -696,6 +785,65 @@ export default function ReviewScreen({ path }: { path: string }) {
   const aiOpen = risks.reduce((sum, risk) => sum + risk.aiOpen.length, 0);
   const contradicted = new Set(risks.flatMap(risk => risk.mismatches.map(one => one.question))).size;
   // The title of the page being read, heading the form's or the document's own column, beside its notes
+  // How wide the notes are, as far as the panel has room for them beside a part
+  const notesShown = workWidth === undefined ? notesWidth
+    : Math.max(NOTES_LEAST, Math.min(notesWidth, workWidth - PAGE_LEAST));
+  // A part of the submission, one of the two when a second is open: its title, with a button closing it then, and the
+  // form or document; the one being worked in lists its notes, and, of two, is marked down its side
+  const part = (pane: Pane, requirement: Requirement) => {
+    const isActive = active === pane;
+    const paneMark = pane === "top" ? mark : belowMark;
+    const setPaneMark = pane === "top" ? setMark : setBelowMark;
+    const heading = (
+      <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1 }}>
+        <Typography variant="h6" component="h2" sx={{ mb: 0.5, flex: 1, minWidth: 0 }}>{requirement.label}</Typography>
+        {bottom && (
+          <Tooltip title="Close" disableInteractive>
+            <IconButton size="small" aria-label={`Close ${requirement.label}`} onClick={() => close(pane)}>
+              <CloseOutlined fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Stack>
+    );
+    const document = isDocumentRequirement(requirement) ? data.documents.get(requirement.name) : undefined;
+    return (
+      <Box
+        data-pane={pane} onPointerDownCapture={() => setActive(pane)} onFocusCapture={() => setActive(pane)}
+        sx={{ flex: bottom ? `${pane === "top" ? splitAt : 1 - splitAt} 1 0` : "1 1 0", minHeight: 0,
+          display: "flex", flexDirection: "column",
+          ...bottom && isActive ? { boxShadow: theme => `inset 3px 0 0 ${theme.palette.primary.main}` } : {} }}
+      >
+        {isFormRequirement(requirement) && (
+          <Box sx={{ flex: 1, minHeight: 0 }}>
+            <SearchContext.Provider value={searchContext}>
+              <FormReview
+                items={requirement.items} data={data} groups={focused ? othersGroups : groups}
+                myGroups={myGroups} shown={showing} onEvidence={openEvidence} actions={actions}
+                selected={paneMark.id} onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))}
+                heading={heading} notesSlot={isActive ? notesSlot : null}
+              />
+            </SearchContext.Provider>
+          </Box>
+        )}
+        {document && (
+          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <DocumentReview
+              key={requirement.name}
+              document={document} data={data} shown={showing} selected={paneMark.id}
+              onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
+              actions={actions} questionLabel={questionLabel}
+              search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
+              onSearch={isActive ? setDocumentFound : ignore}
+              notesWidth={notesWidth} onNotesWidth={setNotesWidth} heading={heading} onShowAnswer={openAnswer}
+              notesSlot={isActive ? notesSlot : null}
+              onClose={() => close(pane)}
+            />
+          </Box>
+        )}
+      </Box>
+    );
+  };
   const title = current && <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{current.label}</Typography>;
   const shownDocument = current ? data.documents.get(current.name) : undefined;
 
@@ -774,67 +922,90 @@ export default function ReviewScreen({ path }: { path: string }) {
         // While searching, how many times it has the terms instead, and greyed out when none
         const found = hitCount(requirement);
         return (
-          <ListItemButton
-            key={requirement.name} ref={requirement.name === current?.name ? setReadEntry : undefined}
-            selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-            sx={entrySx(found === 0)}
-          >
-            <ListItemText
-              primary={
+          // With a second part open, both are marked, the one being worked in a tab of the page; on a wide screen, any
+          // other offers to open it below the one shown, to compare them
+          <Box key={requirement.name} sx={{ position: "relative", "&:hover .open-below, & .open-below:focus-visible": {
+            opacity: 1 } }}>
+            <ListItemButton
+              ref={requirement.name === current?.name ? setReadEntry : undefined}
+              selected={requirement.name === top?.name || requirement.name === bottom?.name}
+              onClick={() => go(requirement.name)}
+              sx={entrySx(found === 0)}
+            >
+              <ListItemText
+                primary={
                 // What a requirement asks for: under the one being read, on hover over the name of the others
-                <Tooltip
-                  placement="right" describeChild
-                  title={requirement.name === current?.name ? "" : requirement.description ?? ""}
-                >
-                  <span className="requirement-name">{requirement.label}</span>
-                </Tooltip>
-              }
-              secondary={<>
-                {requirement.name === current?.name && requirement.description}
-                {/* How many notes of each kind shown, on a line of their own so the name keeps the row's width */}
-                {!terms && counted.length > 0 && (
-                  <Tooltip title={countText(counted)} placement="right">
-                    <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-                      {COUNTED_KINDS.map(kind => {
-                        const many = counted.filter(note => note.kind === kind).length;
-                        return many > 0 && (
+                  <Tooltip
+                    placement="right" describeChild
+                    title={requirement.name === current?.name ? "" : requirement.description ?? ""}
+                  >
+                    <span className="requirement-name">{requirement.label}</span>
+                  </Tooltip>
+                }
+                secondary={<>
+                  {requirement.name === current?.name && requirement.description}
+                  {/* How many notes of each kind shown, on a line of their own so the name keeps the row's width */}
+                  {!terms && counted.length > 0 && (
+                    <Tooltip title={countText(counted)} placement="right">
+                      <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+                        {COUNTED_KINDS.map(kind => {
+                          const many = counted.filter(note => note.kind === kind).length;
+                          return many > 0 && (
                           // Each on its kind's tint, as its notes are, to stand out on the contents' own
-                          <Box component="span" key={kind}
-                            sx={theme => ({ ...passageCard(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
-                              display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
-                              color: `${kindInfo(kind).mark}.main` })}>
-                            <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
-                          </Box>
-                        );
-                      })}
+                            <Box component="span" key={kind}
+                              sx={theme => ({ ...passageCard(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
+                                display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
+                                color: `${kindInfo(kind).mark}.main` })}>
+                              <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </Tooltip>
+                  )}
+                  {!focused && (
+                    <Box component="span" sx={{ display: "block", mt: 0.25 }}>
+                      <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
                     </Box>
+                  )}
+                </>}
+                slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
+                sx={{ my: 0.25 }}
+              />
+              <Stack direction="row" sx={{ alignItems: "center", ml: 1, flexShrink: 0 }}>
+                {terms && found !== undefined && found > 0 && (
+                  <Tooltip title={found === 1 ? "Found once" : `Found ${found} times`} placement="right">
+                    <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "text.secondary" }}>
+                      <SearchOutlined sx={{ fontSize: "0.9rem" }} />
+                      <Typography variant="caption">{found}</Typography>
+                    </Stack>
                   </Tooltip>
                 )}
-                {!focused && (
-                  <Box component="span" sx={{ display: "block", mt: 0.25 }}>
-                    <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
-                  </Box>
+                {bottom && (requirement.name === top?.name || requirement.name === bottom.name) && (
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {requirement.name === top?.name ? "Top" : "Below"}
+                  </Typography>
                 )}
-              </>}
-              slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
-              sx={{ my: 0.25 }}
-            />
-            <Stack direction="row" sx={{ alignItems: "center", ml: 1, flexShrink: 0 }}>
-              {terms && found !== undefined && found > 0 && (
-                <Tooltip title={found === 1 ? "Found once" : `Found ${found} times`} placement="right">
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "text.secondary" }}>
-                    <SearchOutlined sx={{ fontSize: "0.9rem" }} />
-                    <Typography variant="caption">{found}</Typography>
-                  </Stack>
-                </Tooltip>
-              )}
-              {/* Where the entry leads, once the pointer is on it */}
-              <ChevronRightOutlined
-                className="requirement-go" fontSize="small"
-                sx={{ color: "primary.main", ml: 0.25, visibility: requirement.name === current?.name ? "hidden" : undefined }}
-              />
-            </Stack>
-          </ListItemButton>
+                {/* Where the entry leads, once the pointer is on it */}
+                <ChevronRightOutlined
+                  className="requirement-go" fontSize="small"
+                  sx={{ color: "primary.main", ml: 0.25, visibility: requirement.name === current?.name ? "hidden" : undefined }}
+                />
+              </Stack>
+            </ListItemButton>
+            {requirement.name !== top?.name && requirement.name !== bottom?.name && (
+              <Tooltip title="Open below, to compare" placement="right" disableInteractive>
+                <IconButton
+                  className="open-below" size="small" aria-label={`Open ${requirement.label} below`}
+                  onClick={() => openBelow(requirement.name)}
+                  sx={{ position: "absolute", top: 4, right: 28, opacity: 0, bgcolor: "background.paper",
+                    "&:hover": { bgcolor: "background.paper" } }}
+                >
+                  <HorizontalSplitOutlined fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
         );
       })}
     </List>
@@ -932,7 +1103,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 ...narrow ? {} : { p: 0, height: "100%", display: "flex", flexDirection: "column",
                   overflow: "hidden" },
                 ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
-                {current && (
+                {narrow ? current && (
                   <>
                     {isFormRequirement(current) && (
                       <Box sx={{ flex: { md: 1 }, minHeight: { md: 0 } }}>
@@ -964,6 +1135,29 @@ export default function ReviewScreen({ path }: { path: string }) {
                       </Box>
                     )}
                   </>
+                ) : (
+                  // One part, or two one above the other, beside the notes of the one being worked in, listed down the
+                  // right as tall as the panel
+                  <Box ref={setWorkArea} sx={{ display: "flex", height: "100%", minHeight: 0 }}>
+                    <Box ref={setPaneColumn} sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                      {top && part("top", top)}
+                      {bottom && (
+                        <RowSplit at={splitAt} onAt={setSplitAt} container={() => paneColumn} label="Resize the parts" />
+                      )}
+                      {bottom && part("bottom", bottom)}
+                    </Box>
+                    <SplitHandle
+                      width={notesShown} onWidth={setNotesWidth} container={() => workArea} min={NOTES_LEAST}
+                      reserve={PAGE_LEAST} label="Resize the notes"
+                    />
+                    <Box
+                      ref={setNotesSlot}
+                      sx={{ width: notesShown, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
+                        bgcolor: "background.tinted",
+                        "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
+                          typography: "body2", textAlign: "center", py: 2 } }}
+                    />
+                  </Box>
                 )}
                 {dialog === "letter" && (
                   <LetterDialog

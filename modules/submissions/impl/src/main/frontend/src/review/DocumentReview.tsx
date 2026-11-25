@@ -41,7 +41,7 @@ const DRAFT = "draft";
 const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, onClose }: {
+  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose }: {
   document: ReviewedDocument;
   data: ReviewData;
   shown: Set<NoteKind>;
@@ -65,6 +65,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   heading?: ReactNode;
   // Going from a passage to the answer in the form it backs or contradicts
   onShowAnswer: (note: ReviewNote) => void;
+  // A column of the screen's own to list the notes in; null while another page's are listed there
+  notesSlot?: HTMLElement | null;
   onClose: () => void;
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
@@ -190,6 +192,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         markHeading={markHeading}
         markHeadingActions={markHeadingActions}
         lead={heading}
+        listContainer={notesSlot}
         plain
         onClose={onClose}
       />

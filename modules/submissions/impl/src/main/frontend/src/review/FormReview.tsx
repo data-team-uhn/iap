@@ -18,10 +18,12 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
+
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
+import { createPortal } from "react-dom";
 
 import { keepInView } from "@iap/documents-pdf-viewer/markLayer";
 import {
@@ -361,7 +363,7 @@ function homes(items: FormItem[], data: ReviewData): Map<string, string> {
 // The questions of a form requirement, section by section, every one of them: the group chips say which concern
 // the reviewer.
 export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf,
-  notesWidth = 320, onNotesWidth, selected, onSelect, heading }: {
+  notesWidth = 320, onNotesWidth, selected, onSelect, heading, notesSlot }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
@@ -380,6 +382,9 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   onSelect?: (id: string | undefined) => void;
   // What heads the questions' column, the title of the page they are on, beside their notes
   heading?: ReactNode;
+  // PRETOTYPE: a column of the screen's own to list the notes in, beside however many pages it shows; null while
+  // another page's notes are listed there, when this one lists none
+  notesSlot?: HTMLElement | null;
 }) {
   const home = homeOf ?? homes(items, data);
   const form = useRef<HTMLElement>(null);
@@ -418,7 +423,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   // Wide, as a form is until measured on a wide screen, it lists its notes beside it
   const asked = questionsOf(items);
   const beside = new Map(asked.map(question => [ question.path, notesBeside(question, data, shown, home) ]));
-  if (onSelect && (formWidth ?? LISTED_WIDTH) >= LISTED_WIDTH) {
+  if (onSelect && (notesSlot !== undefined || (formWidth ?? LISTED_WIDTH) >= LISTED_WIDTH)) {
     const listing: Listing = {
       selected, select: onSelect, draftFor,
       startDraft: question => {
@@ -431,6 +436,26 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
       ...(beside.get(question.path) ?? []).map(note => ({ question, note })),
       ...draftFor === question.path ? [ { question } ] : [],
     ]);
+    const list = (
+      <FormNoteList
+        entries={entries} selected={selected} onSelect={onSelect} width={notesSlot ? "100%" : width} data={data}
+        actions={actions} onEvidence={onEvidence} onDraftDone={() => {
+          setDraftFor(undefined);
+          onSelect(undefined);
+        }}
+      />
+    );
+    if (notesSlot !== undefined) {
+      return (
+        <FormNotes.Provider value={listing}>
+          <Box ref={form} sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+            {heading && <Box sx={{ pl: 4, pr: 2, pt: 3 }}>{heading}</Box>}
+            <Questions>{body}</Questions>
+          </Box>
+          {notesSlot && createPortal(list, notesSlot)}
+        </FormNotes.Provider>
+      );
+    }
     return (
       <FormNotes.Provider value={listing}>
         {/* The questions scroll on their own; the notes go down the page's right edge, as tall as it */}
@@ -445,13 +470,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
               reserve={QUESTIONS_MIN_WIDTH} label="Resize the notes" sx={() => ({ alignSelf: "stretch" })}
             />
           ) : <Box sx={{ width: 16 }} />}
-          <FormNoteList
-            entries={entries} selected={selected} onSelect={onSelect} width={width} data={data} actions={actions}
-            onEvidence={onEvidence} onDraftDone={() => {
-              setDraftFor(undefined);
-              onSelect(undefined);
-            }}
-          />
+          {list}
         </Box>
       </FormNotes.Provider>
     );
@@ -520,7 +539,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
   entries: ListEntry[];
   selected?: string;
   onSelect: (id: string | undefined) => void;
-  width: number;
+  width: number | string;
   data: ReviewData;
   actions: ReviewActions;
   onEvidence: (note: ReviewNote) => void;
