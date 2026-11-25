@@ -28,13 +28,15 @@ import { type SubmissionForm, runMainExtraction, sendDocuments } from "./submiss
 // The steps of a request whose documents a model reads, around the requirements of the step shown.
 // Next on the uploads sends them to be read; Next on the confirmation reads the rest out of them. With no
 // optional document uploaded, Next skips to the rest and sends nothing. Back only moves between the steps.
-function IntakeSteps({ path, form, step, reading, onStep, onChanged, children }: {
+// `finish` is shown beside Back on the last step, where Next would be.
+function IntakeSteps({ path, form, step, reading, onStep, onChanged, finish, children }: {
   path: string;
   form: SubmissionForm;
   step: number;
   reading: boolean;
   onStep: (step: number) => void;
   onChanged: () => void;
+  finish?: ReactNode;
   children: ReactNode;
 }) {
   const doFetch = useAuthenticatedFetch();
@@ -71,6 +73,7 @@ function IntakeSteps({ path, form, step, reading, onStep, onChanged, children }:
         { step < COMPLETE_STEP && (
           <Button variant="contained" disabled={busy || whyNotNext !== undefined} onClick={goOn}>Next</Button>
         ) }
+        { step === COMPLETE_STEP && finish }
       </Stack>
     </Stack>
   );

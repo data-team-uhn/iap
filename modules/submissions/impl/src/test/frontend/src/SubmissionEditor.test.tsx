@@ -151,6 +151,16 @@ describe("SubmissionEditor", () => {
     expect(screen.getByLabelText(/several days/)).toBeInTheDocument();
   });
 
+  it("shows how to finish the request below everything it asks", async () => {
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} finish={<button type="button">Send</button>} />);
+    const send = await screen.findByRole("button", { name: "Send" });
+
+    expect(send.compareDocumentPosition(screen.getByLabelText(/several days/)) & Node.DOCUMENT_POSITION_PRECEDING)
+      .toBeTruthy();
+  });
+
   it("saves an answer and shows what the server then asks", async () => {
     // The return-date question arrives with the next read of the form
     const withEndDate = form({
@@ -997,6 +1007,19 @@ describe("SubmissionEditor in steps", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+  });
+
+  it("shows how to finish the request only on the last step", async () => {
+    const optional = { ...proposal(0), required: false };
+    vi.stubGlobal("fetch", serving(stepped({ requirements: [ optional, study() ] })));
+
+    render(<SubmissionEditor path={PATH} finish={<button type="button">Send</button>} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByRole("button", { name: "Send" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
   });
 
   it("shows a generated document with the rest, not among the uploads", async () => {

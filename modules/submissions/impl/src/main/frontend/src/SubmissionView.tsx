@@ -63,7 +63,7 @@ import {
   toTitle,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
-import SubmissionTasks from "./SubmissionTasks";
+import SubmissionTasks, { useTaskCompletion } from "./SubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
@@ -485,6 +485,28 @@ function SubmissionView() {
       .then(readAgain, (e: unknown) => setStopFailure(describeRequestFailure(e)));
   }, [fetchUtil, path, readAgain]);
 
+  const completion = useTaskCompletion(path, {
+    beforeComplete: readyForNextStep,
+    onCompleted: () => {
+      if (shownPath.current !== path) {
+        return;
+      }
+      // Back to the read-only page, read again
+      readAgain();
+      void navigate(path);
+    },
+  });
+  // The steps the request is waiting for, shown both above the request and below it. The editor puts them
+  // where filling the request in ends.
+  const tasks = (
+    <SubmissionTasks completion={completion} readinessNote={whyNotReady(submission)} blocked={reading} />
+  );
+  const footer = (
+    <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
+      {tasks}
+    </Stack>
+  );
+
   // The way back, Stop, the steps the request is waiting for, and the switch between the two modes. It is
   // shown in every state of the page. Loading and failure are where somebody most needs a way out. While a
   // document is read, Stop is the only control left on: the rest waits for the reading to end.
@@ -495,20 +517,7 @@ function SubmissionView() {
         <Button variant="outlined" color="error" startIcon={<StopIcon />} disabled={!reading} onClick={stopReading}>
           Stop reading
         </Button>
-        <SubmissionTasks
-          path={path}
-          readinessNote={whyNotReady(submission)}
-          blocked={reading}
-          beforeComplete={readyForNextStep}
-          onCompleted={() => {
-            if (shownPath.current !== path) {
-              return;
-            }
-            // Back to the read-only page, read again
-            readAgain();
-            void navigate(path);
-          }}
-        />
+        {tasks}
         <ToggleButtonGroup
           exclusive
           disabled={reading}
@@ -552,7 +561,8 @@ function SubmissionView() {
         {isReadingAsked(submission) && <ReadingBanner path={path} reloads={reloads} onChanged={readAgain} />}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
-        <SubmissionEditor key={path} path={path} reading={reading} onSaving={trackSave} onChanged={readAgain} />
+        <SubmissionEditor key={path} path={path} reading={reading} onSaving={trackSave} onChanged={readAgain}
+          finish={tasks} />
       </Stack>
     );
   }
@@ -611,6 +621,7 @@ function SubmissionView() {
           ? <Reviews reviews={reviews} />
           : <Typography variant="placeholder">No reviews yet</Typography>}
       </Panel>
+      {footer}
     </Stack>
   );
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { createElement, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, createElement, useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
 
@@ -84,12 +84,14 @@ function RequirementBody({ reading, ...props }: RequirementComponentProps & { re
 // `onSaving` hears of each save as it is asked for, for whatever must wait until the answers are
 // stored. `onChanged` hears that a save or an attachment went through, so that the page can read
 // the submission again. `reading` says a document is being read for answers; until the reading
-// ends, the questions are hidden and every requirement is turned off.
-function SubmissionEditor({ path, reading = false, onSaving = ignoreSave, onChanged }: {
+// ends, the questions are hidden and every requirement is turned off. `finish`, such as the button that
+// sends the request, is shown where filling it in ends: below the last step, or below everything.
+function SubmissionEditor({ path, reading = false, onSaving = ignoreSave, onChanged, finish }: {
   path: string;
   reading?: boolean;
   onSaving?: (save: Promise<unknown>) => void;
   onChanged?: () => void;
+  finish?: ReactNode;
 }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
@@ -229,11 +231,17 @@ function SubmissionEditor({ path, reading = false, onSaving = ignoreSave, onChan
       ) }
       { inSteps
         ? (
-          <IntakeSteps path={path} form={form} step={shownStep} reading={reading} onStep={setStep} onChanged={changed}>
+          <IntakeSteps path={path} form={form} step={shownStep} reading={reading} onStep={setStep} onChanged={changed}
+            finish={finish}>
             {panels}
           </IntakeSteps>
         )
-        : panels }
+        : (
+          <>
+            {panels}
+            {finish && <Stack direction="row" sx={{ justifyContent: "flex-end" }}>{finish}</Stack>}
+          </>
+        ) }
       { form.requirements.length === 0 && (
         <Typography variant="placeholder">This request asks nothing yet.</Typography>
       ) }
