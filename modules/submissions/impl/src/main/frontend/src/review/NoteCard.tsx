@@ -152,7 +152,8 @@ const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", disc
 // changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
-  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question, formAnswer, onShowAnswer }: {
+  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question, formAnswer, onShowAnswer,
+  askedAs }: {
   note: ReviewNote;
   // For a source or a contradiction shown away from its question, as beside a document, the question it is about
   question?: string;
@@ -161,6 +162,8 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   // For a linked answer or a contradiction shown beside a document, going to the question in the form, which its
   // question links to
   onShowAnswer?: () => void;
+  // For a contradiction, the question and the form asking it, as an issue made of it names them
+  askedAs?: { question: string; form?: string };
   // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
   // changing or removing it, which then say when it is being changed
   headed?: boolean;
@@ -207,10 +210,13 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     );
   }
   if (isAdopting && onMakeIssue) {
-    // A contradiction is put to the study team as what each says, with where the protocol says it
+    // A contradiction is put to the study team as the question, in its form, what each says, and where the protocol
+    // says it
     const page = note.passage?.page;
+    const asked = askedAs ? `${askedAs.form ? `In "${askedAs.form}", ` : ""}"${askedAs.question}" is answered`
+      : "The form says";
     const initialText = note.kind === "contradiction"
-      ? `The form says ${formAnswer ?? ""}, but the protocol says ${answerLabel ?? note.extracted ?? ""}`
+      ? `${asked} ${formAnswer ?? ""}, but the protocol says ${answerLabel ?? note.extracted ?? ""}`
         + `${page ? ` (page ${page})` : ""}. Please make them agree, or explain why they differ.`
       : note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text;
     return (

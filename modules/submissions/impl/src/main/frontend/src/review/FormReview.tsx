@@ -136,8 +136,9 @@ export function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined
 
 // PRETOTYPE. One question, compact: what was asked, what was answered, which groups asked it, where the answer
 // was found in the protocol, and everything written about it.
-function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, actions, homeOf }: {
+function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, actions, homeOf, formLabel }: {
   question: FormQuestion;
+  formLabel?: string;
   homeOf: Map<string, string>;
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
@@ -257,6 +258,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               )}>
               <NoteCard
                 note={note} answerLabel={extracted} formAnswer={answerText(question, question.value)} headed
+                askedAs={{ question: question.text, form: formLabel }}
                 onReply={text => actions.write({ replyTo: note.id, text })}
                 onEditReply={(reply, text) => actions.write({ edit: reply, text })}
                 onRemoveReply={reply => actions.write({ remove: reply })}
@@ -363,7 +365,7 @@ function homes(items: FormItem[], data: ReviewData): Map<string, string> {
 // The questions of a form requirement, section by section, every one of them: the group chips say which concern
 // the reviewer.
 export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf,
-  notesWidth = 320, onNotesWidth, selected, onSelect, heading, notesSlot }: {
+  notesWidth = 320, onNotesWidth, selected, onSelect, heading, notesSlot, formLabel }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
@@ -385,6 +387,8 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   // PRETOTYPE: a column of the screen's own to list the notes in, beside however many pages it shows; null while
   // another page's notes are listed there, when this one lists none
   notesSlot?: HTMLElement | null;
+  // The form's title, as an issue made of a contradiction names it
+  formLabel?: string;
 }) {
   const home = homeOf ?? homes(items, data);
   const form = useRef<HTMLElement>(null);
@@ -400,7 +404,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
           return (
             <QuestionReview
               key={item.path} question={item} data={data} groups={groups} myGroups={myGroups} shown={shown}
-              onEvidence={onEvidence} actions={actions} homeOf={home}
+              onEvidence={onEvidence} actions={actions} homeOf={home} formLabel={formLabel}
             />
           );
         }
@@ -409,7 +413,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
             <Typography variant="subheading" component={depth === 0 ? "h3" : "h4"}>{item.label}</Typography>
             <FormReview
               items={item.items} data={data} groups={groups} myGroups={myGroups} shown={shown}
-              onEvidence={onEvidence} actions={actions} depth={depth + 1} homeOf={home}
+              onEvidence={onEvidence} actions={actions} depth={depth + 1} homeOf={home} formLabel={formLabel}
             />
           </Box>
         );
@@ -439,6 +443,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
     const list = (
       <FormNoteList
         entries={entries} selected={selected} onSelect={onSelect} width={notesSlot ? "100%" : width} data={data}
+        formLabel={formLabel}
         actions={actions} onEvidence={onEvidence} onDraftDone={() => {
           setDraftFor(undefined);
           onSelect(undefined);
@@ -535,8 +540,9 @@ function CutShort({ lines, onOpen, children }: { lines: number; onOpen: () => vo
 // PRETOTYPE. The notes of a wide form listed beside it, as a document's are: in the order of the questions they are
 // about, one selected and open, the others cut short, with the note being written where its question's notes go.
 // Selecting one brings its question into view, whose answer it outlines.
-function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvidence, onDraftDone }: {
+function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvidence, onDraftDone, formLabel }: {
   entries: ListEntry[];
+  formLabel?: string;
   selected?: string;
   onSelect: (id: string | undefined) => void;
   width: number | string;
@@ -657,6 +663,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 <Box data-note={note.id} sx={{ px: 1.5, pt: 1, pb: 1 }}>
                   <NoteCard
                     note={note} answerLabel={extracted} formAnswer={answerText(question, question.value)} headed
+                    askedAs={{ question: question.text, form: formLabel }}
                     onReply={text => actions.write({ replyTo: note.id, text })}
                     onEditReply={(reply, text) => actions.write({ edit: reply, text })}
                     onRemoveReply={reply => actions.write({ remove: reply })}

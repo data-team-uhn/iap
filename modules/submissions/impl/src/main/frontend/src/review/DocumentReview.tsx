@@ -54,6 +54,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     text: string;
     answer?: string;
     given?: string;
+    form?: string;
   };
   // The submission search, which finds in the document instead of its own search field
   search: { query: string; step: number; previous: boolean };
@@ -116,6 +117,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         <NoteCard
           note={note} answerLabel={asked?.answer} question={asked?.text} formAnswer={asked?.given} headed
           onShowAnswer={asked ? () => onShowAnswer(note) : undefined}
+          askedAs={asked && { question: asked.text, form: asked.form }}
           onReply={text => actions.write({ replyTo: note.id, text })}
           onEditReply={(reply, text) => actions.write({ edit: reply, text })}
           onRemoveReply={reply => actions.write({ remove: reply })}
