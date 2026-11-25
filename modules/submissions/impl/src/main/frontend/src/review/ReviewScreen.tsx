@@ -276,8 +276,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     observer.observe(workArea);
     return () => observer.disconnect();
   }, [ workArea ]);
-  // How the contents and the review were before a second part was opened, folded away meanwhile, to restore after
-  const [ beforeSplit, setBeforeSplit ] = useState<{ rail: boolean; issues: boolean }>();
+  // How the review was before a second part was opened, folded away meanwhile, to restore after
+  const [ beforeSplit, setBeforeSplit ] = useState<{ issues: boolean }>();
   // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
   const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 400, isWidth);
   // The contents entry being read, and, when it has scrolled out of the list, the edge it left by, where a copy of it
@@ -436,15 +436,14 @@ export default function ReviewScreen({ path }: { path: string }) {
     return storeKinds(next);
   });
 
-  // Opening a second part under the first folds the contents and the review away, for room, until it is closed
+  // Opening a second part under the first folds the review away, for room, until it is closed
   const split = () => {
     if (!bottom) {
-      setBeforeSplit({ rail: railOpen, issues: issuesOpen ?? !(current && isDocumentRequirement(current)) });
-      setRailOpen(false);
+      setBeforeSplit({ issues: issuesOpen ?? !(current && isDocumentRequirement(current)) });
       setIssuesOpen(false);
     }
   };
-  // Closing either part leaves the other alone, as it was, and the contents and the review as they were before
+  // Closing either part leaves the other alone, as it was, and the review as it was before
   const close = (pane: Pane) => {
     if (pane === "top" && bottom) {
       setSelected(bottom.name);
@@ -454,7 +453,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     setBelowMark({});
     setActive("top");
     if (beforeSplit) {
-      setRailOpen(beforeSplit.rail);
       setIssuesOpen(beforeSplit.issues);
       setBeforeSplit(undefined);
     }
