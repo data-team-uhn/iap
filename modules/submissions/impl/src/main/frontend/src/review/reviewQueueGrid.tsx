@@ -19,7 +19,6 @@
 import { Stack } from "@mui/material";
 
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
-import { stringsOf } from "@iap/frontend-commons/serializedNode";
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
 
@@ -41,16 +40,16 @@ const COLUMNS: EntityGridColumn[] = [
   },
   { field: "pi", headerName: "PI", flex: 1, minWidth: 150, cardSlot: "caption" },
   {
+    // Where a study is in its life goes without saying here, in review or, folded apart, with the study team; only
+    // how urgent it is tells studies apart
     field: "tags",
-    headerName: "Status",
-    width: 200,
+    headerName: "Priority",
+    width: 140,
     type: "singleSelect",
-    valueOptions: tagValueOptions("lifecycle"),
+    valueOptions: tagValueOptions("priority"),
     sortable: false,
     renderCell: params => (
-      <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, height: "100%" }}>
-        {/* Everything in the queue is in review, so that tag would only repeat itself */}
-        <TagChip tags={stringsOf(params.row.tags).filter(tag => tag !== "in-review")} category="lifecycle" />
+      <Stack direction="row" sx={{ alignItems: "center", height: "100%" }}>
         <TagChip tags={params.row.tags} category="priority" />
       </Stack>
     ),
