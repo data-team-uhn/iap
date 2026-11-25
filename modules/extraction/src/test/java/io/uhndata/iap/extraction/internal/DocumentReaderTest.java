@@ -28,6 +28,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMMessage;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMRequestOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,16 +71,38 @@ class DocumentReaderTest
     /** Makes the model answer with each reply in turn, then with the last one. */
     private void stubReplies(final String first, final String... more) throws IOException
     {
-        Mockito.when(this.client.chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
-            ArgumentMatchers.any())).thenReturn(first, more);
+        Mockito.when(this.client.chatWithDetails(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+            ArgumentMatchers.any())).thenReturn(createReply(first),
+                Arrays.stream(more).map(DocumentReaderTest::createReply).toArray(LLMReply[]::new));
+    }
+
+    private static LLMReply createReply(final String text)
+    {
+        return new LLMReply(text, null, null, null);
     }
 
     private ArgumentCaptor<LLMRequestOptions> captureOptions(final int calls) throws IOException
     {
         final ArgumentCaptor<LLMRequestOptions> options = ArgumentCaptor.forClass(LLMRequestOptions.class);
-        Mockito.verify(this.client, Mockito.times(calls)).chat(ArgumentMatchers.anyString(),
+        Mockito.verify(this.client, Mockito.times(calls)).chatWithDetails(ArgumentMatchers.anyString(),
             ArgumentMatchers.anyList(), options.capture());
         return options;
+    }
+
+    // So a change in how answers turn out can be traced to a new model or a new prompt
+    @Test
+    void marksEachAnswerWithTheModelThatGaveItAndThePromptItWasAsked() throws IOException
+    {
+        final String key = "acronym";
+        Mockito.doReturn(new LLMReply(buildReply(key, "SARDINE"), "asked", "served-2026", "fp_1"))
+            .when(this.client).chatWithDetails(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+                ArgumentMatchers.any());
+
+        final FieldResult acronym = DocumentReader.read(this.client, createPlan(key), DocumentScan.of(TEXT))
+            .answers().get(key);
+
+        assertEquals(new RunOrigin("asked", "served-2026", "fp_1", ExtractionPrompt.computePromptVersion(), null,
+            null), acronym.origin());
     }
 
     @Test
@@ -110,7 +133,7 @@ class DocumentReaderTest
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<List<LLMMessage>> messages = ArgumentCaptor.forClass(List.class);
         final ArgumentCaptor<LLMRequestOptions> options = ArgumentCaptor.forClass(LLMRequestOptions.class);
-        Mockito.verify(this.client).chat(ArgumentMatchers.eq(call.systemPrompt()), messages.capture(),
+        Mockito.verify(this.client).chatWithDetails(ArgumentMatchers.eq(call.systemPrompt()), messages.capture(),
             options.capture());
         assertEquals(1, messages.getValue().size());
         assertEquals("user", messages.getValue().get(0).getRole());
@@ -135,7 +158,7 @@ class DocumentReaderTest
         assertEquals(2, reading.outcomes().get(0).attempts());
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<List<LLMMessage>> messages = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.client, Mockito.times(2)).chat(ArgumentMatchers.anyString(), messages.capture(),
+        Mockito.verify(this.client, Mockito.times(2)).chatWithDetails(ArgumentMatchers.anyString(), messages.capture(),
             ArgumentMatchers.any());
         final String retry = messages.getAllValues().get(1).get(0).getContent();
         assertTrue(retry.startsWith(call.userMessage()), retry);
@@ -164,7 +187,7 @@ class DocumentReaderTest
     void stopsAskingOnceTheModelCannotBeReached() throws IOException
     {
         final IOException outage = new IOException("connection refused");
-        Mockito.when(this.client.chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+        Mockito.when(this.client.chatWithDetails(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
             ArgumentMatchers.any())).thenThrow(outage);
 
         final DocumentReader.Reading reading = DocumentReader.read(this.client, createPlan("title", "sponsor"),
@@ -215,8 +238,9 @@ class DocumentReaderTest
     void stopsAskingTheHalvesOnceTheModelCannotBeReached() throws IOException
     {
         final IOException outage = new IOException("connection refused");
-        Mockito.when(this.client.chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
-            ArgumentMatchers.any())).thenReturn("{\"title\": {\"evidence\": [{\"quote\": \"x\"}], \"value\": \"Sard")
+        Mockito.when(this.client.chatWithDetails(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+            ArgumentMatchers.any()))
+            .thenReturn(createReply("{\"title\": {\"evidence\": [{\"quote\": \"x\"}], \"value\": \"Sard"))
             .thenThrow(outage);
 
         final DocumentReader.Reading reading =

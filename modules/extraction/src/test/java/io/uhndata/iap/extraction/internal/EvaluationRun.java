@@ -17,11 +17,7 @@
  */
 package io.uhndata.iap.extraction.internal;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -217,7 +213,7 @@ final class EvaluationRun
         this.outcomes.forEach((status, count) -> statuses.add(status, count));
         return Json.createObjectBuilder()
             .add("model", this.model)
-            .add("promptFingerprint", computePromptFingerprint(ExtractionPrompt.readSystemPrompt()))
+            .add("promptVersion", ExtractionPrompt.computePromptVersion())
             .add("contextTokens", this.contextTokens)
             .add("documents", this.documentTokens.size()).add("documentsTooLong", this.documentsTooLong)
             .add("documentsNotAsked", this.unplanned)
@@ -239,7 +235,7 @@ final class EvaluationRun
     {
         final StringBuilder table = new StringBuilder(String.format("Model %s, prompt %s, %d documents (%d too long, %d"
             + " not asked, median %d tokens), %d calls (%d retried) %s, %d s%n%n", summary.getString("model"),
-            summary.getString("promptFingerprint"), summary.getInt("documents"), summary.getInt("documentsTooLong"),
+            summary.getString("promptVersion"), summary.getInt("documents"), summary.getInt("documentsTooLong"),
             summary.getInt("documentsNotAsked"), summary.getInt("documentTokensMedian"), summary.getInt("calls"),
             summary.getInt("callsRetried"), summary.getJsonObject("callOutcomes"), summary.getInt("seconds")));
         table.append("| Question | Found | Accuracy | Mean F1 | Quotes found | Unsupported | Confidence right/wrong |\n"
@@ -259,15 +255,5 @@ final class EvaluationRun
     private static double computeAverage(final double total, final int count)
     {
         return count == 0 ? 0.0 : total / count;
-    }
-
-    private static String computePromptFingerprint(final String prompt)
-    {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                .digest(prompt.getBytes(StandardCharsets.UTF_8))).substring(0, 12);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Every JVM has SHA-256", e);
-        }
     }
 }

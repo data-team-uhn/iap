@@ -22,6 +22,7 @@ import java.util.List;
 
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMMessage;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMRequestOptions;
 
 /**
@@ -45,15 +46,15 @@ final class ModelCall
      * @param system the system prompt
      * @param userMessage what to show the model
      * @param options the options for the call, including the schema the reply must match
-     * @return the reply
+     * @return the reply, and which model wrote it
      * @throws IOException if the model cannot be reached
      */
-    static String ask(final LLMClient client, final String system, final String userMessage,
+    static LLMReply ask(final LLMClient client, final String system, final String userMessage,
         final LLMRequestOptions options) throws IOException
     {
         ReadingRuns.enterModelCall();
         try {
-            return client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
+            return client.chatWithDetails(system, List.of(new LLMMessage("user", userMessage)), options);
         } finally {
             // Always leaves the call. A stop that came during it throws here, in place of the reply or of the
             // failure the interrupt caused

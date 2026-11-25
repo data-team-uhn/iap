@@ -40,6 +40,7 @@ import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMClientFactory;
 import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMMessage;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
 import io.uhndata.iap.submissions.models.File;
@@ -105,7 +106,7 @@ class AnswerIntakeServiceTest
         private String system;
 
         @Override
-        public String chat(final String systemPrompt, final List<LLMMessage> messages,
+        public LLMReply chatWithDetails(final String systemPrompt, final List<LLMMessage> messages,
             final LLMRequestOptions requestOptions) throws IOException
         {
             this.system = systemPrompt;
@@ -114,7 +115,7 @@ class AnswerIntakeServiceTest
             if (reply instanceof final IOException failure) {
                 throw failure;
             }
-            return (String) reply;
+            return new LLMReply((String) reply, null, null, null);
         }
     }
 

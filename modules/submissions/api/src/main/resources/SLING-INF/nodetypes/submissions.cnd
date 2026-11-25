@@ -193,6 +193,20 @@
   - editDistance (LONG)
   - percentageDistance (DOUBLE)
 
+  // What produced the run, so a change in how answers turn out can be traced
+  // to a new model, prompt or template. model is the one asked for, as
+  // configured; servedModel and systemFingerprint are what the provider said
+  // answered, absent when it did not say. promptVersion and templateVersion
+  // are short hashes of the fixed prompt text and of the reference text sent,
+  // templateVersion absent when none was. confidenceThreshold is the one the
+  // answer was held to, absent when none applies, as for a form's answer.
+  - model (STRING)
+  - servedModel (STRING)
+  - systemFingerprint (STRING)
+  - promptVersion (STRING)
+  - templateVersion (STRING)
+  - confidenceThreshold (DOUBLE)
+
   // The context backing the extracted answer
   + * (sub:Context) = sub:Context
 

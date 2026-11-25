@@ -161,6 +161,27 @@ class ExtractionTest
     }
 
     @Test
+    void saysWhatProducedTheRun()
+    {
+        final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE,
+            Extraction.MODEL_PROPERTY, "asked",
+            Extraction.SERVED_MODEL_PROPERTY, "served-2026",
+            Extraction.SYSTEM_FINGERPRINT_PROPERTY, "fp_1",
+            Extraction.PROMPT_VERSION_PROPERTY, "prompt12",
+            Extraction.TEMPLATE_VERSION_PROPERTY, "template12",
+            Extraction.CONFIDENCE_THRESHOLD_PROPERTY, 0.8));
+        final Extraction extraction = resource.adaptTo(Extraction.class);
+
+        assertEquals("asked", extraction.getModel());
+        assertEquals("served-2026", extraction.getServedModel());
+        assertEquals("fp_1", extraction.getSystemFingerprint());
+        assertEquals("prompt12", extraction.getPromptVersion());
+        assertEquals("template12", extraction.getTemplateVersion());
+        assertEquals(0.8, extraction.getConfidenceThreshold());
+    }
+
+    @Test
     void listsTheContextBackingTheAnswer()
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH,
@@ -195,6 +216,12 @@ class ExtractionTest
         assertNull(extraction.getPercentageDistance());
         assertFalse(extraction.isActedOn());
         assertTrue(extraction.getContext().isEmpty());
+        assertNull(extraction.getModel());
+        assertNull(extraction.getServedModel());
+        assertNull(extraction.getSystemFingerprint());
+        assertNull(extraction.getPromptVersion());
+        assertNull(extraction.getTemplateVersion());
+        assertNull(extraction.getConfidenceThreshold());
     }
 
     private void registerVersion()

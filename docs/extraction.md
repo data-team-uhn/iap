@@ -751,6 +751,8 @@ sub:Submission
         +-- sources         -> REFERENCE to every sub:DocumentVersion read
         +-- editDistance, percentageDistance = written when the request is sent
         +-- evidenceRejected = written by reviewExtraction
+        +-- model, servedModel, systemFingerprint, promptVersion, templateVersion,
+            confidenceThreshold = what produced the run; see below
         +-- <uuid> (sub:Context), one per kept quote
             +-- quote, header, page
             +-- source -> WEAKREFERENCE to the version it came from
@@ -759,6 +761,23 @@ sub:Submission
 
 A validation's verdict is a run too, written the same way under the submission's
 `sub:Validation` for that requirement (`ExtractedAnswers.writeRun`).
+
+Each run also says what produced it, so a change in how answers turn out can be traced
+to a new model, a new prompt, a new template or new documents (`RunOrigin`). A property
+that is not known is left out, never written empty.
+
+| Property | What it is | Absent when |
+| --- | --- | --- |
+| `model` | The model asked for, as configured | The client did not say |
+| `servedModel` | The model the provider said answered; a provider can change the model behind a name | The provider did not say |
+| `systemFingerprint` | The provider's fingerprint of its serving setup | The provider gave none |
+| `promptVersion` | 12 hex digits of the SHA-256 of everything a call sends besides the document, the reference text and the questions: the system prompt, the blocks' tags, how each kind of question and answer is put, and the reply's schema (`ExtractionPrompt.computePromptVersion`). The evaluation summary carries the same one | No call produced the run |
+| `templateVersion` | The same short hash of the reference text sent, such as the requirement's template | No reference text was sent |
+| `confidenceThreshold` | The threshold a validation's verdict or a category pick was held to | The run is a form's answer, which has none |
+
+An unsure category pick is saved as not found, but keeps its origin and threshold, so
+it shows what it fell short of. A check on a document too long to read saves a run with
+only its threshold, since no call produced it.
 
 The run goes under the answer the question already has, such as the empty one left by
 the form or by `createParts`. When there is no answer, one is created with no value. If

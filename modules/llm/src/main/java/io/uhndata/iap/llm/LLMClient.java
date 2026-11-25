@@ -35,16 +35,33 @@ import org.jetbrains.annotations.Nullable;
 public interface LLMClient
 {
     /**
-     * Send a multi-turn conversation with an optional system prompt and per-call request overrides.
+     * Sends a multi-turn conversation with an optional system prompt and per-call request overrides, and says which
+     * model answered, so a caller can record it beside the answer.
      *
      * @param systemPrompt optional system instructions (may be {@code null} or blank)
      * @param messages the ordered list of conversation turns; must alternate user/assistant
      * @param options per-call overrides such as the output-token ceiling; when {@code null}, the active model's
      *            configured settings are used unchanged
+     * @return the reply, with the model asked for and what the provider said answered
+     * @throws IOException on network failure or a non-200 API response
+     */
+    @NotNull
+    LLMReply chatWithDetails(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages,
+        @Nullable LLMRequestOptions options) throws IOException;
+
+    /**
+     * Same as {@link #chatWithDetails}, for a caller that needs only the text.
+     *
+     * @param systemPrompt optional system instructions (may be {@code null} or blank)
+     * @param messages the ordered list of conversation turns; must alternate user/assistant
+     * @param options per-call overrides, or {@code null} for the active model's settings unchanged
      * @return the assistant's text response
      * @throws IOException on network failure or a non-200 API response
      */
     @NotNull
-    String chat(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages, @Nullable LLMRequestOptions options)
-        throws IOException;
+    default String chat(@Nullable final String systemPrompt, @NotNull final List<LLMMessage> messages,
+        @Nullable final LLMRequestOptions options) throws IOException
+    {
+        return chatWithDetails(systemPrompt, messages, options).text();
+    }
 }

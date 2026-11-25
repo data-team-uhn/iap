@@ -227,6 +227,7 @@ class ExtractionPromptTest
             assertEquals(call.opening(), half.opening());
             assertEquals(call.systemPrompt(), half.systemPrompt());
             assertEquals(call.maxOutputTokens(), half.maxOutputTokens(), "each half keeps the whole call's room");
+            assertEquals(call.origin(), half.origin(), "and sends the same prompt and template");
         }
     }
 
@@ -246,6 +247,36 @@ class ExtractionPromptTest
     void leavesNoBudgetWithNothingToAsk()
     {
         assertEquals(0, ExtractionPrompt.calculateDocumentBudget(null, List.of(), createBudget(WINDOW)));
+    }
+
+    // The model is known only once it answers; the threshold, only to the step that applies one
+    @Test
+    void marksEveryCallWithThePromptItSendsAndNoTemplate()
+    {
+        final RunOrigin origin = createPlan(DOCUMENT,
+            List.of(new ExtractionPrompt.Group("common", createFields("common.", 1))), WINDOW).calls().get(0).origin();
+
+        assertEquals(new RunOrigin(null, null, null, ExtractionPrompt.computePromptVersion(), null, null), origin);
+    }
+
+    @Test
+    void marksEveryCallWithTheVersionOfTheReferenceItSends()
+    {
+        final ExtractionPrompt.Call call = ExtractionPrompt.plan(DOCUMENT, " A protocol has aims. ",
+            List.of(new ExtractionPrompt.Group("common", createFields("common.", 1))), createBudget(WINDOW))
+            .calls().get(0);
+
+        assertEquals(ExtractionPrompt.computeShortHash("A protocol has aims."), call.origin().templateVersion());
+    }
+
+    // A short hash, so the version changes whenever the text does and never needs updating by hand
+    @Test
+    void givesEachTextItsOwnShortVersion()
+    {
+        assertTrue(ExtractionPrompt.computePromptVersion().matches("[0-9a-f]+"));
+        assertEquals(ExtractionPrompt.VERSION_LENGTH, ExtractionPrompt.computePromptVersion().length());
+        assertEquals(ExtractionPrompt.computeShortHash("a"), ExtractionPrompt.computeShortHash("a"));
+        assertFalse(ExtractionPrompt.computeShortHash("a").equals(ExtractionPrompt.computeShortHash("b")));
     }
 
     @Test

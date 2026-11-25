@@ -54,6 +54,7 @@ import io.uhndata.iap.llm.CallBudget;
 import io.uhndata.iap.llm.LLMCallGate;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMConfigurationService;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMSettings;
 import io.uhndata.iap.llm.internal.OpenAIClient;
 import io.uhndata.iap.schemas.models.Question;
@@ -148,7 +149,7 @@ class ExtractionEvaluation
     private static LLMClient createClient(final boolean dryRun, final String model, final long contextTokens)
         throws ReflectiveOperationException
     {
-        return dryRun ? (system, messages, options) -> "{}"
+        return dryRun ? (system, messages, options) -> new LLMReply("{}", null, null, null)
             : buildClient(model, contextTokens);
     }
 

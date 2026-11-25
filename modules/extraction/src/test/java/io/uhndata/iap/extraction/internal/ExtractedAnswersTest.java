@@ -39,6 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.File;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -227,6 +228,44 @@ class ExtractedAnswersTest
         final ValueMap run = getAnswers().get(0).getChildren().iterator().next().getValueMap();
         assertEquals(0.9, run.get("modelConfidence", Double.class));
         assertEquals(0.45, run.get("confidence", Double.class));
+    }
+
+    // So a change in how answers turn out can be traced to a new model, prompt or template
+    @Test
+    void savesWhatProducedTheRun() throws Exception
+    {
+        final FieldResult result = new FieldResult(AIMS, List.of("Care"), "", 0.9, 0.9, List.of(), 1,
+            new RunOrigin("asked", "served-2026", "fp_1", "prompt12", "template12", 0.8));
+
+        ExtractedAnswers.write(this.context.resourceResolver(), this.submission, null,
+            this.question.adaptTo(Question.class), result, List.of(this.file.adaptTo(File.class)));
+
+        final Extraction run = getAnswers().get(0).getChildren().iterator().next().adaptTo(Extraction.class);
+        assertEquals("asked", run.getModel());
+        assertEquals("served-2026", run.getServedModel());
+        assertEquals("fp_1", run.getSystemFingerprint());
+        assertEquals("prompt12", run.getPromptVersion());
+        assertEquals("template12", run.getTemplateVersion());
+        assertEquals(0.8, run.getConfidenceThreshold());
+    }
+
+    // What the provider did not say is left out, rather than written as empty
+    @Test
+    void leavesOutWhatIsNotKnownOfTheRunsOrigin() throws Exception
+    {
+        final FieldResult result = new FieldResult(AIMS, List.of("Care"), "", 0.9, 0.9, List.of(), 1,
+            new RunOrigin(null, null, null, "prompt12", null, null));
+
+        ExtractedAnswers.write(this.context.resourceResolver(), this.submission, null,
+            this.question.adaptTo(Question.class), result, List.of(this.file.adaptTo(File.class)));
+
+        final ValueMap run = getAnswers().get(0).getChildren().iterator().next().getValueMap();
+        assertEquals("prompt12", run.get(Extraction.PROMPT_VERSION_PROPERTY, String.class));
+        for (final String unknown : List.of(Extraction.MODEL_PROPERTY, Extraction.SERVED_MODEL_PROPERTY,
+            Extraction.SYSTEM_FINGERPRINT_PROPERTY, Extraction.TEMPLATE_VERSION_PROPERTY,
+            Extraction.CONFIDENCE_THRESHOLD_PROPERTY)) {
+            assertFalse(run.containsKey(unknown), unknown);
+        }
     }
 
     // The form shows each quote with where it was found, and a joined read says which document it came from

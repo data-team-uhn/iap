@@ -45,6 +45,24 @@ public class Extraction extends EntityPart
     /** The {@code sling:resourceType} of a {@code sub:Extraction} node. */
     public static final String RESOURCE_TYPE = "sub/Extraction";
 
+    /** The property naming the model asked for, see {@link #getModel}. */
+    public static final String MODEL_PROPERTY = "model";
+
+    /** The property naming the model the provider said answered, see {@link #getServedModel}. */
+    public static final String SERVED_MODEL_PROPERTY = "servedModel";
+
+    /** The property holding the provider's fingerprint, see {@link #getSystemFingerprint}. */
+    public static final String SYSTEM_FINGERPRINT_PROPERTY = "systemFingerprint";
+
+    /** The property holding the prompt's version, see {@link #getPromptVersion}. */
+    public static final String PROMPT_VERSION_PROPERTY = "promptVersion";
+
+    /** The property holding the template's version, see {@link #getTemplateVersion}. */
+    public static final String TEMPLATE_VERSION_PROPERTY = "templateVersion";
+
+    /** The property holding the threshold the answer was held to, see {@link #getConfidenceThreshold}. */
+    public static final String CONFIDENCE_THRESHOLD_PROPERTY = "confidenceThreshold";
+
     @ValueMapValue
     private String[] sources;
 
@@ -68,6 +86,24 @@ public class Extraction extends EntityPart
 
     @ValueMapValue
     private Double percentageDistance;
+
+    @ValueMapValue
+    private String model;
+
+    @ValueMapValue
+    private String servedModel;
+
+    @ValueMapValue
+    private String systemFingerprint;
+
+    @ValueMapValue
+    private String promptVersion;
+
+    @ValueMapValue
+    private String templateVersion;
+
+    @ValueMapValue
+    private Double confidenceThreshold;
 
     /**
      * The document revisions this run read, whether or not it found an answer in them. A newer revision of one of
@@ -170,6 +206,73 @@ public class Extraction extends EntityPart
     public Double getPercentageDistance()
     {
         return this.percentageDistance;
+    }
+
+    /**
+     * The model the run asked, as it was configured.
+     *
+     * @return the model's name; {@code null} when the client did not say
+     */
+    @Nullable
+    public String getModel()
+    {
+        return this.model;
+    }
+
+    /**
+     * The model the provider said answered. A provider can change the model behind a name, and this may name the
+     * exact version where {@link #getModel} does not.
+     *
+     * @return the provider's name for it; {@code null} when the provider did not say
+     */
+    @Nullable
+    public String getServedModel()
+    {
+        return this.servedModel;
+    }
+
+    /**
+     * The provider's fingerprint of its serving setup, which changes when the setup does.
+     *
+     * @return the fingerprint; {@code null} when the provider gave none
+     */
+    @Nullable
+    public String getSystemFingerprint()
+    {
+        return this.systemFingerprint;
+    }
+
+    /**
+     * The version of the prompt's fixed text the run sent: a short hash, which changes whenever the text does.
+     *
+     * @return the version; {@code null} for a run that recorded none
+     */
+    @Nullable
+    public String getPromptVersion()
+    {
+        return this.promptVersion;
+    }
+
+    /**
+     * The version of the reference text the run sent, such as the requirement's template: a short hash.
+     *
+     * @return the version; {@code null} when no reference text was sent
+     */
+    @Nullable
+    public String getTemplateVersion()
+    {
+        return this.templateVersion;
+    }
+
+    /**
+     * The confidence the answer had to reach to count, as it was when the run was made.
+     *
+     * @return the threshold; {@code null} when none applies, as for a form's answer
+     */
+    @Nullable
+    public Double getConfidenceThreshold()
+    {
+        return this.confidenceThreshold;
     }
 
     /**

@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.uhndata.iap.llm.LLMClient;
+import io.uhndata.iap.llm.LLMReply;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,10 +64,10 @@ class ModelCallTest
         final List<String> asked = new ArrayList<>();
         final LLMClient client = (system, messages, options) -> {
             asked.add(system + "|" + messages.get(0).getRole() + "|" + messages.get(0).getContent());
-            return "yes";
+            return new LLMReply("yes", null, null, null);
         };
 
-        assertEquals("yes", ModelCall.ask(client, "system", "user message", null));
+        assertEquals("yes", ModelCall.ask(client, "system", "user message", null).text());
         assertEquals(List.of("system|user|user message"), asked);
     }
 
@@ -76,7 +77,7 @@ class ModelCallTest
         final List<String> asked = new ArrayList<>();
         final LLMClient client = (system, messages, options) -> {
             asked.add("asked");
-            return "{}";
+            return new LLMReply("{}", null, null, null);
         };
         this.runs.stop(SUBMISSION);
 
@@ -102,7 +103,7 @@ class ModelCallTest
     {
         final LLMClient client = (system, messages, options) -> {
             this.runs.stop(SUBMISSION);
-            return "too late";
+            return new LLMReply("too late", null, null, null);
         };
 
         assertThrows(ReadingStoppedException.class, () -> ModelCall.ask(client, "system", "user", null));
@@ -140,6 +141,8 @@ class ModelCallTest
     {
         Thread.currentThread().interrupt();
 
-        assertEquals("yes", ModelCall.ask((system, messages, options) -> "yes", "system", "user", null));
+        final LLMClient client = (system, messages, options) -> new LLMReply("yes", null, null, null);
+
+        assertEquals("yes", ModelCall.ask(client, "system", "user", null).text());
     }
 }

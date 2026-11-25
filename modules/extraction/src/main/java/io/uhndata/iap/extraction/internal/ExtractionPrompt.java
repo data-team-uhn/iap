@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.function.LongBinaryOperator;
 import java.util.regex.Pattern;
 
+import org.apache.commons.codec.digest.DigestUtils;
+
 import io.uhndata.iap.llm.CallBudget;
 
 /**
@@ -55,6 +57,9 @@ final class ExtractionPrompt
      * the questions, so a document refused then is refused for the setting, not for its own length.
      */
     static final long MIN_DOCUMENT_TOKENS = 1000;
+
+    /** How many hexadecimal digits of a hash a version keeps: enough to tell versions apart, short to read. */
+    static final int VERSION_LENGTH = 12;
 
     private static final String DOCUMENT_START = "<document>\n";
 
@@ -92,11 +97,12 @@ final class ExtractionPrompt
      * @param opening the document, then the reference text if any: what every call of the plan opens with
      * @param responseSchema the schema the reply must follow, see {@link ResponseSchema}
      * @param maxOutputTokens the room the reply is given
+     * @param origin the prompt and template versions the call sends; the model is known only once it answers
      * @version $Id$
      * @since 0.1.0
      */
     record Call(String group, List<ExtractionField> fields, String systemPrompt, String opening,
-        String responseSchema, long maxOutputTokens)
+        String responseSchema, long maxOutputTokens, RunOrigin origin)
     {
         /**
          * What the model is shown: the opening, then the questions.
@@ -167,9 +173,11 @@ final class ExtractionPrompt
         final String systemPrompt = readSystemPrompt();
         final String referenceBlock = buildReferenceBlock(references);
         final String opening = buildDocumentBlock(document) + PARAGRAPH_BREAK + referenceBlock;
+        final RunOrigin origin = RunOrigin.ofPrompt(computePromptVersion(),
+            referenceBlock.isEmpty() ? null : computeShortHash(references.strip()));
         final List<Call> calls = batches.stream()
             .map(batch -> new Call(batch.name(), batch.fields(), systemPrompt, opening,
-                ResponseSchema.build(batch.fields()), calculateMaxOutputTokens(batch.fields())))
+                ResponseSchema.build(batch.fields()), calculateMaxOutputTokens(batch.fields()), origin))
             .toList();
         return new Plan(calls, documentTokens, budget);
     }
@@ -213,8 +221,57 @@ final class ExtractionPrompt
         return List.of(call.fields().subList(0, middle), call.fields().subList(middle, call.fields().size()))
             .stream()
             .map(fields -> new Call(call.group(), fields, call.systemPrompt(), call.opening(),
-                ResponseSchema.build(fields), call.maxOutputTokens()))
+                ResponseSchema.build(fields), call.maxOutputTokens(), call.origin()))
             .toList();
+    }
+
+    /**
+     * The version of everything a call sends besides the document, the reference text and the questions themselves:
+     * the system prompt, the blocks' tags, how each kind of question and answer is put, and the reply's schema. A
+     * short hash, so it changes whenever any of that does and never needs updating by hand.
+     *
+     * @return {@link #VERSION_LENGTH} hexadecimal digits
+     */
+    static String computePromptVersion()
+    {
+        final List<ExtractionField> sample = buildSampleFields();
+        return computeShortHash(readSystemPrompt() + buildDocumentBlock("") + buildReferenceBlock("x")
+            + buildQuestionBlock(sample) + ResponseSchema.build(sample));
+    }
+
+    /**
+     * A text's short hash, enough to tell its versions apart.
+     *
+     * @param text the text
+     * @return the first {@link #VERSION_LENGTH} hexadecimal digits of its SHA-256
+     */
+    static String computeShortHash(final String text)
+    {
+        return DigestUtils.sha256Hex(text).substring(0, VERSION_LENGTH);
+    }
+
+    /** One question of every kind, with every part a question can have, so each wording is in the prompt version. */
+    private static List<ExtractionField> buildSampleFields()
+    {
+        final ExtractionField.Option option = new ExtractionField.Option("value", "Label", "Description");
+        final String question = "Question";
+        return List.of(
+            new ExtractionField("text", question, "Details", "Purpose", "Instructions",
+                new ExtractionField.Answer(ExtractionField.TEXT_TYPE, false, null, null, "Format", List.of())),
+            new ExtractionField("range", question, null, null, "",
+                new ExtractionField.Answer(ExtractionField.LONG_TYPE, true, 1.0, 2.0, null, List.of())),
+            new ExtractionField("least", question, null, null, "",
+                new ExtractionField.Answer(ExtractionField.DOUBLE_TYPE, false, 1.0, null, null, List.of())),
+            new ExtractionField("most", question, null, null, "",
+                new ExtractionField.Answer(ExtractionField.DOUBLE_TYPE, false, null, 2.0, null, List.of())),
+            new ExtractionField("flag", question, null, null, "",
+                new ExtractionField.Answer(ExtractionField.BOOLEAN_TYPE, false, null, null, null, List.of())),
+            new ExtractionField("date", question, null, null, "",
+                new ExtractionField.Answer(ExtractionField.DATE_TYPE, false, null, null, null, List.of())),
+            new ExtractionField("one", question, null, null, "",
+                new ExtractionField.Answer(ExtractionField.TEXT_TYPE, false, null, null, null, List.of(option))),
+            new ExtractionField("many", question, null, null, "",
+                new ExtractionField.Answer(ExtractionField.TEXT_TYPE, true, null, null, null, List.of(option))));
     }
 
     /**

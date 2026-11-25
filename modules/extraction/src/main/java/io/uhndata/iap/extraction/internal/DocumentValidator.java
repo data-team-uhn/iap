@@ -113,7 +113,8 @@ public class DocumentValidator
             this.jobs.giveUpOwnReading(submission, jobId, result.message());
             throw new ReadingEndedException();
         }
-        final FieldResult verdict = result.fields().getOrDefault(VERDICT_KEY, FieldResult.createNotFound(VERDICT_KEY));
+        final FieldResult verdict = result.fields().getOrDefault(VERDICT_KEY, FieldResult.createNotFound(VERDICT_KEY))
+            .withThreshold(requirement.getConfidenceThreshold());
         this.jobs.sendOutcome(submission, new WorkflowEvent(VALIDATED_EVENT, Map.of(
             ReadingEvents.JOB_KEY, jobId, ReadingEvents.REQUIREMENT_KEY, requirement.getPath(),
             ReadingEvents.FILE_KEY, file.getPath(), ReadingEvents.RESULT_KEY, verdict)));

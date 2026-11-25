@@ -40,9 +40,11 @@ import org.mockito.invocation.InvocationOnMock;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.ClassificationRequirement;
+import io.uhndata.iap.schemas.models.DecisionRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.models.Validation;
@@ -66,6 +68,9 @@ class DecisionJobConsumerTest
     private static final String PROMPT = "Decide whether the document is a research proposal.";
 
     private static final String STARTED = ReadingJobs.READING_STARTED_EVENT;
+
+    /** What the stand-in model says produced its answers. */
+    private static final RunOrigin ORIGIN = new RunOrigin("asked", "served", null, "prompt12", null, null);
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -202,7 +207,8 @@ class DecisionJobConsumerTest
         final boolean validation = DocumentValidator.VERDICT_KEY.equals(key);
         final double confidence = validation ? this.verdictConfidence : this.pickConfidence;
         return IntakeResult.createRead(Map.of(key, new FieldResult(key,
-            List.of(validation ? this.verdict : this.pick), "It says so.", confidence, confidence, List.of(), 0)));
+            List.of(validation ? this.verdict : this.pick), "It says so.", confidence, confidence, List.of(), 0,
+            ORIGIN)));
     }
 
     private void stubVerdict(final String answer, final double confidence)
@@ -267,6 +273,10 @@ class DecisionJobConsumerTest
         assertEquals(Validation.OUTCOME_YES, getValidationModel().getOutcome());
         assertEquals(SubmissionTree.SUBMISSION_PATH + "/d1/v1",
             getValidationModel().getLatestExtraction().getSources().get(0).getPath());
+        // The run says what produced it, and the threshold the verdict was held to
+        assertEquals("served", getValidationModel().getLatestExtraction().getServedModel());
+        assertEquals(DecisionRequirement.DEFAULT_CONFIDENCE_THRESHOLD,
+            getValidationModel().getLatestExtraction().getConfidenceThreshold());
         assertEquals("completed", task.getValueMap().get("status", String.class));
         // Nothing was categorised, so there is nothing to confirm
         assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
@@ -343,6 +353,8 @@ class DecisionJobConsumerTest
 
         assertEquals(List.of("verdict", "classification.study_kind"), getAskedKeys());
         assertEquals(Validation.OUTCOME_UNSURE, getValidationModel().getOutcome());
+        assertEquals(DecisionRequirement.DEFAULT_CONFIDENCE_THRESHOLD,
+            getValidationModel().getLatestExtraction().getConfidenceThreshold());
         assertEquals(List.of("observational"), getSuggestion(category));
     }
 
@@ -844,6 +856,10 @@ class DecisionJobConsumerTest
         assertEquals(List.of(), getSuggestion(category));
         assertEquals(DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE,
             getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+        // Recorded as not found, but still saying what produced it and what it fell short of
+        final Extraction run = this.tree.findAnswer(category.getPath()).getLatestExtraction();
+        assertEquals("prompt12", run.getPromptVersion());
+        assertEquals(DecisionRequirement.DEFAULT_CONFIDENCE_THRESHOLD, run.getConfidenceThreshold());
     }
 
     @Test
@@ -883,6 +899,8 @@ class DecisionJobConsumerTest
 
         assertEquals(List.of(STARTED, "categorised", "decided"), getFiredEventNames());
         assertEquals(List.of("observational"), getSuggestion(category));
+        assertEquals(DecisionRequirement.DEFAULT_CONFIDENCE_THRESHOLD,
+            this.tree.findAnswer(category.getPath()).getLatestExtraction().getConfidenceThreshold());
     }
 
     // A category the submitter already gave is not asked again, but the reading still has to end

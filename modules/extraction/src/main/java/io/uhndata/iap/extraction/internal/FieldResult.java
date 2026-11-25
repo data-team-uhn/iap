@@ -30,11 +30,13 @@ import java.util.List;
  *     what thresholds compare with
  * @param passages the quotes that were found in the document
  * @param quotesOffered how many different quotes the model gave, found or not
+ * @param origin what produced the answer: the model, the prompt, the template and the threshold;
+ *     {@link RunOrigin#NO_ORIGIN} when nothing did
  * @version $Id$
  * @since 0.1.0
  */
 record FieldResult(String key, List<String> values, String reasoning, double modelConfidence, double confidence,
-    List<Passage> passages, int quotesOffered)
+    List<Passage> passages, int quotesOffered, RunOrigin origin)
 {
     /**
      * One quote from the document, and where it is.
@@ -61,11 +63,52 @@ record FieldResult(String key, List<String> values, String reasoning, double mod
      * @param confidence the model's confidence after the quote check
      * @param passages the quotes found in the document
      * @param quotesOffered how many different quotes the model gave
+     * @param origin what produced the answer
      */
     FieldResult
     {
         values = List.copyOf(values);
         passages = List.copyOf(passages);
+    }
+
+    /**
+     * A result no call has produced yet; {@link #withOrigin} says which one did.
+     *
+     * @param key the question's key
+     * @param values the answer, empty when nothing was found
+     * @param reasoning how the model got there
+     * @param modelConfidence how sure the model said it is
+     * @param confidence the model's confidence after the quote check
+     * @param passages the quotes found in the document
+     * @param quotesOffered how many different quotes the model gave
+     */
+    FieldResult(final String key, final List<String> values, final String reasoning, final double modelConfidence,
+        final double confidence, final List<Passage> passages, final int quotesOffered)
+    {
+        this(key, values, reasoning, modelConfidence, confidence, passages, quotesOffered, RunOrigin.NO_ORIGIN);
+    }
+
+    /**
+     * The same result, produced by the given origin.
+     *
+     * @param newOrigin what produced the answer
+     * @return a copy with the origin
+     */
+    FieldResult withOrigin(final RunOrigin newOrigin)
+    {
+        return new FieldResult(this.key, this.values, this.reasoning, this.modelConfidence, this.confidence,
+            this.passages, this.quotesOffered, newOrigin);
+    }
+
+    /**
+     * The same result, held to a confidence threshold.
+     *
+     * @param threshold the threshold the answer was compared with
+     * @return a copy whose origin names the threshold
+     */
+    FieldResult withThreshold(final double threshold)
+    {
+        return withOrigin(this.origin.withThreshold(threshold));
     }
 
     /**

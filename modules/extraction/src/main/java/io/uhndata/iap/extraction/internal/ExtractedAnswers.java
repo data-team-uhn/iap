@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.apache.jackrabbit.JcrConstants;
@@ -29,6 +30,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.utils.ReferenceUtils;
 
@@ -139,6 +141,7 @@ final class ExtractedAnswers
         if (result.reasoning() != null) {
             extraction.put("reasoning", result.reasoning());
         }
+        putOrigin(extraction, result.origin());
         final Resource extracted = resolver.create(answer, UUID.randomUUID().toString(), extraction);
         try {
             ReferenceUtils.setReferences(extracted, SOURCES_PROPERTY, versions);
@@ -150,6 +153,21 @@ final class ExtractedAnswers
             resolver.delete(extracted);
             throw e;
         }
+    }
+
+    /** Adds what produced the run, leaving out what is not known, so a missing value never reads as an empty one. */
+    private static void putOrigin(final Map<String, Object> extraction, final RunOrigin origin)
+    {
+        // A HashMap, since Map.of refuses the nulls that mark what is not known
+        final Map<String, Object> known = new HashMap<>();
+        known.put(Extraction.MODEL_PROPERTY, origin.model());
+        known.put(Extraction.SERVED_MODEL_PROPERTY, origin.servedModel());
+        known.put(Extraction.SYSTEM_FINGERPRINT_PROPERTY, origin.systemFingerprint());
+        known.put(Extraction.PROMPT_VERSION_PROPERTY, origin.promptVersion());
+        known.put(Extraction.TEMPLATE_VERSION_PROPERTY, origin.templateVersion());
+        known.put(Extraction.CONFIDENCE_THRESHOLD_PROPERTY, origin.confidenceThreshold());
+        known.values().removeIf(Objects::isNull);
+        extraction.putAll(known);
     }
 
     private static void writeContext(final ResourceResolver resolver, final Resource extracted,

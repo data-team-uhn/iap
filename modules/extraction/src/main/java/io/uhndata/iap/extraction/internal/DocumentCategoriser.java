@@ -79,7 +79,10 @@ public class DocumentCategoriser
             throw new ReadingEndedException();
         }
         final FieldResult pick = result.fields().getOrDefault(key, FieldResult.createNotFound(key));
-        final FieldResult recorded = isSurePick(pick, classification) ? pick : FieldResult.createNotFound(key);
+        // An unsure pick is recorded as not found, but still says what produced it
+        final FieldResult recorded = (isSurePick(pick, classification) ? pick
+            : FieldResult.createNotFound(key).withOrigin(pick.origin()))
+            .withThreshold(classification.getConfidenceThreshold());
         this.jobs.sendOutcome(submission, new WorkflowEvent(CATEGORISED_EVENT, Map.of(
             ReadingEvents.JOB_KEY, jobId, ReadingEvents.REQUIREMENT_KEY, classification.getPath(),
             ReadingEvents.FILE_KEY, file.getPath(), ReadingEvents.RESULT_KEY, recorded)));

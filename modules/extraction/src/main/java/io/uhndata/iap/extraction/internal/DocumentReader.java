@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.llm.LLMClient;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMRequestOptions;
 
 /**
@@ -192,6 +194,14 @@ final class DocumentReader
         return outcomes;
     }
 
+    /** Marks each answer with what produced it: the call's prompt and template, and the model that replied. */
+    private static Map<String, FieldResult> markWithOrigin(final Map<String, FieldResult> answers,
+        final RunOrigin origin)
+    {
+        return answers.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
+            entry -> entry.getValue().withOrigin(origin), (first, second) -> first, LinkedHashMap::new));
+    }
+
     private static List<Outcome> ask(final LLMClient client, final ExtractionPrompt.Call call,
         final DocumentScan document)
     {
@@ -200,7 +210,7 @@ final class DocumentReader
         String message = call.userMessage();
         String problem = null;
         for (int attempt = 1; attempt <= MAX_TRIES; attempt++) {
-            final String reply;
+            final LLMReply reply;
             try {
                 reply = ModelCall.ask(client, call.systemPrompt(), message, options);
             } catch (final IOException e) {
@@ -208,7 +218,8 @@ final class DocumentReader
             }
             try {
                 return List.of(new Answered(call, attempt,
-                    ExtractionReply.read(call.fields(), reply, document)));
+                    markWithOrigin(ExtractionReply.read(call.fields(), reply.text(), document),
+                        call.origin().withReply(reply))));
             } catch (final RuntimeException e) {
                 // A fault in reading, not in the reply: asking the model again would only pay for the same fault
                 LOGGER.error("A reply for {} broke the reader: {}", call.group(), e.getMessage(), e);
