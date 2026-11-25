@@ -23,7 +23,8 @@ import { useMemo, useState } from "react";
 import { Autocomplete, Chip, TextField } from "@mui/material";
 
 import { type Choice, withValues } from "./choices";
-import { changeAndCommit, useFieldProps, type ValueInputProps } from "./valueInput";
+import { useFieldProps, type ValueInputProps } from "./valueInput";
+import { changeAndCommit } from "./values";
 import ValueText from "./ValueText";
 
 interface MultiValueInputProps extends ValueInputProps {

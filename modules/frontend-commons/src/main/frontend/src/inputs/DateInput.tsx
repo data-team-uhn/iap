@@ -18,15 +18,22 @@
 
 // Lets a person enter a calendar day.
 
+import { type SyntheticEvent, useState } from "react";
+
 import { TextField } from "@mui/material";
 
-import { commitProps, fromSingle, singleValue, useFieldProps, type ValueInputProps } from "./valueInput";
+import { useCommit, useFieldProps, type ValueInputProps } from "./valueInput";
+import { DATE_PROBLEM, fromSingle, singleValue } from "./values";
 import ValueText from "./ValueText";
 
-// One calendar day, stored as `yyyy-mm-dd` whatever the reader's locale displays.
+// One calendar day, stored as `yyyy-mm-dd` whatever the reader's locale displays. A day only partly entered
+// holds no value, is flagged once the field is left, and is not committed.
 export default function DateInput(props: ValueInputProps) {
   const { label, values, onChange, readOnly = false } = props;
-  const { field, commit, visit } = useFieldProps(props);
+  // The browser reports a partly entered day as empty, and only `badInput` tells it from an empty field
+  const [ partial, setPartial ] = useState(false);
+  const { field, visit } = useFieldProps(props, partial ? [ DATE_PROBLEM ] : []);
+  const finishing = useCommit({ ...props, finished: !partial }, visit);
 
   if (readOnly) {
     return <ValueText label={label} values={values} />;
@@ -36,14 +43,15 @@ export default function DateInput(props: ValueInputProps) {
       {...field}
       type="date"
       value={singleValue(values)}
-      slotProps={{ inputLabel: { shrink: true } }}
-      // A half-typed day reads as empty, which would clear the stored one. `badInput` tells the two apart.
-      onChange={event => {
-        if (!event.target.validity.badInput) {
-          onChange(fromSingle(event.target.value));
-        }
+      slotProps={{
+        inputLabel: { shrink: true },
+        // Each edit of a part of the day is an input event, though the value stays empty and React reports no change
+        htmlInput: {
+          onInput: (event: SyntheticEvent<HTMLInputElement>) => setPartial(event.currentTarget.validity.badInput),
+        },
       }}
-      {...commitProps(input => (input as HTMLInputElement).validity.badInput ? visit() : commit())}
+      onChange={event => onChange(fromSingle(event.target.value))}
+      {...finishing}
     />
   );
 }

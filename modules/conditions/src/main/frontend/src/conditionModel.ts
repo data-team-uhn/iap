@@ -22,13 +22,25 @@
 // pluggable: a module offering one says what its operands hold and how they read. No React, no fetch.
 
 import { booleanChoices, type Choice } from "@iap/frontend-commons/inputs/choices";
-import { isDecimalNumber, isWholeNumber, NUMBER_PROBLEM, WHOLE_NUMBER_PROBLEM } from "@iap/frontend-commons/numberText";
+import { DATE_PROBLEM } from "@iap/frontend-commons/inputs/values";
+import { NUMBER_KINDS, type NumberKind } from "@iap/frontend-commons/numberText";
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 export { type Choice } from "@iap/frontend-commons/inputs/choices";
 
 /** The comparison types of the conditions module's OperandType. */
 export type ValueType = "text" | "long" | "double" | "decimal" | "boolean" | "date";
+
+type NumberType = "long" | "double" | "decimal";
+
+const NUMBER_KIND_OF: Record<NumberType, NumberKind> = { long: "whole", double: "decimal", decimal: "decimal" };
+
+const isNumberType = (type?: ValueType): type is NumberType =>
+  type !== undefined && Object.hasOwn(NUMBER_KIND_OF, type);
+
+/** The kind of number a type holds, or undefined for a type that holds no number. */
+export const numberKindOf = (type?: ValueType): NumberKind | undefined =>
+  isNumberType(type) ? NUMBER_KIND_OF[type] : undefined;
 
 /**
  * What an operand holds, as far as its source knows. A source that cannot tell leaves a field out. An unknown type
@@ -185,12 +197,13 @@ export function valuesTaken(comparator: Comparator | undefined, shape: OperandSh
 export function valueProblem(value: string, type?: ValueType): string | undefined {
   switch (type) {
     case "long":
-      return isWholeNumber(value.trim()) ? undefined : WHOLE_NUMBER_PROBLEM;
     case "double":
-    case "decimal":
-      return isDecimalNumber(value.trim()) ? undefined : NUMBER_PROBLEM;
+    case "decimal": {
+      const { complete, problem } = NUMBER_KINDS[NUMBER_KIND_OF[type]];
+      return complete(value.trim()) ? undefined : problem;
+    }
     case "date":
-      return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) ? undefined : "Enter a date.";
+      return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) ? undefined : DATE_PROBLEM;
     case "boolean":
       return [ "true", "false" ].includes(value) ? undefined : "Choose yes or no.";
     case "text":

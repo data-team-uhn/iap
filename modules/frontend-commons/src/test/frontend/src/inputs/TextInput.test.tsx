@@ -18,23 +18,14 @@
 
 // Covers typing text: when a value is committed, and how the description and problems are shown.
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 
 import TextInput from "@iap/frontend-commons/inputs/TextInput";
-import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
+import { renderValueInput } from "@iap/frontend-commons/inputs/valueInput.fixture";
+import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 
-const renderInput = (props: Partial<Parameters<typeof TextInput>[0]> = {}) => {
-  const onChange = vi.fn();
-  const onCommit = vi.fn();
-  const element = (more: typeof props) =>
-    <TextInput label="Name" values={[ "Ann" ]} onChange={onChange} onCommit={onCommit} {...more} />;
-  const { rerender } = render(element(props));
-  return {
-    onChange, onCommit, input: screen.queryByRole("textbox", { name: /Name/ }),
-    // Renders the values anew, as a caller does once it takes a change
-    retype: (values: string[]) => rerender(element({ ...props, values })),
-  };
-};
+const renderInput = (props: Partial<Parameters<typeof TextInput>[0]> = {}) =>
+  renderValueInput(TextInput, { label: "Name", values: [ "Ann" ] }, props);
 
 describe("TextInput", () => {
   it("reports what is typed, and nothing once emptied", () => {
@@ -55,6 +46,15 @@ describe("TextInput", () => {
     fireEvent.blur(input!);
 
     expect(onCommit.mock.calls).toEqual([ [ [ "Anne" ] ] ]);
+  });
+
+  it("does not commit on the Enter that confirms a word in an input method", () => {
+    const { onCommit, input, retype } = renderInput();
+
+    retype([ "Anne" ]);
+    fireEvent.keyDown(input!, { key: "Enter", isComposing: true });
+
+    expect(onCommit).not.toHaveBeenCalled();
   });
 
   it("commits a value changed back to the last one committed, after a change from outside", () => {
@@ -78,12 +78,17 @@ describe("TextInput", () => {
     expect(onCommit).toHaveBeenCalledWith([ "Anne" ]);
   });
 
-  it("finishes a value with no one listening", () => {
-    const { input } = renderInput({ onCommit: undefined });
+  it("finishes a changed value with no one listening", () => {
+    const { input, retype } = renderInput({ onCommit: undefined });
+    // React reports an error thrown by an event handler to the window, not to whoever fired the event
+    const errors = vi.fn();
+    window.addEventListener("error", errors);
 
+    retype([ "Anne" ]);
     fireEvent.blur(input!);
+    window.removeEventListener("error", errors);
 
-    expect(input).toHaveValue("Ann");
+    expect(errors).not.toHaveBeenCalled();
   });
 
   it("shows its description", () => {
@@ -92,7 +97,7 @@ describe("TextInput", () => {
   });
 
   it("shows problems in place of the description", () => {
-    const { input } = renderInput({ description: "Given name", problems: [ "Too short.", "Taken.", "Too short." ] });
+    const { input } = renderInput({ description: "Given name", problems: [ "Too short.", "Taken." ] });
 
     expect(screen.getByText("Too short. Taken.")).toBeInTheDocument();
     expect(screen.queryByText("Given name")).not.toBeInTheDocument();

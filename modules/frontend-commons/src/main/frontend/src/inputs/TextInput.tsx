@@ -20,7 +20,8 @@
 
 import { TextField } from "@mui/material";
 
-import { commitProps, fromSingle, singleValue, useFieldProps, type ValueInputProps } from "./valueInput";
+import { useCommit, useFieldProps, type ValueInputProps } from "./valueInput";
+import { fromSingle, singleValue } from "./values";
 import ValueText from "./ValueText";
 
 interface TextInputProps extends ValueInputProps {
@@ -30,7 +31,8 @@ interface TextInputProps extends ValueInputProps {
 // One value, typed freely.
 export default function TextInput(props: TextInputProps) {
   const { label, values, onChange, multiline = false, readOnly = false } = props;
-  const { field, commit } = useFieldProps(props);
+  const { field, visit } = useFieldProps(props);
+  const finishing = useCommit(props, visit);
 
   if (readOnly) {
     return <ValueText label={label} values={values} />;
@@ -42,8 +44,9 @@ export default function TextInput(props: TextInputProps) {
       multiline={multiline}
       minRows={multiline ? 2 : undefined}
       onChange={event => onChange(fromSingle(event.target.value))}
+      {...finishing}
       // Enter in a multiline field starts a new line
-      {...multiline ? { onBlur: commit } : commitProps(commit)}
+      onKeyDown={multiline ? undefined : finishing.onKeyDown}
     />
   );
 }

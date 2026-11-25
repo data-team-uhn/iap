@@ -18,11 +18,11 @@
 
 // Covers reading the nodes a reference may point at, and offering them as choices.
 
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import { readReferences, referenceChoices } from "@iap/frontend-commons/inputs/referenceChoices";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
 
-const response = (body: unknown, status = 200) =>
-  Promise.resolve({ ok: status < 400, status, url: "", json: () => Promise.resolve(body) } as unknown as Response);
+const response = (body: unknown, status = 200) => Promise.resolve(jsonResponse(body, status));
 
 const queryOf = (url: string) => new URL(url, "http://localhost").searchParams;
 

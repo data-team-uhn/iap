@@ -18,9 +18,10 @@
 
 // Covers what BooleanInput offers: yes, no and none, their labels, and a stored value that is neither.
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import BooleanInput from "@iap/frontend-commons/inputs/BooleanInput";
+import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
 
 const renderInput = (props: Partial<Parameters<typeof BooleanInput>[0]> = {}) => {
   const onChange = vi.fn();
@@ -31,17 +32,12 @@ const renderInput = (props: Partial<Parameters<typeof BooleanInput>[0]> = {}) =>
 
 const select = () => screen.getByRole("combobox", { name: /Notify/ });
 
-const options = async () => {
-  fireEvent.mouseDown(select());
-  return within(await screen.findByRole("listbox")).getAllByRole("option").map(option => option.textContent);
-};
-
 describe("BooleanInput", () => {
   it("shows true and false as Yes and No, and reports a pick as finished", async () => {
     const { onChange, onCommit } = renderInput();
 
     expect(select()).toHaveTextContent("Yes");
-    expect(await options()).toEqual([ "None", "Yes", "No" ]);
+    expect(await listedOptions(select())).toEqual([ "None", "Yes", "No" ]);
     fireEvent.click(screen.getByRole("option", { name: "No" }));
 
     expect(onChange).toHaveBeenCalledWith([ "false" ]);
@@ -50,24 +46,24 @@ describe("BooleanInput", () => {
 
   it("shows the labels it is given", async () => {
     renderInput({ trueLabel: "Enabled", falseLabel: "Disabled" });
-    expect(await options()).toEqual([ "None", "Enabled", "Disabled" ]);
+    expect(await listedOptions(select())).toEqual([ "None", "Enabled", "Disabled" ]);
   });
 
   it("offers no None when required", async () => {
     renderInput({ required: true });
-    expect(await options()).toEqual([ "Yes", "No" ]);
+    expect(await listedOptions(select())).toEqual([ "Yes", "No" ]);
   });
 
   it("offers no None when told not to, even when optional", async () => {
     renderInput({ allowNone: false });
-    expect(await options()).toEqual([ "Yes", "No" ]);
+    expect(await listedOptions(select())).toEqual([ "Yes", "No" ]);
   });
 
   it("keeps a stored value that is neither true nor false", async () => {
     renderInput({ values: [ "TRUE" ] });
 
     expect(select()).toHaveTextContent("TRUE");
-    expect(await options()).toEqual([ "None", "Yes", "No", "TRUE" ]);
+    expect(await listedOptions(select())).toEqual([ "None", "Yes", "No", "TRUE" ]);
   });
 
   it("opens as soon as it appears when asked to", async () => {

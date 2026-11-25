@@ -244,8 +244,10 @@ input never saves anything: the caller decides what to keep, and how a value is 
 | `DateInput` | One calendar day, stored as `yyyy-mm-dd` |
 | `ValueText` | Values shown as text after their label, as "Label: a, b"; every input shows this when `readOnly` |
 
-The common props are in `valueInput.ts`. `problems` replaces the description and marks
-the field in error; each is a sentence, and the same one is shown once. A `required`
+The common props are in `valueInput.ts`, and the helpers with no React in `values.ts`.
+`problems` replaces the description and marks the field in error; each is a sentence,
+and one source says each once: a single typed value is checked by its own input, so a
+caller adds problems only for what the input cannot know. A `required`
 field with no value, or only blank ones, adds "A value is required.", but only once it
 has been left. A stored value that the list no longer offers stays selected and shown
 as it is, rather than being dropped when the form is saved. So does a `BooleanInput`
@@ -261,11 +263,19 @@ under the root, and stored as its absolute path. At most a thousand are read, an
 stored path that is not among them stays selected, labelled with the path. `ReferenceInput`
 in `fields/` uses a `ChoiceSearch` over `referenceChoices` for a `ContentField`.
 
+A typed input commits through `useCommit`: on Enter or when the field is left, and only
+a finished value that differs from the last one committed. A value changed from outside
+while the field was not being edited, by an undo for example, counts as committed.
+Picking from a list commits at once. Erasing a `ChoiceSearch`'s text clears its value,
+committed only once the field is left, since the user is most often searching again.
+
 `NumberInput` passes every keystroke on. Text that cannot become a number of its kind
-is flagged at once, and a number left unfinished once the field is left; only a
-finished number, or nothing, is committed. A stored value that is no number shows as
-written. The browser's date field reports a half-typed day as empty, so `DateInput`
-ignores that change, and the stored day stays until a whole one is typed.
+is flagged at once, too large a number included, and a number left unfinished once the
+field is left; only a finished number, or nothing, is committed. A stored value that is
+no number shows as written. `NUMBER_KINDS` in `numberText.ts` pairs each kind with its
+checks and its problem. The browser's date field reports a partly entered day as empty,
+so `DateInput` holds no value for it, flags it once the field is left, and does not
+commit it.
 
 ## Styling
 

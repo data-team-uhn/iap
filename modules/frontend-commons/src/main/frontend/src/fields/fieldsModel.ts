@@ -17,8 +17,8 @@
  */
 
 import { type Choice } from "../inputs/choices";
-import { isBlank } from "../inputs/valueInput";
-import { isDecimalNumber, isWholeNumber } from "../numberText";
+import { isBlank } from "../inputs/values";
+import { NUMBER_KINDS, type NumberKind } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
 
 // What a field holds: text, a whole number, a number, a boolean, or a reference to another node.
@@ -164,16 +164,17 @@ export function applies(field: ContentField, fields: ContentField[], values: Fie
   return rule.property !== "" && current.some(value => rule.values.includes(value));
 }
 
+// The kind of number each number field holds
+export const NUMBER_KIND_OF: Partial<Record<FieldKind, NumberKind>> = { long: "whole", double: "decimal" };
+
 // One entered value as the patch gives it, or undefined when it is not one of the field's kind
 function parse(field: ContentField, text: string): string | number | boolean | undefined {
   if (field.kind === "boolean") {
     return text === "true" || text === "false" ? text === "true" : undefined;
   }
-  if (field.kind === "long") {
-    return isWholeNumber(text) ? Number(text) : undefined;
-  }
-  if (field.kind === "double") {
-    return isDecimalNumber(text) ? Number(text) : undefined;
+  const numberKind = NUMBER_KIND_OF[field.kind];
+  if (numberKind) {
+    return NUMBER_KINDS[numberKind].complete(text) ? Number(text) : undefined;
   }
   return text;
 }

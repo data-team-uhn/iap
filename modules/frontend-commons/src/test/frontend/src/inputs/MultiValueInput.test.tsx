@@ -21,7 +21,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import MultiValueInput from "@iap/frontend-commons/inputs/MultiValueInput";
-import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
+import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 
 const FORMATS = [ { value: "pdf", label: "PDF" }, { value: "doc", label: "Word" } ];
 

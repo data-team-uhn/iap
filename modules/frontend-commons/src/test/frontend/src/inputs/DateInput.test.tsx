@@ -18,23 +18,25 @@
 
 // Covers entering a day: what is reported and committed, and a day only partly entered.
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 
 import DateInput from "@iap/frontend-commons/inputs/DateInput";
-import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
+import { renderValueInput } from "@iap/frontend-commons/inputs/valueInput.fixture";
+import { DATE_PROBLEM, REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 
-const renderInput = (props: Partial<Parameters<typeof DateInput>[0]> = {}) => {
-  const onChange = vi.fn();
-  const onCommit = vi.fn();
-  const element = (more: typeof props) =>
-    <DateInput label="Due" values={[ "2026-09-29" ]} onChange={onChange} onCommit={onCommit} {...more} />;
-  const { rerender } = render(element(props));
-  return {
-    onChange, onCommit, input: screen.queryByLabelText(/Due/),
-    // Renders the values anew, as a caller does once it takes a change
-    retype: (values: string[]) => rerender(element({ ...props, values })),
-  };
+const renderInput = (props: Partial<Parameters<typeof DateInput>[0]> = {}) =>
+  renderValueInput(DateInput, { label: "Due", values: [ "2026-09-29" ] }, props);
+
+// The browser reports a day it cannot read yet as empty, with `badInput` set, and each edit as an input event
+const reportValidity = (input: HTMLElement, badInput: boolean) => {
+  Object.defineProperty(input, "validity", { value: { badInput }, configurable: true });
+  fireEvent.input(input);
 };
+const typePartOfDay = (input: HTMLElement) => {
+  fireEvent.change(input, { target: { value: "" } });
+  reportValidity(input, true);
+};
+const emptyField = (input: HTMLElement) => reportValidity(input, false);
 
 describe("DateInput", () => {
   it("reports the day picked, and nothing once cleared", () => {
@@ -58,30 +60,39 @@ describe("DateInput", () => {
     expect(onCommit.mock.calls).toEqual([ [ [ "2026-09-30" ] ] ]);
   });
 
-  it("keeps the stored day while one is half typed", () => {
-    const { onChange, input } = renderInput();
-    Object.defineProperty(input, "validity", { value: { badInput: true } });
+  it("holds no value while a day is partly entered, and flags that once the field is left", () => {
+    const { onChange, input, retype } = renderInput();
 
-    fireEvent.change(input!, { target: { value: "" } });
+    typePartOfDay(input!);
+    expect(onChange).toHaveBeenCalledWith([]);
+    retype([]);
+    expect(screen.queryByText(DATE_PROBLEM)).not.toBeInTheDocument();
+    fireEvent.blur(input!);
 
-    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByText(DATE_PROBLEM)).toBeInTheDocument();
   });
 
-  it("does not commit a half-typed day", () => {
-    const { onCommit, input } = renderInput({ values: [] });
-    Object.defineProperty(input, "validity", { value: { badInput: true } });
+  it("does not commit a partly entered day", () => {
+    const { onCommit, input, retype } = renderInput();
 
+    typePartOfDay(input!);
+    retype([]);
     fireEvent.blur(input!);
 
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  it("finishes a value with no one listening", () => {
-    const { input } = renderInput({ onCommit: undefined });
+  it("commits a day cleared over two visits to the field", () => {
+    const { onCommit, input, retype } = renderInput();
 
+    typePartOfDay(input!);
+    retype([]);
+    fireEvent.blur(input!);
+    fireEvent.focus(input!);
+    emptyField(input!);
     fireEvent.blur(input!);
 
-    expect(input).toHaveValue("2026-09-29");
+    expect(onCommit.mock.calls).toEqual([ [ [] ] ]);
   });
 
   it("flags a missing value only once the field is left", () => {

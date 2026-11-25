@@ -18,16 +18,16 @@
 
 // Covers picking from a searched list: narrowing it, clearing a value, several values as chips, and a failed read.
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
+import type { Choice } from "@iap/frontend-commons/inputs/choices";
 import ChoiceSearch from "@iap/frontend-commons/inputs/ChoiceSearch";
 import type { ChoiceSource } from "@iap/frontend-commons/inputs/choiceSource";
-import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
+import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
+import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 
 const SCHEMA_CHOICES = [ { value: "/Schemas/intake", label: "Intake" }, { value: "/Schemas/exit", label: "Exit" } ];
-const SCHEMAS: ChoiceSource = {
-  key: "schemas", labelOf: value => value, search: () => Promise.resolve(SCHEMA_CHOICES),
-};
+const SCHEMAS: ChoiceSource = { key: "schemas", search: () => Promise.resolve(SCHEMA_CHOICES) };
 
 const renderSearch = (props: Partial<Parameters<typeof ChoiceSearch>[0]> = {}) => {
   const onChange = vi.fn();
@@ -37,12 +37,9 @@ const renderSearch = (props: Partial<Parameters<typeof ChoiceSearch>[0]> = {}) =
   return { onChange, onCommit, input: screen.queryByRole("combobox", { name: /Schema/ }) };
 };
 
-const options = async (input: HTMLElement) => {
-  fireEvent.mouseDown(input);
-  return within(await screen.findByRole("listbox")).getAllByRole("option").map(option => option.textContent);
-};
-
 describe("ChoiceSearch", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("picks one value by its label, and commits it", async () => {
     const { onChange, onCommit, input } = renderSearch();
 
@@ -55,7 +52,7 @@ describe("ChoiceSearch", () => {
 
   it("narrows the list as it is typed", async () => {
     const { input } = renderSearch();
-    await options(input!);
+    await listedOptions(input!);
 
     act(() => input!.focus());
     fireEvent.change(input!, { target: { value: "int" } });
@@ -63,20 +60,33 @@ describe("ChoiceSearch", () => {
     expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([ "Intake" ]);
   });
 
-  it("keeps a stored value the source does not offer, labelled by the source", async () => {
+  it("keeps a stored value the source does not offer, shown as it is", async () => {
     const { input } = renderSearch({ values: [ "/Schemas/gone" ] });
 
     expect(input).toHaveValue("/Schemas/gone");
-    expect(await options(input!)).toEqual([ "Intake", "Exit", "/Schemas/gone" ]);
+    expect(await listedOptions(input!)).toEqual([ "Intake", "Exit", "/Schemas/gone" ]);
   });
 
-  it("clears the value", async () => {
-    const { onChange, input } = renderSearch({ values: [ "/Schemas/intake" ] });
-    await options(input!);
+  it("clears the value when its text is erased, and commits that once the field is left", async () => {
+    const { onChange, onCommit, input } = renderSearch({ values: [ "/Schemas/intake" ] });
+    await listedOptions(input!);
 
     fireEvent.change(input!, { target: { value: "" } });
-
     expect(onChange).toHaveBeenCalledWith([]);
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.blur(input!);
+
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith([]);
+  });
+
+  it("commits a clear by its button at once", () => {
+    const { onCommit } = renderSearch({ values: [ "/Schemas/intake" ] });
+
+    // The clear button appears only under the pointer and has no accessible name until then, so it is found
+    // by its title
+    fireEvent.click(screen.getByTitle("Clear"));
+
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith([]);
   });
 
   it("picks several, as chips", async () => {
@@ -113,14 +123,13 @@ describe("ChoiceSearch", () => {
 
   it("says it is loading, and then why the choices could not be read", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    let fail: (error: Error) => void = () => undefined;
-    const source: ChoiceSource = { key: "failing", labelOf: value => value,
-      search: () => new Promise((_resolve, reject) => { fail = reject; }) };
+    const answer = Promise.withResolvers<Choice[]>();
+    const source: ChoiceSource = { key: "failing", search: () => answer.promise };
     const { input } = renderSearch({ source, description: "Which schema" });
 
     fireEvent.mouseDown(input!);
     expect(await screen.findByText("Loading…")).toBeInTheDocument();
-    fail(new Error("gone"));
+    answer.reject(new Error("gone"));
 
     expect(await screen.findByText(/gone/)).toBeInTheDocument();
     expect(screen.queryByText("Which schema")).not.toBeInTheDocument();

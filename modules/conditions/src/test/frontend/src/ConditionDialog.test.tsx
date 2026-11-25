@@ -26,7 +26,7 @@ import type { OperandEditorProps } from "@iap/conditions/ConditionBuilder";
 import ConditionDialog from "@iap/conditions/ConditionDialog";
 import { type OperandSource, PROPERTY_SOURCE, tagsSource } from "@iap/conditions/conditionModel";
 import { appTheme } from "@iap/frontend-commons/appTheme";
-import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
+import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 
 const FIELDS: Record<string, ReturnType<OperandSource["shape"]>> = {
@@ -123,8 +123,9 @@ describe("ConditionDialog", () => {
     const value = within(condition).getByRole("textbox", { name: "Value" });
     expect(value).toBeRequired();
     expect(value).toHaveAttribute("inputmode", "numeric");
+    // A number still being typed, such as "-", is not flagged, but it cannot be saved
     fireEvent.change(value, { target: { value: "-" } });
-    expect(within(condition).getByText("Enter a whole number.")).toBeInTheDocument();
+    expect(within(condition).queryByText("Enter a whole number.")).not.toBeInTheDocument();
     expect(summary(dialog)).toBeUndefined();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
 

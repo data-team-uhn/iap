@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 
-import { changeAndCommit, commitProps, fromSingle, singleValue } from "@iap/frontend-commons/inputs/valueInput";
+// Covers reading one value from a list and back, and reporting a pick.
 
-describe("valueInput", () => {
+import { changeAndCommit, fromSingle, singleValue } from "@iap/frontend-commons/inputs/values";
+
+describe("values", () => {
   it("reads one value from a list, and back", () => {
     expect(singleValue([])).toBe("");
     expect(singleValue([ "a", "b" ])).toBe("a");
@@ -35,16 +37,5 @@ describe("valueInput", () => {
 
     expect(onChange.mock.calls).toEqual([ [ [ "a" ] ], [ [ "b" ] ] ]);
     expect(onCommit.mock.calls).toEqual([ [ [ "a" ] ] ]);
-  });
-
-  it("commits on Enter, not on other keys, given the field", () => {
-    const commit = vi.fn();
-    const target = new EventTarget();
-    const { onKeyDown } = commitProps(commit);
-
-    onKeyDown({ key: "a", target });
-    expect(commit).not.toHaveBeenCalled();
-    onKeyDown({ key: "Enter", target });
-    expect(commit).toHaveBeenCalledExactlyOnceWith(target);
   });
 });

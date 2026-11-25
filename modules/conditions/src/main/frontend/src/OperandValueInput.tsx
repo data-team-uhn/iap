@@ -23,7 +23,7 @@ import MultiValueInput from "@iap/frontend-commons/inputs/MultiValueInput";
 import NumberInput from "@iap/frontend-commons/inputs/NumberInput";
 import TextInput from "@iap/frontend-commons/inputs/TextInput";
 
-import { choicesOf, type OperandShape, valueProblem } from "./conditionModel";
+import { choicesOf, numberKindOf, type OperandShape, valueProblem } from "./conditionModel";
 
 interface OperandValueInputProps {
   label: string;
@@ -43,7 +43,10 @@ interface OperandValueInputProps {
 function OperandValueInput(props: OperandValueInputProps) {
   const { label, shape, several, required, open = false, value, disabled, onChange } = props;
   const choices = choicesOf(shape);
-  const problems = value.map(item => valueProblem(item, shape.type)).filter(found => found !== undefined).slice(0, 1);
+  const numberKind = numberKindOf(shape.type);
+  // A single number is checked by its own input, as it is typed
+  const problems = numberKind && !several
+    ? [] : value.map(item => valueProblem(item, shape.type)).filter(found => found !== undefined).slice(0, 1);
   const common = { label, required, disabled, problems, values: value, onChange };
 
   if (several) {
@@ -55,11 +58,8 @@ function OperandValueInput(props: OperandValueInputProps) {
   if (choices.length > 0) {
     return <ChoiceSelect {...common} choices={choices} allowNone={false} openOnMount={open} />;
   }
-  if (shape.type === "long") {
-    return <NumberInput {...common} kind="whole" />;
-  }
-  if (shape.type === "double" || shape.type === "decimal") {
-    return <NumberInput {...common} kind="decimal" />;
+  if (numberKind) {
+    return <NumberInput {...common} kind={numberKind} />;
   }
   if (shape.type === "date") {
     return <DateInput {...common} />;

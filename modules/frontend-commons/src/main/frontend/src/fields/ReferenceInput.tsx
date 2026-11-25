@@ -21,7 +21,7 @@ import ChoiceSearch from "../inputs/ChoiceSearch";
 import MultiValueInput from "../inputs/MultiValueInput";
 import { referenceChoices } from "../inputs/referenceChoices";
 import TextInput from "../inputs/TextInput";
-import { fromSingle, singleValue } from "../inputs/valueInput";
+import { fromSingle, singleValue } from "../inputs/values";
 
 interface ReferenceInputProps {
   field: ContentField;

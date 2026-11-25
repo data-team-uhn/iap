@@ -19,7 +19,7 @@
 // What a reference may point at: the query that finds those nodes, and how each node is offered.
 
 import { escapeJQL } from "../escape";
-import { type SerializedNode } from "../serializedNode";
+import { type SerializedNode, textOf } from "../serializedNode";
 
 /** The nodes a reference may point at. A target naming no type offers none. */
 export interface ReferenceTarget {
@@ -69,10 +69,10 @@ export function candidateOf(node: SerializedNode, root?: string): ReferenceCandi
   if (typeof path !== "string") {
     return undefined;
   }
-  const named = [ node.title, node.label ].find(name => typeof name === "string" && name.trim() !== "");
+  const named = textOf(node, "title") ?? textOf(node, "label");
   const base = root?.replace(/\/*$/, "/");
   const relative = base && path.startsWith(base) ? path.substring(base.length) : path;
   const identifier = node["jcr:uuid"];
-  return { path, label: typeof named === "string" ? named : relative,
+  return { path, label: named ?? relative,
     ...typeof identifier === "string" ? { identifier } : {} };
 }

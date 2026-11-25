@@ -18,10 +18,11 @@
 
 // Covers picking one value from a list: when None is offered, a value no longer listed, and a missing value.
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
-import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
+import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
+import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 
 const CHOICES = [ { value: "list", label: "List" }, { value: "grid", label: "Grid" } ];
 
@@ -34,11 +35,6 @@ const renderSelect = (props: Partial<Parameters<typeof ChoiceSelect>[0]> = {}) =
 };
 
 const select = () => screen.getByRole("combobox", { name: /Shown as/ });
-
-const options = async () => {
-  fireEvent.mouseDown(select());
-  return within(await screen.findByRole("listbox")).getAllByRole("option").map(option => option.textContent);
-};
 
 describe("ChoiceSelect", () => {
   it("reports a pick as finished", async () => {
@@ -54,32 +50,32 @@ describe("ChoiceSelect", () => {
   it("offers None when optional, and reports it as no value", async () => {
     const { onChange } = renderSelect();
 
-    expect(await options()).toEqual([ "None", "List", "Grid" ]);
+    expect(await listedOptions(select())).toEqual([ "None", "List", "Grid" ]);
     fireEvent.click(screen.getByRole("option", { name: "None" }));
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
   it("offers no None when required, unless asked to", async () => {
     renderSelect({ required: true });
-    expect(await options()).toEqual([ "List", "Grid" ]);
+    expect(await listedOptions(select())).toEqual([ "List", "Grid" ]);
   });
 
   it("offers None when required, if asked to", async () => {
     renderSelect({ required: true, allowNone: true });
-    expect(await options()).toEqual([ "None", "List", "Grid" ]);
+    expect(await listedOptions(select())).toEqual([ "None", "List", "Grid" ]);
   });
 
   it("keeps a value no longer among the choices", async () => {
     renderSelect({ values: [ "matrix" ] });
 
     expect(select()).toHaveTextContent("matrix");
-    expect(await options()).toEqual([ "None", "List", "Grid", "matrix" ]);
+    expect(await listedOptions(select())).toEqual([ "None", "List", "Grid", "matrix" ]);
   });
 
   it("labels a value no longer among the choices as asked", async () => {
     renderSelect({ values: [ "matrix" ], labelOf: value => `Was ${value}` });
 
-    expect(await options()).toEqual([ "None", "List", "Grid", "Was matrix" ]);
+    expect(await listedOptions(select())).toEqual([ "None", "List", "Grid", "Was matrix" ]);
   });
 
   it("opens as soon as it appears when asked to", async () => {

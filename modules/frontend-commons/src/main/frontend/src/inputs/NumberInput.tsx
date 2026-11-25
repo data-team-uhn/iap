@@ -20,33 +20,30 @@
 
 import { TextField } from "@mui/material";
 
-import {
-  isDecimalNumber, isDecimalSoFar, isWholeNumber, isWholeSoFar, NUMBER_PROBLEM, WHOLE_NUMBER_PROBLEM,
-} from "../numberText";
-import { commitProps, fromSingle, singleValue, useFieldProps, type ValueInputProps } from "./valueInput";
+import { NUMBER_KINDS, type NumberKind } from "../numberText";
+import { useCommit, useFieldProps, type ValueInputProps } from "./valueInput";
+import { fromSingle, singleValue } from "./values";
 import ValueText from "./ValueText";
 
-const KINDS = {
-  whole: { complete: isWholeNumber, soFar: isWholeSoFar, problem: WHOLE_NUMBER_PROBLEM, inputMode: "numeric" },
-  decimal: { complete: isDecimalNumber, soFar: isDecimalSoFar, problem: NUMBER_PROBLEM, inputMode: "decimal" },
-} as const;
+const INPUT_MODES = { whole: "numeric", decimal: "decimal" } as const;
 
 interface NumberInputProps extends ValueInputProps {
   // - whole: a sign and digits, such as "-12"
   // - decimal: also a point and an exponent, such as "2.5e-3"
-  kind: "whole" | "decimal";
+  kind: NumberKind;
 }
 
 // One number, typed. Text that can never become a number is flagged at once. A number still unfinished, such as
 // "1.", is flagged once the field is left. Only a finished number, or nothing, is committed.
 export default function NumberInput(props: NumberInputProps) {
   const { label, values, onChange, kind, problems = [], readOnly = false } = props;
-  const { complete, soFar, problem, inputMode } = KINDS[kind];
+  const { complete, soFar, problem } = NUMBER_KINDS[kind];
   const typed = singleValue(values).trim();
   const finished = typed === "" || complete(typed);
-  const { field, commit, visit } = useFieldProps(
+  const { field, visit } = useFieldProps(
     { ...props, problems: soFar(typed) ? problems : [ ...problems, problem ] },
     finished ? [] : [ problem ]);
+  const finishing = useCommit({ ...props, finished }, visit);
 
   if (readOnly) {
     return <ValueText label={label} values={values} />;
@@ -56,9 +53,9 @@ export default function NumberInput(props: NumberInputProps) {
     <TextField
       {...field}
       value={singleValue(values)}
-      slotProps={{ htmlInput: { inputMode } }}
+      slotProps={{ htmlInput: { inputMode: INPUT_MODES[kind] } }}
       onChange={event => onChange(fromSingle(event.target.value))}
-      {...commitProps(finished ? commit : visit)}
+      {...finishing}
     />
   );
 }

@@ -21,7 +21,8 @@
 import { MenuItem, TextField } from "@mui/material";
 
 import { type Choice, withValues } from "./choices";
-import { changeAndCommit, fromSingle, singleValue, useFieldProps, type ValueInputProps } from "./valueInput";
+import { useFieldProps, type ValueInputProps } from "./valueInput";
+import { changeAndCommit, fromSingle, singleValue } from "./values";
 import ValueText from "./ValueText";
 
 export interface ChoiceSelectProps extends ValueInputProps {

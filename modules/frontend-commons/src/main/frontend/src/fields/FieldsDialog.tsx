@@ -28,20 +28,15 @@ import ChoiceSelect from "../inputs/ChoiceSelect";
 import MultiValueInput from "../inputs/MultiValueInput";
 import NumberInput from "../inputs/NumberInput";
 import TextInput from "../inputs/TextInput";
-import { fromSingle, singleValue } from "../inputs/valueInput";
-import { NUMBER_PROBLEM, WHOLE_NUMBER_PROBLEM } from "../numberText";
+import { fromSingle, singleValue } from "../inputs/values";
+import { NUMBER_KINDS } from "../numberText";
 import { messageOf } from "../requestFailure";
 import { useAsyncAction } from "../useAsyncAction";
 import {
   applicableFields, blockingFields, changesOf, type ContentField, type FieldValue, fieldsOf, initialValues, isValid,
-  type PatchValue, type SerializedNode,
+  NUMBER_KIND_OF, type PatchValue, type SerializedNode,
 } from "./fieldsModel";
 import ReferenceInput from "./ReferenceInput";
-
-// The problem shown for a many-valued number field when one of its values is not a number of its kind
-const LIST_PROBLEMS: Partial<Record<ContentField["kind"], string>> = {
-  long: WHOLE_NUMBER_PROBLEM, double: NUMBER_PROBLEM,
-};
 
 interface FieldInputProps {
   field: ContentField;
@@ -69,21 +64,21 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
   }
   // A boolean field here holds several values, each picked rather than typed
   const choices = field.kind === "boolean" ? booleanChoices() : field.choices ?? [];
-  // A single number is checked by its own input
-  const listProblem = LIST_PROBLEMS[field.kind];
-  const problems = Array.isArray(value) && listProblem && !isValid(field, value) ? [ listProblem ] : [];
-  const common = { label: field.label, description: field.help, required: field.mandatory, disabled, problems };
+  const numberKind = NUMBER_KIND_OF[field.kind];
+  const common = { label: field.label, description: field.help, required: field.mandatory, disabled };
   if (Array.isArray(value)) {
-    return <MultiValueInput {...common} choices={choices} values={value} onChange={onChange} />;
+    // A chip holds any text, so the field checks its numbers itself
+    const problems = numberKind && !isValid(field, value) ? [ NUMBER_KINDS[numberKind].problem ] : [];
+    return <MultiValueInput {...common} problems={problems} choices={choices} values={value} onChange={onChange} />;
   }
   const single = { ...common, values: fromSingle(value), onChange: (next: string[]) => onChange(singleValue(next)) };
   if (choices.length > 0) {
     return <ChoiceSelect {...single} choices={choices} />;
   }
-  if (field.kind === "text") {
-    return <TextInput {...single} multiline={field.multiline} />;
+  if (numberKind) {
+    return <NumberInput {...single} kind={numberKind} />;
   }
-  return <NumberInput {...single} kind={field.kind === "long" ? "whole" : "decimal"} />;
+  return <TextInput {...single} multiline={field.multiline} />;
 }
 
 interface FieldsDialogProps {

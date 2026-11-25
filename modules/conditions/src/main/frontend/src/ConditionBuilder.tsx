@@ -27,7 +27,7 @@ import {
 } from "@mui/material";
 
 import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
-import { singleValue } from "@iap/frontend-commons/inputs/valueInput";
+import { singleValue } from "@iap/frontend-commons/inputs/values";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
 import {

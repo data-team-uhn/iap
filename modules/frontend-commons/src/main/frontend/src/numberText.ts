@@ -31,9 +31,26 @@ export const isWholeNumber = (text: string): boolean => /^[-+]?\d+$/.test(text) 
 export const isDecimalNumber = (text: string): boolean =>
   /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text) && Number.isFinite(Number(text));
 
+// Whether the text is already past the limit, so that nothing typed next can make it a number of that kind.
+// Text that is no number yet, such as "-", is not past it.
+const tooLarge = (text: string, limit: number): boolean => Math.abs(Number(text)) > limit;
+
 // Whether the text could still become a whole number as more is typed: a sign, digits, or nothing yet
-export const isWholeSoFar = (text: string): boolean => /^[-+]?\d*$/.test(text);
+export const isWholeSoFar = (text: string): boolean =>
+  /^[-+]?\d*$/.test(text) && !tooLarge(text, Number.MAX_SAFE_INTEGER);
 
 // Whether the text could still become a decimal number as more is typed, such as "-.", "1." or "2e-"
 export const isDecimalSoFar = (text: string): boolean =>
-  /^[-+]?(\d*\.?\d*|(\d+\.?\d*|\.\d+)e[-+]?\d*)$/i.test(text);
+  /^[-+]?(\d*\.?\d*|(\d+\.?\d*|\.\d+)e[-+]?\d*)$/i.test(text) && !tooLarge(text, Number.MAX_VALUE);
+
+export type NumberKind = "whole" | "decimal";
+
+// For each kind of number, whether text is one, whether it can still become one, and the problem shown when not
+export const NUMBER_KINDS: Record<NumberKind, {
+  complete: (text: string) => boolean;
+  soFar: (text: string) => boolean;
+  problem: string;
+}> = {
+  whole: { complete: isWholeNumber, soFar: isWholeSoFar, problem: WHOLE_NUMBER_PROBLEM },
+  decimal: { complete: isDecimalNumber, soFar: isDecimalSoFar, problem: NUMBER_PROBLEM },
+};

@@ -27,6 +27,4 @@ export interface ChoiceSource {
   key: string;
   /** Reads every choice the source offers. */
   search: (doFetch: AuthenticatedFetch) => Promise<Choice[]>;
-  /** How a stored value is labelled when no choice holds it. By default, as it is. */
-  labelOf?: (value: string) => string;
 }

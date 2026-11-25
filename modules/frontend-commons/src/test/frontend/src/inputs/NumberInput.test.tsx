@@ -18,23 +18,14 @@
 
 // Covers typing a number: which text is flagged and when, and what is reported and committed.
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 
 import NumberInput from "@iap/frontend-commons/inputs/NumberInput";
-import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
+import { renderValueInput } from "@iap/frontend-commons/inputs/valueInput.fixture";
+import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 
-const renderInput = (props: Partial<Parameters<typeof NumberInput>[0]> = {}) => {
-  const onChange = vi.fn();
-  const onCommit = vi.fn();
-  const element = (more: typeof props) =>
-    <NumberInput label="Age" kind="whole" values={[ "12" ]} onChange={onChange} onCommit={onCommit} {...more} />;
-  const { rerender } = render(element(props));
-  return {
-    onChange, onCommit, input: screen.queryByRole("textbox", { name: /Age/ }),
-    // Renders the values anew, as a caller does once it takes a change
-    retype: (values: string[]) => rerender(element({ ...props, values })),
-  };
-};
+const renderInput = (props: Partial<Parameters<typeof NumberInput>[0]> = {}) =>
+  renderValueInput(NumberInput, { label: "Age", kind: "whole", values: [ "12" ] }, props);
 
 describe("NumberInput", () => {
   it("takes a whole number from a numeric keypad, as it is typed", () => {
@@ -58,6 +49,12 @@ describe("NumberInput", () => {
     expect(screen.getByText("Enter a whole number.")).toBeInTheDocument();
   });
 
+  it("flags at once a number too large to hold", () => {
+    renderInput({ values: [ "12345678901234567890" ] });
+
+    expect(screen.getByText("Enter a whole number.")).toBeInTheDocument();
+  });
+
   it("flags a decimal comma rather than dropping it", () => {
     renderInput({ kind: "decimal", values: [ "2," ] });
 
@@ -74,9 +71,10 @@ describe("NumberInput", () => {
   });
 
   it("takes a decimal from a decimal keypad, and flags one left unfinished only once the field is left", () => {
-    const { onCommit, input } = renderInput({ kind: "decimal", values: [ "12.5e" ] });
+    const { onCommit, input, retype } = renderInput({ kind: "decimal" });
 
     expect(input).toHaveAttribute("inputmode", "decimal");
+    retype([ "12.5e" ]);
     expect(screen.queryByText("Enter a number.")).not.toBeInTheDocument();
     fireEvent.blur(input!);
 
@@ -85,7 +83,7 @@ describe("NumberInput", () => {
   });
 
   it("shows a stored value that is no number as written, and lets it be typed over", () => {
-    const { onChange, input } = renderInput({ values: [ "many" ], problems: [ "Enter a whole number." ] });
+    const { onChange, input } = renderInput({ values: [ "many" ] });
 
     expect(input).toHaveValue("many");
     expect(screen.getByText("Enter a whole number.")).toBeInTheDocument();
@@ -111,14 +109,6 @@ describe("NumberInput", () => {
     fireEvent.blur(input!);
 
     expect(onCommit.mock.calls).toEqual([ [ [ "13" ] ] ]);
-  });
-
-  it("finishes a value with no one listening", () => {
-    const { input } = renderInput({ onCommit: undefined });
-
-    fireEvent.blur(input!);
-
-    expect(input).toHaveValue("12");
   });
 
   it("flags a missing value only once the field is left", () => {

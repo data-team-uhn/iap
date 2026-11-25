@@ -20,6 +20,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 
+import { type Choice } from "@iap/frontend-commons/inputs/choices";
 import { type ChoiceSource } from "@iap/frontend-commons/inputs/choiceSource";
 import useChoices from "@iap/frontend-commons/inputs/useChoices";
 
@@ -27,15 +28,21 @@ const FORMATS = [ { value: "pdf", label: "PDF" } ];
 
 // A source whose search is answered by hand
 const pending = (key: string) => {
-  const answers: { resolve: (choices: typeof FORMATS) => void; reject: (error: Error) => void }[] = [];
+  const answers: PromiseWithResolvers<Choice[]>[] = [];
   const source: ChoiceSource = {
     key,
-    search: () => new Promise((resolve, reject) => answers.push({ resolve, reject })),
+    search: () => {
+      const answer = Promise.withResolvers<Choice[]>();
+      answers.push(answer);
+      return answer.promise;
+    },
   };
   return { source, answers };
 };
 
 describe("useChoices", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("is loading until the source answers", async () => {
     const fixed: ChoiceSource = { key: "fixed", search: () => Promise.resolve(FORMATS) };
     const { result } = renderHook(() => useChoices(fixed));
