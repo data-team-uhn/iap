@@ -25,6 +25,8 @@ export interface Countdown {
   days: number;
   paused: boolean;
   label: string;
+  // The same without "left", for a column already headed by it
+  brief: string;
 }
 
 function asDate(value: unknown): Date | undefined {
@@ -49,8 +51,11 @@ export function getCountdown(due: unknown, pausedAt: unknown, now: Date = new Da
   const paused = asDate(pausedAt);
   const from = paused ?? now;
   const days = Math.ceil((deadline.getTime() - from.getTime()) / DAY);
-  const left = days >= 0 ? `${daysText(days)} left` : `${daysText(-days)} overdue`;
-  return { days, paused: Boolean(paused), label: paused ? `Paused, ${left}` : left };
+  const overdue = `${daysText(-days)} overdue`;
+  const left = days >= 0 ? `${daysText(days)} left` : overdue;
+  const brief = days >= 0 ? daysText(days) : overdue;
+  return { days, paused: Boolean(paused), label: paused ? `Paused, ${left}` : left,
+    brief: paused ? `Paused, ${brief}` : brief };
 }
 
 export interface Message {

@@ -19,6 +19,7 @@
 import { Stack } from "@mui/material";
 
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import { stringsOf } from "@iap/frontend-commons/serializedNode";
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
 
@@ -48,7 +49,8 @@ const COLUMNS: EntityGridColumn[] = [
     sortable: false,
     renderCell: params => (
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, height: "100%" }}>
-        <TagChip tags={params.row.tags} category="lifecycle" />
+        {/* Everything in the queue is in review, so that tag would only repeat itself */}
+        <TagChip tags={stringsOf(params.row.tags).filter(tag => tag !== "in-review")} category="lifecycle" />
         <TagChip tags={params.row.tags} category="priority" />
       </Stack>
     ),
@@ -63,7 +65,7 @@ const COLUMNS: EntityGridColumn[] = [
     valueGetter: value => typeof value === "string" ? new Date(value) : null,
     renderCell: params => (
       <Stack sx={{ justifyContent: "center", height: "100%" }}>
-        <Countdown due={params.row.reviewDue} pausedAt={params.row.reviewPausedAt} />
+        <Countdown due={params.row.reviewDue} pausedAt={params.row.reviewPausedAt} brief />
       </Stack>
     ),
     cardSlot: "row",

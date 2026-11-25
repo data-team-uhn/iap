@@ -26,11 +26,13 @@ import { getCountdown } from "./reviewModel";
 // Under this many days left, the countdown asks for attention
 const SOON = 3;
 
-// PRETOTYPE. How long the reviewers have left on a study, in red once it is overdue.
-export default function Countdown({ due, pausedAt, variant = "body2" }: {
+// PRETOTYPE. How long the reviewers have left on a study, in red once it is overdue; brief, without "left", where
+// a column heading says it already.
+export default function Countdown({ due, pausedAt, variant = "body2", brief = false }: {
   due: unknown;
   pausedAt: unknown;
   variant?: "body2" | "subtitle1" | "caption";
+  brief?: boolean;
 }) {
   const countdown = getCountdown(due, pausedAt);
   if (!countdown) {
@@ -49,7 +51,7 @@ export default function Countdown({ due, pausedAt, variant = "body2" }: {
         sx={{ color, fontWeight: overdue ? "fontWeightBold" : variant === "caption" ? "fontWeightMedium" : undefined,
           whiteSpace: "nowrap" }}
       >
-        {countdown.label}
+        {brief ? countdown.brief : countdown.label}
       </Typography>
     </Stack>
   );
