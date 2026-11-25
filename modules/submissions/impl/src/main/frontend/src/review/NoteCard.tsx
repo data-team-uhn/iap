@@ -43,6 +43,9 @@ function whenExactly(created: string): string {
     : date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+// What a note done with is, as its heading says
+const DONE = { dismissed: "Dismissed", resolved: "Resolved", addressed: "Addressed" } as const;
+
 const BY_THE_AI = new Set<ReviewNote["kind"]>([ "aiIssue", "evidence", "contradiction" ]);
 
 // A note's heading where a list heads each note, as beside a document: what kind it is, when it was written and by
@@ -71,6 +74,7 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
       <NoteKindIcon kind={note.kind} sx={headingIcon(info.mark)} />
       <Box component="span" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>{info.single}</Box>
       {written && <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}>{written}</Box></>}
+      {note.done && <>{dot}<Box component="span" sx={{ fontWeight: "fontWeightBold" }}>{DONE[note.done]}</Box></>}
       {!byTheAi && note.kind !== "note" && (
         <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}><PersonName user={note.author} /></Box></>
       )}
@@ -153,7 +157,7 @@ const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", disc
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
   onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question, formAnswer, onShowAnswer,
-  askedAs }: {
+  askedAs, write }: {
   note: ReviewNote;
   // For a source or a contradiction shown away from its question, as beside a document, the question it is about
   question?: string;
@@ -164,6 +168,8 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   onShowAnswer?: () => void;
   // For a contradiction, the question and the form asking it, as an issue made of it names them
   askedAs?: { question: string; form?: string };
+  // PRETOTYPE: writing what is done with it, resolving, reopening or taking back a dismissal
+  write?: (fields: Record<string, string>) => Promise<void>;
   // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
   // changing or removing it, which then say when it is being changed
   headed?: boolean;
@@ -192,8 +198,14 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   const setAdopting = onAdopting ?? setOwnAdopting;
   // The AI's comments, the reader's notes to self and discussion entries can become issues; an entry the reader
   // already raised is not offered again
-  const canAdopt = onMakeIssue && (note.kind === "aiIssue" || (note.kind === "note" && note.mine)
+  const canAdopt = onMakeIssue && !note.done && (note.kind === "aiIssue" || (note.kind === "note" && note.mine)
     || ((note.kind === "discussion" || note.kind === "contradiction") && !note.raisedByMe));
+  // A discussion entry is anyone's to resolve, an issue or a note to self its author's; the AI's comments and the
+  // contradictions are dismissed instead, for the reader alone
+  const canResolve = write && !note.done
+    && (note.kind === "discussion" || ((note.kind === "issue" || note.kind === "note") && note.mine));
+  const canDismiss = onDismiss && !note.done && (note.kind === "aiIssue" || note.kind === "contradiction");
+  const canReopen = write && note.done === "resolved" && (note.kind === "discussion" || note.mine);
   const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue" || note.kind === "otherIssue");
 
   if (isEditing && onEdit) {
@@ -232,7 +244,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     );
   }
   return (
-    <Box>
+    <Box sx={note.done ? { opacity: 0.65 } : undefined}>
       {/* What it is, with the tools on the same line; under it the risk it is filed under, then who wrote it, for
           which group, and when */}
       {/* Headed, the heading says what it is, and holds the tools */}
@@ -290,7 +302,25 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           ))}
         </Typography>
       )}
-      {(Boolean(canAnswer && !replying) || Boolean(canAdopt)) && (
+      {/* Done with, it says how, and what takes it back */}
+      {note.done && (
+        <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, mt: 0.5 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {note.done === "dismissed" ? "Dismissed by you"
+              : note.done === "resolved" ? <>Resolved by <PersonName user={note.resolvedBy ?? ""} /></>
+                : (note.raisedBy?.length ?? 0) > 0 ? "" : "Addressed by an issue"}
+          </Typography>
+          {write && note.done === "dismissed" && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void write({ undismiss: note.id })}>Undo</Button>
+          )}
+          {canReopen && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void write({ unresolve: note.id })}>Reopen</Button>
+          )}
+        </Stack>
+      )}
+      {(Boolean(canAnswer && !replying) || Boolean(canAdopt) || Boolean(canResolve) || Boolean(canDismiss)) && (
         <Stack direction="row" sx={{ ml: -0.75, mt: 0.25 }}>
           {canAnswer && !replying && (
             <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
@@ -300,9 +330,13 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
             <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
               onClick={() => setAdopting(true)}>Make it an issue</Button>
           )}
-          {canAdopt && onDismiss && note.kind === "aiIssue" && (
+          {canDismiss && (
             <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
               onClick={() => void onDismiss()}>Dismiss</Button>
+          )}
+          {canResolve && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void write({ resolve: note.id })}>Resolve</Button>
           )}
         </Stack>
       )}
@@ -326,7 +360,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
 export function NoteSummary({ note, headed = false }: { note: ReviewNote; headed?: boolean }) {
   const info = kindInfo(note.kind);
   return (
-    <Box sx={{ px: 1.5, pb: 1 }}>
+    <Box sx={{ px: 1.5, pb: 1, ...note.done ? { opacity: 0.65 } : {} }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 24 }}>
         {!headed && <NoteKindIcon kind={note.kind} sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />}
         {!headed && (

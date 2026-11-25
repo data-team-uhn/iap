@@ -267,6 +267,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                 onRemove={() => actions.write({ remove: note.id })}
                 onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
                 onDismiss={() => actions.write({ dismiss: note.id })}
+                write={actions.write}
                 adopting={adopting === note.id}
                 onAdopting={on => setAdopting(on ? note.id : undefined)}
                 editing={editing === note.id}
@@ -672,6 +673,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                     onRemove={() => actions.write({ remove: note.id })}
                     onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
                     onDismiss={() => actions.write({ dismiss: note.id })}
+                    write={actions.write}
                     adopting={adopting === note.id}
                     onAdopting={on => setAdopting(on ? note.id : undefined)}
                     editing={editing === note.id}

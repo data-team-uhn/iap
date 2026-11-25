@@ -19,6 +19,7 @@ package io.uhndata.iap.demo.review;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * comments, it changes that comment's text and severity; with {@code remove}, it removes it. An issue made from an
  * AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer sets it aside, and
  * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it; with
- * {@code undismiss}, the reviewer takes it back. An issue is
+ * {@code undismiss}, the reviewer takes it back; the same goes for what the AI read of an answer that the protocol
+ * contradicts. With {@code resolve}, a discussion entry, or the reviewer's own issue or note to self, is marked
+ * resolved, for everyone, with who and when; {@code unresolve} reopens it. An issue is
  * filed under the risk {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. The
  * reviewer group the issues are raised for, {@code group}, is kept on the review, and so are the risks the reviewer
  * has considered: {@code consider} or {@code unconsider} naming one marks it, or unmarks it.
@@ -99,6 +102,12 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         final String undismissed = Payloads.text(context.getEvent(), "undismiss");
         if (undismissed != null) {
             dismiss(within(submission, undismissed), actor, false);
+            return;
+        }
+        final String resolved = Payloads.text(context.getEvent(), "resolve");
+        final String reopened = Payloads.text(context.getEvent(), "unresolve");
+        if (resolved != null || reopened != null) {
+            resolve(submission, resolved != null ? resolved : reopened, actor, resolved != null);
             return;
         }
         final String removed = Payloads.text(context.getEvent(), "remove");
@@ -158,6 +167,24 @@ public class ReviewCommentHandler implements ServiceTaskHandler
             by.add(actor);
         }
         values.put(DISMISSED_PROPERTY, by.toArray(String[]::new));
+    }
+
+    // PRETOTYPE: marks a note resolved, or reopens it: a discussion entry anyone's to resolve, as the reviewers'
+    // between them; an issue or a note to self only its author's
+    private static void resolve(final Resource submission, final String path, final String actor, final boolean done)
+        throws WorkflowException
+    {
+        final Resource comment = within(submission, path);
+        final Resource parent = comment.getParent();
+        final boolean discussion = parent != null && "sub/Discussion".equals(parent.getResourceType());
+        final ModifiableValueMap values = writable(discussion ? comment : ownComment(submission, path, actor));
+        if (done) {
+            values.put("resolvedBy", actor);
+            values.put("resolvedAt", Calendar.getInstance());
+        } else {
+            values.remove("resolvedBy");
+            values.remove("resolvedAt");
+        }
     }
 
     private static void edit(final WorkflowTaskContext context, final Resource comment, final String text)

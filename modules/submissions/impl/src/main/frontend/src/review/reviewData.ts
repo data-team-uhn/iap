@@ -85,6 +85,11 @@ export interface ReviewNote {
   // A discussion entry raised as an issue: who raised it, by principal name, and whether the reader did
   raisedBy?: string[];
   raisedByMe?: boolean;
+  // PRETOTYPE: who marked it resolved, a discussion entry, an issue or a note to self; whether the reader dismissed it,
+  // an AI comment or a contradiction; and so whether it is done with, shown only when the reader asks
+  resolvedBy?: string;
+  dismissed?: boolean;
+  done?: "dismissed" | "resolved" | "addressed";
   // Another reviewer's issue: the reviewer group they raised it for, by principal name
   group?: string;
   // The risk an AI issue was raised under, or a reviewer's issue is filed under: its name, and its path
@@ -217,6 +222,7 @@ function comment(node: Node, kind: NoteKind, me: string, topic?: Node, topics?: 
     topic: (topic ? text(topic.text) : topics?.get(topicPath)?.label ?? "") || undefined,
     topicPath: topicPath || undefined,
     suggestion: text(node.suggestion) || undefined,
+    resolvedBy: text(node.resolvedBy) || undefined,
   };
 }
 
@@ -253,6 +259,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
           reasoning: text(extraction.reasoning), confidence: typeof extraction.confidence === "number"
             ? extraction.confidence : undefined,
           distance: typeof extraction.percentageDistance === "number" ? extraction.percentageDistance : undefined,
+          dismissed: Array.isArray(extraction.dismissedBy) && extraction.dismissedBy.includes(me),
         });
       }
     } else if (type === "sub/Document") {
@@ -399,4 +406,23 @@ export async function raiseAsIssue(write: (fields: Record<string, string | strin
   if (note.kind === "note") {
     await write({ remove: note.id });
   }
+}
+
+// PRETOTYPE. Whether each note is done with, for the reader: an AI comment or a contradiction they dismissed, one
+// they made into an issue, which then addresses it, as does a discussion entry anyone made into one, and anything
+// marked resolved. The AI comments they settled come back among the notes, done, to be shown when asked.
+export function withDone(data: ReviewData): ReviewData {
+  const done = (note: ReviewNote): ReviewNote["done"] => {
+    if (note.kind === "aiIssue") {
+      return note.settled === undefined ? undefined : note.settled === "dismissed" ? "dismissed" : "addressed";
+    }
+    if (note.dismissed) {
+      return "dismissed";
+    }
+    if (note.kind === "contradiction" ? note.raisedByMe : note.kind === "discussion" && (note.raisedBy?.length ?? 0) > 0) {
+      return "addressed";
+    }
+    return note.resolvedBy ? "resolved" : undefined;
+  };
+  return { ...data, notes: [ ...data.notes, ...data.settledAi ].map(note => ({ ...note, done: done(note) })) };
 }

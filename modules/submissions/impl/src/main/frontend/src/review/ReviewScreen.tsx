@@ -82,6 +82,7 @@ import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, raiseAsIssue,
+  withDone,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import RowSplit from "./RowSplit";
@@ -165,6 +166,8 @@ const ignore = () => undefined;
 // A share of a height, as kept in the browser
 const isShare = (value: unknown): value is number => typeof value === "number" && value > 0 && value < 1;
 
+const isFlag = (value: unknown): value is boolean => typeof value === "boolean";
+
 // A width in pixels, as one kept in the browser should be
 const isWidth = (value: unknown): value is number => typeof value === "number" && value > 0;
 
@@ -242,6 +245,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ error, setError ] = useState<string>();
   const [ selected, setSelected ] = useState<string>();
   const [ shown, setShown ] = useState(storedKinds);
+  // Whether notes dismissed, resolved or addressed by an issue are shown, faded, rather than left out
+  const [ showDone, setShowDone ] = useStoredSetting("iap.review.showDone", false, isFlag);
   // What is shown: the kinds the reviewer chose, and those always shown
   const showing = useMemo(() => new Set<NoteKind>([ ...shown, ...ALWAYS ]), [ shown ]);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
@@ -316,9 +321,12 @@ export default function ReviewScreen({ path }: { path: string }) {
     [ loaded, schema ]);
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
   const data: ReviewData | undefined = useMemo(() => loaded && me
-    ? withSources(parseReview(loaded.submission, schema, me, topics),
-      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))
+    ? withDone(withSources(parseReview(loaded.submission, schema, me, topics),
+      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items))))
     : undefined, [ loaded, schema, me, topics ]);
+  // What the pages and their notes show: what is done with only when the reviewer asks
+  const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
+    : { ...data, notes: data.notes.filter(note => !note.done) }), [ data, showDone ]);
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
   const groupLabels = useMemo(() => new Map((loaded?.approvals ?? []).map(approval =>
     [ text(approval.approverGroup), groupShortName(text(approval.label)) ] as const)), [ loaded ]);
@@ -368,11 +376,12 @@ export default function ReviewScreen({ path }: { path: string }) {
     if (isFormRequirement(requirement)) {
       const uuids = questions(requirement.items)
         .map(question => data.answers.get(question.path)?.uuid).filter((one): one is string => Boolean(one));
-      return notesAbout(data.notes, uuids);
+      return notesAbout(viewData?.notes ?? [], uuids);
     }
     const document = data.documents.get(requirement.name);
-    return document ? notesAbout(data.notes, [ document.uuid, document.version ]).filter(note => note.passage) : [];
-  }, [ data ]);
+    return document
+      ? notesAbout(viewData?.notes ?? [], [ document.uuid, document.version ]).filter(note => note.passage) : [];
+  }, [ data, viewData ]);
 
 
   // The reviewer group the reviewer reviews this submission for
@@ -707,7 +716,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   // The answers a risk draws on that the protocol contradicts, by what was read from it
   const mismatchesOf = (topic: Topic): Mismatch[] => asked.filter(question => topic.sources.includes(question.path))
     .flatMap(question => {
-      const evidence = data.notes.find(note => note.kind === "contradiction" && note.question === question.path);
+      const evidence = data.notes.find(note => note.kind === "contradiction" && !note.done
+        && note.question === question.path);
       return evidence ? [ {
         question: question.text, answer: answerText(question, question.value),
         protocol: answerText(question, evidence.extracted?.split(";").map(one => one.trim()) ?? []), evidence,
@@ -715,7 +725,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     });
   const risks: RiskReview[] = reviewerTopics.mine.map(topic => ({
     topic, assessment: data.assessments.get(topic.path),
-    aiOpen: data.notes.filter(note => note.kind === "aiIssue" && note.topicPath === topic.path),
+    aiOpen: data.notes.filter(note => note.kind === "aiIssue" && !note.done && note.topicPath === topic.path),
     aiSettled: data.settledAi.filter(note => note.topicPath === topic.path),
     mismatches: mismatchesOf(topic),
     issues: myIssues.filter(note => note.topicPath === topic.path),
@@ -723,7 +733,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   }));
   const unfiled = myIssues.filter(note => !reviewerTopics.mine.some(topic => topic.path === note.topicPath));
   // The reviewer's notes to self on the whole submission, rather than on a question or passage, as the queue shows
-  const generalNotes = data.notes.filter(note => note.kind === "note" && note.subjects.length === 0 && !note.passage);
+  const generalNotes = (viewData ?? data).notes.filter(note => note.kind === "note" && note.subjects.length === 0
+    && !note.passage);
   // What other reviewers raised, by group, and how much of it on what this reviewer also reviews
   const othersRaised: OthersRaised[] = [ ...Map.groupBy(data.notes.filter(note => note.kind === "otherIssue"),
     note => groupLabels.get(note.group ?? "") ?? "Another group") ].map(([ group, raised ]) => ({
@@ -754,10 +765,12 @@ export default function ReviewScreen({ path }: { path: string }) {
     ? new Date(taskCreated).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : undefined;
   const waiting = myTask() !== undefined;
   // A suggestion can go with an approval; anything more serious needs changes first
-  const blocking = myIssues.filter(note => note.severity !== "suggestion");
-  const suggestions = myIssues.filter(note => note.severity === "suggestion");
+  // Resolved issues are asked no more: the letter, the escalation and what holds Approve back are the open ones
+  const openIssues = myIssues.filter(note => !note.done);
+  const blocking = openIssues.filter(note => note.severity !== "suggestion");
+  const suggestions = openIssues.filter(note => note.severity === "suggestion");
   const letterInput = { title: text(submission.title), identifier: text(submission.identifier),
-    pi: text(submission.pi), about, issues: myIssues,
+    pi: text(submission.pi), about, issues: openIssues,
     risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
     reviewer: myName, group: myGroupLabel.toLowerCase() };
   // What the reviewer last decided, said once it is with someone else, or when it comes back after changes
@@ -829,7 +842,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <SearchContext.Provider value={searchContext}>
               <FormReview
-                items={requirement.items} data={data} groups={focused ? othersGroups : groups}
+                items={requirement.items} data={viewData ?? data} groups={focused ? othersGroups : groups}
                 myGroups={myGroups} shown={showing} onEvidence={openEvidence} actions={actions}
                 selected={paneMark.id} onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))}
                 heading={heading} notesSlot={isActive ? notesSlot : null} formLabel={requirement.label}
@@ -841,7 +854,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <DocumentReview
               key={requirement.name}
-              document={document} data={data} shown={showing} selected={paneMark.id}
+              document={document} data={viewData ?? data} shown={showing} selected={paneMark.id}
               onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
               actions={actions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
@@ -912,6 +925,14 @@ export default function ReviewScreen({ path }: { path: string }) {
               : { borderColor: "divider", color: "text.disabled" } })}
         />
       ))}
+      <Tooltip title="Also show notes dismissed, resolved, or addressed by an issue" describeChild disableInteractive>
+        <Chip
+          size="small" label="Resolved and dismissed" variant="outlined" onClick={() => setShowDone(!showDone)}
+          aria-pressed={showDone} icon={showDone ? <CheckCircleOutlined /> : <CircleOutlined />}
+          sx={{ ml: 1, "& .MuiChip-icon": { color: "inherit" },
+            ...showDone ? { borderColor: "text.secondary" } : { borderColor: "divider", color: "text.disabled" } }}
+        />
+      </Tooltip>
     </Stack>
   );
 
@@ -1121,7 +1142,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                       <Box sx={{ flex: { md: 1 }, minHeight: { md: 0 } }}>
                         <SearchContext.Provider value={searchContext}>
                           <FormReview
-                            items={current.items} data={data} groups={focused ? othersGroups : groups}
+                            items={current.items} data={viewData ?? data} groups={focused ? othersGroups : groups}
                             myGroups={myGroups} shown={showing}
                             onEvidence={openEvidence} actions={actions}
                             notesWidth={notesWidth} onNotesWidth={setNotesWidth}
@@ -1136,7 +1157,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                       <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                         <DocumentReview
                           key={current.name}
-                          document={shownDocument} data={data} shown={showing} selected={mark.id}
+                          document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                           actions={actions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
@@ -1182,7 +1203,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 )}
                 {dialog === "letter" && (
                   <LetterDialog
-                    open submission={text(submission["@path"])} issueCount={myIssues.length}
+                    open submission={text(submission["@path"])} issueCount={openIssues.length}
                     draft={draftLetter(letterInput)}
                     onSend={sendLetter} onClose={() => setDialog(undefined)}
                   />
@@ -1230,7 +1251,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                     pi={text(submission.pi)}
                     summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
                     parts={listed.map(one => ({ name: one.name, label: one.label }))}
-                    issues={myIssues} about={about}
+                    issues={openIssues} about={about}
                     onClose={() => setDialog(undefined)}
                   />
                 )}
