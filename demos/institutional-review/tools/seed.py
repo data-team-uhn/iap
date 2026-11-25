@@ -60,6 +60,46 @@ SENT_BACK = {
     ],
 }
 
+# The study the REB sent back and its team answered: the REB's issues, then the answers the team changed and the
+# protocol they revised, version 2 kept with the seed. The team left the harm of a breach as it was.
+RESUBMITTED = {
+    "NCT07351084": {
+        "issues": [
+            {"text": "The form says the data arrives anonymized and that consent does not apply, but the team finds "
+                     "each patient by MRN in Epic to confirm eligibility and extract the data. That is directly "
+                     "identifying data in the team's hands. Please correct the identifiability answers and request "
+                     "a waiver of consent, arguing each condition.",
+             "severity": "major", "kind": "conflict",
+             "subjects": ["identifiability/arrival", "consent/sought"],
+             "quote": "Informed consent process and timing of obtaining of consent: N/A", "page": 6},
+            {"text": "Contraception and gynaecological procedures are reproductive care, which the sensitive "
+                     "categories answer leaves out. Please tick it, and reconsider the harm a breach could do.",
+             "severity": "medium", "kind": "gap",
+             "subjects": ["sensitivity/categories", "handling/storage/breachHarm"]},
+            {"text": "For a rare complication at a single site, aggregate reporting needs a small-cell rule. Please "
+                     "state the count below which results are suppressed.",
+             "severity": "minor", "kind": "gap", "subjects": ["handling/results/reporting"],
+             "quote": "All data will be presented in aggregate without identifying information.", "page": 7},
+        ],
+        "answers": {
+            "identifiability/arrival": "direct",
+            "identifiability/fields": "Age at removal, BMI, gravidity and parity, comorbidities, IUD type and "
+                                      "duration of use, reason for removal, imaging findings, number of removal "
+                                      "attempts. Exact insertion, removal and hysteroscopy dates are turned into "
+                                      "the duration of use and the removal-to-hysteroscopy interval at "
+                                      "extraction; only the year is kept.",
+            "consent/sought": "waiver",
+            "consent/waiver/whyIdentifiable": "Eligibility can only be confirmed by reading each chart in Epic, "
+                                              "found by MRN from the procedure codes. The MRN is deleted from "
+                                              "REDCap once a record is abstracted.",
+            "consent/waiver/welfare": "no",
+            "consent/waiver/impracticable": ["lost", "cohortSize"],
+            "sensitivity/categories": ["reproductive"],
+        },
+        "protocol": "NCT07351084_Prot_SAP_001.pdf",
+    },
+}
+
 # What reviewers already wrote on studies they started on: notes to self, and the conversations they used to have
 # by email. (author, text, replies)
 ACTIVITY = {
@@ -204,12 +244,13 @@ def file_study(researcher, admin, content, study):
 
 
 def open_task(admin, path, element):
+    """The open task of an element, by path; one reached again is named after it with a number, as rebTask2."""
     instances = admin.get(f"{path}/wf:instances.2.json")
     for name, instance in instances.items():
-        task = instance.get(element) if isinstance(instance, dict) else None
-        if isinstance(task, dict) and task.get("jcr:primaryType") == "wf:TaskInstance" \
-                and task.get("status") in ("created", "active"):
-            return f"{path}/wf:instances/{name}/{element}"
+        for task_name, task in (instance.items() if isinstance(instance, dict) else []):
+            if re.fullmatch(rf"{element}\d*", task_name) and isinstance(task, dict) \
+                    and task.get("jcr:primaryType") == "wf:TaskInstance" and task.get("status") in ("created", "active"):
+                return f"{path}/wf:instances/{name}/{task_name}"
     raise RuntimeError(f"No open {element} task on {path}")
 
 
@@ -361,6 +402,37 @@ def send_back(admin, path, answers, documents, issues, url):
                   {"outcome": "changes-requested", "outcomeNote": letter(issues)})
 
 
+def keep_copy(admin, path, reviewer):
+    """Saves a copy of the submission as it was sent back, and says on the reviewer's review which one, as the
+    workflow will once it has a step for it."""
+    admin.post(f"/bin/cpm/nodes/version.checkin.json{path}")
+    admin.post(f"/bin/cpm/nodes/version.checkout.json{path}")
+    create(admin, f"{path}/review-{reviewer}", {"sentBackCopy": admin.get(f"{path}.json")["jcr:baseVersion"]})
+
+
+def resubmit(admin, researcher, path, content, nct, plan, answers, documents, url):
+    """The REB sends the study back, and its team answers: changes the answers, uploads the revised protocol and
+    sends it back into review."""
+    send_back(admin, path, answers, documents, plan["issues"], url)
+    keep_copy(admin, path, "reb-reviewer")
+    researcher.post(f"{path}.save.json", answer_payload(plan["answers"]))
+    with open(content / "protocols" / nct / plan["protocol"], "rb") as protocol:
+        researcher.post(f"{path}.attachDocument.json", {"requirement": "protocol"},
+                        files={"file": (f"{nct} protocol.pdf", protocol, "application/pdf")})
+    researcher.post(open_task(admin, path, "respond") + ".json", {})
+
+
+def find_submission(admin, title):
+    def walk(path, depth):
+        for name, child in admin.get(f"{path}.1.json").items():
+            if isinstance(child, dict):
+                if child.get("jcr:primaryType") == "sub:Submission":
+                    yield f"{path}/{name}", child
+                elif depth < 3:
+                    yield from walk(f"{path}/{name}", depth + 1)
+    return next((path for path, node in walk("/Submissions", 0) if node.get("title") == title), None)
+
+
 def add_activity(url, path, activity):
     people = {}
 
@@ -408,6 +480,8 @@ def main():
     parser.add_argument("--content", default=str(pathlib.Path(__file__).resolve().parent.parent / "seed"))
     parser.add_argument("--only", nargs="*")
     parser.add_argument("--clear", action="store_true", help="delete every submission first, to start over")
+    parser.add_argument("--resubmit", action="store_true",
+                        help="only put the studies in RESUBMITTED, already seeded and in review, through their round")
     args = parser.parse_args()
     if args.clear:
         subprocess.run([sys.executable, str(pathlib.Path(__file__).resolve().parent / "clear_submissions.py"),
@@ -417,6 +491,14 @@ def main():
     researcher = Instance(args.url, "researcher")
     now = datetime.datetime.now().astimezone()
     schema = schema_parts(admin)
+    if args.resubmit:
+        for nct, plan in RESUBMITTED.items():
+            study = json.loads((content / "content" / f"{nct}.json").read_text())
+            path = find_submission(admin, study["title"])
+            answers, documents = submission_parts(admin, path, schema)
+            resubmit(admin, researcher, path, content, nct, plan, answers, documents, args.url)
+            print(nct, path, "resubmitted")
+        return 0
     # Oldest first, so identifiers follow the order studies were sent in
     for nct, setting in sorted(STAGES.items(), key=lambda item: -item[1]["age"]):
         if args.only and nct not in args.only:
@@ -430,6 +512,9 @@ def main():
         open_review(admin, path, schema, "reb-reviewer", "reb")
         if nct in SENT_BACK:
             send_back(admin, path, answers, documents, SENT_BACK[nct], args.url)
+            keep_copy(admin, path, "reb-reviewer")
+        if nct in RESUBMITTED:
+            resubmit(admin, researcher, path, content, nct, RESUBMITTED[nct], answers, documents, args.url)
         add_activity(args.url, path, ACTIVITY.get(nct, {}))
         # Last: sending a study back pauses the clock now, and this dates everything as the stage says
         stage(admin, path, study, setting, now)
