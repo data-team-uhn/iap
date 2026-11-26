@@ -31,8 +31,11 @@ import type { MarkPlaces } from "./useMarkPlaces";
 // returns the mark on the card above the document. Changes are called changes, and the caller's marks are
 // called by `markName`. Without `changesListed`, the changes are left out, as when the versions are side by
 // side and the comparison's own controls step through them.
-export function usePassages({ marks, places, changeIds, changesListed, markName, selectedId, onSelect, showMark }: {
+export function usePassages({ marks, places, changeIds, changesListed, markName, selectedId, onSelect, showMark,
+  placelessFirst = false }: {
   marks: Mark[];
+  // PRETOTYPE: whether marks quoting nothing, about the whole document, are listed first rather than last
+  placelessFirst?: boolean;
   places: MarkPlaces;
   // The ids of the marks that are changes.
   changeIds: Set<string>;
@@ -43,7 +46,7 @@ export function usePassages({ marks, places, changeIds, changesListed, markName,
   // Takes the reader to a mark.
   showMark: (id: string) => void;
 }) {
-  const ordered = useMemo(() => orderMarks(marks, places), [marks, places]);
+  const ordered = useMemo(() => orderMarks(marks, places, placelessFirst), [marks, places, placelessFirst]);
   const listed = useMemo(
     () => (changesListed ? ordered : ordered.filter(mark => !changeIds.has(mark.id))),
     [ordered, changeIds, changesListed],

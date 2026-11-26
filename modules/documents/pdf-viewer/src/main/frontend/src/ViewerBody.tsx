@@ -152,6 +152,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const { split, renderBody, describeBody } = compared;
   const passages = usePassages({
     marks, places, changeIds, changesListed: !split, markName, selectedId, onSelect, showMark,
+    // PRETOTYPE: a plain viewer's notes about the whole document lead its list
+    placelessFirst: plain,
   });
   const { listed, naming, sorts, selected, selectedNaming, cardAt, onCard, several, showSelected } = passages;
   const toolbarRef = useRef<ViewerToolbarHandle>(null);

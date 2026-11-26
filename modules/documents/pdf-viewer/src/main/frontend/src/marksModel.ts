@@ -456,9 +456,13 @@ export function isLooking(places: Record<string, MarkPlace>): boolean {
 }
 
 // The marks in the order given, except that those known to have no place go last.
-export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Mark[] {
+export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>, placelessFirst = false): Mark[] {
   const isUnmarked = (mark: Mark) => isUnmarkable(places[mark.id]);
-  return [ ...marks.filter(mark => !isUnmarked(mark)), ...marks.filter(isUnmarked) ];
+  // PRETOTYPE: a mark quoting nothing, about the whole document rather than a passage, can lead instead of trailing
+  // among the passages that could not be found
+  const isPlaceless = (mark: Mark) => placelessFirst && "quote" in mark && mark.quote.trim() === "";
+  return [ ...marks.filter(isPlaceless), ...marks.filter(mark => !isUnmarked(mark) && !isPlaceless(mark)),
+    ...marks.filter(mark => isUnmarked(mark) && !isPlaceless(mark)) ];
 }
 
 // A copy of a mark's own fields in a fixed order, leaving out anything else its object carries. Equal
