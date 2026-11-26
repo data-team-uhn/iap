@@ -22,9 +22,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
-import { Box, DialogContent, IconButton, Typography } from "@mui/material";
+import { Box, DialogContent, Typography } from "@mui/material";
 import { createPortal } from "react-dom";
 
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 
 import type { Breakpoint } from "@mui/material/styles";
@@ -69,13 +70,13 @@ export default function ViewerPlacement({ container, width = "lg", titleId, onCl
   const placeButton = container === undefined
     ? null
     : (
-      <IconButton
+      <ActionIcon
         ref={placeButtonRef}
-        aria-label={poppedOut ? "Pop back in" : "Pop out"}
+        label={poppedOut ? "Pop back in" : "Pop out"}
+        icon={poppedOut ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
+        size="medium"
         onClick={poppedOut ? popIn : () => setPoppedOut(true)}
-      >
-        {poppedOut ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
-      </IconButton>
+      />
     );
   const body = children({ placeButton, inDialog });
 
@@ -115,9 +116,7 @@ export function ViewerTitle({ titleId, title, placeButton, onClose }: {
         {title}
       </Typography>
       {placeButton}
-      <IconButton aria-label="Close" edge="end" onClick={onClose}>
-        <CloseIcon />
-      </IconButton>
+      <ActionIcon label="Close" icon={<CloseIcon />} size="medium" edge="end" onClick={onClose} />
     </Box>
   );
 }

@@ -20,7 +20,9 @@ import { useEffect, useRef } from "react";
 
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { Box, IconButton, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
+
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 
 import type { StepDirection } from "./pdfViewerModel";
 
@@ -84,14 +86,14 @@ export default function StepControls(props: {
   ));
   return (
     <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flexShrink: shrinks ? 1 : 0, justifyContent: "space-between" }}>
-      <IconButton
+      <ActionIcon
         ref={previousButton}
-        aria-label={`Previous ${names.previous}`}
+        label={`Previous ${names.previous}`}
+        icon={<ChevronLeftIcon />}
+        size="medium"
         disabled={position <= 1}
         onClick={() => step("previous")}
-      >
-        <ChevronLeftIcon />
-      </IconButton>
+      />
       <Box
         component="p"
         sx={{
@@ -106,14 +108,14 @@ export default function StepControls(props: {
         {widthHolders}
         <Typography variant={style} component="span" noWrap sx={{ maxWidth: "100%" }}>{text}</Typography>
       </Box>
-      <IconButton
+      <ActionIcon
         ref={nextButton}
-        aria-label={`Next ${names.next}`}
+        label={`Next ${names.next}`}
+        icon={<ChevronRightIcon />}
+        size="medium"
         disabled={position >= count}
         onClick={() => step("next")}
-      >
-        <ChevronRightIcon />
-      </IconButton>
+      />
     </Box>
   );
 }

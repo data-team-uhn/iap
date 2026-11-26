@@ -35,6 +35,14 @@ describe("StepControls", () => {
     expect(onStep).toHaveBeenCalledWith(2, "next");
   });
 
+  it("names its buttons in tooltips, the one disabled at an end too", async () => {
+    render(<StepControls position={1} count={3} itemName="change" onStep={vi.fn()} />);
+
+    await userEvent.hover(screen.getByRole("button", { name: "Previous change" }).closest("span") as HTMLElement);
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Previous change");
+  });
+
   it("keeps the focus on the button pressed, and gives it to the other one at the end", async () => {
     render(<Stepping count={3} />);
     const next = screen.getByRole("button", { name: "Next change" });

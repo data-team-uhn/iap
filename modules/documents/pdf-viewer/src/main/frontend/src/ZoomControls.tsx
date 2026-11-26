@@ -19,7 +19,8 @@
 import ExpandIcon from "@mui/icons-material/Expand";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { IconButton } from "@mui/material";
+
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 
 // The zoom buttons, disabled until the document has opened. The last one sits flush with the row's end.
 export default function ZoomControls({ disabled, onZoomIn, onZoomOut, onFitWidth }: {
@@ -30,16 +31,18 @@ export default function ZoomControls({ disabled, onZoomIn, onZoomOut, onFitWidth
 }) {
   return (
     <>
-      <IconButton aria-label="Zoom out" disabled={disabled} onClick={onZoomOut}>
-        <ZoomOutIcon />
-      </IconButton>
-      <IconButton aria-label="Fit to width" disabled={disabled} onClick={onFitWidth}>
-        {/* Expand points up and down; a quarter turn makes it point to the sides */}
-        <ExpandIcon sx={{ transform: "rotate(90deg)" }} />
-      </IconButton>
-      <IconButton aria-label="Zoom in" edge="end" disabled={disabled} onClick={onZoomIn}>
-        <ZoomInIcon />
-      </IconButton>
+      <ActionIcon label="Zoom out" icon={<ZoomOutIcon />} size="medium" disabled={disabled} onClick={onZoomOut} />
+      <ActionIcon
+        label="Fit to width"
+        // Expand points up and down; a quarter turn makes it point to the sides
+        icon={<ExpandIcon sx={{ transform: "rotate(90deg)" }} />}
+        size="medium"
+        disabled={disabled}
+        onClick={onFitWidth}
+      />
+      <ActionIcon
+        label="Zoom in" icon={<ZoomInIcon />} size="medium" edge="end" disabled={disabled} onClick={onZoomIn}
+      />
     </>
   );
 }
