@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.workflows.internal.types;
 
+import java.util.Locale;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.jcr.PropertyType;
@@ -24,13 +26,18 @@ import javax.jcr.PropertyType;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * A yes-or-no value: {@code true}, in any letter case, is true, and anything else is false.
+ * A yes-or-no value, written the way XML Schema writes one: {@code true} or {@code 1}, {@code false} or {@code 0},
+ * in any letter case. Anything else is reported and dropped, so the node type's default stands.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public class BooleanParameterType implements ParameterType
 {
+    private static final Set<String> TRUE_VALUES = Set.of("true", "1");
+
+    private static final Set<String> FALSE_VALUES = Set.of("false", "0");
+
     @Override
     public int storageType()
     {
@@ -38,9 +45,16 @@ public class BooleanParameterType implements ParameterType
     }
 
     @Override
-    public Object convert(final String raw, final NodeState declaration, final NodeState root,
-        final Consumer<String> report)
+    public Object convert(final String raw, final NodeState root, final Consumer<String> report)
     {
-        return Boolean.valueOf(raw);
+        final String value = raw.toLowerCase(Locale.ROOT);
+        if (TRUE_VALUES.contains(value)) {
+            return Boolean.TRUE;
+        }
+        if (FALSE_VALUES.contains(value)) {
+            return Boolean.FALSE;
+        }
+        report.accept("a parameter has a value that is not a boolean");
+        return null;
     }
 }

@@ -79,8 +79,8 @@ function isLong(value: string): boolean {
   return digits !== "" && (digits.length < limit.length || digits.length === limit.length && digits <= limit);
 }
 
-// The text a boolean field accepts: `true` or `false`.
-export const isBoolean = (value: string): boolean => value === "true" || value === "false";
+// The text a boolean field accepts, as the server reads it: `true`, `false`, `1` or `0`, in any letter case.
+export const isBoolean = (value: string): boolean => /^(true|false|1|0)$/i.test(value);
 
 // What the server stores a value as, for the types that can refuse one by its text alone. Text takes
 // anything, and a reference or a principal is checked against the repository, which only the server can do.

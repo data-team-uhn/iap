@@ -17,19 +17,18 @@
  */
 package io.uhndata.iap.workflows.internal.checks;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ValueMap;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that a version's diagram was fully saved. A version is tagged {@code invalid} while the last parse of its
- * diagram reported problems, which are stored on it as {@code parseProblems}.
+ * Check that the process of a version has no problems left to fix: that the last parse of its diagram reported
+ * none. Each stored problem is one refusal.
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,13 +36,7 @@ import io.uhndata.iap.workflows.spi.ValidityCheck;
 @Component(service = ValidityCheck.class)
 public class InvalidVersionCheck implements ValidityCheck
 {
-    private static final String INVALID_TAG = "invalid";
-
-    private static final String TAGS_PROPERTY = "tags";
-
-    private static final String PARSE_PROBLEMS_PROPERTY = "parseProblems";
-
-    private static final String NOT_SAVED_MESSAGE = "its diagram was not fully saved";
+    private static final String PROBLEM_MESSAGE = "its process has a problem to fix before it can be activated";
 
     @Override
     public boolean appliesTo(final Resource target)
@@ -54,12 +47,7 @@ public class InvalidVersionCheck implements ValidityCheck
     @Override
     public List<String> check(final Resource version)
     {
-        final ValueMap properties = version.getValueMap();
-        if (!Arrays.asList(properties.get(TAGS_PROPERTY, new String[0])).contains(INVALID_TAG)) {
-            return List.of();
-        }
-        final String[] problems = properties.get(PARSE_PROBLEMS_PROPERTY, new String[0]);
-        return problems.length == 0 ? List.of(NOT_SAVED_MESSAGE)
-            : Arrays.stream(problems).map(problem -> NOT_SAVED_MESSAGE + ": " + problem).toList();
+        return Objects.requireNonNull(version.adaptTo(WorkflowVersion.class), "It applies to workflow versions only")
+            .getParseProblems().stream().map(problem -> PROBLEM_MESSAGE + ": " + problem).toList();
     }
 }

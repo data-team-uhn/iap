@@ -38,8 +38,7 @@ public class LongParameterType implements ParameterType
     }
 
     @Override
-    public Object convert(final String raw, final NodeState declaration, final NodeState root,
-        final Consumer<String> report)
+    public Object convert(final String raw, final NodeState root, final Consumer<String> report)
     {
         try {
             return Long.valueOf(raw);

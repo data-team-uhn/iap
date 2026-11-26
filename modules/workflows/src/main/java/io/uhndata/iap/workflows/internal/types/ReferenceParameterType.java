@@ -26,7 +26,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 
 import io.uhndata.iap.utils.NodeTypeUtils;
-import io.uhndata.iap.workflows.models.Parameter;
 
 /**
  * The absolute path of another node, optionally of the node type the parameter's {@code referenceType} names.
@@ -40,6 +39,19 @@ import io.uhndata.iap.workflows.models.Parameter;
  */
 public class ReferenceParameterType implements ParameterType
 {
+    private final String referenceType;
+
+    /**
+     * The type of the values one reference parameter takes.
+     *
+     * @param referenceType the node type every value must name a node of, as the declaration's {@code referenceType}
+     *            gives it, or {@code null} when any type will do
+     */
+    public ReferenceParameterType(final String referenceType)
+    {
+        this.referenceType = referenceType;
+    }
+
     @Override
     public int storageType()
     {
@@ -47,16 +59,14 @@ public class ReferenceParameterType implements ParameterType
     }
 
     @Override
-    public Object convert(final String raw, final NodeState declaration, final NodeState root,
-        final Consumer<String> report)
+    public Object convert(final String raw, final NodeState root, final Consumer<String> report)
     {
         final NodeState target = PathUtils.isValid(raw) && PathUtils.isAbsolute(raw)
             ? NodeStateUtils.getNode(root, raw) : null;
-        final String referenceType = declaration.getString(Parameter.REFERENCE_TYPE_PROPERTY);
         if (target == null || !target.exists()) {
             report.accept("a reference parameter names a node that does not exist");
-        } else if (referenceType != null
-            && !NodeTypeUtils.isOfType(target, referenceType, NodeTypeUtils.registry(root))) {
+        } else if (this.referenceType != null
+            && !NodeTypeUtils.isOfType(target, this.referenceType, NodeTypeUtils.registry(root))) {
             report.accept("a reference parameter names a node of the wrong type");
         }
         return raw;

@@ -17,35 +17,27 @@
  */
 package io.uhndata.iap.workflows;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.StreamSupport;
-
-import javax.jcr.PropertyType;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
-import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.util.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
-import io.uhndata.iap.workflows.FlowNodeTypeInfo.ParameterInfo;
 import io.uhndata.iap.workflows.FlowNodeTypeInfo.XmlLocation;
-import io.uhndata.iap.workflows.internal.types.BooleanParameterType;
-import io.uhndata.iap.workflows.internal.types.LongParameterType;
+import io.uhndata.iap.workflows.ParameterInfo.StructureParameter;
+import io.uhndata.iap.workflows.ParameterInfo.ValueParameter;
 import io.uhndata.iap.workflows.internal.types.ParameterType;
-import io.uhndata.iap.workflows.internal.types.PrincipalParameterType;
-import io.uhndata.iap.workflows.internal.types.ReferenceParameterType;
-import io.uhndata.iap.workflows.internal.types.TextParameterType;
 import io.uhndata.iap.workflows.models.Parameter;
 
 /**
@@ -72,48 +64,19 @@ final class ParameterTranslation
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParameterTranslation.class);
 
-    /** The parameter types, by the {@code dataType} that names them. */
-    private static final Map<String, ParameterType> PARAMETER_TYPES = Map.of(
-        Parameter.TEXT_DATA_TYPE, new TextParameterType(),
-        Parameter.BOOLEAN_DATA_TYPE, new BooleanParameterType(),
-        Parameter.LONG_DATA_TYPE, new LongParameterType(),
-        Parameter.REFERENCE_DATA_TYPE, new ReferenceParameterType(),
-        Parameter.PRINCIPAL_DATA_TYPE, new PrincipalParameterType());
-
     private static final String ID_ATTRIBUTE = "id";
 
     private static final String PARAMETER_DETAIL = "parameter";
 
-    private static final String NAMED_PROPERTY_DEFINITIONS_CHILD = "rep:namedPropertyDefinitions";
+    private static final String KEY_DETAIL = "key";
 
-    private static final String RESIDUAL_PROPERTY_DEFINITIONS_CHILD = "rep:residualPropertyDefinitions";
+    private static final String VALUE_DETAIL = "value";
 
-    private static final String NAMED_CHILD_NODE_DEFINITIONS_CHILD = "rep:namedChildNodeDefinitions";
-
-    private static final String RESIDUAL_CHILD_NODE_DEFINITIONS_CHILD = "rep:residualChildNodeDefinitions";
-
-    private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
-
-    private static final String IS_ABSTRACT_PROPERTY = "jcr:isAbstract";
-
-    private static final String IS_MIXIN_PROPERTY = "jcr:isMixin";
-
-    private static final String MANDATORY_PROPERTIES_PROPERTY = "rep:mandatoryProperties";
-
-    private static final String MANDATORY_CHILD_NODES_PROPERTY = "rep:mandatoryChildNodes";
-
-    private static final String DECLARED_DIFFERENTLY_PROBLEM =
-        "a parameter disagrees with the node type it is stored in";
-
-    private static final String NOT_ALLOWED_PROBLEM = "a parameter is not allowed by the node type it is stored in";
+    private static final String FLOW_NODE_TYPE_DETAIL = "flowNodeType";
 
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
-    private static final String KEY_DETAIL = "key";
-
-    private static final String NT_UNSTRUCTURED_TYPE = "nt:unstructured";
-
-    private static final String CHILD_ORDER_PROPERTY = ":childOrder";
+    private static final String MISSING_VALUE_PROBLEM = "a required parameter has no value";
 
     private ParameterTranslation()
     {
@@ -138,16 +101,6 @@ final class ParameterTranslation
             return new Context(this.type, this.element, this.scope, inner);
         }
 
-        NodeState root()
-        {
-            return this.scope.root();
-        }
-
-        NodeState nodeTypesRoot()
-        {
-            return this.scope.registry();
-        }
-
         ParseProblems problems()
         {
             return this.scope.problems();
@@ -164,6 +117,12 @@ final class ParameterTranslation
         {
             return this.level.node();
         }
+
+        /** The path of parameter names and keys down to the level being read, slash-terminated, or empty. */
+        String prefix()
+        {
+            return this.level.prefix();
+        }
     }
 
     /**
@@ -172,12 +131,23 @@ final class ParameterTranslation
      * @param extension the element the values are read from: on the flow node, the entry's extension element, or
      *            {@code null} when the entry declares none; inside a structure, one element of it
      * @param node the node the values are stored on
-     * @param nodeType that node's type
      * @param prefix what a problem's parameter name starts with: empty on the flow node, and the path of
      *            parameter names and keys down to the structure, slash-terminated, inside one
      * @since 0.1.0
      */
-    private record Level(Element extension, NodeBuilder node, String nodeType, String prefix)
+    private record Level(Element extension, NodeBuilder node, String prefix)
+    {
+    }
+
+    /**
+     * How an extension element writes one parameter: as an attribute, or as IAP-namespaced child elements named
+     * after it.
+     *
+     * @param attribute the attribute's value, empty when there is none
+     * @param elements the child elements, in diagram order
+     * @since 0.1.0
+     */
+    private record Written(String attribute, List<Element> elements)
     {
     }
 
@@ -195,66 +165,68 @@ final class ParameterTranslation
     {
         final Element extension = type.xmlExtensionElement() == null ? null
             : WorkflowDefinitionUtils.extensionElement(element, type.xmlExtensionElement());
-        final Context context = new Context(type, element, scope,
-            new Level(extension, node, type.jcrNodeType(), ""));
-        final ParseProblems problems = scope.problems();
-        UnclaimedMarkup.report(element, type, problems);
+        final Context context = new Context(type, element, scope, new Level(extension, node, ""));
+        UnclaimedMarkup.report(element, type, scope.problems());
         type.parameters().unread().forEach(path -> reportDeclaration(
-            "a vocabulary entry holds a parameter of the wrong node type", path, type, element, problems));
+            "a vocabulary entry holds a parameter of the wrong node type", path, context));
         // Nothing reads such a field, so a structure missing one would otherwise just look short of a field
         type.parameters().misplaced().forEach(path -> reportDeclaration(
-            "a vocabulary entry declares a field outside a structure", path, type, element,
-            problems));
+            "a vocabulary entry declares a field outside a structure", path, context));
         type.parameters().declared().forEach(parameter -> apply(parameter, context));
     }
 
     private static void apply(final ParameterInfo parameter, final Context context)
     {
-        if (parameter.isStructure()) {
-            structure(parameter, context);
-            return;
+        if (parameter instanceof final ValueParameter value) {
+            applyValue(value, context);
+        } else {
+            applyStructure((StructureParameter) parameter, context);
         }
+    }
+
+    private static void applyValue(final ValueParameter parameter, final Context context)
+    {
         final List<String> values = read(parameter, context);
         if (values.isEmpty()) {
-            if (parameter.isRequired()) {
-                report("a required parameter has no value", parameter, context);
-            }
             // Nothing is written, so the node type's own default stands
+            reportIfRequired(parameter, context);
             return;
         }
-        // The node type constrains dataType to the names this map holds
-        final ParameterType type = PARAMETER_TYPES.get(parameter.dataType());
         validate(parameter, values, context);
-        final String refusal = nodeTypeRefusal(parameter, type.storageType(), context);
-        if (refusal != null) {
-            reportDefect(refusal, parameter, context);
+        if (parameter.refusal() != null) {
+            reportDefect(parameter.refusal(), about(parameter, context), context);
             return;
         }
-        final List<Object> converted = convert(type, parameter, values, context);
-        if (converted.isEmpty() && parameter.isRequired()) {
-            report("a required parameter has no value", parameter, context);
+        final List<Object> converted = convert(parameter, values, context);
+        if (converted.isEmpty()) {
+            reportIfRequired(parameter, context);
         }
-        set(parameter, converted, type.storageType(), context);
+        set(parameter, converted, context);
     }
 
     /** Reports everything wrong with the values a diagram gave, having decided to store them anyway. */
-    private static void validate(final ParameterInfo parameter, final List<String> values, final Context context)
+    private static void validate(final ValueParameter parameter, final List<String> values, final Context context)
     {
         validateCount(parameter, values.size(), context);
-        for (final String value : values) {
-            if (!parameter.options().isEmpty() && !parameter.options().contains(value)) {
-                report("a parameter has a value it does not offer", parameter, context);
-            }
-        }
+        values.stream().filter(value -> !parameter.options().isEmpty() && !parameter.options().contains(value))
+            .forEach(value -> report("a parameter has a value it does not offer",
+                about(parameter, context).with(VALUE_DETAIL, value), context));
     }
 
     private static void validateCount(final ParameterInfo parameter, final int count, final Context context)
     {
         if (parameter.maxValues() > 0 && count > parameter.maxValues()) {
-            report("a parameter has more values than it accepts", parameter, context);
+            report("a parameter has more values than it accepts", about(parameter, context), context);
         }
         if (count < parameter.minValues()) {
-            report("a parameter has fewer values than it requires", parameter, context);
+            report("a parameter has fewer values than it requires", about(parameter, context), context);
+        }
+    }
+
+    private static void reportIfRequired(final ParameterInfo parameter, final Context context)
+    {
+        if (parameter.isRequired()) {
+            report(MISSING_VALUE_PROBLEM, about(parameter, context), context);
         }
     }
 
@@ -262,123 +234,112 @@ final class ParameterTranslation
      * Reads a structure: one IAP-namespaced element per value, named after the parameter, whose fields are read
      * from it the way an extension element's parameters are read. A single structure is stored as a child node of
      * the parameter's name. A repeated one is a container of that name holding one node per element, in diagram
-     * order. Each is named after its key field's value, escaped where a node name cannot hold it, and the key is
-     * not stored again as a property.
+     * order.
      */
-    private static void structure(final ParameterInfo parameter, final Context context)
+    private static void applyStructure(final StructureParameter parameter, final Context context)
     {
         if (parameter.location() != XmlLocation.EXTENSION_ELEMENT || context.extension() == null) {
-            reportDefect("a structured parameter is not inside an extension element", parameter, context);
+            reportDefect("a structured parameter is not inside an extension element", about(parameter, context),
+                context);
             return;
         }
-        final List<Element> elements = WorkflowDefinitionUtils.childElements(context.extension(),
-            WorkflowDefinitionUtils.IAP_NS, parameter.name()).toList();
+        final List<Element> elements = written(parameter, context).elements();
         if (elements.isEmpty()) {
-            if (StringUtils.isNotBlank(context.extension().getAttribute(parameter.name()))) {
-                report("a structured parameter is written as an attribute instead", parameter, context);
-            }
-            if (parameter.isRequired()) {
-                report("a required parameter has no value", parameter, context);
-            }
+            reportIfRequired(parameter, context);
             return;
         }
         validateCount(parameter, elements.size(), context);
-        final String refusal = structureRefusal(parameter, context);
-        if (refusal != null) {
-            reportDefect(refusal, parameter, context);
+        if (parameter.refusal() != null) {
+            reportDefect(parameter.refusal(), about(parameter, context), context);
             return;
         }
         if (parameter.isMultiValued()) {
-            repeated(parameter, elements, context);
+            applyRepeated(parameter, elements, context);
             return;
         }
-        final NodeBuilder stored = context.node().child(parameter.name());
-        stored.setProperty(JCR_PRIMARY_TYPE_PROPERTY, parameter.nodeType(), Type.NAME);
-        fields(parameter, elements.get(0), stored, context.level().prefix() + parameter.name() + "/", context, null);
-    }
-
-    /** Stores the elements of a repeated structure in a container, one node per element named after its key. */
-    private static void repeated(final ParameterInfo parameter, final List<Element> elements, final Context context)
-    {
-        final String key = parameter.keyParameter();
-        if (parameter.fields().stream().noneMatch(field -> field.name().equals(key) && !field.isMultiValued()
-            && !field.isStructure())) {
-            reportDefect("a repeated structured parameter declares no single-valued key", parameter, context);
-            return;
-        }
-        final NodeBuilder container = context.node().child(parameter.name());
-        container.setProperty(JCR_PRIMARY_TYPE_PROPERTY, NT_UNSTRUCTURED_TYPE, Type.NAME);
-        final Set<String> keys = new LinkedHashSet<>();
-        for (final Element element : elements) {
-            final String value = element.getAttribute(key).trim();
-            if (usableKey(value, keys, parameter, context)) {
-                // A key is often a qualified name, such as the property a field sets
-                final NodeBuilder stored = container.child(Text.escapeIllegalJcrChars(value));
-                stored.setProperty(JCR_PRIMARY_TYPE_PROPERTY, parameter.nodeType(), Type.NAME);
-                fields(parameter, element, stored, context.level().prefix() + parameter.name() + "/" + value + "/",
-                    context, key);
-            }
-        }
-        // Oak keeps the order of an orderable node's children in this hidden property, which only the JCR API
-        // maintains by itself
-        container.setProperty(CHILD_ORDER_PROPERTY, keys.stream().map(Text::escapeIllegalJcrChars).toList(),
-            Type.NAMES);
+        final Context inner = context.into(new Level(elements.get(0), record(context.node(), parameter.name(),
+            parameter), context.prefix() + parameter.name() + "/"));
+        reportUnclaimed(parameter, inner);
+        fields(inner, parameter.fields());
     }
 
     /**
-     * Whether one element's key can name its node, taking it if so and reporting why not if not. Escaping gives
-     * distinct keys distinct names, so comparing the keys as written is enough.
+     * Stores the elements of a repeated structure in a container, one node per element. Each is named after its
+     * key field's value, escaped where a node name cannot hold it, and the key is not stored again as a property.
+     * An element with no key, or with the key of an earlier one, is reported and left out.
      */
-    private static boolean usableKey(final String key, final Set<String> taken, final ParameterInfo parameter,
+    private static void applyRepeated(final StructureParameter parameter, final List<Element> elements,
         final Context context)
     {
-        if (key.isEmpty()) {
-            report("an element of a structured parameter has no key", parameter, context);
-            return false;
+        if (!parameter.hasSingleValuedKey()) {
+            reportDefect("a repeated structured parameter declares no single-valued key", about(parameter, context),
+                context);
+            return;
         }
-        if (!taken.add(key)) {
-            report("an element of a structured parameter has the same key as another", parameter, context, key);
-            return false;
-        }
-        return true;
+        final Map<String, List<Element>> byKey = elements.stream().collect(Collectors.groupingBy(
+            element -> element.getAttribute(parameter.keyParameter()).trim(), LinkedHashMap::new,
+            Collectors.toList()));
+        byKey.getOrDefault("", List.of()).forEach(element -> report(
+            "an element of a structured parameter has no key", about(parameter, context), context));
+        byKey.remove("");
+        byKey.forEach((key, group) -> group.stream().skip(1).forEach(duplicate -> report(
+            "an element of a structured parameter has the same key as another",
+            about(parameter, context).with(KEY_DETAIL, key), context)));
+        final NodeBuilder container = context.node().child(parameter.name());
+        container.setProperty(JCR_PRIMARY_TYPE_PROPERTY, OrderedChildren.NT_UNSTRUCTURED_TYPE, Type.NAME);
+        final List<ParameterInfo> besideKey = parameter.fields().stream()
+            .filter(field -> !field.name().equals(parameter.keyParameter())).toList();
+        byKey.forEach((key, group) -> {
+            // A key is often a qualified name, such as the property a field sets
+            final Context inner = context.into(new Level(group.get(0),
+                record(container, Text.escapeIllegalJcrChars(key), parameter),
+                context.prefix() + parameter.name() + "/" + key + "/"));
+            reportUnclaimed(parameter, inner);
+            fields(inner, besideKey);
+        });
+        OrderedChildren.store(container, byKey.keySet().stream().map(Text::escapeIllegalJcrChars).toList());
+    }
+
+    /** The node one element of a structure is stored as, of the structure's node type. */
+    private static NodeBuilder record(final NodeBuilder parent, final String name, final StructureParameter parameter)
+    {
+        final NodeBuilder stored = parent.child(name);
+        stored.setProperty(JCR_PRIMARY_TYPE_PROPERTY, parameter.nodeType(), Type.NAME);
+        return stored;
+    }
+
+    /** Reports what one element of a structure holds that none of its fields reads. */
+    private static void reportUnclaimed(final StructureParameter parameter, final Context inner)
+    {
+        UnclaimedMarkup.reportInside(inner.extension(), parameter.fields().stream().map(ParameterInfo::name).toList(),
+            inner.prefix(), inner.element(), inner.type(), inner.problems());
     }
 
     /**
-     * Reads the fields of one element of a structure into the node it is stored as, except the key, which names
-     * the node instead. What the element holds that no field reads is reported. A field can only live inside the
+     * Reads fields of one element of a structure into the node it is stored as. A field can only live inside the
      * element, so one declaring another location is reported and not read.
      */
-    private static void fields(final ParameterInfo parameter, final Element holder, final NodeBuilder stored,
-        final String prefix, final Context context, final String key)
+    private static void fields(final Context inner, final List<ParameterInfo> fields)
     {
-        final Context inner = context.into(new Level(holder, stored, parameter.nodeType(), prefix));
-        UnclaimedMarkup.reportInside(holder, parameter.fields().stream().map(ParameterInfo::name).toList(), prefix,
-            context.element(), context.type(), context.problems());
-        for (final ParameterInfo field : parameter.fields()) {
-            if (field.name().equals(key)) {
-                continue;
-            }
-            if (field.location() != XmlLocation.EXTENSION_ELEMENT) {
-                reportDefect("a field of a structured parameter is not written inside it", field, inner);
-            } else {
+        fields.forEach(field -> {
+            if (field.location() == XmlLocation.EXTENSION_ELEMENT) {
                 apply(field, inner);
+            } else {
+                reportDefect("a field of a structured parameter is not written inside it", about(field, inner),
+                    inner);
             }
-        }
+        });
     }
 
     /** What the parameter's type makes of each value, leaving out the ones it drops. */
-    private static List<Object> convert(final ParameterType type, final ParameterInfo parameter,
-        final List<String> values, final Context context)
+    private static List<Object> convert(final ValueParameter parameter, final List<String> values,
+        final Context context)
     {
-        final List<Object> converted = new ArrayList<>();
-        for (final String value : values) {
-            final Object typed = type.convert(value, parameter.declaration(), context.root(),
-                problem -> report(problem, parameter, context));
-            if (typed != null) {
-                converted.add(typed);
-            }
-        }
-        return converted;
+        return values.stream()
+            .map(value -> parameter.type().convert(value, context.scope().root(),
+                problem -> report(problem, about(parameter, context).with(VALUE_DETAIL, value), context)))
+            .filter(Objects::nonNull)
+            .toList();
     }
 
     /**
@@ -387,7 +348,7 @@ final class ParameterTranslation
      * <p>An entry that names no extension element has nowhere but its own element to put a value. A parameter of
      * such an entry that declares another location is reported, and read as an attribute of the element.</p>
      */
-    private static List<String> read(final ParameterInfo parameter, final Context context)
+    private static List<String> read(final ValueParameter parameter, final Context context)
     {
         if (parameter.location().isBpmn()) {
             return bpmnValues(parameter, context);
@@ -395,20 +356,41 @@ final class ParameterTranslation
         if (parameter.location() == XmlLocation.ATTRIBUTE || context.extension() == null) {
             if (parameter.location() != XmlLocation.ATTRIBUTE) {
                 reportDefect("a non-attribute parameter on an entry with no extension element",
-                    parameter, context);
+                    about(parameter, context), context);
             }
             return attributeValues(parameter,
                 context.element().getAttributeNS(WorkflowDefinitionUtils.IAP_NS, parameter.name()));
         }
-        if (parameter.isMultiValued()) {
-            return childValues(parameter, context);
+        final Written written = written(parameter, context);
+        return parameter.isMultiValued() ? texts(written.elements()) : attributeValues(parameter, written.attribute());
+    }
+
+    /**
+     * How the extension element writes a parameter. A structure and a list are read from child elements, and a
+     * single value from an attribute. A parameter written only the other way round is reported, and reads as
+     * absent.
+     */
+    private static Written written(final ParameterInfo parameter, final Context context)
+    {
+        final Written written = new Written(context.extension().getAttribute(parameter.name()),
+            WorkflowDefinitionUtils.childElements(context.extension(), WorkflowDefinitionUtils.IAP_NS,
+                parameter.name()).toList());
+        final boolean readsElements = parameter instanceof StructureParameter || parameter.isMultiValued();
+        final boolean onlyAttribute = written.elements().isEmpty() && StringUtils.isNotBlank(written.attribute());
+        final boolean onlyElements = !written.elements().isEmpty() && StringUtils.isBlank(written.attribute());
+        if (readsElements ? onlyAttribute : onlyElements) {
+            report(writtenOtherwiseProblem(parameter), about(parameter, context), context);
         }
-        final List<String> values = attributeValues(parameter, context.extension().getAttribute(parameter.name()));
-        if (values.isEmpty()
-            && !children(context.extension(), WorkflowDefinitionUtils.IAP_NS, parameter.name()).isEmpty()) {
-            report("a single-valued parameter is written as child elements", parameter, context);
+        return written;
+    }
+
+    private static String writtenOtherwiseProblem(final ParameterInfo parameter)
+    {
+        if (parameter instanceof StructureParameter) {
+            return "a structured parameter is written as an attribute instead";
         }
-        return values;
+        return parameter.isMultiValued() ? "a parameter taking a list has it written as an attribute instead"
+            : "a single-valued parameter is written as child elements";
     }
 
     /**
@@ -416,7 +398,7 @@ final class ParameterTranslation
      * any other attribute. An element gives its trimmed text, one value per element of the parameter's name, and
      * an expression's body is plain text.
      */
-    private static List<String> bpmnValues(final ParameterInfo parameter, final Context context)
+    private static List<String> bpmnValues(final ValueParameter parameter, final Context context)
     {
         final Element holder = WorkflowDefinitionUtils.bpmnElementAt(context.element(), parameter.path());
         if (holder == null) {
@@ -425,17 +407,8 @@ final class ParameterTranslation
         if (parameter.location() == XmlLocation.BPMN_ATTRIBUTE) {
             return attributeValues(parameter, holder.getAttributeNS(null, parameter.name()));
         }
-        return children(holder, WorkflowDefinitionUtils.BPMN_NS, parameter.name());
-    }
-
-    /** The parameter's IAP-namespaced children of the extension element, or a report of the value written wrong. */
-    private static List<String> childValues(final ParameterInfo parameter, final Context context)
-    {
-        final List<String> values = children(context.extension(), WorkflowDefinitionUtils.IAP_NS, parameter.name());
-        if (values.isEmpty() && StringUtils.isNotBlank(context.extension().getAttribute(parameter.name()))) {
-            report("a parameter taking a list has it written as an attribute instead", parameter, context);
-        }
-        return values;
+        return texts(WorkflowDefinitionUtils.childElements(holder, WorkflowDefinitionUtils.BPMN_NS, parameter.name())
+            .toList());
     }
 
     /**
@@ -454,12 +427,10 @@ final class ParameterTranslation
         return Arrays.stream(raw.split(",")).map(String::trim).filter(StringUtils::isNotBlank).toList();
     }
 
-    /** The trimmed text of each child of an element with this name in this namespace, blanks dropped. */
-    private static List<String> children(final Element element, final String namespace, final String name)
+    /** The trimmed text of each element, blanks dropped. */
+    private static List<String> texts(final List<Element> elements)
     {
-        return WorkflowDefinitionUtils.childElements(element, namespace, name)
-            .map(child -> child.getTextContent().trim())
-            .filter(StringUtils::isNotBlank)
+        return elements.stream().map(element -> element.getTextContent().trim()).filter(StringUtils::isNotBlank)
             .toList();
     }
 
@@ -468,153 +439,46 @@ final class ParameterTranslation
      * was dropped, so a parameter the diagram got wrong keeps the node type's default rather than gaining an empty
      * list.
      */
-    private static void set(final ParameterInfo parameter, final List<?> values, final int storageType,
-        final Context context)
+    private static void set(final ValueParameter parameter, final List<?> values, final Context context)
     {
         if (values.isEmpty()) {
             return;
         }
         final boolean multiple = parameter.isMultiValued();
+        final ParameterType type = parameter.type();
         context.node().setProperty(PropertyStates.createProperty(parameter.name(),
-            multiple ? values : values.get(0), Type.fromTag(storageType, multiple)));
+            multiple ? values : values.get(0), Type.fromTag(type.storageType(), multiple)));
     }
 
     /**
-     * Why the node type a parameter is stored in would not hold it as declared, or {@code null} when it would. The
-     * vocabulary entry is what is wrong either way, so the value is not written.
-     *
-     * <p>One case is a property of the same name declared in another type or cardinality. Oak would not refuse the
-     * value. A mismatched definition that is not mandatory gives way to a residual one, which every flow node type has.
-     * The property would then have a shape its own node type rules out.</p>
-     *
-     * <p>The other is no definition at all, named or residual, as on a record of a strict node type. Oak would
-     * refuse the property, and with it the whole save.</p>
-     *
-     * <p>The check asks what Oak asks, of the definitions Oak flattens onto each registered type. A match is
-     * keyed by the value's own type, or by {@code UNDEFINED}, in the same cardinality. A node type the registry
-     * does not know is left to Oak, which refuses the node itself.</p>
+     * Where a problem with a parameter of the element being translated lies: the element, and the parameter named
+     * by its path from the flow node.
      */
-    private static String nodeTypeRefusal(final ParameterInfo parameter, final int storageType,
-        final Context context)
+    private static ErrorContext about(final ParameterInfo parameter, final Context context)
     {
-        final NodeState nodeType = context.nodeTypesRoot().getChildNode(context.level().nodeType());
-        final boolean multiple = parameter.isMultiValued();
-        final String typed = Type.fromTag(storageType, multiple).toString();
-        final String untyped = Type.fromTag(PropertyType.UNDEFINED, multiple).toString();
-        final NodeState named = nodeType.getChildNode(NAMED_PROPERTY_DEFINITIONS_CHILD).getChildNode(parameter.name());
-        if (named.exists()) {
-            return named.hasChildNode(typed) || named.hasChildNode(untyped) ? null : DECLARED_DIFFERENTLY_PROBLEM;
-        }
-        final NodeState residual = nodeType.getChildNode(RESIDUAL_PROPERTY_DEFINITIONS_CHILD);
-        return !nodeType.exists() || residual.hasChildNode(typed) || residual.hasChildNode(untyped) ? null
-            : NOT_ALLOWED_PROBLEM;
+        return context.problems().context().with(WorkflowDefinitionUtils.ELEMENT_DETAIL,
+            context.element().getAttribute(ID_ATTRIBUTE)).with(PARAMETER_DETAIL, context.prefix() + parameter.name());
     }
 
-    /**
-     * Why the node a structure is stored as could not be written, or {@code null} when it could. Oak would refuse
-     * such a node, and with it the whole save, so the structure is not written.
-     *
-     * <p>The structure's {@code jcrNodeType} may not be registered. It may be abstract or a mixin, which no node
-     * can have as its primary type. It may have a mandatory child node, or a mandatory property besides its primary
-     * type, that it does not autocreate. That holds even for one a field could supply, since a field may be left out
-     * or dropped.</p>
-     *
-     * <p>Or the node holding the structure may have no definition for a child of that name and type, named or
-     * residual. A repeated structure is held in an {@code nt:unstructured} container, which takes records of any
-     * type.</p>
-     *
-     * <p>Asked the way Oak asks it: a definition is keyed by the type it requires, which the child's own type or
-     * any of its supertypes satisfies. A holder the registry does not know is left to Oak.</p>
-     */
-    private static String structureRefusal(final ParameterInfo parameter, final Context context)
+    /** Reports a problem the author can fix in the diagram. */
+    private static void report(final String problem, final ErrorContext details, final Context context)
     {
-        final NodeState types = context.nodeTypesRoot();
-        final String unwritable = recordTypeRefusal(types.getChildNode(parameter.nodeType()));
-        if (unwritable != null) {
-            return unwritable;
-        }
-        final NodeState holder = types.getChildNode(context.level().nodeType());
-        final String stored = parameter.isMultiValued() ? NT_UNSTRUCTURED_TYPE : parameter.nodeType();
-        final Set<String> satisfied = new LinkedHashSet<>();
-        satisfied.add(stored);
-        types.getChildNode(stored).getNames(SUPERTYPES_PROPERTY).forEach(satisfied::add);
-        final NodeState named = holder.getChildNode(NAMED_CHILD_NODE_DEFINITIONS_CHILD).getChildNode(parameter.name());
-        if (named.exists()) {
-            return satisfied.stream().anyMatch(named::hasChildNode) ? null : DECLARED_DIFFERENTLY_PROBLEM;
-        }
-        final NodeState residual = holder.getChildNode(RESIDUAL_CHILD_NODE_DEFINITIONS_CHILD);
-        return !holder.exists() || satisfied.stream().anyMatch(residual::hasChildNode) ? null : NOT_ALLOWED_PROBLEM;
-    }
-
-    /** Why no node of a structure's own type could be written, or {@code null} when one could. */
-    private static String recordTypeRefusal(final NodeState record)
-    {
-        if (!record.exists()) {
-            return "a structured parameter has a node type that is not registered";
-        }
-        if (record.getBoolean(IS_ABSTRACT_PROPERTY) || record.getBoolean(IS_MIXIN_PROPERTY)) {
-            return "a structured parameter has an abstract or mixin node type";
-        }
-        final boolean mandatory = unfilled(record, MANDATORY_CHILD_NODES_PROPERTY, NAMED_CHILD_NODE_DEFINITIONS_CHILD)
-            || unfilled(record, MANDATORY_PROPERTIES_PROPERTY, NAMED_PROPERTY_DEFINITIONS_CHILD);
-        return mandatory ? "a structured parameter has a node type with mandatory items" : null;
-    }
-
-    /** Whether a node type has a mandatory item that neither the parse writes nor the type autocreates. */
-    private static boolean unfilled(final NodeState type, final String mandatory, final String definitions)
-    {
-        return StreamSupport.stream(type.getNames(mandatory).spliterator(), false)
-            .filter(name -> !JCR_PRIMARY_TYPE_PROPERTY.equals(name))
-            .anyMatch(name -> StreamSupport.stream(
-                type.getChildNode(definitions).getChildNode(name).getChildNodeEntries().spliterator(), false)
-                .noneMatch(definition -> definition.getNodeState().getBoolean("jcr:autoCreated")));
-    }
-
-    private static void report(final String problem, final ParameterInfo parameter, final Context context)
-    {
-        report(problem, parameter, context, null, null);
-    }
-
-    private static void report(final String problem, final ParameterInfo parameter, final Context context,
-        final String key)
-    {
-        report(problem, parameter, context, key, null);
+        LOGGER.warn("Parameter problem in {}: {} {}", context.problems().path(), problem, details.getDetails());
+        context.problems().report(problem, details);
     }
 
     /** Reports a problem that lies in the vocabulary, which only an administrator can fix. */
-    private static void reportDefect(final String problem, final ParameterInfo parameter, final Context context)
+    private static void reportDefect(final String problem, final ErrorContext details, final Context context)
     {
-        report(problem, parameter, context, null, WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR_MESSAGE);
-    }
-
-    /**
-     * Reports a problem with a parameter of the element being translated, naming it by its path from the flow
-     * node. A problem about one record of a structure also names its key.
-     */
-    private static void report(final String problem, final ParameterInfo parameter, final Context context,
-        final String key, final String advice)
-    {
-        final String id = context.element().getAttribute(ID_ATTRIBUTE);
-        final String name = context.level().prefix() + parameter.name();
-        LOGGER.warn("Parameter {} of element {} in {}: {}", name, id, context.problems().path(), problem);
-        final ErrorContext details = context.problems().context()
-            .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, id).with(PARAMETER_DETAIL, name).with(KEY_DETAIL, key);
-        if (advice == null) {
-            context.problems().report(problem, details);
-        } else {
-            context.problems().report(problem, details, advice);
-        }
+        LOGGER.warn("Vocabulary problem in {}: {} {}", context.problems().path(), problem, details.getDetails());
+        context.problems().reportDefect(problem, details);
     }
 
     /** Reports a vocabulary declaration the parse cannot read, for each element of the entry's kind. */
-    private static void reportDeclaration(final String problem, final String path, final FlowNodeTypeInfo type,
-        final Element element, final ParseProblems problems)
+    private static void reportDeclaration(final String problem, final String path, final Context context)
     {
-        LOGGER.warn("Parameter {} of FlowNodeType {} for element {} in {}: {}", path, type.name(),
-            element.getAttribute(ID_ATTRIBUTE), problems.path(), problem);
-        problems.report(problem, problems.context()
-            .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE))
-            .with("flowNodeType", type.name()).with(PARAMETER_DETAIL, path),
-            WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR_MESSAGE);
+        reportDefect(problem, context.problems().context()
+            .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, context.element().getAttribute(ID_ATTRIBUTE))
+            .with(FLOW_NODE_TYPE_DETAIL, context.type().name()).with(PARAMETER_DETAIL, path), context);
     }
 }

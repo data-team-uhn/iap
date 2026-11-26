@@ -21,14 +21,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
-import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -146,6 +145,18 @@ class BpmnXmlSyncEditorTest
         DEFS_OPEN
         + PROCESS_OPEN
         + "    <bpmn:startEvent id=\"onlyStart\" name=\"Only\"/>\n"
+        + PROCESS_CLOSE
+        + DEFS_CLOSE;
+
+    /** A diagram the author must fix: an arc guarded by an expression the engine cannot evaluate. */
+    private static final String GUARDED_BY_EXPRESSION_XML =
+        DEFS_OPEN
+        + PROCESS_OPEN
+        + "    <bpmn:startEvent id=\"start1\"/>\n"
+        + "    <bpmn:endEvent id=\"end1\"/>\n"
+        + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
+        + "      <bpmn:conditionExpression>${approved}</bpmn:conditionExpression>\n"
+        + "    </bpmn:sequenceFlow>\n"
         + PROCESS_CLOSE
         + DEFS_CLOSE;
 
@@ -288,7 +299,7 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists());
         assertEquals(0, after.getChildNode(START_1).getChildNodeCount(1));
-        assertRecorded("extension node declares no name", START_1);
+        assertStored(after, "extension node declares no name", START_1);
     }
 
     @Test
@@ -306,7 +317,7 @@ class BpmnXmlSyncEditorTest
 
         final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
         assertEquals("equals", condition.getString("comparator"));
-        assertRecorded("extension property declares no name", START_1);
+        assertStored(after, "extension property declares no name", START_1);
     }
 
     @Test
@@ -361,9 +372,8 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists(), "the flow node itself is still derived");
         assertFalse(after.getChildNode(START_1).getChildNode("cond:condition").exists());
-        Mockito.verify(this.errors).logProblem(Mockito.eq("extension node declares no primary type"),
-            Mockito.argThat(context -> START_1.equals(context.getDetails().get("element"))
-                && "cond:condition".equals(context.getDetails().get("extensionNode"))));
+        assertEquals(List.of("extension node declares no primary type (start1, extensionNode=cond:condition)"),
+            after.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
     }
 
     @Test
@@ -419,7 +429,7 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists());
         assertNull(after.getChildNode(START_1).getString("messageName"));
-        assertNothingRecorded();
+        assertFalse(after.hasProperty(PARSE_PROBLEMS));
     }
 
     @Test
@@ -434,7 +444,7 @@ class BpmnXmlSyncEditorTest
             + PROCESS_CLOSE + DEFS_CLOSE);
 
         assertNull(after.getChildNode(START_1).getString("messageName"));
-        assertNothingRecorded();
+        assertFalse(after.hasProperty(PARSE_PROBLEMS));
     }
 
     @Test
@@ -991,7 +1001,7 @@ class BpmnXmlSyncEditorTest
     }
 
     @Test
-    void malformedBpmnXmlLeavesPreviousFlowNodesAndHashUntouched() throws Exception
+    void malformedBpmnXmlLeavesPreviousFlowNodesAndRemovesTheHash() throws Exception
     {
         final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
 
@@ -1001,7 +1011,7 @@ class BpmnXmlSyncEditorTest
         final NodeState result = process(synced, after);
         final NodeState version = version(result);
 
-        assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertFalse(version.hasProperty(HASH_PROPERTY), "saving the previous diagram again parses it again");
         assertTrue(version.getChildNode(START_1).exists());
         assertTrue(version.getChildNode(TASK_1).exists());
         assertTrue(version.getChildNode(END_1).exists());
@@ -1024,7 +1034,7 @@ class BpmnXmlSyncEditorTest
             + START_EVENT_XML.substring(START_EVENT_XML.indexOf("<bpmn:definitions")));
 
         final NodeState version = version(process(synced, after));
-        assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertFalse(version.hasProperty(HASH_PROPERTY));
         assertTrue(version.getChildNode(START_1).exists());
     }
 
@@ -1184,10 +1194,21 @@ class BpmnXmlSyncEditorTest
     @Test
     void bpmnXmlWithoutAProcessElementParsesToNoFlowNodes() throws Exception
     {
-        final NodeState version = firstSave(NO_PROCESS_XML);
+        assertFalse(firstSave(NO_PROCESS_XML).getChildNode(START_1).exists());
+    }
 
-        assertFalse(version.hasProperty(HASH_PROPERTY));
-        assertFalse(version.getChildNode(START_1).exists());
+    @Test
+    void bpmnXmlWithoutAProcessElementKeepsTheFlowNodesItHad() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+        final NodeBuilder after = synced.builder();
+        setBpmnXml(after, NO_PROCESS_XML);
+
+        final NodeState version = version(process(synced, after));
+
+        assertTrue(version.getChildNode(START_1).exists());
+        assertEquals(List.of("bpmnXml declares no process element"),
+            version.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
     }
 
     @Test
@@ -1217,7 +1238,43 @@ class BpmnXmlSyncEditorTest
         assertEquals(List.of("sequence flow guard is a conditionExpression, not a cond:condition (flow1,"
             + " conditionExpression=${approved})"), version.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
         assertEquals(List.of(INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
-        assertFalse(version.hasProperty(HASH_PROPERTY), "saving the same diagram again parses it again");
+    }
+
+    @Test
+    void storesTheHashOfADiagramWhoseParseReportedProblems() throws Exception
+    {
+        assertEquals(sha256(GUARDED_BY_EXPRESSION_XML),
+            firstSave(GUARDED_BY_EXPRESSION_XML).getProperty(HASH_PROPERTY).getValue(Type.STRING));
+    }
+
+    @Test
+    void reparsesAnEarlierDiagramSavedAgainAfterOneWithProblems() throws Exception
+    {
+        final NodeState clean = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+        final NodeBuilder broken = clean.builder();
+        setBpmnXml(broken, GUARDED_BY_EXPRESSION_XML);
+        final NodeState withProblems = process(clean, broken);
+        final NodeBuilder reverted = withProblems.builder();
+        setBpmnXml(reverted, START_EVENT_XML);
+
+        final NodeState version = version(process(withProblems, reverted));
+
+        assertFalse(version.hasProperty(PARSE_PROBLEMS));
+        assertFalse(version.hasProperty(TAGS));
+        assertTrue(version.getChildNode(TASK_1).exists());
+    }
+
+    @Test
+    void deletingBpmnXmlClearsTheProblemsAndTheInvalidTag() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(GUARDED_BY_EXPRESSION_XML));
+        final NodeBuilder after = synced.builder();
+        version(after).getChildNode(BPMN_XML).remove();
+
+        final NodeState version = version(process(synced, after));
+
+        assertFalse(version.hasProperty(PARSE_PROBLEMS));
+        assertFalse(version.hasProperty(TAGS));
     }
 
     @Test
@@ -1250,19 +1307,6 @@ class BpmnXmlSyncEditorTest
         assertEquals(List.of(INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
         assertEquals(1, version.getProperty(PARSE_PROBLEMS).count());
         assertTrue(version.getProperty(PARSE_PROBLEMS).getValue(Type.STRING, 0).contains("SAXParseException"));
-    }
-
-    @Test
-    void aFailureToRecordAParseFailureDoesNotFailTheCommit() throws Exception
-    {
-        final NodeBuilder base = base();
-        final Blob unreadable = Mockito.mock(Blob.class);
-        Mockito.when(unreadable.getNewStream()).thenThrow(new IllegalStateException("unreadable"));
-        version(base).setProperty(PropertyStates.createProperty(TAGS, List.of(unreadable), Type.BINARIES));
-
-        final NodeState version = firstSave(base, "<not-well-formed");
-
-        assertEquals(Type.BINARIES, version.getProperty(TAGS).getType(), "tags it could not read are left alone");
     }
 
     /** A collaboration declares one process per participant; only the first is parsed, and that is reported. */
@@ -1559,7 +1603,7 @@ class BpmnXmlSyncEditorTest
             + DEFS_CLOSE);
 
         assertTrue(version.getChildNode(START_1).getChildNode(FLOW_1).exists());
-        Mockito.verify(this.errors).logProblem(Mockito.contains("conditionExpression"), Mockito.any());
+        assertStored(version, "sequence flow guard is a conditionExpression, not a cond:condition", FLOW_1);
     }
 
     /** A guard belongs to the arc that declares it, not to whatever an extension nested further down. */
@@ -1713,19 +1757,16 @@ class BpmnXmlSyncEditorTest
     }
 
     /**
-     * Checks that a problem was recorded about the BPMN element it concerns.
+     * Checks that a problem about the BPMN element it concerns is stored on the version.
      *
-     * @param problem the phrase it was recorded under
+     * @param version the version parsed
+     * @param problem the phrase it was reported under
      * @param element the id of the BPMN element it is about
      */
-    private void assertRecorded(final String problem, final String element)
+    private static void assertStored(final NodeState version, final String problem, final String element)
     {
-        Mockito.verify(this.errors).logProblem(Mockito.eq(problem),
-            Mockito.argThat(context -> element.equals(context.getDetails().get("element"))));
-    }
-
-    private void assertNothingRecorded()
-    {
-        Mockito.verify(this.errors, Mockito.never()).logProblem(Mockito.anyString(), Mockito.any());
+        final PropertyState problems = version.getProperty(PARSE_PROBLEMS);
+        assertTrue(problems != null && StreamSupport.stream(problems.getValue(Type.STRINGS).spliterator(), false)
+            .anyMatch(line -> line.startsWith(problem + " (" + element)), () -> String.valueOf(problems));
     }
 }

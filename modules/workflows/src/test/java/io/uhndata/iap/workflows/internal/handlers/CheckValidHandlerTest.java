@@ -105,17 +105,17 @@ class CheckValidHandlerTest
     }
 
     @Test
-    void refusesAVersionTaggedInvalid() throws Exception
+    void refusesAVersionWithParseProblems() throws Exception
     {
-        AuthoringFixture.createVersion(this.context, "2-0", "2.0", null, Map.of("tags",
-            new String[] { "invalid" }, "parseProblems", new String[] { "skipped element (a)" }));
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", null,
+            Map.of("parseProblems", new String[] { "skipped element (a)" }));
         checks(new InvalidVersionCheck());
 
         final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(this.request(AuthoringFixture.path("2-0"))));
 
-        assertEquals("Version 2.0 is not ready yet: its diagram was not fully saved: skipped element (a).",
-            refusal.getMessage());
+        assertEquals("Version 2.0 is not ready yet: its process has a problem to fix before it can be activated:"
+            + " skipped element (a).", refusal.getMessage());
     }
 
     private void checks(final ValidityCheck... checks) throws ReflectiveOperationException

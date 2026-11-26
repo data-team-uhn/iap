@@ -92,6 +92,32 @@ public final class ParseFixture
     }
 
     /**
+     * What one parse produced.
+     *
+     * @param version the version the flow nodes were written into
+     * @param problems one line per problem, as stored on the version
+     * @since 0.1.0
+     */
+    public record Parsed(NodeState version, List<String> problems)
+    {
+    }
+
+    /**
+     * Parses a process holding the given elements, keeping both the version and what the parse reported.
+     *
+     * @param root the repository root, holding the vocabulary and the node type registry
+     * @param elements the process's contents
+     * @return the parse's result
+     * @throws Exception if the parse fails outright
+     */
+    public static Parsed parsed(final NodeBuilder root, final String elements) throws Exception
+    {
+        final NodeBuilder version = EmptyNodeState.EMPTY_NODE.builder();
+        final List<String> problems = parseInto(root, elements, version).lines();
+        return new Parsed(version.getNodeState(), problems);
+    }
+
+    /**
      * Parses a process holding the given elements and returns what the parse reported.
      *
      * @param root the repository root, holding the vocabulary and the node type registry

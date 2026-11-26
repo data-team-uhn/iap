@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -39,9 +38,12 @@ import org.xml.sax.SAXException;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.spi.TagProcessor;
 import io.uhndata.iap.utils.NodeTypeUtils;
 import io.uhndata.iap.workflows.ParseProblems;
 import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * A commit editor that keeps a {@code wf:WorkflowVersion}'s {@code wf:FlowNode}/{@code wf:SequenceFlow} children in
@@ -99,12 +101,6 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
     private static final String PARSED_HASH_PROPERTY = "bpmnXmlParsedHash";
-
-    private static final String PARSE_PROBLEMS_PROPERTY = "parseProblems";
-
-    private static final String TAGS_PROPERTY = "tags";
-
-    private static final String INVALID_TAG = "invalid";
 
     private static final String BPMN_AUTHORITATIVE_PROPERTY = "bpmnAuthoritative";
 
@@ -277,6 +273,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
         }
         WorkflowDefinitionUtils.clear(this.workflowVersion, this.context.nodeTypesRoot());
         this.workflowVersion.removeProperty(PARSED_HASH_PROPERTY);
+        recordProblems(List.of());
         LOGGER.debug("Cleared flow nodes for WorkflowVersion {}: {}", this.workflowVersionPath, reason);
     }
 
@@ -294,6 +291,10 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * Reparses the diagram unless the stored hash says the stored graph already came from these exact bytes. The
      * hash is taken from the blob's stream rather than a decoded string so that a multi-megabyte diagram is never
      * held in memory whole just to find out nothing changed.
+     *
+     * <p>The hash is stored after every parse that runs to its end, problems or not, and removed when a parse
+     * throws. Writing the same bytes again changes nothing Oak can see, so this editor does not run at all. A fix to
+     * the vocabulary therefore reaches a version only when its diagram next changes.</p>
      */
     private void syncIfNeeded(final Blob bpmnXml)
     {
@@ -323,48 +324,38 @@ public class BpmnXmlSyncEditor extends DefaultEditor
                     this.context.author(), this.workflowVersionPath);
             }
             recordProblems(problems.lines());
-            // Left unset after a problem, so that saving the same diagram again parses it again
-            if (problems.lines().isEmpty()) {
-                this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
-            }
+            this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
             LOGGER.debug("Synced flow nodes for WorkflowVersion {}", this.workflowVersionPath);
         } catch (final ParserConfigurationException | SAXException | IOException | RuntimeException e) {
             LOGGER.error("Failed to parse bpmnXml at {}: {}", this.workflowVersionPath, e.getMessage(), e);
-            // A failure rather than a problem: something threw where the translation expected to parse. The commit
-            // still succeeds, so the author is told nothing and the version keeps whatever flow nodes it had —
-            // which, for a first upload, is none at all
+            // The commit still succeeds, and the failure is the version's one problem. Its flow nodes survive only
+            // when the parse threw before clearing them.
             ErrorLogger.logError(e, ErrorContext.of(BpmnXmlSyncEditor.class, "syncFlowNodes")
                 .about(this.workflowVersionPath));
-            try {
-                recordProblems(List.of("The diagram could not be parsed (" + e.getClass().getSimpleName() + ")"));
-            } catch (final RuntimeException recordingFailure) {
-                LOGGER.error("Failed to record the parse failure at {}", this.workflowVersionPath, recordingFailure);
-            }
+            this.workflowVersion.removeProperty(PARSED_HASH_PROPERTY);
+            recordProblems(ParseProblems.ofFailure(this.workflowVersionPath, e).lines());
         }
     }
 
     /**
-     * Records what a parse complained about on the version: the {@code parseProblems} lines, and the {@code invalid}
-     * tag while a problem stands. Other tags are left as they are.
+     * Stores what a parse complained about on the version, and tags it {@code invalid} exactly while that list is
+     * not empty. Other tags are left as they are.
      */
     private void recordProblems(final List<String> lines)
     {
+        final Set<String> tags =
+            TagProcessor.readTags(this.workflowVersion.getNodeState(), TagManager.TAGS_PROPERTY);
         if (lines.isEmpty()) {
-            this.workflowVersion.removeProperty(PARSE_PROBLEMS_PROPERTY);
+            this.workflowVersion.removeProperty(WorkflowVersion.PARSE_PROBLEMS_PROPERTY);
+            tags.remove(WorkflowVersion.INVALID_TAG);
         } else {
-            this.workflowVersion.setProperty(PARSE_PROBLEMS_PROPERTY, lines, Type.STRINGS);
+            this.workflowVersion.setProperty(WorkflowVersion.PARSE_PROBLEMS_PROPERTY, lines, Type.STRINGS);
+            tags.add(WorkflowVersion.INVALID_TAG);
         }
-        final Set<String> tags = new LinkedHashSet<>();
-        final PropertyState existing = this.workflowVersion.getProperty(TAGS_PROPERTY);
-        if (existing != null) {
-            existing.getValue(Type.STRINGS).forEach(tags::add);
-        }
-        if (lines.isEmpty() ? tags.remove(INVALID_TAG) : tags.add(INVALID_TAG)) {
-            if (tags.isEmpty()) {
-                this.workflowVersion.removeProperty(TAGS_PROPERTY);
-            } else {
-                this.workflowVersion.setProperty(TAGS_PROPERTY, tags, Type.STRINGS);
-            }
+        if (tags.isEmpty()) {
+            this.workflowVersion.removeProperty(TagManager.TAGS_PROPERTY);
+        } else {
+            this.workflowVersion.setProperty(TagManager.TAGS_PROPERTY, tags, Type.STRINGS);
         }
     }
 

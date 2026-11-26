@@ -77,18 +77,23 @@ could disagree with its versions.
 
 A version keeps both representations of its graph: the `bpmn.xml` it was authored as,
 which the visual editor loads and saves, and the flow nodes it was parsed into, which
-the engine reads. `bpmnXmlParsedHash` records the source as of the last parse that
-stored everything it drew, so a graph that has fallen behind its diagram can be spotted.
-After a problem the hash is left unset, and saving the same diagram parses it again.
+the engine reads. `bpmnXmlParsedHash` records the source of the last parse, so a graph
+that has fallen behind its diagram can be spotted. A parse that throws removes it. Saving
+the same bytes again changes nothing in the repository, so it parses nothing: a fix to the
+vocabulary reaches a version only when its diagram next changes.
 
 A parse skips what it cannot store and carries on, since a commit editor that throws
 aborts the whole commit. Each thing it complains about is a line of the version's
-`parseProblems`, which the editor shows after a save. Any problem tags the version with
-the system tag `invalid`, and `InvalidVersionCheck` refuses to activate or trial it,
-listing the stored lines. Saving is never blocked. The tag and the lines go away on the
-next parse that finds nothing. A problem in the workflow vocabulary, which only an
-administrator can fix, ends with "Please contact an administrator". A diagram that could
-not be read at all records one line, and the version keeps the nodes it had.
+`parseProblems`, which the editor shows after a save. `InvalidVersionCheck` refuses to
+activate or trial a version while the list holds anything, and lists it. The parse tags
+the version `invalid` while the list holds anything, so the state shows as a chip; the
+check reads the list, not the tag. Saving is never blocked.
+The lines go away on the next parse that finds nothing. A problem in the workflow
+vocabulary, which only an administrator can fix, ends with "Please contact an
+administrator", and only those are recorded as errors. A diagram that could not be read,
+or holds no process, records one line, and the version keeps the nodes it had. BPMN
+artifacts such as text annotations, groups and data objects document a diagram and are
+skipped.
 
 The parse writes the flow nodes straight into the commit, where nothing autocreates. Once they are
 written, it gives each node what its node type autocreates: `sling:resourceType`, `jcr:created`, and any
@@ -305,10 +310,31 @@ parser nor the properties panel, and each parse of an element of that entry's ki
   "parameters": {
     "jcr:primaryType": "wf:Parameters",
     "name": { "jcr:primaryType": "wf:Parameter", "label": "Name", "minValues": 1 },
-    "label": { "jcr:primaryType": "wf:Parameter", "label": "Label" }
+    "label": { "jcr:primaryType": "wf:Parameter", "label": "Label" },
+    "referenceType": { "jcr:primaryType": "wf:Parameter", "label": "Reference type" },
+    "referenceRoot": { "jcr:primaryType": "wf:Parameter", "label": "Reference root" },
+    "choices": {
+      "jcr:primaryType": "wf:Parameter", "label": "Choice", "dataType": "structure", "maxValues": 0,
+      "keyParameter": "value",
+      "parameters": {
+        "jcr:primaryType": "wf:Parameters",
+        "value": { "jcr:primaryType": "wf:Parameter", "label": "Value", "minValues": 1 },
+        "label": { "jcr:primaryType": "wf:Parameter", "label": "Label" }
+      }
+    },
+    "appliesWhen": {
+      "jcr:primaryType": "wf:Parameter", "label": "Applies when", "dataType": "structure",
+      "parameters": {
+        "jcr:primaryType": "wf:Parameters",
+        "property": { "jcr:primaryType": "wf:Parameter", "label": "Property", "minValues": 1 },
+        "values": { "jcr:primaryType": "wf:Parameter", "label": "Values", "maxValues": 0 }
+      }
+    }
   }
 }
 ```
+
+This is a shortened form of the `fields` parameter `UpdateContent.json` declares.
 
 A structure is only read from inside the entry's extension element, one IAP-namespaced element per record
 named after the parameter, and each record holds its fields the way an extension element holds its parameters: a single value as an
@@ -348,8 +374,8 @@ unless its canvas was destroyed or the element is gone. The editor counts as hav
 first keystroke, so leaving the page asks first even before the value is written. An edit is only written for
 the entry the element still means: after an undo removed the entry's extension element, nothing brings it
 back. Each field flags a value its type cannot store (a `long` that is no whole number, a `boolean` that is
-neither `true` nor `false`) and, once it has been left, a required parameter with no value it can store. The
-parser reads any `boolean` text as `false` unless it is `true` in some letter case, so it never reports one. A
+neither `true`, `false`, `1` nor `0`) and, once it has been left, a required parameter with no value it can store. The
+parser reads `true`, `false`, `1` and `0` in any letter case as a `boolean`, and reports and drops any other word. A
 repeated structure flags a record whose trimmed key an earlier record already has, which the parser drops.
 **Save refuses a diagram holding a record the parser would drop for its key**, one with a repeated key or
 content and no key, at any depth. It lists them in an error and sends nothing. The check runs only when Save
@@ -592,7 +618,7 @@ tags placed on the host itself, never inherited or computed ones.
 `checkValid` asks every `ValidityCheck` (`io.uhndata.iap.workflows.spi`) that applies to
 the target what would stop it moving on, and refuses with all of it at once. Activating
 or trialling a workflow version runs it, and so does publishing a schema version. The
-workflow checks require exactly one start event, no `invalid` tag, and of a system workflow a
+workflow checks require exactly one start event, no parse problems, and of a system workflow a
 `targetResourceType`, a named message start and no user task. A module protects what it
 adds by registering another check.
 

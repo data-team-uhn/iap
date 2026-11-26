@@ -208,8 +208,8 @@ test.describe('the time off request demo', () => {
     // `timeDuration` element
     expect(version.approveRequest?.approvalOverdue?.timeDuration).toBe('P5D');
     expect(version.approveRequest?.approvalOverdue?.cancelActivity).toBe(true);
-    // The nudge: same task, earlier, and it does not cancel the task. Only `interrupting` tells "remind them"
-    // from "give up". It arrives as a boolean, not as the string in BPMN's `cancelActivity`.
+    // The nudge: same task, earlier, and it does not cancel the task. Only `cancelActivity` tells "remind them"
+    // from "give up". It arrives as a boolean, not as the string BPMN writes.
     expect(version.approveRequest?.approvalReminder?.timeDuration).toBe('P2D');
     expect(version.approveRequest?.approvalReminder?.cancelActivity).toBe(false);
     // The reminder's branch tags the request overdue; the approval task's branch carries on

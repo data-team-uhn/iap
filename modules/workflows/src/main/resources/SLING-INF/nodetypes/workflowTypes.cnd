@@ -219,8 +219,10 @@
 
 //-----------------------------------------------------------------------------
 // The fields of a structure, in the order they are declared.
-[wf:Parameters]
+[wf:Parameters] > data:EntityPart
   orderable
+
+  - sling:resourceType (STRING) = "wf/Parameters" mandatory autocreated protected
 
   + * (wf:Parameter)
 

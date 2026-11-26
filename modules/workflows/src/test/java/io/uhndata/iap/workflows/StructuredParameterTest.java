@@ -17,21 +17,21 @@
  */
 package io.uhndata.iap.workflows;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.Test;
 
+import io.uhndata.iap.workflows.ParseFixture.Parsed;
 import io.uhndata.iap.workflows.models.Parameter;
 
-import static io.uhndata.iap.workflows.ParseFixture.parse;
-import static io.uhndata.iap.workflows.ParseFixture.problemLines;
+import static io.uhndata.iap.workflows.ParseFixture.parsed;
 import static io.uhndata.iap.workflows.ParseFixture.serviceTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,21 +52,19 @@ class StructuredParameterTest
 
     private static final String NT_UNSTRUCTURED = "nt:unstructured";
 
+    private static final String NT_BASE = "nt:base";
+
     private static final String CHILD_ORDER = ":childOrder";
 
-    private static final String WORKFLOW_TYPES = "WorkflowTypes";
+    private static final String JCR_NODE_TYPE = "jcrNodeType";
 
-    private static final String KEY_PARAMETER = "keyParameter";
+    private static final String PARAMETERS_TYPE = "wf:Parameters";
 
-    private static final String XML_LOCATION = "xmlLocation";
+    private static final String MANDATORY_PROPERTIES = "rep:mandatoryProperties";
 
-    private static final String PARAMETER_DETAIL = "parameter";
+    private static final String MANDATORY_CHILD_NODES = "rep:mandatoryChildNodes";
 
-    private static final String KEY_DETAIL = "key";
-
-    private static final String ATTRIBUTE_DETAIL = "attribute";
-
-    private static final String CHILD_DETAIL = "child";
+    private static final String CHILD_NODE_DEFINITIONS = "rep:namedChildNodeDefinitions";
 
     private static final String TASK = ParseFixture.TASK;
 
@@ -80,15 +78,11 @@ class StructuredParameterTest
 
     private static final String HELP = "help";
 
-    private static final String REFERENCE_TYPE = "referenceType";
-
     private static final String REFERENCE_ROOT = "referenceRoot";
 
     private static final String CHOICES = "choices";
 
-    private static final String VALUE = "value";
-
-    private static final String DATA_TYPE = "dataType";
+    private static final String VALUE = Parameter.OPTION_VALUE_PROPERTY;
 
     private static final String APPLIES_WHEN = "appliesWhen";
 
@@ -108,435 +102,460 @@ class StructuredParameterTest
 
     private static final String WORKFLOW = "workflow";
 
-    private static final String JCR_NODE_TYPE = "jcrNodeType";
+    private static final String NOTE = "note";
 
-    private static final String MANDATORY_PROPERTIES = "rep:mandatoryProperties";
+    private static final String SINGLE = "single";
 
-    private static final String MANDATORY_CHILD_NODES = "rep:mandatoryChildNodes";
+    private static final String KEPT = "Kept";
+
+    private static final String ADVICE = ". Please contact an administrator";
+
+    /** Two field declarations, the first with keyed choices and a condition holding a list. */
+    private static final String UPDATE_CONTENT_FIELDS = "<iap:updateContent>"
+        + "<iap:fields name=\"workflow\" label=\"Workflow\" referenceType=\"wf/WorkflowVersion\""
+        + " referenceRoot=\"/Workflows\">"
+        + "<iap:choices value=\"a\" label=\"A\"/><iap:choices value=\"b\"/>"
+        + "<iap:appliesWhen property=\"dataType\"><iap:values>long</iap:values>"
+        + "<iap:values>text</iap:values></iap:appliesWhen>"
+        + "</iap:fields>"
+        + "<iap:fields name=\"status\" label=\"Status\"/>"
+        + "</iap:updateContent>";
 
     @Test
-    void storesTheFieldDeclarationsOfAnUpdateContentStepAsTheSubtreeItsHandlerReads() throws Exception
+    void storesARepeatedStructureAsAContainerOfRecordsInDiagramOrder() throws Exception
     {
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(withUpdateContent(), serviceTask(
-                "<iap:updateContent>"
-                + "<iap:fields name=\"workflow\" label=\"Workflow\" referenceType=\"wf/WorkflowVersion\""
-                + " referenceRoot=\"/Workflows\">"
-                + "<iap:choices value=\"a\" label=\"A\"/><iap:choices value=\"b\"/>"
-                + "<iap:appliesWhen property=\"dataType\"><iap:values>long</iap:values>"
-                + "<iap:values>text</iap:values></iap:appliesWhen>"
-                + "</iap:fields>"
-                + "<iap:fields name=\"status\" label=\"Status\"/>"
-                + "</iap:updateContent>")).getChildNode(TASK);
+        final Parsed parsed = parsed(withUpdateContent(), serviceTask(UPDATE_CONTENT_FIELDS));
 
-            assertEquals(List.of(), problems.messages());
-            final NodeState fields = task.getChildNode(FIELDS);
-            assertEquals(NT_UNSTRUCTURED, fields.getName(PRIMARY_TYPE));
-            assertEquals(List.of(WORKFLOW, "status"), names(fields.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
-            final NodeState workflow = fields.getChildNode(WORKFLOW);
-            assertEquals(NT_UNSTRUCTURED, workflow.getName(PRIMARY_TYPE));
-            assertEquals("Workflow", workflow.getString(LABEL));
-            assertEquals("wf/WorkflowVersion", workflow.getString(REFERENCE_TYPE));
-            assertEquals("/Workflows", workflow.getString(REFERENCE_ROOT));
-            assertFalse(workflow.hasProperty(NAME), "the key names the node instead");
-            final NodeState choices = workflow.getChildNode(CHOICES);
-            assertEquals(List.of("a", "b"), names(choices.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
-            assertEquals("A", choices.getChildNode("a").getString(LABEL));
-            assertFalse(choices.getChildNode("a").hasProperty(VALUE));
-            assertTrue(choices.getChildNode("b").exists());
-            final NodeState appliesWhen = workflow.getChildNode(APPLIES_WHEN);
-            assertEquals(DATA_TYPE, appliesWhen.getString(PROPERTY));
-            assertEquals(List.of("long", "text"), names(appliesWhen.getProperty(VALUES).getValue(Type.STRINGS)));
-            assertEquals("Status", fields.getChildNode("status").getString(LABEL));
-            assertFalse(fields.getChildNode("status").hasChildNode(CHOICES), "an absent list stores no container");
-        }
+        final NodeState fields = parsed.version().getChildNode(TASK).getChildNode(FIELDS);
+        assertEquals(NT_UNSTRUCTURED, fields.getName(PRIMARY_TYPE));
+        assertEquals(List.of(WORKFLOW, "status"), names(fields.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void storesEachRecordAsTheStructuresNodeTypeHoldingItsFields() throws Exception
+    {
+        final NodeState workflow = updateContentFields().getChildNode(WORKFLOW);
+
+        assertEquals(NT_UNSTRUCTURED, workflow.getName(PRIMARY_TYPE));
+        assertEquals("Workflow", workflow.getString(LABEL));
+        assertEquals("wf/WorkflowVersion", workflow.getString(Parameter.REFERENCE_TYPE_PROPERTY));
+        assertEquals("/Workflows", workflow.getString(REFERENCE_ROOT));
+    }
+
+    @Test
+    void namesARecordAfterItsKeyRatherThanStoringIt() throws Exception
+    {
+        final NodeState fields = updateContentFields();
+
+        assertTrue(fields.getChildNode(WORKFLOW).exists());
+        assertFalse(fields.getChildNode(WORKFLOW).hasProperty(NAME));
+    }
+
+    @Test
+    void storesARepeatedStructureNestedInARecord() throws Exception
+    {
+        final NodeState choices = updateContentFields().getChildNode(WORKFLOW).getChildNode(CHOICES);
+
+        assertEquals(List.of("a", "b"), names(choices.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
+        assertEquals("A", choices.getChildNode("a").getString(LABEL));
+        assertFalse(choices.getChildNode("a").hasProperty(VALUE));
+        assertTrue(choices.getChildNode("b").exists());
+    }
+
+    @Test
+    void storesASingleStructureNestedInARecord() throws Exception
+    {
+        final NodeState appliesWhen = updateContentFields().getChildNode(WORKFLOW).getChildNode(APPLIES_WHEN);
+
+        assertEquals(Parameter.DATA_TYPE_PROPERTY, appliesWhen.getString(PROPERTY));
+        assertEquals(List.of("long", "text"), names(appliesWhen.getProperty(VALUES).getValue(Type.STRINGS)));
+    }
+
+    @Test
+    void storesNoContainerForAListTheElementLeavesOut() throws Exception
+    {
+        final NodeState status = updateContentFields().getChildNode("status");
+
+        assertEquals("Status", status.getString(LABEL));
+        assertFalse(status.hasChildNode(CHOICES));
     }
 
     @Test
     void storesASingleStructureAsAChildNodeOfItsDeclaredType() throws Exception
     {
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState target = parse(withConfigure(), serviceTask(
-                "<iap:configure><iap:target path=\" /a \" depth=\"3\"><iap:tags>x</iap:tags><iap:tags>y</iap:tags>"
-                + "</iap:target></iap:configure>")).getChildNode(TASK).getChildNode(TARGET);
+        final Parsed parsed = parsed(withConfigure(), serviceTask(
+            "<iap:configure><iap:target path=\" /a \" depth=\"3\"><iap:tags>x</iap:tags><iap:tags>y</iap:tags>"
+            + "</iap:target></iap:configure>"));
 
-            assertEquals(List.of(), problems.messages());
-            assertEquals("sling:Folder", target.getName(PRIMARY_TYPE));
-            assertEquals("/a", target.getString(PATH));
-            assertEquals(3L, target.getProperty(DEPTH).getValue(Type.LONG));
-            assertEquals(List.of("x", "y"), names(target.getProperty(TAGS).getValue(Type.STRINGS)));
-            assertFalse(target.hasProperty(CHILD_ORDER));
-        }
+        final NodeState target = parsed.version().getChildNode(TASK).getChildNode(TARGET);
+        assertEquals("sling:Folder", target.getName(PRIMARY_TYPE));
+        assertEquals("/a", target.getString(PATH));
+        assertEquals(3L, target.getProperty(DEPTH).getValue(Type.LONG));
+        assertEquals(List.of("x", "y"), names(target.getProperty(TAGS).getValue(Type.STRINGS)));
+        assertFalse(target.hasProperty(CHILD_ORDER));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
-    void checksTheFieldsOfAStructureAsItChecksAnyParameter() throws Exception
+    void readsTheFirstOfMoreStructuresThanItAcceptsAndSaysSo() throws Exception
     {
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState target = parse(withConfigure(), serviceTask(
-                "<iap:configure><iap:target depth=\"deep\" colour=\"red\"><iap:extra/></iap:target>"
-                + "<iap:target path=\"/b\"/></iap:configure>")).getChildNode(TASK).getChildNode(TARGET);
+        final Parsed parsed = parsed(withConfigure(), serviceTask(
+            "<iap:configure><iap:target path=\"/a\"/><iap:target path=\"/b\"/></iap:configure>"));
 
-            assertEquals(List.of(
-                "a parameter has more values than it accepts",
-                "an IAP extension attribute is read by no parameter of its entry",
-                "an IAP extension child is read by no parameter of its entry",
-                "a required parameter has no value",
-                "a parameter has a value that is not a whole number"),
-                problems.names());
-            assertEquals(TARGET, problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("target/colour", problems.all().get(1).details().get(ATTRIBUTE_DETAIL));
-            assertEquals("target/extra", problems.all().get(2).details().get(CHILD_DETAIL));
-            assertEquals("target/path", problems.all().get(3).details().get(PARAMETER_DETAIL));
-            assertEquals("target/depth", problems.all().get(4).details().get(PARAMETER_DETAIL));
-            assertTrue(target.exists(), "the first element is read");
-            assertFalse(target.hasProperty(PATH));
-        }
+        assertEquals("/a", parsed.version().getChildNode(TASK).getChildNode(TARGET).getString(PATH));
+        assertEquals(List.of("a parameter has more values than it accepts (task1, parameter=target)"),
+            parsed.problems());
+    }
+
+    @Test
+    void reportsMarkupInsideAStructureThatNoFieldReads() throws Exception
+    {
+        final Parsed parsed = parsed(withConfigure(), serviceTask(
+            "<iap:configure><iap:target path=\"/a\" colour=\"red\"><iap:extra/></iap:target></iap:configure>"));
+
+        assertEquals(List.of(
+            "an IAP extension attribute is read by no parameter of its entry (task1, attribute=target/colour,"
+                + " flowNodeType=Configure)",
+            "an IAP extension child is read by no parameter of its entry (task1, child=target/extra,"
+                + " flowNodeType=Configure)"), parsed.problems());
+    }
+
+    @Test
+    void reportsAMissingFieldByItsPathFromTheFlowNode() throws Exception
+    {
+        final Parsed parsed = parsed(withConfigure(), serviceTask("<iap:configure><iap:target/></iap:configure>"));
+
+        assertEquals(List.of("a required parameter has no value (task1, parameter=target/path)"), parsed.problems());
+    }
+
+    @Test
+    void dropsAFieldValueItsTypeCannotReadAndSaysSo() throws Exception
+    {
+        final Parsed parsed = parsed(withConfigure(), serviceTask(
+            "<iap:configure><iap:target path=\"/a\" depth=\"deep\"/></iap:configure>"));
+
+        assertFalse(parsed.version().getChildNode(TASK).getChildNode(TARGET).hasProperty(DEPTH));
+        assertEquals(List.of(
+            "a parameter has a value that is not a whole number (task1, parameter=target/depth, value=deep)"),
+            parsed.problems());
     }
 
     @Test
     void namesARecordAfterItsKeyEscapedWhereANodeNameCannotHoldIt() throws Exception
     {
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState fields = parse(withUpdateContent(), serviceTask(
-                "<iap:updateContent>"
-                + "<iap:fields name=\"jcr:title\"><iap:choices value=\"sch:Section\"/></iap:fields>"
-                + "<iap:fields name=\"a/b\"/>"
-                + "<iap:fields name=\"..\"/>"
-                + "</iap:updateContent>")).getChildNode(TASK).getChildNode(FIELDS);
+        final Parsed parsed = parsed(withUpdateContent(), serviceTask(
+            "<iap:updateContent>"
+            + "<iap:fields name=\"jcr:title\"><iap:choices value=\"sch:Section\"/></iap:fields>"
+            + "<iap:fields name=\"a/b\"/>"
+            + "<iap:fields name=\"..\"/>"
+            + "</iap:updateContent>"));
 
-            assertEquals(List.of(), problems.messages());
-            assertEquals(List.of("jcr%3Atitle", "a%2Fb", "%2E%2E"),
-                names(fields.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
-            assertEquals(List.of("sch%3ASection"), names(fields.getChildNode("jcr%3Atitle").getChildNode(CHOICES)
-                .getProperty(CHILD_ORDER).getValue(Type.NAMES)));
-        }
+        final NodeState fields = parsed.version().getChildNode(TASK).getChildNode(FIELDS);
+        assertEquals(List.of("jcr%3Atitle", "a%2Fb", "%2E%2E"),
+            names(fields.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
+        assertEquals(List.of("sch%3ASection"), names(fields.getChildNode("jcr%3Atitle").getChildNode(CHOICES)
+            .getProperty(CHILD_ORDER).getValue(Type.NAMES)));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
-    void storesARecordWhoseNodeTypeCannotHoldItsKeyButReportsAFieldItCannotHold() throws Exception
+    void refusesAFieldTheRecordsNodeTypeCannotHold() throws Exception
     {
-        // Strict: a record may hold a label and nothing else, which is enough for the key, since that is its name
-        final NodeBuilder root = VocabularyFixture.repository();
-        NodeTypesFixture.type(root, "x:Record", "nt:base").child("rep:namedPropertyDefinitions").child(LABEL)
-            .child("STRING");
-        final NodeBuilder fields = fields(structure(VocabularyFixture.handler(root, "Describe", "describe"), FIELDS, 0)
-            .setProperty(KEY_PARAMETER, NAME).setProperty(JCR_NODE_TYPE, "x:Record"));
-        VocabularyFixture.parameter(fields, NAME, TEXT, 1, 1);
-        VocabularyFixture.parameter(fields, LABEL, TEXT, 0, 1);
-        VocabularyFixture.parameter(fields, HELP, TEXT, 0, 1);
+        final Parsed parsed = parsed(withDescribeRecords(), describedAge());
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState age = parse(root, serviceTask("<iap:describe><iap:fields name=\"age\" label=\"Age\""
-                + " help=\"In years\"/></iap:describe>")).getChildNode(TASK).getChildNode(FIELDS).getChildNode("age");
-
-            assertEquals(List.of("a parameter is not allowed by the node type it is stored in"), problems.names());
-            assertEquals("fields/age/help", problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("x:Record", age.getName(PRIMARY_TYPE));
-            assertFalse(age.hasProperty(NAME));
-            assertFalse(age.hasProperty(HELP));
-            assertEquals("Age", age.getString(LABEL));
-        }
+        assertFalse(parsed.version().getChildNode(TASK).getChildNode(FIELDS).getChildNode("age").hasProperty(HELP));
+        assertEquals(List.of("a parameter is not allowed by the node type it is stored in (task1,"
+            + " parameter=fields/age/help)" + ADVICE), parsed.problems());
     }
 
     @Test
-    void reportsAStructureOfAnUnregisteredNodeTypeRatherThanFailingTheSave() throws Exception
+    void storesARecordOfAStrictNodeTypeWithTheFieldsItCanHold() throws Exception
+    {
+        // A record whose type holds a label and nothing else, which is enough for the key, since that is its name
+        final NodeState age = parsed(withDescribeRecords(), describedAge()).version().getChildNode(TASK)
+            .getChildNode(FIELDS).getChildNode("age");
+
+        assertEquals("x:Record", age.getName(PRIMARY_TYPE));
+        assertFalse(age.hasProperty(NAME));
+        assertEquals("Age", age.getString(LABEL));
+    }
+
+    @Test
+    void refusesAStructureOfAnUnregisteredNodeTypeRatherThanFailingTheSave() throws Exception
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.handler(root, "Misspelt", "misspelt");
-        VocabularyFixture.parameter(fields(structure(type, "single", 1).setProperty(JCR_NODE_TYPE, "x:Missing")),
+        VocabularyFixture.parameter(fields(structure(type, SINGLE, 1).setProperty(JCR_NODE_TYPE, "x:Missing")),
             PATH, TEXT, 0, 1);
-        VocabularyFixture.parameter(fields(structure(type, "repeated", 0).setProperty(KEY_PARAMETER, NAME)
-            .setProperty(JCR_NODE_TYPE, "x:Missing")), NAME, TEXT, 1, 1);
+        VocabularyFixture.parameter(fields(structure(type, "repeated", 0)
+            .setProperty(Parameter.KEY_PARAMETER_PROPERTY, NAME).setProperty(JCR_NODE_TYPE, "x:Missing")),
+            NAME, TEXT, 1, 1);
         VocabularyFixture.parameter(type, LABEL, TEXT, 0, 1);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(root, serviceTask("<iap:misspelt label=\"Kept\"><iap:single path=\"/a\"/>"
-                + "<iap:repeated name=\"a\"/></iap:misspelt>")).getChildNode(TASK);
+        final Parsed parsed = parsed(root, serviceTask("<iap:misspelt label=\"Kept\"><iap:single path=\"/a\"/>"
+            + "<iap:repeated name=\"a\"/></iap:misspelt>"));
 
-            assertEquals(List.of("a structured parameter has a node type that is not registered",
-                "a structured parameter has a node type that is not registered"), problems.names());
-            assertFalse(task.hasChildNode("single") || task.hasChildNode("repeated"));
-            assertEquals("Kept", task.getString(LABEL));
-        }
+        final NodeState task = parsed.version().getChildNode(TASK);
+        assertEquals(List.of(
+            "a structured parameter has a node type that is not registered (task1, parameter=single)" + ADVICE,
+            "a structured parameter has a node type that is not registered (task1, parameter=repeated)" + ADVICE),
+            parsed.problems());
+        assertFalse(task.hasChildNode(SINGLE) || task.hasChildNode("repeated"));
+        assertEquals(KEPT, task.getString(LABEL));
     }
 
     @Test
-    void reportsAStructureOfANodeTypeNoRecordCanBeWrittenAsRatherThanFailingTheSave() throws Exception
+    void refusesAStructureOfAnAbstractOrMixinNodeType() throws Exception
     {
-        // Oak's own flattening of each: what TypeEditor would refuse a node builder's record for
-        final NodeBuilder root = VocabularyFixture.repository();
-        NodeTypesFixture.type(root, "x:Abstract", "nt:base").setProperty("jcr:isAbstract", true);
-        NodeTypesFixture.type(root, "x:Mixin").setProperty("jcr:isMixin", true);
-        NodeTypesFixture.type(root, "x:File", "nt:base")
-            .setProperty(MANDATORY_CHILD_NODES, List.of("jcr:content"), Type.NAMES);
-        NodeTypesFixture.type(root, "x:Part", "nt:base")
-            .setProperty(MANDATORY_PROPERTIES, List.of(PRIMARY_TYPE, "sling:resourceType"), Type.NAMES);
-        NodeTypesFixture.acceptingAnyProperty(NodeTypesFixture.type(root, "x:Plain", "nt:base")
-            .setProperty(MANDATORY_PROPERTIES, List.of(PRIMARY_TYPE), Type.NAMES));
-        final NodeBuilder type = VocabularyFixture.handler(root, "Strict", "strict");
-        for (final String nodeType : List.of("x:Abstract", "x:Mixin", "x:File", "x:Part", "x:Plain")) {
-            final String name = nodeType.substring(2).toLowerCase(Locale.ROOT);
-            VocabularyFixture.parameter(fields(structure(type, name, 0).setProperty(KEY_PARAMETER, NAME)
-                .setProperty(JCR_NODE_TYPE, nodeType)), NAME, TEXT, 1, 1);
-        }
-        VocabularyFixture.parameter(fields(structure(type, "single", 1).setProperty(JCR_NODE_TYPE, "x:Part")),
-            PATH, TEXT, 0, 1);
-        VocabularyFixture.parameter(type, LABEL, TEXT, 0, 1);
+        final Parsed parsed = parsed(withStrictRecords(), strictTask());
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(root, serviceTask("<iap:strict label=\"Kept\"><iap:abstract name=\"a\"/>"
-                + "<iap:mixin name=\"a\"/><iap:file name=\"a\"/><iap:part name=\"a\"/><iap:plain name=\"a\"/>"
-                + "<iap:single path=\"/a\"/></iap:strict>")).getChildNode(TASK);
+        assertEquals(Set.of(
+            "a structured parameter has an abstract or mixin node type (task1, parameter=abstract)" + ADVICE,
+            "a structured parameter has an abstract or mixin node type (task1, parameter=mixin)" + ADVICE),
+            linesStartingWith(parsed, "a structured parameter has an abstract or mixin node type"));
+        assertFalse(parsed.version().getChildNode(TASK).hasChildNode("abstract"));
+    }
 
-            final String uninstantiable = "a structured parameter has an abstract or mixin node type";
-            final String mandatory = "a structured parameter has a node type with mandatory items";
-            assertEquals(Map.of("abstract", uninstantiable, "mixin", uninstantiable, "file", mandatory,
-                "part", mandatory, "single", mandatory), problems.all().stream().collect(Collectors.toMap(
-                    problem -> problem.details().get(PARAMETER_DETAIL), RecordedProblems.Problem::problem)));
-            assertEquals(List.of("plain"), names(task.getChildNodeNames()));
-            assertEquals("x:Plain", task.getChildNode("plain").getChildNode("a").getName(PRIMARY_TYPE),
-                "a primary type is the one mandatory property the parse always writes");
-            assertEquals("Kept", task.getString(LABEL));
-        }
+    @Test
+    void refusesAStructureWhoseNodeTypeHasMandatoryItemsItDoesNotAutocreate() throws Exception
+    {
+        final Parsed parsed = parsed(withStrictRecords(), strictTask());
+
+        assertEquals(Set.of(
+            "a structured parameter has a node type with mandatory items (task1, parameter=file)" + ADVICE,
+            "a structured parameter has a node type with mandatory items (task1, parameter=part)" + ADVICE,
+            "a structured parameter has a node type with mandatory items (task1, parameter=single)" + ADVICE),
+            linesStartingWith(parsed, "a structured parameter has a node type with mandatory items"));
+        assertEquals(KEPT, parsed.version().getChildNode(TASK).getString(LABEL));
+    }
+
+    @Test
+    void writesAStructureWhoseOnlyMandatoryItemIsItsPrimaryType() throws Exception
+    {
+        final Parsed parsed = parsed(withStrictRecords(), strictTask());
+
+        final NodeState task = parsed.version().getChildNode(TASK);
+        assertEquals(List.of("plain"), names(task.getChildNodeNames()));
+        assertEquals("x:Plain", task.getChildNode("plain").getChildNode("a").getName(PRIMARY_TYPE));
     }
 
     @Test
     void writesAStructureWhoseMandatoryItemsItsTypeAutocreates() throws Exception
     {
         final NodeBuilder root = VocabularyFixture.repository();
-        final NodeBuilder part = NodeTypesFixture.acceptingAnyProperty(NodeTypesFixture.type(root, "x:Part", "nt:base")
+        final NodeBuilder part = NodeTypesFixture.acceptingAnyProperty(NodeTypesFixture.type(root, "x:Part", NT_BASE)
             .setProperty(MANDATORY_PROPERTIES, List.of(PRIMARY_TYPE, "sling:resourceType"), Type.NAMES)
-            .setProperty(MANDATORY_CHILD_NODES, List.of("note"), Type.NAMES));
-        part.child("rep:namedPropertyDefinitions").child("sling:resourceType").child("STRING")
-            .setProperty("jcr:autoCreated", true).setProperty("jcr:defaultValues", List.of("x/Part"), Type.STRINGS);
-        part.child("rep:namedChildNodeDefinitions").child("note").child("nt:unstructured")
-            .setProperty("jcr:autoCreated", true).setProperty("jcr:defaultPrimaryType", "nt:unstructured", Type.NAME);
-        final NodeBuilder type = VocabularyFixture.handler(root, "Strict", "strict");
-        VocabularyFixture.parameter(fields(structure(type, "single", 1).setProperty(JCR_NODE_TYPE, "x:Part")),
-            PATH, TEXT, 0, 1);
+            .setProperty(MANDATORY_CHILD_NODES, List.of(NOTE), Type.NAMES));
+        NodeTypesFixture.autoCreated(part, "sling:resourceType", "x/Part");
+        part.child(CHILD_NODE_DEFINITIONS).child(NOTE).child(NT_UNSTRUCTURED)
+            .setProperty("jcr:autoCreated", true).setProperty("jcr:defaultPrimaryType", NT_UNSTRUCTURED, Type.NAME);
+        VocabularyFixture.parameter(fields(structure(VocabularyFixture.handler(root, "Strict", "strict"), SINGLE, 1)
+            .setProperty(JCR_NODE_TYPE, "x:Part")), PATH, TEXT, 0, 1);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState single = parse(root, serviceTask("<iap:strict><iap:single path=\"/a\"/></iap:strict>"))
-                .getChildNode(TASK).getChildNode("single");
+        final Parsed parsed = parsed(root, serviceTask("<iap:strict><iap:single path=\"/a\"/></iap:strict>"));
 
-            assertEquals(List.of(), problems.names());
-            assertEquals("x/Part", single.getString("sling:resourceType"));
-            assertTrue(single.hasChildNode("note"));
-        }
+        final NodeState single = parsed.version().getChildNode(TASK).getChildNode(SINGLE);
+        assertEquals("x/Part", single.getString("sling:resourceType"));
+        assertTrue(single.hasChildNode(NOTE));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
-    void reportsAStructureTheNodeHoldingItDoesNotAdmitRatherThanFailingTheSave() throws Exception
+    void storesAStructureWhoseNodeTypeExtendsTheOneItsHolderDeclares() throws Exception
     {
-        // Strict: a holder takes a folder as its target and an x:Note as its note, and no other child
-        final NodeBuilder root = VocabularyFixture.repository();
-        final NodeBuilder holder = NodeTypesFixture.acceptingAnyProperty(
-            NodeTypesFixture.type(root, "x:Holder", "nt:base"));
-        holder.child("rep:namedChildNodeDefinitions").child(TARGET).child("nt:hierarchyNode");
-        holder.child("rep:namedChildNodeDefinitions").child("note").child("x:Note");
-        final NodeBuilder holders = fields(structure(VocabularyFixture.handler(root, "Hold", "hold"), "holders", 0)
-            .setProperty(KEY_PARAMETER, NAME).setProperty(JCR_NODE_TYPE, "x:Holder"));
-        VocabularyFixture.parameter(holders, NAME, TEXT, 1, 1);
-        VocabularyFixture.parameter(fields(structure(holders, TARGET, 1).setProperty(JCR_NODE_TYPE, "sling:Folder")),
-            PATH, TEXT, 0, 1);
-        VocabularyFixture.parameter(fields(structure(holders, "note", 1)), LABEL, TEXT, 0, 1);
-        VocabularyFixture.parameter(fields(structure(holders, "extras", 0).setProperty(KEY_PARAMETER, NAME)), NAME,
-            TEXT, 1, 1);
+        final Parsed parsed = parsed(withHolders(), heldTask());
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState held = parse(root, serviceTask("<iap:hold><iap:holders name=\"h\">"
-                + "<iap:target path=\"/a\"/><iap:note label=\"N\"/><iap:extras name=\"e\"/>"
-                + "</iap:holders></iap:hold>")).getChildNode(TASK).getChildNode("holders").getChildNode("h");
-
-            assertEquals(List.of("a parameter disagrees with the node type it is stored in",
-                "a parameter is not allowed by the node type it is stored in"), problems.names());
-            assertEquals("holders/h/note", problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("holders/h/extras", problems.all().get(1).details().get(PARAMETER_DETAIL));
-            assertEquals("/a", held.getChildNode(TARGET).getString(PATH), "a supertype satisfies a definition");
-            assertFalse(held.hasChildNode("note") || held.hasChildNode("extras"));
-        }
+        assertEquals("/a", parsed.version().getChildNode(TASK).getChildNode("holders").getChildNode("h")
+            .getChildNode(TARGET).getString(PATH));
     }
 
     @Test
-    void reportsElementsWithoutAKeyOrWithTheSameKeyAsAnother() throws Exception
+    void refusesAStructureItsHolderDeclaresAsAnotherNodeType() throws Exception
     {
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState fields = parse(withUpdateContent(), serviceTask(
-                "<iap:updateContent>"
-                + "<iap:fields label=\"Nameless\"/>"
-                + "<iap:fields name=\"kept\" label=\"First\"/>"
-                + "<iap:fields name=\" kept \" label=\"Second\"/>"
-                + "</iap:updateContent>")).getChildNode(TASK).getChildNode(FIELDS);
+        final Parsed parsed = parsed(withHolders(), heldTask());
 
-            assertEquals(List.of("an element of a structured parameter has no key",
-                "an element of a structured parameter has the same key as another"), problems.names());
-            assertEquals(FIELDS, problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("kept", problems.all().get(1).details().get(KEY_DETAIL));
-            assertEquals(List.of("kept"), names(fields.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
-            assertEquals("First", fields.getChildNode("kept").getString(LABEL));
-        }
+        assertFalse(parsed.version().getChildNode(TASK).getChildNode("holders").getChildNode("h").hasChildNode(NOTE));
+        assertEquals("a parameter disagrees with the node type it is stored in (task1, parameter=holders/h/note)"
+            + ADVICE, parsed.problems().get(0));
     }
 
     @Test
-    void reportsARepeatedStructureWithoutAUsableKeyField() throws Exception
+    void refusesAStructureItsHolderHasNoDefinitionFor() throws Exception
     {
+        final Parsed parsed = parsed(withHolders(), heldTask());
+
+        assertFalse(parsed.version().getChildNode(TASK).getChildNode("holders").getChildNode("h")
+            .hasChildNode("extras"));
+        assertEquals("a parameter is not allowed by the node type it is stored in (task1,"
+            + " parameter=holders/h/extras)" + ADVICE, parsed.problems().get(1));
+    }
+
+    @Test
+    void reportsAnElementWithoutAKey() throws Exception
+    {
+        final Parsed parsed = parsed(withUpdateContent(), serviceTask(
+            "<iap:updateContent><iap:fields label=\"Nameless\"/><iap:fields name=\"kept\"/></iap:updateContent>"));
+
+        assertEquals(List.of("kept"), names(parsed.version().getChildNode(TASK).getChildNode(FIELDS)
+            .getProperty(CHILD_ORDER).getValue(Type.NAMES)));
+        assertEquals(List.of("an element of a structured parameter has no key (task1, parameter=fields)"),
+            parsed.problems());
+    }
+
+    @Test
+    void keepsTheFirstOfTwoElementsWithTheSameKeyAndSaysSo() throws Exception
+    {
+        final Parsed parsed = parsed(withUpdateContent(), serviceTask(
+            "<iap:updateContent><iap:fields name=\"kept\" label=\"First\"/>"
+            + "<iap:fields name=\" kept \" label=\"Second\"/></iap:updateContent>"));
+
+        final NodeState fields = parsed.version().getChildNode(TASK).getChildNode(FIELDS);
+        assertEquals(List.of("kept"), names(fields.getProperty(CHILD_ORDER).getValue(Type.NAMES)));
+        assertEquals("First", fields.getChildNode("kept").getString(LABEL));
+        assertEquals(List.of(
+            "an element of a structured parameter has the same key as another (task1, parameter=fields, key=kept)"),
+            parsed.problems());
+    }
+
+    @Test
+    void refusesARepeatedStructureWithoutASingleValuedKeyField() throws Exception
+    {
+        // No key named, a key naming no field, a list as the key, and a structure as the key
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.handler(root, "Keyless", "keyless");
         structure(type, "none", 0);
-        VocabularyFixture.parameter(fields(structure(type, "missing", 0).setProperty(KEY_PARAMETER, "nothing")), NAME,
-            TEXT, 0, 1);
-        VocabularyFixture.parameter(fields(structure(type, "listed", 0).setProperty(KEY_PARAMETER, NAME)), NAME,
-            TEXT, 0, 0);
-        structure(fields(structure(type, "nested", 0).setProperty(KEY_PARAMETER, NAME)), NAME, 1);
+        VocabularyFixture.parameter(fields(structure(type, "missing", 0)
+            .setProperty(Parameter.KEY_PARAMETER_PROPERTY, "nothing")), NAME, TEXT, 0, 1);
+        VocabularyFixture.parameter(fields(structure(type, "listed", 0)
+            .setProperty(Parameter.KEY_PARAMETER_PROPERTY, NAME)), NAME, TEXT, 0, 0);
+        structure(fields(structure(type, "nested", 0).setProperty(Parameter.KEY_PARAMETER_PROPERTY, NAME)), NAME, 1);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(root, serviceTask("<iap:keyless><iap:none/><iap:missing name=\"a\"/>"
-                + "<iap:listed><iap:name>a</iap:name></iap:listed><iap:nested><iap:name/></iap:nested>"
-                + "</iap:keyless>")).getChildNode(TASK);
+        final Parsed parsed = parsed(root, serviceTask("<iap:keyless><iap:none/><iap:missing name=\"a\"/>"
+            + "<iap:listed><iap:name>a</iap:name></iap:listed><iap:nested><iap:name/></iap:nested>"
+            + "</iap:keyless>"));
 
-            assertEquals(4, problems.all().size(), () -> String.valueOf(problems.messages()));
-            problems.all().forEach(problem -> assertEquals(
-                "a repeated structured parameter declares no single-valued key", problem.problem()));
-            assertFalse(task.hasChildNode("none") || task.hasChildNode("missing") || task.hasChildNode("listed")
-                || task.hasChildNode("nested"));
-        }
+        assertEquals(Stream.of("none", "missing", "listed", "nested")
+            .map(name -> "a repeated structured parameter declares no single-valued key (task1, parameter=" + name
+                + ")" + ADVICE)
+            .collect(Collectors.toSet()), Set.copyOf(parsed.problems()));
+        assertEquals(List.of(), names(parsed.version().getChildNode(TASK).getChildNodeNames()));
     }
 
     @Test
-    void reportsAStructureOutsideAnExtensionElement() throws Exception
+    void refusesAStructureOutsideAnExtensionElement() throws Exception
     {
         final NodeBuilder root = VocabularyFixture.repository();
         structure(VocabularyFixture.handler(root, "Inline", "inline"), "elsewhere", 1)
-            .setProperty(XML_LOCATION, "attribute");
-        final NodeBuilder bare =
-            VocabularyFixture.entry(root, "Bare", "bpmn:scriptTask", VocabularyFixture.ACTIVITY, 10);
-        structure(bare, "loose", 0);
+            .setProperty(Parameter.XML_LOCATION_PROPERTY, Parameter.ATTRIBUTE_LOCATION);
+        structure(VocabularyFixture.entry(root, "Bare", "bpmn:scriptTask", VocabularyFixture.ACTIVITY, 10), "loose",
+            0);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, serviceTask("<iap:inline/>") + "    <bpmn:scriptTask id=\"script1\"/>\n");
+        final Parsed parsed = parsed(root, serviceTask("<iap:inline/>") + "    <bpmn:scriptTask id=\"script1\"/>\n");
 
-            assertEquals(List.of("a structured parameter is not inside an extension element",
-                "a structured parameter is not inside an extension element"), problems.names());
-        }
+        assertEquals(List.of(
+            "a structured parameter is not inside an extension element (task1, parameter=elsewhere)" + ADVICE,
+            "a structured parameter is not inside an extension element (script1, parameter=loose)" + ADVICE),
+            parsed.problems());
     }
 
     @Test
-    void asksForAnAdministratorWhenAStructureIsDeclaredOutsideAnExtensionElement() throws Exception
+    void reportsAStructureWrittenAsAnAttribute() throws Exception
     {
-        final NodeBuilder root = VocabularyFixture.repository();
-        structure(VocabularyFixture.handler(root, "Inline", "inline"), "elsewhere", 1)
-            .setProperty(XML_LOCATION, "attribute");
+        final Parsed parsed = parsed(withConfigure(), serviceTask("<iap:configure target=\"/a\"/>"));
 
-        final List<String> lines = problemLines(root, serviceTask("<iap:inline/>"));
-
-        assertEquals(1, lines.size());
-        assertTrue(lines.get(0).endsWith(". Please contact an administrator"));
+        assertFalse(parsed.version().getChildNode(TASK).hasChildNode(TARGET));
+        assertEquals(List.of("a structured parameter is written as an attribute instead (task1, parameter=target)",
+            "a required parameter has no value (task1, parameter=target)"), parsed.problems());
     }
 
     @Test
-    void reportsAStructureWrittenAsAnAttributeOrLeftOut() throws Exception
+    void acceptsAnOptionalStructureLeftOut() throws Exception
     {
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(withConfigure(), serviceTask("<iap:configure target=\"/a\"/>"))
-                .getChildNode(TASK);
-
-            assertEquals(List.of("a structured parameter is written as an attribute instead",
-                "a required parameter has no value"), problems.names());
-            assertFalse(task.hasChildNode(TARGET));
-        }
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(withUpdateContent(), serviceTask("<iap:updateContent/>"));
-
-            assertEquals(List.of(), problems.messages(), "an optional structure may be left out");
-        }
+        assertEquals(List.of(), parsed(withUpdateContent(), serviceTask("<iap:updateContent/>")).problems());
     }
 
     @Test
-    void reportsAFieldDeclaredOutsideItsStructure() throws Exception
+    void refusesAFieldDeclaredOutsideItsStructuresElement() throws Exception
     {
         final NodeBuilder root = withConfigure();
-        fields(root.child(WORKFLOW_TYPES).child("Configure").child(TARGET)).child("flag")
-            .setProperty(PRIMARY_TYPE, "wf:Parameter", Type.NAME)
-            .setProperty(DATA_TYPE, Parameter.TEXT_DATA_TYPE)
-            .setProperty(XML_LOCATION, "attribute");
+        fields(root.child(VocabularyFixture.WORKFLOW_TYPES).child("Configure").child(TARGET)).child("flag")
+            .setProperty(PRIMARY_TYPE, Parameter.NODE_TYPE, Type.NAME)
+            .setProperty(Parameter.DATA_TYPE_PROPERTY, TEXT)
+            .setProperty(Parameter.XML_LOCATION_PROPERTY, Parameter.ATTRIBUTE_LOCATION);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, serviceTask("<iap:configure><iap:target path=\"/a\" flag=\"on\"/></iap:configure>"));
+        final Parsed parsed = parsed(root, serviceTask(
+            "<iap:configure><iap:target path=\"/a\" flag=\"on\"/></iap:configure>"));
 
-            assertEquals(List.of("a field of a structured parameter is not written inside it"),
-                problems.names());
-            assertEquals("target/flag", problems.all().get(0).details().get(PARAMETER_DETAIL));
-        }
+        assertEquals(List.of("a field of a structured parameter is not written inside it (task1,"
+            + " parameter=target/flag)" + ADVICE), parsed.problems());
     }
 
     @Test
-    void reportsAFieldDeclaredBesideItsStructuresParametersNode() throws Exception
+    void reportsAFieldDeclaredBesideItsStructuresFieldsNode() throws Exception
     {
-        final NodeBuilder root = withConfigure();
-        VocabularyFixture.parameter(root.child(WORKFLOW_TYPES).child("Configure").child(TARGET), "flag", TEXT, 0, 1);
+        final Parsed parsed = parsed(withMisplacedFlag(), serviceTask(
+            "<iap:configure><iap:target path=\"/a\"/></iap:configure>"));
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState stored = parse(root, serviceTask("<iap:configure><iap:target path=\"/a\"/>"
-                + "</iap:configure>")).getChildNode(TASK).getChildNode(TARGET);
+        assertEquals(List.of("a vocabulary entry declares a field outside a structure (task1, flowNodeType=Configure,"
+            + " parameter=target/flag)" + ADVICE), parsed.problems());
+    }
 
-            assertEquals(List.of("a vocabulary entry declares a field outside a structure"),
-                problems.names());
-            assertEquals("target/flag", problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("/a", stored.getString(PATH), "the fields that are declared properly are still read");
-        }
+    @Test
+    void readsTheFieldsDeclaredProperlyBesideAMisplacedOne() throws Exception
+    {
+        final Parsed parsed = parsed(withMisplacedFlag(), serviceTask(
+            "<iap:configure><iap:target path=\"/a\"/></iap:configure>"));
+
+        assertEquals("/a", parsed.version().getChildNode(TASK).getChildNode(TARGET).getString(PATH));
     }
 
     @Test
     void namesAStrayDeclarationInsideANestedStructureByItsPath() throws Exception
     {
         final NodeBuilder root = withUpdateContent();
-        final NodeBuilder fields = root.child(WORKFLOW_TYPES).child("UpdateContent").child(FIELDS)
+        final NodeBuilder fields = root.child(VocabularyFixture.WORKFLOW_TYPES).child("UpdateContent").child(FIELDS)
             .child(Parameter.FIELDS_CHILD);
         VocabularyFixture.parameter(fields.child(CHOICES), "hint", TEXT, 0, 1);
-        fields.child("note").setProperty(PRIMARY_TYPE, NT_UNSTRUCTURED, Type.NAME)
+        fields.child(NOTE).setProperty(PRIMARY_TYPE, NT_UNSTRUCTURED, Type.NAME)
             .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, serviceTask("<iap:updateContent><iap:fields name=\"title\"/></iap:updateContent>"));
+        final Parsed parsed = parsed(root, serviceTask(
+            "<iap:updateContent><iap:fields name=\"title\"/></iap:updateContent>"));
 
-            assertEquals(List.of("a vocabulary entry holds a parameter of the wrong node type",
-                "a vocabulary entry declares a field outside a structure"),
-                problems.names());
-            assertEquals("fields/parameters/note", problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("fields/parameters/choices/hint", problems.all().get(1).details().get(PARAMETER_DETAIL));
-        }
+        assertEquals(List.of(
+            "a vocabulary entry holds a parameter of the wrong node type (task1, flowNodeType=UpdateContent,"
+                + " parameter=fields/parameters/note)" + ADVICE,
+            "a vocabulary entry declares a field outside a structure (task1, flowNodeType=UpdateContent,"
+                + " parameter=fields/parameters/choices/hint)" + ADVICE), parsed.problems());
     }
 
     @Test
-    void readsFieldsNamedLikeThePropertiesOfTheirStructure() throws Exception
+    void readsFieldsNamedLikeTheSettingsOfAParameter() throws Exception
     {
-        final NodeBuilder root = VocabularyFixture.repository();
-        final NodeBuilder fields = fields(structure(VocabularyFixture.handler(root, "Describe", "describe"), FIELDS, 0)
-            .setProperty(KEY_PARAMETER, NAME));
-        VocabularyFixture.parameter(fields, NAME, TEXT, 1, 1);
-        VocabularyFixture.parameter(fields, LABEL, TEXT, 1, 1);
-        final NodeBuilder dataType = VocabularyFixture.parameter(fields, DATA_TYPE, TEXT, 0, 1);
-        for (final String offered : List.of("long", "text")) {
-            dataType.child(offered).setProperty(PRIMARY_TYPE, "wf:ParameterOption", Type.NAME)
-                .setProperty(VALUE, offered);
-        }
+        final NodeState stored = parsed(withDescribedFields(), describedFields()).version().getChildNode(TASK)
+            .getChildNode(FIELDS);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState stored = parse(root, serviceTask("<iap:describe>"
-                + "<iap:fields name=\"age\" label=\"Age\" dataType=\"long\"/>"
-                + "<iap:fields name=\"odd\" label=\"Odd\" dataType=\"structure\"/>"
-                + "<iap:fields name=\"bare\"/>"
-                + "</iap:describe>")).getChildNode(TASK).getChildNode(FIELDS);
+        assertEquals("Age", stored.getChildNode("age").getString(LABEL));
+        assertEquals("long", stored.getChildNode("age").getString(Parameter.DATA_TYPE_PROPERTY));
+        assertEquals("Odd", stored.getChildNode("odd").getString(LABEL));
+    }
 
-            assertEquals(List.of("a parameter has a value it does not offer", "a required parameter has no value"),
-                problems.names());
-            assertEquals("fields/odd/dataType", problems.all().get(0).details().get(PARAMETER_DETAIL));
-            assertEquals("fields/bare/label", problems.all().get(1).details().get(PARAMETER_DETAIL));
-            assertEquals("Age", stored.getChildNode("age").getString(LABEL));
-            assertEquals("long", stored.getChildNode("age").getString(DATA_TYPE));
-            assertEquals("Odd", stored.getChildNode("odd").getString(LABEL));
-        }
+    @Test
+    void checksFieldsNamedLikeTheSettingsOfAParameterAsAnyOthers() throws Exception
+    {
+        final Parsed parsed = parsed(withDescribedFields(), describedFields());
+
+        assertEquals(List.of(
+            "a parameter has a value it does not offer (task1, parameter=fields/odd/dataType, value=structure)",
+            "a required parameter has no value (task1, parameter=fields/bare/label)"), parsed.problems());
+    }
+
+    /** The records the field declarations of {@link #UPDATE_CONTENT_FIELDS} are stored as. */
+    private NodeState updateContentFields() throws Exception
+    {
+        return parsed(withUpdateContent(), serviceTask(UPDATE_CONTENT_FIELDS)).version().getChildNode(TASK)
+            .getChildNode(FIELDS);
     }
 
     /**
@@ -547,12 +566,12 @@ class StructuredParameterTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.handler(root, "UpdateContent", UPDATE_CONTENT);
-        final NodeBuilder fields = fields(structure(type, FIELDS, 0).setProperty(KEY_PARAMETER, NAME));
+        final NodeBuilder fields = fields(keyed(structure(type, FIELDS, 0), NAME));
         VocabularyFixture.parameter(fields, NAME, TEXT, 1, 1);
         VocabularyFixture.parameter(fields, LABEL, TEXT, 0, 1);
-        VocabularyFixture.parameter(fields, REFERENCE_TYPE, TEXT, 0, 1);
+        VocabularyFixture.parameter(fields, Parameter.REFERENCE_TYPE_PROPERTY, TEXT, 0, 1);
         VocabularyFixture.parameter(fields, REFERENCE_ROOT, TEXT, 0, 1);
-        final NodeBuilder choices = fields(structure(fields, CHOICES, 0).setProperty(KEY_PARAMETER, VALUE));
+        final NodeBuilder choices = fields(keyed(structure(fields, CHOICES, 0), VALUE));
         VocabularyFixture.parameter(choices, VALUE, TEXT, 1, 1);
         VocabularyFixture.parameter(choices, LABEL, TEXT, 0, 1);
         final NodeBuilder appliesWhen = fields(structure(fields, APPLIES_WHEN, 1));
@@ -566,11 +585,123 @@ class StructuredParameterTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder target = fields(structure(VocabularyFixture.handler(root, "Configure", CONFIGURE), TARGET, 1)
-            .setProperty("minValues", 1L).setProperty(JCR_NODE_TYPE, "sling:Folder"));
+            .setProperty(Parameter.MIN_VALUES_PROPERTY, 1L).setProperty(JCR_NODE_TYPE, "sling:Folder"));
         VocabularyFixture.parameter(target, PATH, TEXT, 1, 1);
         VocabularyFixture.parameter(target, TAGS, TEXT, 0, 0);
         VocabularyFixture.parameter(target, DEPTH, Parameter.LONG_DATA_TYPE, 0, 1);
         return root;
+    }
+
+    /** {@link #withConfigure()} with a field declared beside the target's fields node rather than inside it. */
+    private NodeBuilder withMisplacedFlag()
+    {
+        final NodeBuilder root = withConfigure();
+        VocabularyFixture.parameter(root.child(VocabularyFixture.WORKFLOW_TYPES).child("Configure").child(TARGET),
+            "flag", TEXT, 0, 1);
+        return root;
+    }
+
+    /** Field declarations stored as records of a strict type, which holds a label and nothing else. */
+    private NodeBuilder withDescribeRecords()
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        NodeTypesFixture.type(root, "x:Record", NT_BASE).child("rep:namedPropertyDefinitions").child(LABEL)
+            .child("STRING");
+        final NodeBuilder fields = fields(keyed(structure(VocabularyFixture.handler(root, "Describe", "describe"),
+            FIELDS, 0), NAME).setProperty(JCR_NODE_TYPE, "x:Record"));
+        VocabularyFixture.parameter(fields, NAME, TEXT, 1, 1);
+        VocabularyFixture.parameter(fields, LABEL, TEXT, 0, 1);
+        VocabularyFixture.parameter(fields, HELP, TEXT, 0, 1);
+        return root;
+    }
+
+    private static String describedAge()
+    {
+        return serviceTask("<iap:describe><iap:fields name=\"age\" label=\"Age\" help=\"In years\"/></iap:describe>");
+    }
+
+    /** Field declarations whose fields are named like a parameter's settings, one of them offering options. */
+    private NodeBuilder withDescribedFields()
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        final NodeBuilder fields = fields(keyed(structure(VocabularyFixture.handler(root, "Describe", "describe"),
+            FIELDS, 0), NAME));
+        VocabularyFixture.parameter(fields, NAME, TEXT, 1, 1);
+        VocabularyFixture.parameter(fields, LABEL, TEXT, 1, 1);
+        final NodeBuilder dataType = VocabularyFixture.parameter(fields, Parameter.DATA_TYPE_PROPERTY, TEXT, 0, 1);
+        for (final String offered : List.of("long", "text")) {
+            dataType.child(offered).setProperty(PRIMARY_TYPE, Parameter.OPTION_NODE_TYPE, Type.NAME)
+                .setProperty(VALUE, offered);
+        }
+        return root;
+    }
+
+    private static String describedFields()
+    {
+        return serviceTask("<iap:describe>"
+            + "<iap:fields name=\"age\" label=\"Age\" dataType=\"long\"/>"
+            + "<iap:fields name=\"odd\" label=\"Odd\" dataType=\"structure\"/>"
+            + "<iap:fields name=\"bare\"/>"
+            + "</iap:describe>");
+    }
+
+    /**
+     * Structures of node types no record can be written as, as Oak flattens each, then one of a type whose only
+     * mandatory item is its primary type, then a plain parameter.
+     */
+    private NodeBuilder withStrictRecords()
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        NodeTypesFixture.type(root, "x:Abstract", NT_BASE).setProperty("jcr:isAbstract", true);
+        NodeTypesFixture.type(root, "x:Mixin").setProperty("jcr:isMixin", true);
+        NodeTypesFixture.type(root, "x:File", NT_BASE)
+            .setProperty(MANDATORY_CHILD_NODES, List.of("jcr:content"), Type.NAMES);
+        NodeTypesFixture.type(root, "x:Part", NT_BASE)
+            .setProperty(MANDATORY_PROPERTIES, List.of(PRIMARY_TYPE, "sling:resourceType"), Type.NAMES);
+        NodeTypesFixture.acceptingAnyProperty(NodeTypesFixture.type(root, "x:Plain", NT_BASE)
+            .setProperty(MANDATORY_PROPERTIES, List.of(PRIMARY_TYPE), Type.NAMES));
+        final NodeBuilder type = VocabularyFixture.handler(root, "Strict", "strict");
+        for (final String name : List.of("abstract", "mixin", "file", "part", "plain")) {
+            final String nodeType = "x:" + Character.toUpperCase(name.charAt(0)) + name.substring(1);
+            VocabularyFixture.parameter(fields(keyed(structure(type, name, 0), NAME)
+                .setProperty(JCR_NODE_TYPE, nodeType)), NAME, TEXT, 1, 1);
+        }
+        VocabularyFixture.parameter(fields(structure(type, SINGLE, 1).setProperty(JCR_NODE_TYPE, "x:Part")),
+            PATH, TEXT, 0, 1);
+        VocabularyFixture.parameter(type, LABEL, TEXT, 0, 1);
+        return root;
+    }
+
+    private static String strictTask()
+    {
+        return serviceTask("<iap:strict label=\"Kept\"><iap:abstract name=\"a\"/>"
+            + "<iap:mixin name=\"a\"/><iap:file name=\"a\"/><iap:part name=\"a\"/><iap:plain name=\"a\"/>"
+            + "<iap:single path=\"/a\"/></iap:strict>");
+    }
+
+    /** Records of a strict holder type, which takes a folder as its target and an x:Note as its note. */
+    private NodeBuilder withHolders()
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        final NodeBuilder holder = NodeTypesFixture.acceptingAnyProperty(
+            NodeTypesFixture.type(root, "x:Holder", NT_BASE));
+        holder.child(CHILD_NODE_DEFINITIONS).child(TARGET).child("nt:hierarchyNode");
+        holder.child(CHILD_NODE_DEFINITIONS).child(NOTE).child("x:Note");
+        final NodeBuilder holders = fields(keyed(structure(VocabularyFixture.handler(root, "Hold", "hold"), "holders",
+            0), NAME).setProperty(JCR_NODE_TYPE, "x:Holder"));
+        VocabularyFixture.parameter(holders, NAME, TEXT, 1, 1);
+        VocabularyFixture.parameter(fields(structure(holders, TARGET, 1).setProperty(JCR_NODE_TYPE, "sling:Folder")),
+            PATH, TEXT, 0, 1);
+        VocabularyFixture.parameter(fields(structure(holders, NOTE, 1)), LABEL, TEXT, 0, 1);
+        VocabularyFixture.parameter(fields(keyed(structure(holders, "extras", 0), NAME)), NAME, TEXT, 1, 1);
+        return root;
+    }
+
+    private static String heldTask()
+    {
+        return serviceTask("<iap:hold><iap:holders name=\"h\">"
+            + "<iap:target path=\"/a\"/><iap:note label=\"N\"/><iap:extras name=\"e\"/>"
+            + "</iap:holders></iap:hold>");
     }
 
     private NodeBuilder structure(final NodeBuilder parent, final String name, final long maxValues)
@@ -578,16 +709,25 @@ class StructuredParameterTest
         return VocabularyFixture.parameter(parent, name, Parameter.STRUCTURE_DATA_TYPE, 0, maxValues);
     }
 
+    private NodeBuilder keyed(final NodeBuilder structure, final String key)
+    {
+        return structure.setProperty(Parameter.KEY_PARAMETER_PROPERTY, key);
+    }
+
     /** The node a structure's fields are declared under. */
     private NodeBuilder fields(final NodeBuilder structure)
     {
-        return structure.child(Parameter.FIELDS_CHILD).setProperty(PRIMARY_TYPE, "wf:Parameters", Type.NAME);
+        return structure.child(Parameter.FIELDS_CHILD).setProperty(PRIMARY_TYPE, PARAMETERS_TYPE, Type.NAME);
+    }
+
+    /** The problems a parse reported under one phrase, in no particular order. */
+    private static Set<String> linesStartingWith(final Parsed parsed, final String problem)
+    {
+        return parsed.problems().stream().filter(line -> line.startsWith(problem)).collect(Collectors.toSet());
     }
 
     private static List<String> names(final Iterable<String> values)
     {
-        final List<String> result = new ArrayList<>();
-        values.forEach(result::add);
-        return result;
+        return StreamSupport.stream(values.spliterator(), false).toList();
     }
 }

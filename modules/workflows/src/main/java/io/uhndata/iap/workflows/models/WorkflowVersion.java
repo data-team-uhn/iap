@@ -49,6 +49,15 @@ public class WorkflowVersion extends Entity
     /** The lifecycle tag of the version new instances start from. */
     public static final String ACTIVE_TAG = "active";
 
+    /**
+     * The tag a version carries while the last parse of its diagram reported problems. It shows the version's
+     * {@link #getParseProblems() parse problems} to whoever lists versions by their tags.
+     */
+    public static final String INVALID_TAG = "invalid";
+
+    /** The property holding what the last parse of a version's diagram complained about, one line per problem. */
+    public static final String PARSE_PROBLEMS_PROPERTY = "parseProblems";
+
     /** The name of the {@code nt:file} child holding the BPMN source. */
     private static final String BPMN_FILE = "bpmn.xml";
 
@@ -66,6 +75,9 @@ public class WorkflowVersion extends Entity
 
     @ValueMapValue
     private String bpmnXmlParsedHash;
+
+    @ValueMapValue
+    private String[] parseProblems;
 
     @ValueMapValue
     private boolean bpmnAuthoritative;
@@ -171,15 +183,28 @@ public class WorkflowVersion extends Entity
     }
 
     /**
-     * The hash of the {@link #getBpmnFile BPMN source} as of the last successful parse into flow nodes. Comparing it
-     * against the hash of the current source is how a stale graph is detected.
+     * The hash of the {@link #getBpmnFile BPMN source} as of the last parse into flow nodes that ran to its end,
+     * problems or not. Comparing it against the hash of the current source is how a stale graph is detected.
      *
-     * @return a SHA-256 hash, or {@code null} if this version was never parsed
+     * @return a SHA-256 hash, or {@code null} if this version was never parsed, or the last parse threw
      */
     @Nullable
     public String getBpmnXmlParsedHash()
     {
         return this.bpmnXmlParsedHash;
+    }
+
+    /**
+     * What the last parse of the diagram complained about. A version with any problem cannot be activated, since
+     * the graph it runs is not the process its author drew.
+     *
+     * @return one line per problem, in the order the parse found them, such as {@code a required parameter has no
+     *         value (task1, parameter=toState)}; empty when the last parse found none
+     */
+    @NotNull
+    public List<String> getParseProblems()
+    {
+        return this.parseProblems == null ? List.of() : List.of(this.parseProblems);
     }
 
     /**

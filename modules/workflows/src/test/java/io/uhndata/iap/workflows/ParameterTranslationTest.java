@@ -17,10 +17,8 @@
  */
 package io.uhndata.iap.workflows;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
@@ -29,9 +27,11 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.Test;
 
 import io.uhndata.iap.utils.NodeTypeUtils;
+import io.uhndata.iap.workflows.ParseFixture.Parsed;
 import io.uhndata.iap.workflows.models.Parameter;
 
 import static io.uhndata.iap.workflows.ParseFixture.parse;
+import static io.uhndata.iap.workflows.ParseFixture.parsed;
 import static io.uhndata.iap.workflows.ParseFixture.problemLines;
 import static io.uhndata.iap.workflows.ParseFixture.serviceTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,13 +70,9 @@ class ParameterTranslationTest
 
     private static final String XML_LOCATION = "xmlLocation";
 
-    private static final String EXTENSION_ELEMENT_DETAIL = "extensionElement";
-
     private static final String PARAMETER_DETAIL = "parameter";
 
     private static final String ELEMENT_DETAIL = "element";
-
-    private static final String ATTRIBUTE_DETAIL = "attribute";
 
     private static final String GENERIC_SERVICE_TASK = "ServiceTask";
 
@@ -110,24 +106,24 @@ class ParameterTranslationTest
 
     private static final String CHILD_ORDER = ":childOrder";
 
+    private static final String URGENT = "urgent";
+
+    private static final String SERVICE_TASK_OPEN = "    <bpmn:serviceTask id=\"";
+
     @Test
     void reportsOnlyTheExtensionElementsBesideTheMatchedOne() throws Exception
     {
         final NodeBuilder root = withSetState();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask("<iap:setState toState=\"ACTIVE\">"
-                + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>\n"
-                + "        <iap:notify urgency=\"immediate\"/>"));
+        final Parsed parsed = parsed(root, serviceTask("<iap:setState toState=\"ACTIVE\">"
+            + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>\n"
+            + "        <iap:notify urgency=\"immediate\"/>"));
+        final NodeState after = parsed.version();
 
-            assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
-            assertEquals(List.of("an IAP extension element belongs to no matching FlowNodeType"),
-                problems.names());
-            final RecordedProblems.Problem problem = problems.all().get(0);
-            assertEquals(TASK, problem.details().get(ELEMENT_DETAIL));
-            assertEquals("notify", problem.details().get(EXTENSION_ELEMENT_DETAIL));
-            assertEquals("SetState", problem.details().get(FLOW_NODE_TYPE));
-        }
+        assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
+        assertEquals(List.of(
+            "an IAP extension element belongs to no matching FlowNodeType (task1, extensionElement=notify,"
+                + " flowNodeType=SetState)"), parsed.problems());
     }
 
     @Test
@@ -135,13 +131,12 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withGenericServiceTask();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask(
-                "<camunda:executionListener xmlns:camunda=\"urn:camunda\" event=\"start\"/>"));
+        final Parsed parsed = parsed(root, serviceTask(
+            "<camunda:executionListener xmlns:camunda=\"urn:camunda\" event=\"start\"/>"));
+        final NodeState after = parsed.version();
 
-            assertTrue(after.getChildNode(TASK).exists());
-            assertEquals(List.of(), problems.messages());
-        }
+        assertTrue(after.getChildNode(TASK).exists());
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -151,13 +146,12 @@ class ParameterTranslationTest
         VocabularyFixture.entry(root, "ZebraTask", SERVICE_TASK_ELEMENT, ACTIVITY, 10);
         VocabularyFixture.entry(root, "AardvarkTask", SERVICE_TASK_ELEMENT, ACTIVITY, 10);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
+        final NodeState after = parsed.version();
 
-            assertEquals(VocabularyFixture.id("AardvarkTask"),
-                after.getChildNode(TASK).getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
-            assertEquals(List.of(), problems.messages());
-        }
+        assertEquals(VocabularyFixture.id("AardvarkTask"),
+            after.getChildNode(TASK).getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -168,7 +162,7 @@ class ParameterTranslationTest
         final NodeBuilder root = withSetState();
         VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child("SetState"), COLOUR, TEXT, 1);
 
-        final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:colour=\" green \">\n"
+        final NodeState after = parse(root, SERVICE_TASK_OPEN + TASK + "\" iap:colour=\" green \">\n"
             + "      <bpmn:extensionElements>\n"
             + "        <iap:setState toState=\" ACTIVE\">"
             + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>\n"
@@ -185,15 +179,13 @@ class ParameterTranslationTest
         // A required parameter left empty is reported missing, and an optional one is not written at all
         final NodeBuilder root = withSetState();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask("<iap:setState toState=\"  \">"
-                + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>"));
+        final Parsed parsed = parsed(root, serviceTask("<iap:setState toState=\"  \">"
+            + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>"));
+        final NodeState after = parsed.version();
 
-            assertFalse(after.getChildNode(TASK).hasProperty(TO_STATE));
-            assertEquals(List.of("a required parameter has no value"),
-                problems.names());
-            assertEquals(TO_STATE, problems.all().get(0).details().get(PARAMETER_DETAIL));
-        }
+        assertFalse(after.getChildNode(TASK).hasProperty(TO_STATE));
+        assertEquals(List.of(
+            "a required parameter has no value (task1, parameter=toState)"), parsed.problems());
     }
 
     @Test
@@ -201,16 +193,14 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withSetState();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root,
-                serviceTask("<iap:setState toState=\"ACTIVE\" fromStates=\"DRAFT, TRIAL\"/>"));
+        final Parsed parsed = parsed(root,
+            serviceTask("<iap:setState toState=\"ACTIVE\" fromStates=\"DRAFT, TRIAL\"/>"));
+        final NodeState after = parsed.version();
 
-            assertFalse(after.getChildNode(TASK).hasProperty(FROM_STATES));
-            assertEquals(List.of("a parameter taking a list has it written as an attribute instead",
-                "a required parameter has no value"),
-                problems.names());
-            assertEquals(FROM_STATES, problems.all().get(0).details().get(PARAMETER_DETAIL));
-        }
+        assertFalse(after.getChildNode(TASK).hasProperty(FROM_STATES));
+        assertEquals(List.of(
+            "a parameter taking a list has it written as an attribute instead (task1, parameter=fromStates)",
+            "a required parameter has no value (task1, parameter=fromStates)"), parsed.problems());
     }
 
     @Test
@@ -218,15 +208,14 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withSetState();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask("<iap:setState>"
-                + "<iap:toState>ACTIVE</iap:toState><iap:fromStates>DRAFT</iap:fromStates></iap:setState>"));
+        final Parsed parsed = parsed(root, serviceTask("<iap:setState>"
+            + "<iap:toState>ACTIVE</iap:toState><iap:fromStates>DRAFT</iap:fromStates></iap:setState>"));
+        final NodeState after = parsed.version();
 
-            assertFalse(after.getChildNode(TASK).hasProperty(TO_STATE));
-            assertEquals(List.of("a single-valued parameter is written as child elements",
-                "a required parameter has no value"),
-                problems.names());
-        }
+        assertFalse(after.getChildNode(TASK).hasProperty(TO_STATE));
+        assertEquals(List.of(
+            "a single-valued parameter is written as child elements (task1, parameter=toState)",
+            "a required parameter has no value (task1, parameter=toState)"), parsed.problems());
     }
 
     @Test
@@ -239,15 +228,14 @@ class ParameterTranslationTest
             .setProperty(MIXIN_TYPES, List.of("mail:HtmlTemplate"), Type.NAMES);
         NodeTypesFixture.type(root, "mail:HtmlTemplate", MAIL_TEMPLATE);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root,
-                serviceTask("byMixin", "<iap:notify template=\"/targets/byMixin\"/>")
-                + serviceTask("bySubtype", "<iap:notify template=\"/targets/bySubtypeOfMixin\"/>"));
+        final Parsed parsed = parsed(root,
+            serviceTask("byMixin", "<iap:notify template=\"/targets/byMixin\"/>")
+            + serviceTask("bySubtype", "<iap:notify template=\"/targets/bySubtypeOfMixin\"/>"));
+        final NodeState after = parsed.version();
 
-            assertEquals("/targets/byMixin", after.getChildNode("byMixin").getString(TEMPLATE));
-            assertEquals("/targets/bySubtypeOfMixin", after.getChildNode("bySubtype").getString(TEMPLATE));
-            assertEquals(List.of(), problems.messages());
-        }
+        assertEquals("/targets/byMixin", after.getChildNode("byMixin").getString(TEMPLATE));
+        assertEquals("/targets/bySubtypeOfMixin", after.getChildNode("bySubtype").getString(TEMPLATE));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -256,14 +244,14 @@ class ParameterTranslationTest
         final NodeBuilder root = withTemplateReference();
         target(root, "folder", "sling:Folder").setProperty(MIXIN_TYPES, List.of("mix:created"), Type.NAMES);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask("<iap:notify template=\"/targets/folder\"/>"));
+        final Parsed parsed = parsed(root, serviceTask("<iap:notify template=\"/targets/folder\"/>"));
+        final NodeState after = parsed.version();
 
-            assertEquals("/targets/folder", after.getChildNode(TASK).getString(TEMPLATE),
-                "kept as written: a path that is wrong is easier to repair than configuration silently lost");
-            assertEquals(List.of("a reference parameter names a node of the wrong type"),
-                problems.names());
-        }
+        assertEquals("/targets/folder", after.getChildNode(TASK).getString(TEMPLATE),
+            "kept as written: a path that is wrong is easier to repair than configuration silently lost");
+        assertEquals(List.of(
+            "a reference parameter names a node of the wrong type (task1, parameter=template,"
+                + " value=/targets/folder)"), parsed.problems());
     }
 
     @Test
@@ -275,7 +263,7 @@ class ParameterTranslationTest
 
         try (RecordedProblems problems = new RecordedProblems()) {
             final NodeState after =
-                parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:handler=\"checkBudget\"/>\n");
+                parse(root, SERVICE_TASK_OPEN + TASK + "\" iap:handler=\"checkBudget\"/>\n");
 
             assertEquals("checkBudget", after.getChildNode(TASK).getString(HANDLER));
             assertEquals(List.of("a non-attribute parameter on an entry with no extension element"),
@@ -294,12 +282,11 @@ class ParameterTranslationTest
         VocabularyFixture.parameter(VocabularyFixture.entry(root, "Unused", "bpmn:sendTask", ACTIVITY, 0), "recipients",
             TEXT, 0, 0);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
+        final NodeState after = parsed.version();
 
-            assertTrue(after.getChildNode(TASK).exists());
-            assertEquals(List.of(), problems.messages());
-        }
+        assertTrue(after.getChildNode(TASK).exists());
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -308,7 +295,7 @@ class ParameterTranslationTest
         // Left to the node type's default
         final NodeBuilder root = withGenericServiceTask();
 
-        final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+        final NodeState after = parse(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
 
         assertNull(after.getChildNode(TASK).getString(HANDLER));
     }
@@ -318,10 +305,12 @@ class ParameterTranslationTest
     {
         // A half-authored entry must not take the element away from the next candidate, which can store it
         final NodeBuilder root = withGenericServiceTask();
-        VocabularyFixture.entry(root, "Broken", SERVICE_TASK_ELEMENT, ACTIVITY, 10).removeProperty("jcrNodeType");
+        // Its parameters are read with the rest of the vocabulary, though no node of its type can hold them
+        VocabularyFixture.parameter(VocabularyFixture.entry(root, "Broken", SERVICE_TASK_ELEMENT, ACTIVITY, 10)
+            .removeProperty("jcrNodeType"), "note", TEXT, 0, 1);
 
         try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+            final NodeState after = parse(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
 
             assertEquals(VocabularyFixture.id(GENERIC_SERVICE_TASK),
                 after.getChildNode(TASK).getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
@@ -335,12 +324,13 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withSetState();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask(setState("ACTIVE") + setState("RETIRED")));
+        final Parsed parsed = parsed(root, serviceTask(setState("ACTIVE") + setState("RETIRED")));
+        final NodeState after = parsed.version();
 
-            assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
-            assertEquals(List.of("an IAP extension element is written more than once"), problems.names());
-        }
+        assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
+        assertEquals(List.of(
+            "an IAP extension element is written more than once (task1, extensionElement=setState,"
+                + " flowNodeType=SetState)"), parsed.problems());
     }
 
     @Test
@@ -349,16 +339,15 @@ class ParameterTranslationTest
         // A handler the generic entry dispatches to, with configuration it has no parameter for
         final NodeBuilder root = withGenericServiceTask();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" name=\"Move it\""
-                + " iap:handler=\"moveContent\" iap:within=\"wf/Workflows\"/>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" name=\"Move it\""
+            + " iap:handler=\"moveContent\" iap:within=\"wf/Workflows\"/>\n");
+        final NodeState after = parsed.version();
 
-            assertEquals("moveContent", after.getChildNode(TASK).getString(HANDLER));
-            assertFalse(after.getChildNode(TASK).hasProperty("within"));
-            assertEquals(List.of("an IAP attribute is read by no parameter of its entry"),
-                problems.names());
-            assertEquals("within", problems.all().get(0).details().get(ATTRIBUTE_DETAIL));
-        }
+        assertEquals("moveContent", after.getChildNode(TASK).getString(HANDLER));
+        assertFalse(after.getChildNode(TASK).hasProperty("within"));
+        assertEquals(List.of(
+            "an IAP attribute is read by no parameter of its entry (task1, attribute=within,"
+                + " flowNodeType=ServiceTask)"), parsed.problems());
     }
 
     @Test
@@ -368,12 +357,11 @@ class ParameterTranslationTest
         VocabularyFixture.attributeParameter(
             VocabularyFixture.entry(root, GENERIC_SERVICE_TASK, SERVICE_TASK_ELEMENT, ACTIVITY, 0), HANDLER, TEXT, 1);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:handler=\"" + SET_STATE + "\"/>\n");
+        final Parsed parsed =
+            parsed(root, SERVICE_TASK_OPEN + TASK + "\" iap:handler=\"" + SET_STATE + "\"/>\n");
 
-            assertEquals(List.of("a task names a handler by attribute instead of its element"), problems.names());
-            assertEquals(SET_STATE, problems.all().get(0).details().get(HANDLER));
-        }
+        assertEquals(List.of(
+            "a task names a handler by attribute instead of its element (task1, handler=setState)"), parsed.problems());
     }
 
     @Test
@@ -382,16 +370,13 @@ class ParameterTranslationTest
         // The element decides the handler, so an attribute naming another one is a disagreement nothing settles
         final NodeBuilder root = withSetState();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:handler=\"notify\">\n"
-                + "      <bpmn:extensionElements>" + setState("ACTIVE") + "</bpmn:extensionElements>\n"
-                + "    </bpmn:serviceTask>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" iap:handler=\"notify\">\n"
+            + "      <bpmn:extensionElements>" + setState("ACTIVE") + "</bpmn:extensionElements>\n"
+            + "    </bpmn:serviceTask>\n");
 
-            assertEquals(List.of("an IAP attribute is read by no parameter of its entry"),
-                problems.names());
-            assertEquals(HANDLER, problems.all().get(0).details().get(ATTRIBUTE_DETAIL));
-            assertEquals("SetState", problems.all().get(0).details().get(FLOW_NODE_TYPE));
-        }
+        assertEquals(List.of(
+            "an IAP attribute is read by no parameter of its entry (task1, attribute=handler,"
+                + " flowNodeType=SetState)"), parsed.problems());
     }
 
     @Test
@@ -401,21 +386,19 @@ class ParameterTranslationTest
         final NodeBuilder root = withSetState();
         VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child("SetState"), COLOUR, TEXT, 1);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:toState=\"RETIRED\">\n"
-                + "      <bpmn:extensionElements><iap:setState toState=\"ACTIVE\" colour=\"green\">"
-                + "<iap:fromStates>DRAFT</iap:fromStates><iap:fromState>TRIAL</iap:fromState>"
-                + "</iap:setState></bpmn:extensionElements>\n"
-                + "    </bpmn:serviceTask>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" iap:toState=\"RETIRED\">\n"
+            + "      <bpmn:extensionElements><iap:setState toState=\"ACTIVE\" colour=\"green\">"
+            + "<iap:fromStates>DRAFT</iap:fromStates><iap:fromState>TRIAL</iap:fromState>"
+            + "</iap:setState></bpmn:extensionElements>\n"
+            + "    </bpmn:serviceTask>\n");
 
-            assertEquals(List.of("an IAP attribute is read by no parameter of its entry",
-                "an IAP extension attribute is read by no parameter of its entry",
-                "an IAP extension child is read by no parameter of its entry"),
-                problems.names());
-            assertEquals(List.of(TO_STATE, COLOUR, "fromState"), problems.all().stream()
-                .map(problem -> problem.details().getOrDefault(ATTRIBUTE_DETAIL, problem.details().get("child")))
-                .toList());
-        }
+        assertEquals(List.of(
+            "an IAP attribute is read by no parameter of its entry (task1, attribute=toState,"
+                + " flowNodeType=SetState)",
+            "an IAP extension attribute is read by no parameter of its entry (task1, attribute=colour,"
+                + " flowNodeType=SetState)",
+            "an IAP extension child is read by no parameter of its entry (task1, child=fromState,"
+                + " flowNodeType=SetState)"), parsed.problems());
     }
 
     @Test
@@ -423,15 +406,13 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withSetState();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" name=\"Activate\">\n"
-                + "      <bpmn:extensionElements><iap:setState xmlns:x=\"urn:x\" x:note=\"n\""
-                + " toState=\"ACTIVE\"><iap:fromStates>DRAFT</iap:fromStates></iap:setState>"
-                + "</bpmn:extensionElements>\n"
-                + "    </bpmn:serviceTask>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" name=\"Activate\">\n"
+            + "      <bpmn:extensionElements><iap:setState xmlns:x=\"urn:x\" x:note=\"n\""
+            + " toState=\"ACTIVE\"><iap:fromStates>DRAFT</iap:fromStates></iap:setState>"
+            + "</bpmn:extensionElements>\n"
+            + "    </bpmn:serviceTask>\n");
 
-            assertEquals(List.of(), problems.messages());
-        }
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -440,12 +421,12 @@ class ParameterTranslationTest
         final NodeBuilder root = withSetState();
         root.child(WORKFLOW_TYPES).child("SetState").child(FROM_STATES).setProperty("minValues", 2L);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask(setState("ACTIVE")));
+        final Parsed parsed = parsed(root, serviceTask(setState("ACTIVE")));
+        final NodeState after = parsed.version();
 
-            assertEquals(List.of("DRAFT"), after.getChildNode(TASK).getProperty(FROM_STATES).getValue(Type.STRINGS));
-            assertEquals(List.of("a parameter has fewer values than it requires"), problems.names());
-        }
+        assertEquals(List.of("DRAFT"), after.getChildNode(TASK).getProperty(FROM_STATES).getValue(Type.STRINGS));
+        assertEquals(List.of(
+            "a parameter has fewer values than it requires (task1, parameter=fromStates)"), parsed.problems());
     }
 
     @Test
@@ -455,15 +436,15 @@ class ParameterTranslationTest
         final NodeBuilder root = withSetState();
         root.child(WORKFLOW_TYPES).child("SetState").child(FROM_STATES).setProperty("maxValues", 2L);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask("<iap:setState toState=\"ACTIVE\"><iap:fromStates>DRAFT"
-                + "</iap:fromStates><iap:fromStates>TRIAL</iap:fromStates><iap:fromStates>ACTIVE</iap:fromStates>"
-                + "</iap:setState>"));
+        final Parsed parsed = parsed(root, serviceTask("<iap:setState toState=\"ACTIVE\"><iap:fromStates>DRAFT"
+            + "</iap:fromStates><iap:fromStates>TRIAL</iap:fromStates><iap:fromStates>ACTIVE</iap:fromStates>"
+            + "</iap:setState>"));
+        final NodeState after = parsed.version();
 
-            assertEquals(List.of("DRAFT", "TRIAL", "ACTIVE"),
-                after.getChildNode(TASK).getProperty(FROM_STATES).getValue(Type.STRINGS));
-            assertEquals(List.of("a parameter has more values than it accepts"), problems.names());
-        }
+        assertEquals(List.of("DRAFT", "TRIAL", "ACTIVE"),
+            after.getChildNode(TASK).getProperty(FROM_STATES).getValue(Type.STRINGS));
+        assertEquals(List.of(
+            "a parameter has more values than it accepts (task1, parameter=fromStates)"), parsed.problems());
     }
 
     @Test
@@ -475,7 +456,7 @@ class ParameterTranslationTest
             .setProperty(PRIMARY_TYPE, PARAMETER_NODETYPE, Type.NAME)
             .setProperty(XML_LOCATION, "attribute");
 
-        final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:colour=\"a, b\"/>\n");
+        final NodeState after = parse(root, SERVICE_TASK_OPEN + TASK + "\" iap:colour=\"a, b\"/>\n");
 
         final PropertyState colour = after.getChildNode(TASK).getProperty("colour");
         assertFalse(colour.isArray());
@@ -496,7 +477,7 @@ class ParameterTranslationTest
             TEXT, 1);
 
         try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:handler=\"review\""
+            final NodeState after = parse(root, SERVICE_TASK_OPEN + TASK + "\" iap:handler=\"review\""
                 + " iap:outcomes=\"approved\"/>\n");
 
             assertEquals("review", after.getChildNode(TASK).getString(HANDLER));
@@ -521,15 +502,14 @@ class ParameterTranslationTest
         VocabularyFixture.attributeParameter(type, "retries", Parameter.LONG_DATA_TYPE, 0);
         VocabularyFixture.attributeParameter(type, "note", TEXT, 1);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:urgent=\"true\""
-                + " iap:retries=\"1, 2\" iap:note=\"n\"/>\n").getChildNode(TASK);
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" iap:urgent=\"true\""
+            + " iap:retries=\"1, 2\" iap:note=\"n\"/>\n");
+        final NodeState task = parsed.version().getChildNode(TASK);
 
-            assertTrue(task.getBoolean("urgent"));
-            assertEquals(List.of(1L, 2L), task.getProperty("retries").getValue(Type.LONGS));
-            assertEquals("n", task.getString("note"));
-            assertEquals(List.of(), problems.messages());
-        }
+        assertTrue(task.getBoolean("urgent"));
+        assertEquals(List.of(1L, 2L), task.getProperty("retries").getValue(Type.LONGS));
+        assertEquals("n", task.getString("note"));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -546,12 +526,12 @@ class ParameterTranslationTest
         urgency.child("blank").setProperty(PRIMARY_TYPE, "x:Option", Type.NAME);
         urgency.child("note").setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:urgency=\"later\"/>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" iap:urgency=\"later\"/>\n");
+        final NodeState after = parsed.version();
 
-            assertEquals("later", after.getChildNode(TASK).getString("urgency"));
-            assertEquals(List.of("a parameter has a value it does not offer"), problems.names());
-        }
+        assertEquals("later", after.getChildNode(TASK).getString("urgency"));
+        assertEquals(List.of(
+            "a parameter has a value it does not offer (task1, parameter=urgency, value=later)"), parsed.problems());
     }
 
     @Test
@@ -565,7 +545,7 @@ class ParameterTranslationTest
         VocabularyFixture.parameter(VocabularyFixture.handler(required, "Escalate", "escalate"), "count",
             Parameter.LONG_DATA_TYPE, 1, 1);
 
-        final List<String> vocabulary = problemLines(broken, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+        final List<String> vocabulary = problemLines(broken, SERVICE_TASK_OPEN + TASK + "\"/>\n");
         final List<String> diagram = problemLines(required, serviceTask("<iap:escalate/>"));
 
         assertEquals(1, vocabulary.size());
@@ -584,7 +564,7 @@ class ParameterTranslationTest
             .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
 
         try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+            parse(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
 
             assertEquals(List.of("a vocabulary entry holds a parameter of the wrong node type"),
                 problems.names());
@@ -600,13 +580,12 @@ class ParameterTranslationTest
         VocabularyFixture.entry(root, "Stray", SERVICE_TASK_ELEMENT, ACTIVITY, 100)
             .setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
+        final NodeState after = parsed.version();
 
-            assertEquals(VocabularyFixture.id(GENERIC_SERVICE_TASK),
-                after.getChildNode(TASK).getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
-            assertEquals(List.of(), problems.messages());
-        }
+        assertEquals(VocabularyFixture.id(GENERIC_SERVICE_TASK),
+            after.getChildNode(TASK).getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -616,12 +595,11 @@ class ParameterTranslationTest
         final NodeBuilder root = withSetState();
         root.child(WORKFLOW_TYPES).child("SetState").child(TO_STATE).setProperty(XML_LOCATION, "elsewhere");
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask(setState("ACTIVE")));
+        final Parsed parsed = parsed(root, serviceTask(setState("ACTIVE")));
+        final NodeState after = parsed.version();
 
-            assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
-            assertEquals(List.of(), problems.messages());
-        }
+        assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -631,16 +609,14 @@ class ParameterTranslationTest
         final NodeBuilder type = VocabularyFixture.handler(root, "Escalate", "escalate");
         VocabularyFixture.parameter(type, "retries", Parameter.LONG_DATA_TYPE, 0, 0);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(root, serviceTask("<iap:escalate>"
-                + "<iap:retries>2</iap:retries><iap:retries>often</iap:retries></iap:escalate>")).getChildNode(TASK);
+        final Parsed parsed = parsed(root, serviceTask("<iap:escalate>"
+            + "<iap:retries>2</iap:retries><iap:retries>often</iap:retries></iap:escalate>"));
+        final NodeState task = parsed.version().getChildNode(TASK);
 
-            assertEquals(List.of(2L), task.getProperty("retries").getValue(Type.LONGS));
-            assertEquals(Map.of("retries", "a parameter has a value that is not a whole number"),
-                problems.all().stream()
-                    .collect(Collectors.toMap(problem -> problem.details().get(PARAMETER_DETAIL),
-                        RecordedProblems.Problem::problem)));
-        }
+        assertEquals(List.of(2L), task.getProperty("retries").getValue(Type.LONGS));
+        assertEquals(List.of(
+            "a parameter has a value that is not a whole number (task1, parameter=retries, value=often)"),
+            parsed.problems());
     }
 
     @Test
@@ -650,13 +626,13 @@ class ParameterTranslationTest
         VocabularyFixture.parameter(VocabularyFixture.handler(root, "Escalate", "escalate"), "count",
             Parameter.LONG_DATA_TYPE, 1, 1);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState task = parse(root, serviceTask("<iap:escalate count=\"abc\"/>")).getChildNode(TASK);
+        final Parsed parsed = parsed(root, serviceTask("<iap:escalate count=\"abc\"/>"));
+        final NodeState task = parsed.version().getChildNode(TASK);
 
-            assertFalse(task.hasProperty("count"));
-            assertEquals(List.of("a parameter has a value that is not a whole number",
-                "a required parameter has no value"), problems.names());
-        }
+        assertFalse(task.hasProperty("count"));
+        assertEquals(List.of(
+            "a parameter has a value that is not a whole number (task1, parameter=count, value=abc)",
+            "a required parameter has no value (task1, parameter=count)"), parsed.problems());
     }
 
     @Test
@@ -666,20 +642,26 @@ class ParameterTranslationTest
         final NodeBuilder root = withTemplateReference();
         target(root, "folder", MAIL_TEMPLATE);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, serviceTask("missing", "<iap:notify template=\"/targets/missing\"/>")
-                + serviceTask("relative", "<iap:notify template=\"targets/folder\"/>")
-                + serviceTask("doubled", "<iap:notify template=\"/targets//folder\"/>")
-                + serviceTask("trailing", "<iap:notify template=\"/targets/folder/\"/>"));
+        final Parsed parsed = parsed(root, serviceTask("missing", "<iap:notify template=\"/targets/missing\"/>")
+            + serviceTask("relative", "<iap:notify template=\"targets/folder\"/>")
+            + serviceTask("doubled", "<iap:notify template=\"/targets//folder\"/>")
+            + serviceTask("trailing", "<iap:notify template=\"/targets/folder/\"/>"));
+        final NodeState after = parsed.version();
 
-            assertEquals("/targets/missing", after.getChildNode("missing").getString(TEMPLATE));
-            assertEquals("targets/folder", after.getChildNode("relative").getString(TEMPLATE));
-            // Oak refuses an empty step outright, which must cost the value its check rather than the save
-            assertEquals("/targets//folder", after.getChildNode("doubled").getString(TEMPLATE));
-            assertEquals("/targets/folder/", after.getChildNode("trailing").getString(TEMPLATE));
-            assertEquals(Collections.nCopies(4, "a reference parameter names a node that does not exist"),
-                problems.names());
-        }
+        assertEquals("/targets/missing", after.getChildNode("missing").getString(TEMPLATE));
+        assertEquals("targets/folder", after.getChildNode("relative").getString(TEMPLATE));
+        // Oak refuses an empty step outright, which must cost the value its check rather than the save
+        assertEquals("/targets//folder", after.getChildNode("doubled").getString(TEMPLATE));
+        assertEquals("/targets/folder/", after.getChildNode("trailing").getString(TEMPLATE));
+        assertEquals(List.of(
+            "a reference parameter names a node that does not exist (missing, parameter=template,"
+                + " value=/targets/missing)",
+            "a reference parameter names a node that does not exist (relative, parameter=template,"
+                + " value=targets/folder)",
+            "a reference parameter names a node that does not exist (doubled, parameter=template,"
+                + " value=/targets//folder)",
+            "a reference parameter names a node that does not exist (trailing, parameter=template,"
+                + " value=/targets/folder/)"), parsed.problems());
     }
 
     @Test
@@ -687,17 +669,16 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withTimerBoundaryEvent();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, boundaryEvent(" cancelActivity=\"false\"",
-                "<bpmn:timeDuration xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
-                    + " xsi:type=\"bpmn:tFormalExpression\"> P5D </bpmn:timeDuration>"));
+        final Parsed parsed = parsed(root, boundaryEvent(" cancelActivity=\"false\"",
+            "<bpmn:timeDuration xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
+                + " xsi:type=\"bpmn:tFormalExpression\"> P5D </bpmn:timeDuration>"));
+        final NodeState after = parsed.version();
 
-            final NodeState event = after.getChildNode(TASK).getChildNode(DEADLINE);
-            assertEquals(Type.BOOLEAN, event.getProperty(CANCEL_ACTIVITY).getType());
-            assertFalse(event.getBoolean(CANCEL_ACTIVITY));
-            assertEquals("P5D", event.getString(TIME_DURATION));
-            assertEquals(List.of(), problems.messages());
-        }
+        final NodeState event = after.getChildNode(TASK).getChildNode(DEADLINE);
+        assertEquals(Type.BOOLEAN, event.getProperty(CANCEL_ACTIVITY).getType());
+        assertFalse(event.getBoolean(CANCEL_ACTIVITY));
+        assertEquals("P5D", event.getString(TIME_DURATION));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -706,15 +687,14 @@ class ParameterTranslationTest
         // Nothing written: cancelActivity is autocreated as true
         final NodeBuilder root = withTimerBoundaryEvent();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, boundaryEvent("", ""));
+        final Parsed parsed = parsed(root, boundaryEvent("", ""));
+        final NodeState after = parsed.version();
 
-            final NodeState event = after.getChildNode(TASK).getChildNode(DEADLINE);
-            assertTrue(event.exists());
-            assertFalse(event.hasProperty(CANCEL_ACTIVITY));
-            assertFalse(event.hasProperty(TIME_DURATION));
-            assertEquals(List.of(), problems.messages());
-        }
+        final NodeState event = after.getChildNode(TASK).getChildNode(DEADLINE);
+        assertTrue(event.exists());
+        assertFalse(event.hasProperty(CANCEL_ACTIVITY));
+        assertFalse(event.hasProperty(TIME_DURATION));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -724,13 +704,12 @@ class ParameterTranslationTest
         final NodeBuilder type = VocabularyFixture.entry(root, "Scripted", SERVICE_TASK_ELEMENT, ACTIVITY, 0);
         bpmnParameter(type, "scriptFormat", Parameter.BPMN_ATTRIBUTE_LOCATION, "bpmn:ioSpecification/bpmn:dataInput");
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
+        final NodeState after = parsed.version();
 
-            assertTrue(after.getChildNode(TASK).exists());
-            assertFalse(after.getChildNode(TASK).hasProperty("scriptFormat"));
-            assertEquals(List.of(), problems.messages());
-        }
+        assertTrue(after.getChildNode(TASK).exists());
+        assertFalse(after.getChildNode(TASK).hasProperty("scriptFormat"));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -741,16 +720,15 @@ class ParameterTranslationTest
         bpmnParameter(type, "script", Parameter.BPMN_ELEMENT_LOCATION, null).setProperty("maxValues", 0L);
         bpmnParameter(type, "scriptFormat", Parameter.BPMN_ATTRIBUTE_LOCATION, null);
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" scriptFormat=\" js \">\n"
-                + "      <bpmn:script>one</bpmn:script><bpmn:script> </bpmn:script><bpmn:script>two</bpmn:script>\n"
-                + "    </bpmn:serviceTask>\n");
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" scriptFormat=\" js \">\n"
+            + "      <bpmn:script>one</bpmn:script><bpmn:script> </bpmn:script><bpmn:script>two</bpmn:script>\n"
+            + "    </bpmn:serviceTask>\n");
+        final NodeState after = parsed.version();
 
-            assertEquals(List.of("one", "two"),
-                after.getChildNode(TASK).getProperty("script").getValue(Type.STRINGS));
-            assertEquals("js", after.getChildNode(TASK).getString("scriptFormat"));
-            assertEquals(List.of(), problems.messages());
-        }
+        assertEquals(List.of("one", "two"),
+            after.getChildNode(TASK).getProperty("script").getValue(Type.STRINGS));
+        assertEquals("js", after.getChildNode(TASK).getString("scriptFormat"));
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -758,25 +736,24 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withTimerBoundaryEvent();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            parse(root, "    <bpmn:userTask id=\"" + TASK + "\">\n"
-                + "      <bpmn:multiInstanceLoopCharacteristics/>\n"
-                + "    </bpmn:userTask>\n"
-                + "    <bpmn:boundaryEvent id=\"" + DEADLINE + "\" attachedToRef=\"" + TASK + "\""
-                + " parallelMultiple=\"true\">\n"
-                + "      <bpmn:timerEventDefinition unit=\"days\"><bpmn:timeCycle>R3/P1D</bpmn:timeCycle>"
-                + "</bpmn:timerEventDefinition>\n"
-                + "    </bpmn:boundaryEvent>\n");
+        final Parsed parsed = parsed(root, "    <bpmn:userTask id=\"" + TASK + "\">\n"
+            + "      <bpmn:multiInstanceLoopCharacteristics/>\n"
+            + "    </bpmn:userTask>\n"
+            + "    <bpmn:boundaryEvent id=\"" + DEADLINE + "\" attachedToRef=\"" + TASK + "\""
+            + " parallelMultiple=\"true\">\n"
+            + "      <bpmn:timerEventDefinition unit=\"days\"><bpmn:timeCycle>R3/P1D</bpmn:timeCycle>"
+            + "</bpmn:timerEventDefinition>\n"
+            + "    </bpmn:boundaryEvent>\n");
 
-            assertEquals(List.of("multiInstanceLoopCharacteristics", "parallelMultiple", "timerEventDefinition/unit",
-                "timerEventDefinition/timeCycle"), problems.all().stream()
-                    .map(problem -> problem.details().getOrDefault(ATTRIBUTE_DETAIL, problem.details().get("child")))
-                    .toList());
-            assertEquals(List.of("a BPMN element is read by no parameter of its entry",
-                "a BPMN attribute is read by no parameter of its entry",
-                "a BPMN attribute is read by no parameter of its entry",
-                "a BPMN element is read by no parameter of its entry"), problems.names());
-        }
+        assertEquals(List.of(
+            "a BPMN element is read by no parameter of its entry (task1,"
+                + " child=multiInstanceLoopCharacteristics, flowNodeType=UserTask)",
+            "a BPMN attribute is read by no parameter of its entry (deadline, attribute=parallelMultiple,"
+                + " flowNodeType=TimerBoundaryEvent)",
+            "a BPMN attribute is read by no parameter of its entry (deadline,"
+                + " attribute=timerEventDefinition/unit, flowNodeType=TimerBoundaryEvent)",
+            "a BPMN element is read by no parameter of its entry (deadline,"
+                + " child=timerEventDefinition/timeCycle, flowNodeType=TimerBoundaryEvent)"), parsed.problems());
     }
 
     @Test
@@ -786,20 +763,19 @@ class ParameterTranslationTest
         VocabularyFixture.entry(root, "MessageStartEvent", "bpmn:startEvent", "wf:StartEvent", 10)
             .setProperty("xmlChildElement", "bpmn:messageEventDefinition");
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:startEvent id=\"start\" name=\"Start\">\n"
-                + "      <bpmn:documentation>Begins it</bpmn:documentation>\n"
-                + "      <bpmn:outgoing>flow</bpmn:outgoing>\n"
-                + "      <bpmn:messageEventDefinition id=\"def\" messageRef=\"go\"/>\n"
-                + "    </bpmn:startEvent>\n"
-                + "    <bpmn:userTask id=\"" + TASK + "\" default=\"flow\"><bpmn:incoming>flow</bpmn:incoming>"
-                + "</bpmn:userTask>\n"
-                + "    <bpmn:sequenceFlow id=\"flow\" name=\"Go\" sourceRef=\"start\" targetRef=\"" + TASK
-                + "\"/>\n");
+        final Parsed parsed = parsed(root, "    <bpmn:startEvent id=\"start\" name=\"Start\">\n"
+            + "      <bpmn:documentation>Begins it</bpmn:documentation>\n"
+            + "      <bpmn:outgoing>flow</bpmn:outgoing>\n"
+            + "      <bpmn:messageEventDefinition id=\"def\" messageRef=\"go\"/>\n"
+            + "    </bpmn:startEvent>\n"
+            + "    <bpmn:userTask id=\"" + TASK + "\" default=\"flow\"><bpmn:incoming>flow</bpmn:incoming>"
+            + "</bpmn:userTask>\n"
+            + "    <bpmn:sequenceFlow id=\"flow\" name=\"Go\" sourceRef=\"start\" targetRef=\"" + TASK
+            + "\"/>\n");
+        final NodeState after = parsed.version();
 
-            assertTrue(after.getChildNode("start").getChildNode("flow").exists());
-            assertEquals(List.of(), problems.messages());
-        }
+        assertTrue(after.getChildNode("start").getChildNode("flow").exists());
+        assertEquals(List.of(), parsed.problems());
     }
 
     @Test
@@ -808,22 +784,22 @@ class ParameterTranslationTest
         final NodeBuilder root = withTimerBoundaryEvent();
         root.child(WORKFLOW_TYPES).child(SEQUENCE_FLOW).setProperty("jcrProperties", "{\"weight\": 2}");
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, "    <bpmn:userTask id=\"" + TASK + "\"/>\n"
-                + "    <bpmn:userTask id=\"next\"/>\n"
-                + "    <bpmn:sequenceFlow id=\"flow\" sourceRef=\"" + TASK + "\" targetRef=\"next\">\n"
-                + "      <bpmn:conditionExpression>approved</bpmn:conditionExpression>\n"
-                + "    </bpmn:sequenceFlow>\n");
+        final Parsed parsed = parsed(root, "    <bpmn:userTask id=\"" + TASK + "\"/>\n"
+            + "    <bpmn:userTask id=\"next\"/>\n"
+            + "    <bpmn:sequenceFlow id=\"flow\" sourceRef=\"" + TASK + "\" targetRef=\"next\">\n"
+            + "      <bpmn:conditionExpression>approved</bpmn:conditionExpression>\n"
+            + "    </bpmn:sequenceFlow>\n");
+        final NodeState after = parsed.version();
 
-            final NodeState flow = after.getChildNode(TASK).getChildNode("flow");
-            assertEquals("wf:SequenceFlow", flow.getName(PRIMARY_TYPE));
-            assertFalse(flow.hasProperty(CONDITION_EXPRESSION));
-            assertEquals(2L, flow.getLong("weight"));
-            assertEquals("next", flow.getString("targetRef"));
-            assertFalse(flow.hasProperty(FLOW_NODE_TYPE));
-            assertEquals(List.of("sequence flow guard is a conditionExpression, not a cond:condition"),
-                problems.names());
-        }
+        final NodeState flow = after.getChildNode(TASK).getChildNode("flow");
+        assertEquals("wf:SequenceFlow", flow.getName(PRIMARY_TYPE));
+        assertFalse(flow.hasProperty(CONDITION_EXPRESSION));
+        assertEquals(2L, flow.getLong("weight"));
+        assertEquals("next", flow.getString("targetRef"));
+        assertFalse(flow.hasProperty(FLOW_NODE_TYPE));
+        assertEquals(List.of(
+            "sequence flow guard is a conditionExpression, not a cond:condition (flow,"
+                + " conditionExpression=approved)"), parsed.problems());
     }
 
     @Test
@@ -846,17 +822,84 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = withTimerBoundaryEvent();
 
-        try (RecordedProblems problems = new RecordedProblems()) {
-            final NodeState after = parse(root, boundaryEvent("",
-                "<bpmn:timeDuration>P5D</bpmn:timeDuration>").replace("      <bpmn:timerEventDefinition>",
-                    "      <bpmn:extensionElements><sv:node xmlns:sv=\"http://www.jcp.org/jcr/sv/1.0\""
-                    + " sv:name=\"cond:condition\"><sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
-                    + "<sv:value>cond:SingleCondition</sv:value></sv:property></sv:node></bpmn:extensionElements>\n"
-                    + "      <bpmn:timerEventDefinition>"));
+        final Parsed parsed = parsed(root, boundaryEvent("",
+            "<bpmn:timeDuration>P5D</bpmn:timeDuration>").replace("      <bpmn:timerEventDefinition>",
+                "      <bpmn:extensionElements><sv:node xmlns:sv=\"http://www.jcp.org/jcr/sv/1.0\""
+                + " sv:name=\"cond:condition\"><sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+                + "<sv:value>cond:SingleCondition</sv:value></sv:property></sv:node></bpmn:extensionElements>\n"
+                + "      <bpmn:timerEventDefinition>"));
+        final NodeState after = parsed.version();
 
-            final NodeState condition = after.getChildNode(TASK).getChildNode(DEADLINE).getChildNode("cond:condition");
-            assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
-            assertEquals(List.of(), problems.messages());
+        final NodeState condition = after.getChildNode(TASK).getChildNode(DEADLINE).getChildNode("cond:condition");
+        assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void readsABooleanTheWayXmlSchemaWritesOne() throws Exception
+    {
+        final NodeBuilder root = withGenericServiceTask();
+        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
+            Parameter.BOOLEAN_DATA_TYPE, 1);
+
+        final Parsed parsed = parsed(root, booleanTask("upper", "TRUE") + booleanTask("one", "1")
+            + booleanTask("lower", "false") + booleanTask("zero", "0"));
+
+        assertTrue(parsed.version().getChildNode("upper").getBoolean(URGENT));
+        assertTrue(parsed.version().getChildNode("one").getBoolean(URGENT));
+        assertEquals(Type.BOOLEAN, parsed.version().getChildNode("lower").getProperty(URGENT).getType());
+        assertFalse(parsed.version().getChildNode("lower").getBoolean(URGENT));
+        assertFalse(parsed.version().getChildNode("zero").getBoolean(URGENT));
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void dropsAndReportsABooleanItCannotRead() throws Exception
+    {
+        // Nothing is written, so the node type's own default stands
+        final NodeBuilder root = withGenericServiceTask();
+        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
+            Parameter.BOOLEAN_DATA_TYPE, 1);
+
+        final Parsed parsed = parsed(root, booleanTask(TASK, "yes"));
+
+        assertFalse(parsed.version().getChildNode(TASK).hasProperty(URGENT));
+        assertEquals(List.of("a parameter has a value that is not a boolean (task1, parameter=urgent, value=yes)"),
+            parsed.problems());
+    }
+
+    @Test
+    void passesOverTheArtifactsThatDocumentADiagram() throws Exception
+    {
+        final NodeBuilder root = withGenericServiceTask();
+
+        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\"/>\n"
+            + "    <bpmn:textAnnotation id=\"note\"><bpmn:text>Why</bpmn:text></bpmn:textAnnotation>\n"
+            + "    <bpmn:association id=\"link\" sourceRef=\"" + TASK + "\" targetRef=\"note\"/>\n"
+            + "    <bpmn:group id=\"group\" categoryValueRef=\"category\"/>\n"
+            + "    <bpmn:dataObject id=\"data\"/>\n"
+            + "    <bpmn:dataObjectReference id=\"dataReference\" dataObjectRef=\"data\"/>\n"
+            + "    <bpmn:dataStoreReference id=\"store\"/>\n"
+            + "    <bpmn:laneSet id=\"lanes\"><bpmn:lane id=\"lane\"/></bpmn:laneSet>\n");
+
+        assertEquals(List.of(TASK),
+            StreamSupport.stream(parsed.version().getChildNodeNames().spliterator(), false).toList());
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void recordsOnlyTheVocabularysDefectsInTheErrorLog() throws Exception
+    {
+        // The author learns of a mistake in the diagram from the stored line; only an administrator can fix the
+        // vocabulary
+        final NodeBuilder root = withSetState();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final Parsed parsed = parsed(root, serviceTask("<iap:setState/>")
+                + "    <bpmn:scriptTask id=\"script1\"/>\n");
+
+            assertEquals(3, parsed.problems().size(), () -> String.valueOf(parsed.problems()));
+            assertEquals(List.of("no FlowNodeType configured for a BPMN element"), problems.names());
         }
     }
 
@@ -925,12 +968,18 @@ class ParameterTranslationTest
         entry.setProperty(CHILD_ORDER, List.of("third", "gone", "second"), Type.NAMES);
         offering.setProperty(CHILD_ORDER, List.of("z", "y"), Type.NAMES);
 
-        final List<FlowNodeTypeInfo.ParameterInfo> declared = FlowNodeTypeInfo.from("Ordered",
+        final List<ParameterInfo> declared = FlowNodeTypeInfo.from("Ordered",
             entry.getNodeState(), NodeTypeUtils.registry(root.getNodeState())).parameters().declared();
 
         assertEquals(List.of("third", "second", "first"),
-            declared.stream().map(FlowNodeTypeInfo.ParameterInfo::name).toList());
-        assertEquals(List.of("z", "y", "x"), List.copyOf(declared.get(2).options()));
+            declared.stream().map(ParameterInfo::name).toList());
+        assertEquals(List.of("z", "y", "x"), List.copyOf(((ParameterInfo.ValueParameter) declared.get(2)).options()));
+    }
+
+    /** A generic service task giving the {@code urgent} parameter a value. */
+    private static String booleanTask(final String id, final String value)
+    {
+        return SERVICE_TASK_OPEN + id + "\" iap:urgent=\"" + value + "\"/>\n";
     }
 
     /** A user task and a timer boundary event attached to it, carrying the given attributes and timer content. */

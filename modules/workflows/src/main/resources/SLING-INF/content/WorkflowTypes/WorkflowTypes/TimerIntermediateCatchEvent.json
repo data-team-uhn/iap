@@ -10,7 +10,7 @@
   "timeDuration": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Duration",
-    "description": "How long the workflow waits here, as a duration such as P5D (5 days) or PT2H (2 hours).",
+    "description": "How long the workflow waits here, as a duration such as P5D (5 days) or PT2H (2 hours). Recorded with the workflow, but not yet acted on.",
     "xmlLocation": "bpmnElement",
     "xmlPath": "timerEventDefinition"
   }

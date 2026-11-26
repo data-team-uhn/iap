@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "tag:Definition",
   "label": "Invalid",
-  "description": "The diagram could not be fully parsed so the version cannot be activated.",
+  "description": "The process has problems to fix before the version can be activated.",
   "category": ["validity"],
   "targetResourceTypes": ["wf/WorkflowVersion"],
   "system": true,

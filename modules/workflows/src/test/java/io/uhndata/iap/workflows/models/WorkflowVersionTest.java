@@ -73,6 +73,7 @@ class WorkflowVersionTest
             "notice", "Anything can change.",
             TAGS, tags(ACTIVE),
             "bpmnXmlParsedHash", "abc123",
+            WorkflowVersion.PARSE_PROBLEMS_PROPERTY, new String[] { "one (a)", "two (b)" },
             "bpmnAuthoritative", true,
             "targetResourceType", "wf/WorkflowsHomepage"));
         // The source is a file child, not a property, so it is loaded as one
@@ -87,6 +88,7 @@ class WorkflowVersionTest
         assertTrue(version.isActive());
         assertEquals(BPMN, read(version.getBpmnFile()));
         assertEquals("abc123", version.getBpmnXmlParsedHash());
+        assertEquals(List.of("one (a)", "two (b)"), version.getParseProblems());
         assertTrue(version.isBpmnAuthoritative());
         assertEquals("wf/WorkflowsHomepage", version.getTargetResourceType());
     }
@@ -120,6 +122,7 @@ class WorkflowVersionTest
         assertNull(version.getNotice());
         assertNull(version.getBpmnFile());
         assertNull(version.getBpmnXmlParsedHash());
+        assertEquals(List.of(), version.getParseProblems());
         // A version says nothing about owning its graph until something says so: the diagram derives
         // nothing for it, which is the safe reading for a graph that may have been authored by hand
         assertFalse(version.isBpmnAuthoritative());

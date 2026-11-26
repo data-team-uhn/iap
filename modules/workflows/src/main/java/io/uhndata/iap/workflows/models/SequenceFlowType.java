@@ -23,8 +23,9 @@ import org.apache.sling.models.annotations.Model;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A Sling Model wrapping a {@code wf:SequenceFlowType} node: a kind of arc between two workflow nodes, and what
- * such an arc carries, such as its condition.
+ * A Sling Model wrapping a {@code wf:SequenceFlowType} node: a kind of arc between two workflow nodes. An entry
+ * gives the arcs of its kind their node type, their place in the editor's toolbar, and the parameters they carry
+ * beyond the nodes they join.
  *
  * @version $Id$
  * @since 0.1.0

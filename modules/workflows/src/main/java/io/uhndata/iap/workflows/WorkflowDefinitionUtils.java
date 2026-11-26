@@ -90,7 +90,8 @@ import io.uhndata.iap.utils.NodeTypeUtils;
  * child of the activity its {@code attachedToRef} names. Per
  * {@code workflowDefinitions.cnd}, that is the whole of what makes it a boundary event rather than a free-standing
  * mid-process catch. Diagram-only elements ({@code bpmndi:*}) are never visited, since only the children of the
- * {@code bpmn:process} element are traversed.</p>
+ * {@code bpmn:process} element are traversed. Of those, the artifacts that document a diagram, such as a text
+ * annotation or a group, are passed over too.</p>
  *
  * <p>Written against the Oak {@link NodeBuilder} of an in-progress commit, where nothing autocreates. Once every node
  * is written, each is given what its node type autocreates, so a diagram need not restate a default such as an
@@ -102,17 +103,14 @@ import io.uhndata.iap.utils.NodeTypeUtils;
 public final class WorkflowDefinitionUtils
 {
     /**
-     * What every recorded translation problem is filed under. All of these are mis-authored BPMN rather than
-     * anything broken here, and all of them end the same way: a piece of the definition is silently not translated,
-     * so the workflow the engine runs is quietly not the workflow the author drew.
+     * What a translation problem is filed under. Only a defect in the vocabulary is recorded in the error log; a
+     * mistake in the diagram is told to its author instead. Either way a piece of the definition is not translated,
+     * so the workflow the engine runs is not the workflow the author drew.
      */
     static final String TRANSLATION_OPERATION = "parseBpmn";
 
     /** The detail naming the BPMN element a translation problem was about. */
     static final String ELEMENT_DETAIL = "element";
-
-    /** What follows a complaint that only an administrator can resolve, such as a gap in the vocabulary. */
-    static final String CONTACT_ADMINISTRATOR_MESSAGE = "Please contact an administrator";
 
     /**
      * IAP's BPMN extension namespace. Matched by namespace rather than by prefix, since a prefix is the document's
@@ -137,6 +135,13 @@ public final class WorkflowDefinitionUtils
     private static final String PROCESS_ELEMENT = "process";
 
     private static final String SEQUENCE_FLOW_ELEMENT = "sequenceFlow";
+
+    /**
+     * The BPMN elements a process holds to document its diagram rather than to run: notes, their links, groups,
+     * data, and lanes. They have no flow node, and nothing is wrong with them.
+     */
+    private static final Set<String> ARTIFACT_ELEMENTS = Set.of("textAnnotation", "association", "group",
+        "dataObject", "dataObjectReference", "dataStoreReference", "laneSet");
 
     private static final String BOUNDARY_EVENT_ELEMENT = "boundaryEvent";
 
@@ -250,7 +255,7 @@ public final class WorkflowDefinitionUtils
     /**
      * Parses the given BPMN 2.0 XML and (re)creates the {@code wf:FlowNode} children of {@code workflowVersion} to
      * match it. Any previously parsed flow nodes are removed first, making this safe to call repeatedly for the
-     * same node as its {@code bpmnXml} changes.
+     * same node as its {@code bpmnXml} changes. A diagram holding no process keeps the version's flow nodes.
      *
      * @param bpmnXml the BPMN 2.0 XML source to parse
      * @param workflowVersion the {@code wf:WorkflowVersion} node builder to write the parsed flow nodes into
@@ -266,16 +271,17 @@ public final class WorkflowDefinitionUtils
      * @throws SAXException if the BPMN XML is not well-formed
      * @throws IOException if the BPMN XML could not be read
      */
+    @NotNull
     public static ParseProblems parse(@NotNull final InputStream bpmnXml, @NotNull final NodeBuilder workflowVersion,
         @NotNull final NodeState root, @NotNull final String author, @NotNull final String workflowVersionPath)
         throws ParserConfigurationException, SAXException, IOException
     {
         final ParseProblems problems = new ParseProblems(workflowVersionPath);
         final Element process = getProcessElement(bpmnXml, problems);
-        clear(workflowVersion, NodeTypeUtils.registry(root));
         if (process == null) {
             return problems;
         }
+        clear(workflowVersion, NodeTypeUtils.registry(root));
         // One timestamp for the whole batch: every node in it was created by the same parse, and differing
         // millisecond values would suggest otherwise.
         final ParseContext context = new ParseContext(workflowVersion, ParseScope.of(root, problems), author,
@@ -292,6 +298,9 @@ public final class WorkflowDefinitionUtils
                 continue;
             }
             final String localName = element.getLocalName();
+            if (ARTIFACT_ELEMENTS.contains(localName)) {
+                continue;
+            }
             if (SEQUENCE_FLOW_ELEMENT.equals(localName)) {
                 sequenceFlows.add(element);
                 continue;
@@ -935,18 +944,17 @@ public final class WorkflowDefinitionUtils
                 LOGGER.warn("FlowNodeType {} matching BPMN element {} in {} declares no jcrNodeType or is not"
                     + " referenceable, passing it over", candidate.name(), id, context.path());
                 // The vocabulary is at fault here, not the diagram, and nothing else validates it
-                context.problems().report("FlowNodeType declares no jcrNodeType",
+                context.problems().reportDefect("FlowNodeType declares no jcrNodeType",
                     context.problems().context().with("bpmnElement", localName).with(ELEMENT_DETAIL, id)
-                        .with(FLOW_NODE_TYPE_DETAIL, candidate.name()), CONTACT_ADMINISTRATOR_MESSAGE);
+                        .with(FLOW_NODE_TYPE_DETAIL, candidate.name()));
                 continue;
             }
             return candidate;
         }
         LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}) in {}, skipping", localName, id,
             context.path());
-        context.problems().report("no FlowNodeType configured for a BPMN element",
-            context.problems().context().with("bpmnElement", localName).with(ELEMENT_DETAIL, id),
-            CONTACT_ADMINISTRATOR_MESSAGE);
+        context.problems().reportDefect("no FlowNodeType configured for a BPMN element",
+            context.problems().context().with("bpmnElement", localName).with(ELEMENT_DETAIL, id));
         return null;
     }
 
@@ -1005,9 +1013,9 @@ public final class WorkflowDefinitionUtils
             // A malformed vocabulary entry must not take the parse, or the commit, down with it
             LOGGER.warn("FlowNodeType {} in {} declares jcrProperties that are not a JSON object, ignoring them",
                 flowNodeType.identifier(), context.path());
-            context.problems().report("FlowNodeType declares jcrProperties that are not a JSON object",
+            context.problems().reportDefect("FlowNodeType declares jcrProperties that are not a JSON object",
                 context.problems().context()
-                    .with("flowNodeType", flowNodeType.identifier()), CONTACT_ADMINISTRATOR_MESSAGE);
+                    .with("flowNodeType", flowNodeType.identifier()));
             return;
         }
         properties.forEach((name, value) -> setJsonProperty(node, name, value, context));
@@ -1024,9 +1032,9 @@ public final class WorkflowDefinitionUtils
             default -> {
                 LOGGER.warn("Ignoring jcrProperties entry {}, {} values are not supported", name,
                     value.getValueType());
-                context.problems().report("jcrProperties entry holds an unsupported value type",
+                context.problems().reportDefect("jcrProperties entry holds an unsupported value type",
                     context.problems().context()
-                        .with("property", name).with("valueType", value.getValueType()), CONTACT_ADMINISTRATOR_MESSAGE);
+                        .with("property", name).with("valueType", value.getValueType()));
             }
         }
     }

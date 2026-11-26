@@ -144,15 +144,14 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   const editable = requestedEdit && version !== undefined && offers(version, "save");
   const label = version ? versionLabel(version) : lastSegmentOf(path);
 
-  // What the server could not store of the diagram it was just sent. The save itself succeeded, so a failed
-  // read counts as no problems.
-  async function readParseProblems(versionPath: string): Promise<{ problems: string[]; invalid: boolean }> {
+  // The problems the server found in the process it was just sent. The save itself succeeded, so a failed read
+  // counts as no problems.
+  async function readParseProblems(versionPath: string): Promise<string[]> {
     try {
-      const node = await readNode(fetchUtil, versionPath, "0");
-      return { problems: stringsOf(node.parseProblems), invalid: stringsOf(node.tags).includes("invalid") };
+      return stringsOf((await readNode(fetchUtil, versionPath, "0")).parseProblems);
     } catch (error: unknown) {
       console.error("The problems found in the saved workflow could not be read", error);
-      return { problems: [], invalid: false };
+      return [];
     }
   }
 
@@ -188,14 +187,14 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
           dirtyRef.current = false;
           setDirty(false);
         }
-        const { problems, invalid } = await readParseProblems(path);
+        const problems = await readParseProblems(path);
         reloadWorkflow();
         if (problems.length > 0) {
           // Stays on the page: leaving would take the report away from the author
           notify({
-            title: "The workflow was partly saved. Some nodes could not be read.",
+            title: "The workflow was saved, but its process has problems to fix before it can be activated.",
             message: problems.join("\n"),
-            severity: invalid ? "error" : "warning",
+            severity: "error",
           });
         } else if (destination === undefined) {
           notify({ title: "The workflow was saved", severity: "success" });

@@ -62,6 +62,9 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 const ready = (serialize = () => Promise.resolve("<drawn/>"), problems: string[] = []) =>
   (latestCanvas().onReady as (editor: unknown) => void)({ serialize, problems: () => problems });
 
+// What the editor says when the saved process has problems
+const PROBLEMS_TITLE = "The workflow was saved, but its process has problems to fix before it can be activated.";
+
 const VERSION_PATH = "/Workflows/review/2-0";
 
 const definition = {
@@ -350,7 +353,7 @@ describe("WorkflowEditor", () => {
     expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
   });
 
-  it("says what could not be stored when the saved diagram had problems, and stays on the page", async () => {
+  it("says what is wrong when the saved process has problems, and stays on the page", async () => {
     const user = userEvent.setup();
     const problems = [ "A task has no type (task1)", "An arc has no target (flow2)" ];
     stubServerReadingBack({ ...definition["2-0"], "parseProblems": problems });
@@ -361,24 +364,22 @@ describe("WorkflowEditor", () => {
 
     await user.click(screen.getByRole("button", { name: "Save and close" }));
 
-    expect(await screen.findByText("The workflow was partly saved. Some nodes could not be read.")).toBeInTheDocument();
+    expect(await screen.findByText(PROBLEMS_TITLE)).toBeInTheDocument();
     expect(screen.getByText(/A task has no type \(task1\)\s*An arc has no target \(flow2\)/)).toBeInTheDocument();
     expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
     expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
   });
 
-  it("reports an error rather than a warning when the saved version is invalid", async () => {
+  it("reports a problem as an error, even a single one stored as a string", async () => {
     const user = userEvent.setup();
-    stubServerReadingBack({
-      ...definition["2-0"], "parseProblems": "A task has no type (task1)", "tags": [ "draft", "invalid" ],
-    });
+    stubServerReadingBack({ ...definition["2-0"], "parseProblems": "A task has no type (task1)" });
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     ready();
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    const report = (await screen.findByText("The workflow was partly saved. Some nodes could not be read."))
+    const report = (await screen.findByText(PROBLEMS_TITLE))
       .closest("[role=alert]");
     expect(report).toHaveTextContent("A task has no type (task1)");
     expect(report?.className).toMatch(/colorError/);

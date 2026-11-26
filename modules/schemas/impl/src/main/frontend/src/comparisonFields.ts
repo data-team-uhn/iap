@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { childrenOf, isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { childrenOf, isNode, type SerializedNode, unescapedName } from "@iap/frontend-commons/serializedNode";
 
 import { type NamedField } from "./schemaComparisonModel";
 import { nameOf, tagsOf } from "./schemaModel";
@@ -32,12 +32,15 @@ export interface ComparedField extends NamedField {
   referenceRoot?: string;
 }
 
-const labelOf = (node: SerializedNode): string => (typeof node.label === "string" ? node.label : nameOf(node));
+// The key a field or a choice is stored under: its node's name, which the repository escapes
+const keyOf = (node: SerializedNode): string => unescapedName(nameOf(node));
+
+const labelOf = (node: SerializedNode): string => (typeof node.label === "string" ? node.label : keyOf(node));
 
 // A choice's value and label, as the server reads them. The value defaults to the choice's name, and the label to
 // its value.
 function choiceOf(choice: SerializedNode): [ string, string ] {
-  const value = typeof choice.value === "string" ? choice.value : nameOf(choice);
+  const value = typeof choice.value === "string" ? choice.value : keyOf(choice);
   return [ value, typeof choice.label === "string" ? choice.label : value ];
 }
 
@@ -47,8 +50,8 @@ export function fieldsOfDefinitions(definitions: SerializedNode[]): ComparedFiel
   const found = new Map<string, ComparedField>();
   const visit = (node: SerializedNode) => {
     if (isNode(node.fields)) {
-      childrenOf(node.fields).filter(field => !found.has(nameOf(field))).forEach(field => found.set(nameOf(field), {
-        name: nameOf(field),
+      childrenOf(node.fields).filter(field => !found.has(keyOf(field))).forEach(field => found.set(keyOf(field), {
+        name: keyOf(field),
         label: labelOf(field),
         choices: Object.fromEntries(isNode(field.choices) ? childrenOf(field.choices).map(choiceOf) : []),
         ...typeof field.referenceType === "string" ? { referenceType: field.referenceType } : {},

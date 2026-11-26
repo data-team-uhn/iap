@@ -247,35 +247,21 @@ class WorkflowChecksTest
     }
 
     @Test
-    void acceptsAVersionNotTaggedInvalid()
+    void acceptsAVersionWhoseLastParseReportedNoProblems()
     {
-        final Resource version = this.context.create().resource("/Workflows/clean/v1", Map.of(
-            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "tags", new String[] { "draft" },
-            "parseProblems", new String[] { "a warning (x)" }));
-
-        assertEquals(List.of(), new InvalidVersionCheck().check(version));
         assertEquals(List.of(), new InvalidVersionCheck().check(version(USER_VERSION, null)));
     }
 
     @Test
-    void refusesAVersionTaggedInvalidWithEachStoredProblem()
+    void refusesAVersionOnceForEachStoredProblem()
     {
         final Resource version = this.context.create().resource("/Workflows/broken/v1", Map.of(
-            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "tags", new String[] { "draft", "invalid" },
-            "parseProblems", new String[] { "skipped element (a)", "unattached boundary event (b)" }));
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE,
+            WorkflowVersion.PARSE_PROBLEMS_PROPERTY, new String[] { "skipped element (a)", "unattached event (b)" }));
 
-        assertEquals(List.of("its diagram was not fully saved: skipped element (a)",
-            "its diagram was not fully saved: unattached boundary event (b)"),
+        assertEquals(List.of("its process has a problem to fix before it can be activated: skipped element (a)",
+            "its process has a problem to fix before it can be activated: unattached event (b)"),
             new InvalidVersionCheck().check(version));
-    }
-
-    @Test
-    void refusesAVersionTaggedInvalidWithNoStoredProblems()
-    {
-        final Resource version = this.context.create().resource("/Workflows/bare/v1", Map.of(
-            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "tags", new String[] { "invalid" }));
-
-        assertEquals(List.of("its diagram was not fully saved"), new InvalidVersionCheck().check(version));
     }
 
     @Test

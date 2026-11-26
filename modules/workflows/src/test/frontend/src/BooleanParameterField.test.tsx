@@ -41,6 +41,13 @@ describe("a parameter holding yes or no", () => {
     expect(screen.getByText("yes, No")).toBeInTheDocument();
   });
 
+  it("flags none of the spellings the server reads as a boolean", () => {
+    renderField(BooleanParameterField, { dataType: "boolean", maxValues: 0, description: "Whether to notify" },
+      [ "TRUE", "1", "False", "0" ]);
+
+    expect(screen.getByText("Whether to notify")).toBeInTheDocument();
+  });
+
   it("shows a word the server ignores as it was written, flagged, and lets a valid one replace it", async () => {
     const { onCommit, user } = renderField(BooleanParameterField, { dataType: "boolean", description: "Whether to notify" },
       [ "yes" ]);

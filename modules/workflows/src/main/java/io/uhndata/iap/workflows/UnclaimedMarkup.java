@@ -33,6 +33,8 @@ import org.w3c.dom.Attr;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 
+import io.uhndata.iap.workflows.ParameterInfo.ValueParameter;
+
 /**
  * Finds the markup on a BPMN element that its vocabulary entry does not read: everything a diagram can say that the
  * parse then quietly drops.
@@ -154,7 +156,7 @@ final class UnclaimedMarkup
         }
         claim(match, List.of(), attributes, children);
         reportBpmnOn(element, "", attributes, children, element, match, problems);
-        match.parameters().declared().stream().filter(parameter -> parameter.location().isBpmn())
+        bpmnValues(match)
             .forEach(parameter -> IntStream.rangeClosed(1, parameter.path().size())
                 .forEach(steps -> paths.add(parameter.path().subList(0, steps))));
         paths.forEach(path -> reportBpmnBelow(element, path, match, problems));
@@ -187,11 +189,11 @@ final class UnclaimedMarkup
     private static void claim(final FlowNodeTypeInfo match, final List<String> path, final Set<String> attributes,
         final Set<String> children)
     {
-        final List<FlowNodeTypeInfo.ParameterInfo> through = match.parameters().declared().stream()
-            .filter(parameter -> parameter.location().isBpmn() && parameter.path().size() >= path.size()
+        final List<ValueParameter> through = bpmnValues(match)
+            .filter(parameter -> parameter.path().size() >= path.size()
                 && parameter.path().subList(0, path.size()).equals(path))
             .toList();
-        for (final FlowNodeTypeInfo.ParameterInfo parameter : through) {
+        for (final ValueParameter parameter : through) {
             final List<String> own = parameter.path();
             if (own.size() > path.size()) {
                 children.add(own.get(path.size()));
@@ -216,6 +218,13 @@ final class UnclaimedMarkup
                 CHILD_DETAIL, prefix + child.getLocalName(), element, match, problems));
     }
 
+    /** The parameters of an entry that read a value out of BPMN's own markup. A structure never can. */
+    private static Stream<ValueParameter> bpmnValues(final FlowNodeTypeInfo match)
+    {
+        return match.parameters().declared().stream().filter(ValueParameter.class::isInstance)
+            .map(ValueParameter.class::cast).filter(parameter -> parameter.location().isBpmn());
+    }
+
     private static Stream<Element> bpmnChildren(final Element element)
     {
         return WorkflowDefinitionUtils.childElements(element, WorkflowDefinitionUtils.BPMN_NS);
@@ -230,7 +239,7 @@ final class UnclaimedMarkup
      * Whether a parameter is read from the element's own attributes rather than from its extension element. An
      * entry naming no extension element reads every parameter of either kind from the element itself.
      */
-    private static boolean readFromElement(final FlowNodeTypeInfo.ParameterInfo parameter,
+    private static boolean readFromElement(final ParameterInfo parameter,
         final FlowNodeTypeInfo match)
     {
         return parameter.location() == FlowNodeTypeInfo.XmlLocation.ATTRIBUTE || match.xmlExtensionElement() == null;
@@ -238,12 +247,12 @@ final class UnclaimedMarkup
 
     /** The names of the entry's parameters written in IAP markup that are read from where {@code readHere} says. */
     private static Set<String> parameterNames(final FlowNodeTypeInfo match,
-        final Predicate<FlowNodeTypeInfo.ParameterInfo> readHere)
+        final Predicate<ParameterInfo> readHere)
     {
         return match.parameters().declared().stream()
             .filter(parameter -> !parameter.location().isBpmn())
             .filter(readHere)
-            .map(FlowNodeTypeInfo.ParameterInfo::name)
+            .map(ParameterInfo::name)
             .collect(Collectors.toSet());
     }
 

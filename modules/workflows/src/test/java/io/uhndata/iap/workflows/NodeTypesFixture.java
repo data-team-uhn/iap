@@ -130,7 +130,14 @@ public final class NodeTypesFixture
         return type;
     }
 
-    private static void autoCreated(final NodeBuilder type, final String name, final String value)
+    /**
+     * Declares a single-valued string property a node type autocreates, as Oak flattens it.
+     *
+     * @param type the node type's definition builder
+     * @param name the property's name
+     * @param value the value it is created with
+     */
+    static void autoCreated(final NodeBuilder type, final String name, final String value)
     {
         type.child(NAMED_PROPERTY_DEFINITIONS).child(name).child("STRING").setProperty(AUTO_CREATED, true)
             .setProperty(DEFAULT_VALUES, List.of(value), Type.STRINGS);
