@@ -262,17 +262,19 @@ export default function ViewerBody(props: ViewerBodyProps) {
   // whether to compare at all; side by side, the changes are stepped through where the page controls were
   const controls = plain ? compared.controls : undefined;
   const plainView = controls && <ChangesMenu {...controls} withoutOff />;
-  const splitChanges = controls?.changes;
-  const plainSplitSteps = splitChanges && splitChanges.length > 0 ? (
+  // The changes shown, stepped through beside the menu in either view, the one selected also selected in the list
+  const shownChanges = controls && comparison?.changes;
+  const changeAt = shownChanges?.findIndex(change => change.id === selectedId) ?? -1;
+  const plainSteps = shownChanges && shownChanges.length > 0 ? (
     <StepControls
-      position={controls.selectedIndex === undefined ? 0 : controls.selectedIndex + 1}
-      count={splitChanges.length}
+      position={changeAt + 1}
+      count={shownChanges.length}
       itemName="change"
-      heading={controls.selectedIndex === undefined ? countChanges(splitChanges.length)
-        : describeAmong(CHANGES, { index: controls.selectedIndex + 1, count: splitChanges.length })}
-      widest={[ countChanges(splitChanges.length), describeAmong(CHANGES, { index: splitChanges.length,
-        count: splitChanges.length }) ]}
-      onStep={next => showSelected(splitChanges[next - 1].id)}
+      heading={changeAt < 0 ? countChanges(shownChanges.length)
+        : describeAmong(CHANGES, { index: changeAt + 1, count: shownChanges.length })}
+      widest={[ countChanges(shownChanges.length), describeAmong(CHANGES, { index: shownChanges.length,
+        count: shownChanges.length }) ]}
+      onStep={next => showSelected(shownChanges[next - 1].id)}
     />
   ) : undefined;
   // Drawn even when empty, since a screen reader announces only the changes to a live region already there.
@@ -302,11 +304,15 @@ export default function ViewerBody(props: ViewerBodyProps) {
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0,
           ...lead === undefined ? {} : { pl: 2, pt: 1.5 } }}>
           {plainView
-            ? <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 3 }}>{lead}{plainView}</Box>
+            ? (
+              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 3 }}>
+                {lead}{plainView}{plainSteps}
+              </Box>
+            )
             : lead}
           <ViewerToolbar
             ref={toolbarRef}
-            start={split ? plainSplitSteps : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
+            start={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
             tools={
               <ZoomControls disabled={!opened} onZoomIn={zoomIn} onZoomOut={zoomOut} onFitWidth={fitWidth} />
             }
