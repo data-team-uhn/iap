@@ -161,7 +161,9 @@ asked. **A guard must not write through either session.**
 > identity provider roles alike.
 
 Three guards ship with the module. Other modules add their own, such as the schemas
-module's `ConditionDependencyVeto` (see [schemas.md](schemas.md)).
+module's `ConditionDependencyVeto` (see [schemas.md](schemas.md)), and the submissions
+module's `ApprovedSubmissionVeto`: a submission that carries its own `approved` tag
+cannot be deleted, by anybody, in any mode.
 
 **`UndeletableVeto`**: the `del:Undeletable` mixin marks a resource that must never
 be deleted: not archived, not deleted for good, and not purged if it is in the
