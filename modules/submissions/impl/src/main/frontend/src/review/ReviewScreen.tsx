@@ -896,7 +896,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     approve: () => setDialog("approve"),
     approveBlocked: !waiting ? "Your review is not waiting on a decision now"
       : blocking.length > 0
-        ? `Request changes for your ${blocking.length === 1 ? "issue" : `${blocking.length} issues`} first`
+        ? `Send a Letter of Review for your ${blocking.length === 1 ? "issue" : `${blocking.length} issues`} first`
         : undefined,
     board: myGroups.includes("reb-reviewers") ? () => setDialog("board") : undefined,
   };
@@ -1067,20 +1067,25 @@ export default function ReviewScreen({ path }: { path: string }) {
       </ReviewerTopics.Provider>
     </GroupLabels.Provider>
   );
-  // The panel beside the page: the notes on what is read, or the review, each saying how much it holds. On a narrow
+  // The panel beside the page: the notes on what is read, saying how many, or the review. On a narrow
   // screen, where the notes go along the page, the choice is between the page and the review
   const tabCount = (count: string) => <Box component="span" sx={{ ml: 0.75, color: "text.secondary" }}>{count}</Box>;
   const sideTabs = (
     <Tabs
       value={sideTab} onChange={(_event, value: SideTab) => setSideTab(value)} variant="fullWidth"
       aria-label="What to show beside the page"
+      // The tab shown is white, as the page it heads, its name bold, over a thick bar; the other stays on the tint
       sx={{ minHeight: 40, flexShrink: 0, borderBottom: 1, borderColor: "divider",
-        "& .MuiTab-root": { minHeight: 40, py: 0.5, textTransform: "none", typography: "subtitle2" } }}
+        "& .MuiTabs-indicator": { height: 3 },
+        "& .MuiTab-root": { minHeight: 40, py: 0.5, textTransform: "none", typography: "subtitle2",
+          color: "text.secondary" },
+        "& .MuiTab-root.Mui-selected": { bgcolor: "background.paper", color: "primary.main",
+          fontWeight: "fontWeightBold" } }}
     >
       <Tab value="notes" label={narrow ? "Submission" : <span>
         Notes{current && tabCount(String(notesOf(current).filter(note => showing.has(note.kind)).length))}
       </span>} />
-      <Tab value="review" label={<span>Review{tabCount(`${risks.length - unconsidered} of ${risks.length}`)}</span>} />
+      <Tab value="review" label="Review" />
     </Tabs>
   );
 

@@ -22,8 +22,7 @@ import {
 
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
-import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
-import { Box, Button, IconButton, InputBase, Link, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
+import { Box, Button, InputBase, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import {
   DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, GridEditSingleSelectCell, type GridCellModesModel,
   type GridCellParams, type GridColDef, type GridRenderCellParams, type GridRenderEditCellParams, type GridRowId,
@@ -98,8 +97,10 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   // A single click starts changing a cell, as in a spreadsheet, and leaves any other cell being changed
   const [ cellModes, setCellModes ] = useState<GridCellModesModel>({});
   const startEditing = useCallback((params: GridCellParams, event: MouseEvent) => {
-    // A click inside the cell's own editor, such as in a list it opened, is not a click on the cell
-    if (!params.isEditable || !event.currentTarget.contains(event.target as Node)) {
+    // A click inside the cell's own editor, such as in a list it opened, is not a click on the cell, nor one on a link
+    // or button it shows
+    if (!params.isEditable || !event.currentTarget.contains(event.target as Node)
+      || (event.target as HTMLElement).closest("a, button")) {
       return;
     }
     setCellModes(previous => {
@@ -125,7 +126,6 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     });
     setWritingTo(write ? id : undefined);
   };
-  const startEditingText = (id: GridRowId) => setCellModes({ [id]: { text: { mode: GridCellModes.Edit } } });
   const thread = useCallback(({ row }: { row: IssueRow }) => (
     <ThreadPanel
       issue={row.issue} writing={writingTo === row.id} onWrite={() => setWritingTo(row.id)}
@@ -150,6 +150,11 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       valueFormatter: (value: string) => riskLabel(value),
       renderEditCell: params => <ChoiceEdit {...params} />,
     },
+    {
+      field: "created", headerName: "Raised", type: "date", width: 90,
+      valueFormatter: (value: Date | undefined) =>
+        value ? value.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+    },
     ...concerns.length > 0 ? [ {
       field: "ai", headerName: "Raised by", width: 100, type: "singleSelect" as const,
       valueOptions: [ { value: false, label: "You" }, { value: true, label: "AI" } ],
@@ -169,51 +174,37 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     },
     {
       field: "text", headerName: "Issue", flex: 1, minWidth: 220, editable: true,
-      renderCell: ({ value }) => <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>,
+      // Under the text, its replies, unfolding under the issue, and, while they are folded, a way to add one
+      renderCell: ({ row, value }) => (
+        <>
+          <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>
+          {!row.ai && (onReply !== undefined || row.replies > 0) && (
+            <Stack direction="row" sx={{ gap: 1.5, mt: 0.25 }}>
+              {row.replies > 0 && (
+                <Link component="button" variant="caption" aria-expanded={expanded.has(row.id)}
+                  onClick={() => toggleThread(row.id)}>
+                  {`${expanded.has(row.id) ? "Hide" : "Show"} ${row.replies === 1 ? "1 reply" : `${row.replies} replies`}`}
+                </Link>
+              )}
+              {/* Unfolded, the thread has its own, under the last reply */}
+              {onReply && !expanded.has(row.id) && (
+                <Link component="button" variant="caption" onClick={() => toggleThread(row.id, true)}>Reply</Link>
+              )}
+            </Stack>
+          )}
+        </>
+      ),
       renderEditCell: params => <TextEdit {...params} />,
     },
     {
-      field: "created", headerName: "Raised", type: "date", width: 90,
-      valueFormatter: (value: Date | undefined) =>
-        value ? value.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
-    },
-    {
-      field: "replies", headerName: "Replies", type: "number", width: 80,
-      description: "How many replies it has, from the study team or other reviewers",
-      // None said by leaving the cell empty; some unfold the thread under the issue, in the grid
-      renderCell: ({ row }) => row.replies > 0 && (
-        <Tooltip title={`${expanded.has(row.id) ? "Fold" : "Read"} the ${row.replies === 1 ? "reply" : `${row.replies} replies`}`}>
-          <Link component="button" variant="body2" aria-expanded={expanded.has(row.id)}
-            onClick={() => toggleThread(row.id)}>
-            {row.replies}
-          </Link>
-        </Tooltip>
-      ),
-    },
-    {
-      field: "where", headerName: "", width: concerns.length > 0 ? 150 : 130, sortable: false, filterable: false,
-      // Right-aligned, reply first, so change and remove line up with those of the replies unfolded under it
+      field: "where", headerName: "", width: concerns.length > 0 ? 150 : 64, sortable: false, filterable: false,
+      // Right-aligned, so remove lines up with that of the replies unfolded under it
       renderCell: ({ row }) => (
         <Stack sx={{ alignItems: "flex-end", width: "100%" }}>
           {!row.ai && (
             <Stack direction="row">
-              {onReply && (
-                <Tooltip title="Reply">
-                  <IconButton size="small" aria-label="Reply" onClick={() => toggleThread(row.id, true)}>
-                    <ReplyOutlined fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {row.issue.sent ? <SentLock sent={row.issue.sent} /> : (
-                <>
-                  <Tooltip title="Change">
-                    <IconButton size="small" aria-label="Change the issue" onClick={() => startEditingText(row.id)}>
-                      <EditOutlined fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  {onRemove && <RemoveButton what="issue" text={row.text} onRemove={() => onRemove(row.issue)} />}
-                </>
-              )}
+              {row.issue.sent ? <SentLock sent={row.issue.sent} />
+                : onRemove && <RemoveButton what="issue" text={row.text} onRemove={() => onRemove(row.issue)} />}
             </Stack>
           )}
           {row.ai && onMakeIssue && (
@@ -274,7 +265,14 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       if (params.row.id === DRAFT) {
         return draftCell(column.field);
       }
-      return column.renderCell ? column.renderCell(params) : params.formattedValue as ReactNode;
+      const content = column.renderCell ? column.renderCell(params) : params.formattedValue as ReactNode;
+      // A cell that can be changed says so with a pencil, under the pointer, or always where there is none
+      return column.editable ? (
+        <Stack direction="row" sx={{ width: "100%", alignItems: "flex-start", gap: 0.5 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>{content}</Box>
+          <EditOutlined className="edit-hint" />
+        </Stack>
+      ) : content;
     },
   }));
 
@@ -325,7 +323,10 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
           "& .MuiDataGrid-cell--editable": { cursor: "pointer" },
           "& .MuiDataGrid-cell--editable[data-field='text']": { cursor: "text" },
           "& .MuiDataGrid-cell--editable:hover": { outline: "1px solid", outlineColor: "primary.light", outlineOffset: "-2px",
-            borderRadius: 0.5 } }}
+            borderRadius: 0.5 },
+          "& .edit-hint": { display: "none", flexShrink: 0, fontSize: "1rem", color: "text.secondary", mt: 0.25 },
+          "& .MuiDataGrid-cell--editable:hover .edit-hint": { display: "block" },
+          "@media (hover: none)": { "& .MuiDataGrid-cell--editable .edit-hint": { display: "block" } } }}
       />
     </Drafting.Provider>
   );

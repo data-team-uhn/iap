@@ -179,7 +179,7 @@ export default function ReviewPanel(props: ReviewProps & {
       <Stack direction="row" sx={{ alignItems: "center", gap: 2, pl: 1.5, pr: 0.5, py: 1,
         ...wide ? { borderBottom: 1, borderColor: "divider" } : {} }}>
         {/* Over the workspace, where the tabs naming it are hidden */}
-        {full && !compact && <Typography variant="panelTitle">{letter ? "Letter to the study team" : "Review"}</Typography>}
+        {full && !compact && <Typography variant="panelTitle">{letter ? "Letter of Review" : "Review"}</Typography>}
         {letter ? <Box sx={{ flex: 1 }} /> : (
           <>
             <Box sx={{ flex: 1, maxWidth: wide ? 560 : undefined }}><Progress risks={risks} more={wide} /></Box>
@@ -298,7 +298,7 @@ function LetterView(props: ReviewProps & {
         <Button size="small" onClick={letter.close}>Back to the review</Button>
         <Button variant="contained" size="small" startIcon={<ForwardToInboxOutlined />}
           onClick={() => setConfirming(true)}>
-          Send and request changes
+          Send
         </Button>
       </Stack>
       {confirming && (
@@ -1041,11 +1041,11 @@ function Decision({ waitingSince, decision, wide = false }: {
       ))}
       {wide && decision.board && (
         <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
-          Escalate to the board
+          Send to the board
         </Button>
       )}
       <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={decision.send}>
-        Request changes
+        Letter of Review
       </Button>
       <Tooltip disableInteractive title={decision.approveBlocked ?? ""}>
         <span>
@@ -1057,7 +1057,7 @@ function Decision({ waitingSince, decision, wide = false }: {
       </Tooltip>
       {!wide && decision.board && (
         <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
-          Escalate to the board
+          Send to the board
         </Button>
       )}
     </Stack>

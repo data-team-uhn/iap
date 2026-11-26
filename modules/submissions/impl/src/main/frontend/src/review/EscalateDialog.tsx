@@ -71,7 +71,7 @@ export default function EscalateDialog({ open, title, identifier, pi, summary, p
     return next;
   };
   return (
-    <ResponsiveDialog open={open} onClose={onClose} title="Escalate to the board" width="lg" withCloseButton>
+    <ResponsiveDialog open={open} onClose={onClose} title="Send to the board" width="lg" withCloseButton>
       <DialogContent>
         <Stack direction={{ xs: "column", md: "row" }} spacing={3}>
           <Stack spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
@@ -83,7 +83,7 @@ export default function EscalateDialog({ open, title, identifier, pi, summary, p
             <Typography variant="subheading">The points to decide</Typography>
             {issues.length === 0 && (
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                You have raised no issues yet. Raise the ones the board should decide, then escalate.
+                You have raised no issues yet. Raise the ones the board should decide, then send them.
               </Typography>
             )}
             {issues.map(issue => (
