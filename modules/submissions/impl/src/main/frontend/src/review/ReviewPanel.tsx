@@ -21,8 +21,6 @@ import { useState, type ReactNode } from "react";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import CheckCircle from "@mui/icons-material/CheckCircle";
-import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
-import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
@@ -36,7 +34,7 @@ import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Badge, Box, Button, ButtonBase, Dialog, FormControlLabel, IconButton, LinearProgress, Link, Paper, Stack, Switch,
+  Box, Button, ButtonBase, Dialog, FormControlLabel, IconButton, LinearProgress, Link, Stack, Switch,
   Tooltip, Typography, useMediaQuery, useTheme,
 } from "@mui/material";
 
@@ -144,43 +142,29 @@ function countsOf(risk: RiskReview): string {
   ].filter(Boolean).join(" · ");
 }
 
-// PRETOTYPE. The reviewer's review, beside whatever they are reading, as the risks their group weighs: for each, what
-// the AI pre-review made of it and everything it raised under it, the answers the protocol contradicts, the
-// reviewer's own issues, and whether they have considered it, counted at the top. Issues can be added under a risk
-// without pointing at an answer or a passage; the AI's concerns made issues of or dismissed, and dismissals taken
-// back. It opens in an almost full screen dialog to read it whole. At the bottom, the decision.
-export default function ReviewPanel(props: ReviewProps & { open: boolean; onToggle: () => void }) {
-  const { risks, issueCount, doing, open, onToggle } = props;
+// PRETOTYPE. The reviewer's review, in a tab of the panel beside whatever they are reading, as the risks their group
+// weighs: for each, what the AI pre-review made of it and everything it raised under it, the answers the protocol
+// contradicts, the reviewer's own issues, and whether they have considered it, counted at the top. Issues can be added
+// under a risk without pointing at an answer or a passage; the AI's concerns made issues of or dismissed, and
+// dismissals taken back. It opens in an almost full screen dialog to read it whole. At the bottom, the decision.
+export default function ReviewPanel(props: ReviewProps) {
+  const { risks, doing } = props;
   const [ expanded, setExpanded ] = useState<string>();
   const [ whole, setWhole ] = useState(false);
   // The whole review's page the reviewer last had open, kept while they stay on the submission, so reopening it, as
   // after showing where something was raised, brings them back there
   const [ wholePage, setWholePage ] = useState<string>();
 
-  if (!open) {
-    return <Folded issueCount={issueCount} onToggle={onToggle} decision={doing.decision} />;
-  }
-
   return (
-    // Part of the frame, tinted like the contents on the other side of the page
-    <Paper sx={{ width: 320, display: "flex", flexDirection: "column", height: "100%",
-      bgcolor: "background.tinted", boxShadow: "none" }}>
-      <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75 }}>
-        <Typography variant="panelTitle" sx={{ flex: 1 }}>Review</Typography>
+    <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, pl: 1.5, pr: 0.5, py: 1 }}>
+        <Box sx={{ flex: 1 }}><Progress risks={risks} /></Box>
         <Tooltip disableInteractive title="Open the whole review" placement="left">
           <IconButton size="small" aria-label="Open the whole review" onClick={() => setWhole(true)}>
             <OpenInFullOutlined fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip disableInteractive title="Fold away" placement="left">
-          <IconButton size="small" aria-label="Fold the review away" onClick={onToggle}>
-            <ChevronRightOutlined />
-          </IconButton>
-        </Tooltip>
       </Stack>
-      <Box sx={{ px: 1.5, pb: 1 }}>
-        <Progress risks={risks} />
-      </Box>
       <PanelBody>
         {risks.map(risk => (
           <Box key={risk.topic.path} sx={{ borderTop: 1, borderColor: "divider" }}>
@@ -201,7 +185,7 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
       </PanelBody>
       <Decision decision={doing.decision} />
       <WholeReview {...props} open={whole} onClose={() => setWhole(false)} page={wholePage} onPage={setWholePage} />
-    </Paper>
+    </Box>
   );
 }
 
@@ -979,57 +963,5 @@ function Decision({ waitingSince, decision, wide = false }: {
         </Button>
       )}
     </Stack>
-  );
-}
-
-// Folded, the panel keeps the count of the reviewer's issues and the decision
-function Folded({ issueCount, onToggle, decision }: {
-  issueCount: number;
-  onToggle: () => void;
-  decision: ReviewDoing["decision"];
-}) {
-  return (
-    <Paper sx={{ width: 48, py: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
-      bgcolor: "background.tinted", boxShadow: "none" }}>
-      <Tooltip disableInteractive title="Show the review" placement="left">
-        <IconButton size="small" aria-label="Show the review" onClick={onToggle}>
-          <Badge badgeContent={issueCount} showZero
-            sx={{ "& .MuiBadge-badge": { bgcolor: "issue.main", color: "issue.contrastText" } }}>
-            <ChevronLeftOutlined />
-          </Badge>
-        </IconButton>
-      </Tooltip>
-      {decision && !decision.waiting && (
-        <Tooltip disableInteractive title={decision.decided ?? "Not waiting on your decision now."} placement="left">
-          {decision.outcome === "changes-requested"
-            ? <ForwardToInboxOutlined fontSize="small" sx={{ color: "text.disabled", my: 0.5 }} />
-            : <TaskAltOutlined fontSize="small" sx={{ color: "text.disabled", my: 0.5 }} />}
-        </Tooltip>
-      )}
-      {decision?.waiting && (
-        <>
-          <Tooltip disableInteractive title="Request changes" placement="left">
-            <IconButton size="small" aria-label="Request changes" color="primary" onClick={decision.send}>
-              <ForwardToInboxOutlined />
-            </IconButton>
-          </Tooltip>
-          <Tooltip disableInteractive title={decision.approveBlocked ?? "Approve"} placement="left">
-            <span>
-              <IconButton size="small" aria-label="Approve" color="primary" disabled={Boolean(decision.approveBlocked)}
-                onClick={decision.approve}>
-                <TaskAltOutlined />
-              </IconButton>
-            </span>
-          </Tooltip>
-          {decision.board && (
-            <Tooltip disableInteractive title="Escalate to the board" placement="left">
-              <IconButton size="small" aria-label="Escalate to the board" onClick={decision.board}>
-                <GroupsOutlined />
-              </IconButton>
-            </Tooltip>
-          )}
-        </>
-      )}
-    </Paper>
   );
 }

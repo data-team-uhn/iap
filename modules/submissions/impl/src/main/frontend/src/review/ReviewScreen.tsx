@@ -29,7 +29,6 @@ import SplitscreenOutlined from "@mui/icons-material/SplitscreenOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
   Box,
-  Button,
   ButtonBase,
   DialogContentText,
   Divider,
@@ -40,6 +39,8 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Tab,
+  Tabs,
   Tooltip,
   TextField,
   ToggleButton,
@@ -102,7 +103,6 @@ type Node = Record<string, unknown>;
 // Renamed when the default changed, so every reviewer starts from it once
 const KINDS_KEY = "iap.review.notesShown";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
-const ISSUES_OPEN_KEY = "iap.review.issuesOpen";
 const FOCUSED_KEY = "iap.review.focused";
 
 // A form's items with only the questions kept, and the sections still holding any
@@ -173,6 +173,10 @@ const ignore = () => undefined;
 const isShare = (value: unknown): value is number => typeof value === "number" && value > 0 && value < 1;
 
 const isFlag = (value: unknown): value is boolean => typeof value === "boolean";
+
+// Which tab the panel beside the page shows, the notes on what is read or the review
+type SideTab = "notes" | "review";
+const isSideTab = (value: unknown): value is SideTab => value === "notes" || value === "review";
 
 // A width in pixels, as one kept in the browser should be
 const isWidth = (value: unknown): value is number => typeof value === "number" && value > 0;
@@ -289,8 +293,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     observer.observe(workArea);
     return () => observer.disconnect();
   }, [ workArea ]);
-  // How the review was before a second part was opened, folded away meanwhile, to restore after
-  const [ beforeSplit, setBeforeSplit ] = useState<{ issues: boolean }>();
   // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
   const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 400, isWidth);
   // The contents entry being read, and, when it has scrolled out of the list, the edge it left by, where a copy of it
@@ -308,9 +310,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     return () => observer.disconnect();
   }, [ readEntry ]);
   const [ dialog, setDialog ] = useState<"letter" | "board" | "approve" | "sentLetter">();
-  // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
-  // beside a document, which needs the width
-  const [ issuesOpen, setIssuesOpen ] = useStoredFlag(ISSUES_OPEN_KEY);
+  const [ sideTab, setSideTab ] = useStoredSetting<SideTab>("iap.review.sideTab", "notes", isSideTab);
   const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
   // Whether the reviewer sees only what concerns them, as they start, or the whole submission
   const [ focused = true, setFocused ] = useStoredFlag(FOCUSED_KEY);
@@ -479,14 +479,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     return storeKinds(next);
   });
 
-  // Opening a second part under the first folds the review away, for room, until it is closed
-  const split = () => {
-    if (!bottom) {
-      setBeforeSplit({ issues: issuesOpen ?? !(current && isDocumentRequirement(current)) });
-      setIssuesOpen(false);
-    }
-  };
-  // Closing either part leaves the other alone, as it was, and the review as it was before
+  // Closing either part leaves the other alone, as it was
   const close = (pane: Pane) => {
     if (pane === "top" && bottom) {
       setSelected(bottom.name);
@@ -495,14 +488,9 @@ export default function ReviewScreen({ path }: { path: string }) {
     setBelow(undefined);
     setBelowMark({});
     setActive("top");
-    if (beforeSplit) {
-      setIssuesOpen(beforeSplit.issues);
-      setBeforeSplit(undefined);
-    }
   };
   const openBelow = (requirement: string) => {
     if (requirement !== top?.name) {
-      split();
       setBelow(requirement);
       setBelowMark({});
       setActive("bottom");
@@ -515,9 +503,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     const shownIn: Pane | undefined = top?.name === requirement ? "top"
       : bottom?.name === requirement ? "bottom" : undefined;
     const pane: Pane = shownIn ?? (beside && !narrow ? (active === "top" ? "bottom" : "top") : active);
-    if (pane === "bottom" && !bottom) {
-      split();
-    }
     if (pane === "top") {
       setSelected(requirement);
       setMark({ id: focus?.id, page: focus?.page });
@@ -827,7 +812,13 @@ export default function ReviewScreen({ path }: { path: string }) {
   }));
   // What the reviewer can do from their review
   const doing: ReviewDoing = {
-    open: openIssue,
+    // On a narrow screen, the review is shown instead of the page, so going to where something was raised leaves it
+    open: note => {
+      if (narrow) {
+        setSideTab("notes");
+      }
+      openIssue(note);
+    },
     consider: (topic, considered) => actions.write(considered ? { consider: topic } : { unconsider: topic }),
     makeIssue: (note, said, severity, topic) => raiseAsIssue(actions.write, note, said, severity, topic),
     dismiss: note => actions.write({ dismiss: note.id }),
@@ -1030,6 +1021,36 @@ export default function ReviewScreen({ path }: { path: string }) {
     </Stack>
   );
 
+  const reviewPanel = (
+    <GroupLabels.Provider value={groupLabels}>
+      <ReviewerTopics.Provider value={reviewerTopics}>
+        <ReviewPanel
+          identifier={text(submission.identifier)} risks={risks} unfiled={unfiled} issueCount={myIssues.length}
+          notes={generalNotes}
+          countdown={<Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />}
+          others={othersRaised} about={about} waitingSince={waitingSince}
+          doing={{ ...doing, decision: reviewActions }}
+        />
+      </ReviewerTopics.Provider>
+    </GroupLabels.Provider>
+  );
+  // The panel beside the page: the notes on what is read, or the review, each saying how much it holds. On a narrow
+  // screen, where the notes go along the page, the choice is between the page and the review
+  const tabCount = (count: string) => <Box component="span" sx={{ ml: 0.75, color: "text.secondary" }}>{count}</Box>;
+  const sideTabs = (
+    <Tabs
+      value={sideTab} onChange={(_event, value: SideTab) => setSideTab(value)} variant="fullWidth"
+      aria-label="What to show beside the page"
+      sx={{ minHeight: 40, flexShrink: 0, borderBottom: 1, borderColor: "divider",
+        "& .MuiTab-root": { minHeight: 40, py: 0.5, textTransform: "none", typography: "subtitle2" } }}
+    >
+      <Tab value="notes" label={narrow ? "Submission" : <span>
+        Notes{current && tabCount(String(notesOf(current).filter(note => showing.has(note.kind)).length))}
+      </span>} />
+      <Tab value="review" label={<span>Review{tabCount(`${risks.length - unconsidered} of ${risks.length}`)}</span>} />
+    </Tabs>
+  );
+
   const rail = narrow ? (
     <TextField
       select fullWidth size="small" label="Requirement" value={current?.name ?? ""}
@@ -1164,27 +1185,17 @@ export default function ReviewScreen({ path }: { path: string }) {
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" }, display: { md: "none" } }}>
         <Box>{search(false)}</Box>
         {changesToggle}
-        {waiting ? (
-          <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" }, flexWrap: "wrap" }}>
-            {reviewActions.board && (
-              <Button size="small" variant="text" onClick={reviewActions.board}>Escalate to the board</Button>
-            )}
-            <Button size="small" variant="outlined" onClick={reviewActions.send}>Request changes</Button>
-            <Button size="small" variant="contained" disabled={Boolean(reviewActions.approveBlocked)}
-              onClick={reviewActions.approve}>Approve</Button>
-          </Stack>
-        ) : (
-          <Typography variant="body2" sx={{ ml: { sm: "auto" }, color: "text.secondary" }}>
-            {decided ?? "Not waiting on your decision now."}
-          </Typography>
-        )}
       </Stack>
       {/* On a wide screen, the workspace fills the window under the app bar, the panels side by side, each as tall as
-          the others, scrolling on its own; on a narrow one, which notes are shown is chosen above them */}
+          the others, scrolling on its own; on a narrow one, the page or the review, chosen above them, with which notes
+          are shown along the page */}
       <Stack sx={{ gap: 1.5, height: { md: PANEL_HEIGHT } }}>
-        {narrow && noteFilters}
+        {narrow && sideTabs}
+        {narrow && sideTab === "review" && <Paper sx={{ display: "flex", flexDirection: "column" }}>{reviewPanel}</Paper>}
+        {narrow && sideTab === "notes" && noteFilters}
         <Stack direction={{ xs: "column", md: "row" }}
-          sx={{ gap: 1.5, alignItems: { xs: "flex-start", md: "stretch" }, flex: { md: 1 }, minHeight: { md: 0 } }}>
+          sx={{ gap: 1.5, alignItems: { xs: "flex-start", md: "stretch" }, flex: { md: 1 }, minHeight: { md: 0 },
+            ...narrow && sideTab === "review" ? { display: "none" } : {} }}>
           {railOpen || narrow ? (
           // Part of the frame, tinted like the app bar; the requirement being read is a tab of the white page beside it
             <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0,
@@ -1264,8 +1275,9 @@ export default function ReviewScreen({ path }: { path: string }) {
                     )}
                     {isDocumentRequirement(current) && shownDocument && (
                       <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                        {/* Drawn again on coming back from the review, as it cannot lay out its pages while hidden */}
                         <DocumentReview
-                          key={current.name}
+                          key={`${current.name} ${sideTab}`}
                           document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
                           compareWith={comparing(shownDocument)} hideChanges={!showChanges}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
@@ -1296,19 +1308,25 @@ export default function ReviewScreen({ path }: { path: string }) {
                     />
                     <Box sx={{ width: notesShown, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
                       bgcolor: "background.tinted" }}>
-                      {noteFilters}
-                      {/* Of two parts, which one's notes these are */}
-                      {bottom && current && (
-                        <Typography variant="body2" sx={{ px: 1.5, pt: 1.25, color: "text.secondary" }}>
-                          Notes on <Box component="b" sx={{ color: "primary.main" }}>{current.label}</Box>
-                        </Typography>
-                      )}
-                      <Box
-                        ref={setNotesSlot}
-                        sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
-                          "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
-                            typography: "body2", textAlign: "center", py: 2 } }}
-                      />
+                      {sideTabs}
+                      {/* Kept while the review is shown, the notes listed into it by the page staying in step */}
+                      <Box sx={{ flex: 1, minHeight: 0, flexDirection: "column",
+                        display: sideTab === "notes" ? "flex" : "none" }}>
+                        {noteFilters}
+                        {/* Of two parts, which one's notes these are */}
+                        {bottom && current && (
+                          <Typography variant="body2" sx={{ px: 1.5, pt: 1.25, color: "text.secondary" }}>
+                            Notes on <Box component="b" sx={{ color: "primary.main" }}>{current.label}</Box>
+                          </Typography>
+                        )}
+                        <Box
+                          ref={setNotesSlot}
+                          sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
+                            "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
+                              typography: "body2", textAlign: "center", py: 2 } }}
+                        />
+                      </Box>
+                      {sideTab === "review" && reviewPanel}
                     </Box>
                   </Box>
                 )}
@@ -1368,17 +1386,6 @@ export default function ReviewScreen({ path }: { path: string }) {
                 )}
 
               </Paper>
-              <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", flexShrink: 0 }}>
-                <ReviewPanel
-                  identifier={text(submission.identifier)} risks={risks} unfiled={unfiled} issueCount={myIssues.length}
-                  notes={generalNotes}
-                  countdown={<Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />}
-                  others={othersRaised} about={about} waitingSince={waitingSince}
-                  doing={{ ...doing, decision: reviewActions }}
-                  open={issuesOpen ?? !(current && isDocumentRequirement(current))}
-                  onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
-                />
-              </Box>
             </ReviewerTopics.Provider>
           </GroupLabels.Provider>
         </Stack>
