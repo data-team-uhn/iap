@@ -110,6 +110,7 @@ interface ViewerBodyProps {
   markHeading?: (mark: Mark) => ReactNode;
   markHeadingActions?: (mark: Mark) => ReactNode;
   lead?: ReactNode;
+  leadEnd?: ReactNode;
   listContainer?: HTMLElement | null;
   describeUnfound?: (mark: Mark) => string | undefined;
   // Whether the document spans the full width of a phone screen, past the dialog's padding.
@@ -124,7 +125,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
   const plain = useContext(PlainViewer);
   const { changeIds, searchedOutside = false, annotateLabel, condensedMarks, listWidth, onListWidth } = props;
-  const { markHeading, markHeadingActions, lead, listContainer, describeUnfound } = props;
+  const { markHeading, markHeadingActions, lead, leadEnd, listContainer, describeUnfound } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   // The document has opened once its pages are counted.
   const opened = pageCount !== undefined;
@@ -303,10 +304,11 @@ export default function ViewerBody(props: ViewerBodyProps) {
       <Box sx={{ display: "flex", gap: listBeside && onListWidth ? 0 : 2, flex: "1 1 auto", minHeight: 0 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0,
           ...lead === undefined ? {} : { pl: 2, pt: 1.5 } }}>
-          {plainView
+          {plainView || leadEnd
             ? (
               <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 3 }}>
                 {lead}{plainView}{plainSteps}
+                {leadEnd && <Box sx={{ ml: "auto", pr: 1 }}>{leadEnd}</Box>}
               </Box>
             )
             : lead}

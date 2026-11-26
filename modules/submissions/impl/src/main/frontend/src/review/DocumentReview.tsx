@@ -18,7 +18,8 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
-import { Box } from "@mui/material";
+import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
+import { Box, IconButton, Tooltip } from "@mui/material";
 
 import type { Mark, TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
 import PdfViewer from "@iap/documents-pdf-viewer/PdfViewer";
@@ -73,18 +74,22 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   onClose: () => void;
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
-  const [ draft, setDraft ] = useState<TextAnchor>();
+  // A note being started: on the passage selected, or, PRETOTYPE, about the whole document
+  const [ draft, setDraft ] = useState<TextAnchor | "document">();
   // The AI pre-review note being made into an issue, coloured as one meanwhile
   const [ adopting, setAdopting ] = useState<string>();
   // The reviewer's own note being changed, whose card then shows its editor
   const [ editing, setEditing ] = useState<string>();
   const notes = useMemo(() => notesAbout(data.notes, [ document.uuid, ...document.versions.map(one => one.uuid) ])
-    .filter(note => note.passage && shown.has(note.kind)), [ data.notes, document, shown ]);
+    .filter(note => (note.passage !== undefined || note.subjects.includes(document.uuid)) && shown.has(note.kind)),
+  [ data.notes, document, shown ]);
   const marks: Mark[] = useMemo(() => [
     ...notes.map(note => ({ id: note.id, kind: kindInfo(adopting === note.id ? "issue" : note.kind).mark,
       quote: note.passage?.quote ?? "",
       page: note.passage?.page })),
-    ...draft ? [ { id: DRAFT, kind: "draft" as const, anchor: draft } ] : [],
+    // About the whole document, a note has no passage, and is listed after those that have
+    ...draft === "document" ? [ { id: DRAFT, kind: "draft" as const, quote: "" } ]
+      : draft ? [ { id: DRAFT, kind: "draft" as const, anchor: draft } ] : [],
   ], [ notes, draft, adopting ]);
 
   const renderMarkDetails = useCallback((mark: Mark, selected: boolean) => {
@@ -95,9 +100,9 @@ export default function DocumentReview({ document, data, shown, selected, onSele
             kinds={WRITTEN} initialKind="issue" about={[ data.partOf.get(document.uuid) ?? "" ]}
             onCancel={() => setDraft(undefined)}
             onSave={async (kind, text, severity, topic) => {
-              await actions.write({ kind, text, subjects: [ document.uuid ], source: document.version,
-                quote: draft.quote, prefix: draft.before, suffix: draft.after, page: String(draft.start.page),
-                ...severity ? { severity } : {}, ...topic ? { topic } : {} });
+              await actions.write({ kind, text, subjects: [ document.uuid ], ...draft === "document" ? {} : {
+                source: document.version, quote: draft.quote, prefix: draft.before, suffix: draft.after,
+                page: String(draft.start.page) }, ...severity ? { severity } : {}, ...topic ? { topic } : {} });
               setDraft(undefined);
             }}
           />
@@ -207,6 +212,18 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         markHeading={markHeading}
         markHeadingActions={markHeadingActions}
         lead={heading}
+        leadEnd={draft !== "document" && (
+          // PRETOTYPE: as each question has, a button to write about the document as a whole, without a passage
+          <Tooltip title="Write about this document">
+            <IconButton size="small" aria-label={`Write about: ${document.title}`}
+              onClick={() => {
+                setDraft("document");
+                onSelect(DRAFT);
+              }}>
+              <AddCommentOutlined fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
         listContainer={notesSlot}
         describeUnfound={describeUnfound}
         compareWith={compareWith && { url: toFileUrl(compareWith.url), label: compareWith.label }}

@@ -431,7 +431,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     }
     const document = data.documents.get(requirement.name);
     return document
-      ? notesAbout(counted, [ document.uuid, ...document.versions.map(one => one.uuid) ]).filter(note => note.passage)
+      ? notesAbout(counted, [ document.uuid, ...document.versions.map(one => one.uuid) ])
+        .filter(note => note.passage !== undefined || note.subjects.includes(document.uuid))
       : [];
   }, [ data, showDone ]);
   // What the filters count: the notes of the parts the contents list, each once though it is about two of them, as a

@@ -90,6 +90,8 @@ export interface PdfViewerProps {
   // PRETOTYPE: what to say of a passage not found, in place of "not found in this document", where the caller knows
   // why, such as its text having changed since an older version it was written on
   describeUnfound?: (mark: Mark) => string | undefined;
+  // PRETOTYPE: what ends the line heading the document's own column, such as a button to write about the document
+  leadEnd?: ReactNode;
   // PRETOTYPE: what heads the document's own column, beside the passages, such as the title of the page it is on
   lead?: ReactNode;
   // PRETOTYPE: a column of the page's own to list the passages in, however wide the viewer; null while it lists
@@ -293,6 +295,7 @@ function PdfViewerSession(props: PdfViewerProps) {
           markHeading={props.markHeading}
           markHeadingActions={props.markHeadingActions}
           lead={props.lead}
+          leadEnd={props.leadEnd}
           listContainer={props.listContainer}
           describeUnfound={props.describeUnfound}
           edgeToEdge={inDialog}
