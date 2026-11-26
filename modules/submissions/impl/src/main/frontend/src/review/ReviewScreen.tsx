@@ -82,8 +82,8 @@ import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
-import { groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, raiseAsIssue,
-  withDone,
+import { comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview,
+  parseTopics, raiseAsIssue, sentBackCopy, withDone,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import RowSplit from "./RowSplit";
@@ -202,6 +202,8 @@ interface Loaded {
   approvals: Node[];
   // The forms every reviewer reads, whichever groups also draw on them
   everyone: Set<string>;
+  // PRETOTYPE: the copies kept as reviewer groups sent it back, by the path of their version
+  copies: Map<string, Node>;
 }
 
 
@@ -224,7 +226,13 @@ async function readAll(doFetch: ReturnType<typeof useAuthenticatedFetch>, path: 
   const everyone = new Set(Object.entries(version)
     .filter(([ , part ]) => typeof part === "object" && part !== null && (part as Node).audience === "everyone")
     .map(([ name ]) => name));
-  return { submission, form: form as unknown as SubmissionForm, approvals, everyone };
+  // A copy that cannot be read only leaves its comparison out
+  const kept = [ ...new Set(Object.values(submission).map(child => typeof child === "object" && child !== null
+    ? text((child as Node).sentBackCopy) : "").filter(Boolean)) ];
+  const copies = new Map((await Promise.all(kept.map(copy => read(`${copy}/jcr:frozenNode.deep.json`)
+    .then(node => [ copy, node ] as const, () => undefined))))
+    .filter((one): one is readonly [ string, Node ] => one !== undefined));
+  return { submission, form: form as unknown as SubmissionForm, approvals, everyone, copies };
 }
 
 
@@ -333,6 +341,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     : undefined, [ loaded, schema, me, topics ]);
   // What the pages and their notes show: what is done with only when the reviewer asks
   const peeking = peek !== undefined && (mark.id === peek || belowMark.id === peek) ? peek : undefined;
+  // PRETOTYPE: the copy kept when the reader's group sent the submission back, which documents are compared with
+  const copy = loaded ? loaded.copies.get(sentBackCopy(loaded.submission, myGroups) ?? "") : undefined;
   const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
     : { ...data, notes: data.notes.filter(note => !note.done || note.id === peeking) }), [ data, showDone, peeking ]);
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
@@ -390,7 +400,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     }
     const document = data.documents.get(requirement.name);
     return document
-      ? notesAbout(counted, [ document.uuid, document.version ]).filter(note => note.passage) : [];
+      ? notesAbout(counted, [ document.uuid, ...document.versions.map(one => one.uuid) ]).filter(note => note.passage)
+      : [];
   }, [ data, showDone ]);
   // What the filters count: the notes of the parts the contents list, each once though it is about two of them, as a
   // contradiction is about an answer and the protocol
@@ -518,8 +529,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   };
 
   const openEvidence = (note: ReviewNote) => {
-    const document = [ ...data?.documents.entries() ?? [] ].find(([ , one ]) => one.version === note.passage?.source
-      || one.uuid === note.passage?.source)?.[0] ?? "protocol";
+    const source = note.passage?.source;
+    const document = [ ...data?.documents.entries() ?? [] ].find(([ , one ]) => one.uuid === source
+      || one.versions.some(version => version.uuid === source))?.[0] ?? "protocol";
     reveal(note);
     go(document, { id: note.id, page: note.passage?.page }, true);
   };
@@ -885,6 +897,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             <DocumentReview
               key={requirement.name}
               document={document} data={viewData ?? data} shown={showing} selected={paneMark.id}
+              compareWith={comparisonFor(document, copy)}
               onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
               actions={actions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
@@ -1199,6 +1212,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                         <DocumentReview
                           key={current.name}
                           document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
+                          compareWith={comparisonFor(shownDocument, copy)}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                           actions={actions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}

@@ -272,7 +272,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
       {plain
         ? <Typography id={titleId} sx={visuallyHidden}>{title}</Typography>
         : <ViewerTitle titleId={titleId} title={title} placeButton={placeButton} onClose={onClose} />}
-      {compared.controls === undefined
+      {/* PRETOTYPE: a plain viewer shows them in the document's column, under what heads it */}
+      {compared.controls === undefined || plain
         ? null
         : <ComparisonControls {...compared.controls} onShowChange={showSelected} />}
       {card}
@@ -281,6 +282,9 @@ export default function ViewerBody(props: ViewerBodyProps) {
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0,
           ...lead === undefined ? {} : { pl: 2, pt: 1.5 } }}>
           {lead}
+          {compared.controls !== undefined && plain
+            ? <ComparisonControls {...compared.controls} onShowChange={showSelected} />
+            : null}
           <ViewerToolbar
             ref={toolbarRef}
             start={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}

@@ -106,9 +106,10 @@ function MarkList(props: {
   const selected = naming.get(selectedId ?? "");
   const plain = useContext(PlainViewer);
   // With no mark selected, the heading says how many there are. PRETOTYPE: a plain viewer's notes are headed by
-  // the choice of which to show, so the position alone says what it counts.
+  // the choice of which to show, so the position alone says what it counts, while they are all of one sort.
+  const sorts = new Set(Array.from(naming.values(), each => each.name.one)).size;
   const heading = selected === undefined ? countMarks(naming.values())
-    : plain ? `${selected.index} of ${selected.count}` : describeAmong(selected.name, selected);
+    : plain && sorts === 1 ? `${selected.index} of ${selected.count}` : describeAmong(selected.name, selected);
 
   return (
     <Box

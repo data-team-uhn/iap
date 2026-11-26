@@ -26,7 +26,7 @@ import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard, { DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
+import NoteCard, { ChangeHeading, DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument,
   type ReviewNote } from "./reviewData";
 
@@ -41,8 +41,10 @@ const DRAFT = "draft";
 const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose }: {
+  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith }: {
   document: ReviewedDocument;
+  // PRETOTYPE: an older version to show what changed since, and what each is called
+  compareWith?: { url: string; label: string; current: string };
   data: ReviewData;
   shown: Set<NoteKind>;
   selected?: string;
@@ -76,7 +78,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   const [ adopting, setAdopting ] = useState<string>();
   // The reviewer's own note being changed, whose card then shows its editor
   const [ editing, setEditing ] = useState<string>();
-  const notes = useMemo(() => notesAbout(data.notes, [ document.uuid, document.version ])
+  const notes = useMemo(() => notesAbout(data.notes, [ document.uuid, ...document.versions.map(one => one.uuid) ])
     .filter(note => note.passage && shown.has(note.kind)), [ data.notes, document, shown ]);
   const marks: Mark[] = useMemo(() => [
     ...notes.map(note => ({ id: note.id, kind: kindInfo(adopting === note.id ? "issue" : note.kind).mark,
@@ -151,6 +153,9 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     if (mark.id === DRAFT) {
       return <DraftHeading />;
     }
+    if (mark.kind === "added" || mark.kind === "removed") {
+      return <ChangeHeading />;
+    }
     const note = notes.find(one => one.id === mark.id);
     return note && <NoteHeading note={note} />;
   }, [ notes ]);
@@ -197,6 +202,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         markHeadingActions={markHeadingActions}
         lead={heading}
         listContainer={notesSlot}
+        compareWith={compareWith && { url: toFileUrl(compareWith.url), label: compareWith.label }}
+        label={compareWith?.current}
         plain
         onClose={onClose}
       />

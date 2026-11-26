@@ -122,6 +122,16 @@ export interface ReviewedDocument {
   version: string;
   title: string;
   url: string;
+  // PRETOTYPE: every version, in the order they were uploaded, the last being the one above
+  versions: DocumentVersionInfo[];
+}
+
+export interface DocumentVersionInfo {
+  uuid: string;
+  // Its place among the document's versions, from 1
+  number: number;
+  created: string;
+  url: string;
 }
 
 export interface ReviewGroup {
@@ -271,14 +281,16 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       }
     } else if (type === "sub/Document") {
       const requirement = relative(pathOf(node.fulfills), schema);
-      const version = childrenOf(node, "sub:DocumentVersion").at(-1);
-      const file = version && isNode(version.file) ? version.file : undefined;
-      if (version && file) {
+      // PRETOTYPE: each version, a note quoting an older one being about the document all the same
+      const versions = childrenOf(node, "sub:DocumentVersion").flatMap((one, index) => isNode(one.file) ? [ {
+        uuid: text(one["jcr:uuid"]), number: index + 1, created: text(one["jcr:created"]),
+        url: `${text(one.file["@path"])}/uploadedFile` } ] : []);
+      const latest = versions.at(-1);
+      if (latest) {
         const uuid = text(node["jcr:uuid"]);
-        documents.set(requirement, { uuid, version: text(version["jcr:uuid"]), title: text(node.title),
-          url: `${text(file["@path"])}/uploadedFile` });
+        documents.set(requirement, { uuid, version: latest.uuid, title: text(node.title), url: latest.url, versions });
         partOf.set(uuid, requirement);
-        partOf.set(text(version["jcr:uuid"]), requirement);
+        versions.forEach(one => partOf.set(one.uuid, requirement));
       }
     } else if (type === "sub/Screening") {
       for (const assessment of childrenOf(node, "sub:Assessment")) {
@@ -453,4 +465,28 @@ export function withDone(data: ReviewData): ReviewData {
     return { ...note, done: isDone, fromKind: note.from ? kinds.get(note.from) : undefined,
       issuesOnAnswer: note.kind === "aiIssue" && !isDone ? issuesOn(note) : undefined };
   }) };
+}
+
+// PRETOTYPE. The copy of the submission kept when one of the reader's groups last sent it back for changes, by the
+// path of its version: the latest decided of their groups' reviews that names one.
+export function sentBackCopy(submission: Node, myGroups: string[]): string | undefined {
+  const reviews = childrenOf(submission, "sub:Review")
+    .filter(review => myGroups.includes(text(review.group)) && text(review.sentBackCopy));
+  const latest = reviews.sort((a, b) => Date.parse(text(b.decidedAt)) - Date.parse(text(a.decidedAt))).at(0);
+  return latest ? text(latest.sentBackCopy) : undefined;
+}
+
+// PRETOTYPE. What a document is compared with on the review screen: the version it had in the copy kept when the
+// reader's group sent the submission back, or else the one before the latest; nothing when that is the latest.
+export function comparisonFor(document: ReviewedDocument, copy: Node | undefined)
+  : { url: string; label: string; current: string } | undefined {
+  const inCopy = copy && childrenOf(copy, "sub:Document").find(one => text(one["jcr:uuid"]) === document.uuid);
+  const then = inCopy ? text(childrenOf(inCopy, "sub:DocumentVersion").at(-1)?.["jcr:uuid"]) : undefined;
+  const older = then !== undefined ? document.versions.find(one => one.uuid === then)
+    : document.versions.at(-2);
+  if (!older || older.uuid === document.version) {
+    return undefined;
+  }
+  return { url: older.url, label: `Version ${older.number}${then !== undefined ? ", as sent back" : ""}`,
+    current: `Version ${document.versions.length}` };
 }

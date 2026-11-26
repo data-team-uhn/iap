@@ -18,6 +18,7 @@
 
 import { useContext, useState, type ReactNode } from "react";
 
+import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import { Box, Button, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
@@ -58,6 +59,16 @@ export function DraftHeading() {
     <Typography variant="caption" component="div">
       <NoteKindIcon kind="draft" sx={headingIcon("draft")} />
       <Box component="span" sx={{ color: "draft.main", fontWeight: "fontWeightBold" }}>New note</Box>
+    </Typography>
+  );
+}
+
+// PRETOTYPE. The heading of a change since the version compared with, listed among the notes
+export function ChangeHeading() {
+  return (
+    <Typography variant="caption" component="div">
+      <DifferenceOutlined sx={{ ...headingIcon("text"), color: "text.secondary" }} />
+      <Box component="span" sx={{ color: "text.secondary", fontWeight: "fontWeightBold" }}>Change</Box>
     </Typography>
   );
 }
