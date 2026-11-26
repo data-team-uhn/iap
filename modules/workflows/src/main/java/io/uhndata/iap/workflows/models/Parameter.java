@@ -123,7 +123,8 @@ public class Parameter extends EntityPart
     /** The property holding an option's stored value. */
     public static final String OPTION_VALUE_PROPERTY = "value";
 
-    private static final String REFERENCE_TYPE_PROPERTY = "referenceType";
+    /** The property holding the resource type a reference must point at. */
+    public static final String REFERENCE_TYPE_PROPERTY = "referenceType";
 
     private static final String LABEL_PROPERTY = "label";
 

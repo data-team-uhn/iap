@@ -26,6 +26,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 
 import io.uhndata.iap.utils.NodeTypeUtils;
+import io.uhndata.iap.workflows.models.Parameter;
 
 /**
  * The absolute path of another node, optionally of the node type the parameter's {@code referenceType} names.
@@ -39,8 +40,6 @@ import io.uhndata.iap.utils.NodeTypeUtils;
  */
 public class ReferenceParameterType implements ParameterType
 {
-    private static final String REFERENCE_TYPE_PROPERTY = "referenceType";
-
     @Override
     public int storageType()
     {
@@ -53,7 +52,7 @@ public class ReferenceParameterType implements ParameterType
     {
         final NodeState target = PathUtils.isValid(raw) && PathUtils.isAbsolute(raw)
             ? NodeStateUtils.getNode(root, raw) : null;
-        final String referenceType = declaration.getString(REFERENCE_TYPE_PROPERTY);
+        final String referenceType = declaration.getString(Parameter.REFERENCE_TYPE_PROPERTY);
         if (target == null || !target.exists()) {
             report.accept("a reference parameter names a node that does not exist");
         } else if (referenceType != null

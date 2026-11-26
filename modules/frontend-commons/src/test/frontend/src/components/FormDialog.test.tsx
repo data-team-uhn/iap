@@ -106,7 +106,10 @@ describe("FormDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByRole("button", { name: "Creating…" })).toBeDisabled();
+    const submit = await screen.findByRole("button", { name: "Creating…" });
+    expect(submit).toBeDisabled();
+    // A centred spinner would hide the label
+    expect(submit).toHaveClass("MuiButton-loadingPositionStart");
     finish();
   });
 });

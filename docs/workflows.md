@@ -90,8 +90,8 @@ next parse that finds nothing. A problem in the workflow vocabulary, which only 
 administrator can fix, ends with "Please contact an administrator". A diagram that could
 not be read at all records one line, and the version keeps the nodes it had.
 
-The parse writes the flow nodes straight into the commit, where nothing autocreates, so once they are
-written it gives each node what its node type autocreates: `sling:resourceType`, `jcr:created`, and any
+The parse writes the flow nodes straight into the commit, where nothing autocreates. Once they are
+written, it gives each node what its node type autocreates: `sling:resourceType`, `jcr:created`, and any
 declared default, such as an operand's `source` of `literal`. A diagram states only what differs from those
 defaults.
 
@@ -125,9 +125,9 @@ event ignores it.
 
 ### What an executable graph carries
 
-Several things exist for the engine rather than for the diagram, derived through the typed parameters
-each vocabulary entry declares wherever a version says its BPMN is authoritative, and set by hand
-elsewhere:
+Several things exist for the engine rather than for the diagram. Where a version's BPMN is authoritative,
+they are parsed from the diagram, most of them through the typed parameters each vocabulary entry
+declares. Elsewhere they are set by hand:
 
 - **`messageName` on an event** is the domain event name it catches or throws, resolved
   from the BPMN `messageRef`. A catching event is reached by an incoming event of that
@@ -172,17 +172,16 @@ shipped as a file named after the entry — `MessageStartEvent.json`:
 }
 ```
 
-Parsing a document matches each element's local name against every entry sharing it, sorted from highest
-to lowest `priority`, and keeps the first candidate that also satisfies what it further requires: an
-`xmlChildElement`, which must be a direct BPMN child of that name — what stops a start event carrying a
-message definition from being read as a plain one — or an `xmlExtensionElement`, which must be an
-IAP-namespaced child of the element's own `extensionElements` — what tells one service task handler's
-configuration from another's on the same `bpmn:serviceTask`. An entry requiring neither always matches.
-Entries of equal priority are tried in the order of their node names, since `/WorkflowTypes` is not
-orderable and which entry a diagram is read as must not depend on the order the repository lists them in.
-An entry is a node of
-type `wf:FlowNodeType` or a subtype; a matching one missing its `jcrNodeType` or its identity is reported and
-passed over for the next candidate.
+Parsing a document matches each element's local name against every entry sharing it, from highest to
+lowest `priority`. It keeps the first candidate that also satisfies what that entry further requires. An
+`xmlChildElement` must be a direct BPMN child of that name: it stops a start event carrying a message
+definition from being read as a plain one. An `xmlExtensionElement` must be an IAP-namespaced child of the
+element's own `extensionElements`: it tells one service task handler's configuration from another's on the
+same `bpmn:serviceTask`. An entry requiring neither always matches. Entries of equal priority are tried in
+the order of their node names. `/WorkflowTypes` is not orderable, and which entry a diagram is read as must
+not depend on the order the repository lists them in. An entry is a node of type `wf:FlowNodeType` or a
+subtype. A matching one missing its `jcrNodeType` or its identity is reported and passed over for the next
+candidate.
 
 **IAP markup the winning entry does not read is reported**, since nothing in the diagram shows that it was
 dropped. That is:
@@ -243,13 +242,13 @@ the entry behind the `copyContent` handler:
 }
 ```
 
-**Where a parameter's value is written is its own choice, its `xmlLocation`, because the cases are genuinely
-different.** A user task's `performers` is `xmlLocation: "attribute"`: a property the node *kind* declares, so
-it is an IAP-namespaced attribute of the flow node's own element regardless of whether that element carries
-an extension at all — `iap:performers="reviewers, editors"`, a list comma-joined. `sourceType` and
-`skipProperties` keep the default, `extensionElement`: they live inside `copyContent`'s own extension element,
-where one handler's configuration cannot be confused with another's on the same `bpmn:serviceTask` — a single
-value is an unprefixed attribute of that element, a list is one IAP-namespaced child per value:
+**Where a parameter's value is written is its own choice, its `xmlLocation`, because the cases differ.** A
+user task's `performers` is `xmlLocation: "attribute"`. The node *kind* declares it, so it is an
+IAP-namespaced attribute of the flow node's own element, whether or not that element carries an extension:
+`iap:performers="reviewers, editors"`, a list comma-joined. `sourceType` and `skipProperties` keep the
+default, `extensionElement`. They live inside `copyContent`'s own extension element, where one handler's
+configuration cannot be confused with another's on the same `bpmn:serviceTask`. There a single value is an
+unprefixed attribute of that element, and a list is one IAP-namespaced child per value:
 
 ```xml
 <bpmn:serviceTask id="copy" name="Copy the source version, if one is named">
@@ -262,7 +261,7 @@ value is an unprefixed attribute of that element, a list is one IAP-namespaced c
 ```
 
 An entry with no `xmlExtensionElement` has nowhere else to put a parameter, so one declared there anyway
-is read as an attribute regardless — logged as a problem rather than silently accepted, since the
+is read as an attribute. It is logged as a problem rather than silently accepted, since the
 alternative is a field the properties panel offers and nothing can store.
 
 **A value BPMN has its own markup for stays in that markup**, under BPMN's name. `xmlLocation:
@@ -357,8 +356,8 @@ content and no key, at any depth. It lists them in an error and sends nothing. T
 is pressed. The panel matches element names exactly, as the parser does: a vocabulary's `bpmn:serviceTask`
 matches, `bpmn:ServiceTask` does not.
 
-Each parameter is stored in the JCR type its `dataType` says — text, a reference or a principal as
-STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S) — and the parser validates as it stores: a
+Each parameter is stored in the JCR type its `dataType` says: text, a reference or a principal as
+STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S). The parser validates as it stores. It reports a
 required parameter (`minValues` at least one) with nothing given, or with no value its type can store, more
 values than `maxValues` allows, fewer values than `minValues`, a value outside the offered options, a value
 the wrong shape for its `dataType`, a value written in the other of the two places a value can take inside an
@@ -374,19 +373,20 @@ save, so it is reported and not written either. The same goes for the node a str
 property besides its primary type, or a node holding the structure whose type declares no child of that
 name and type, by name or residually, is reported and the structure not written. A mandatory item the type
 autocreates, as every `data:EntityPart` subtype does `sling:resourceType`, does not count. Every one of these is
-reported through the same problem log a bad element is, naming the parameter and the element, and parsing
-carries on regardless: a diagram that says something impossible costs at most the values it got wrong, never
-the save. **Fixed `jcrProperties` are applied after parameters and win over them**, so a handler's own
+reported through the same problem log as a bad element, naming the parameter and the element. Parsing then
+carries on. A diagram that says something impossible costs at most the values it got wrong, never the save.
+**Fixed `jcrProperties` are applied after parameters and win over them**, so a handler's own
 `handler` property is never something a diagram could overwrite by declaring a parameter of the same name.
 
 **A per-handler vocabulary entry ships with the handler's own module**, matched on the extension element
-named after the handler — `RecordReview.json` under `modules/submissions`, `CopyContent.json` under
-`modules/workflows`, and so on — at `priority: 10` over the generic `ServiceTask` entry's `0`. The generic
-entry declares only `handler`, an `attribute`, and is what a service task falls back on
+named after the handler, at `priority: 10` over the generic `ServiceTask` entry's `0`. `RecordReview.json`
+is under `modules/submissions`, `CopyContent.json` under `modules/workflows`, and so on. The generic
+entry declares `handler` and `subject`, both `attribute`s, and is what a service task falls back on
 when it carries no extension element that a per-handler entry matches. Matching never reads `iap:handler`:
 a task that names `recordReview` there without an `<iap:recordReview>` element is a generic service task, so none of
-RecordReview's parameters are read or checked, and any other IAP attribute
-it carries is reported as one no parameter reads. A call activity is a BPMN element of its own rather than a
+RecordReview's parameters are read or checked. The parse reports such a task, since a handler with an entry of its
+own would run unconfigured, and reports any other IAP attribute it carries as one no parameter reads. A call
+activity is a BPMN element of its own rather than a
 configured service task, so its `CallActivity` entry fixes the `callActivity` handler and carries `message`
 as an attribute.
 

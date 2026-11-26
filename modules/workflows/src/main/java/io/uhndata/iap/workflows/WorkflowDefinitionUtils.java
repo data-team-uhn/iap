@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
@@ -37,8 +38,10 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import jakarta.json.Json;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
@@ -119,6 +122,9 @@ public final class WorkflowDefinitionUtils
 
     /** BPMN's own namespace, which every element a diagram is drawn with belongs to. */
     static final String BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL";
+
+    /** The IAP attribute a generic service task names its handler in, and the detail naming that handler. */
+    private static final String HANDLER_ATTRIBUTE = "handler";
 
     /** The detail naming the id a broken reference points at. */
     private static final String REFERENCE_DETAIL = "references";
@@ -211,23 +217,28 @@ public final class WorkflowDefinitionUtils
      *
      * @since 0.1.0
      */
-    private record ParseContext(NodeBuilder workflowVersion, NodeState root, String author, Calendar created,
-        Map<String, NodeBuilder> createdNodes, Map<String, String> messageNames, ParseProblems problems)
+    private record ParseContext(NodeBuilder workflowVersion, ParseScope scope, String author, Calendar created,
+        Map<String, NodeBuilder> createdNodes, Map<String, String> messageNames)
     {
-        ParseContext(final NodeBuilder workflowVersion, final NodeState root, final String author,
-            final Calendar created, final Map<String, String> messageNames, final ParseProblems problems)
+        ParseContext(final NodeBuilder workflowVersion, final ParseScope scope, final String author,
+            final Calendar created, final Map<String, String> messageNames)
         {
-            this(workflowVersion, root, author, created, new LinkedHashMap<>(), messageNames, problems);
+            this(workflowVersion, scope, author, created, new LinkedHashMap<>(), messageNames);
         }
 
         String path()
         {
-            return this.problems.path();
+            return problems().path();
         }
 
         NodeState nodeTypesRoot()
         {
-            return NodeTypeUtils.registry(this.root);
+            return this.scope.registry();
+        }
+
+        ParseProblems problems()
+        {
+            return this.scope.problems();
         }
 
         Set<String> claimedNames()
@@ -267,8 +278,8 @@ public final class WorkflowDefinitionUtils
         }
         // One timestamp for the whole batch: every node in it was created by the same parse, and differing
         // millisecond values would suggest otherwise.
-        final ParseContext context = new ParseContext(workflowVersion, root, author,
-            Calendar.getInstance(), messageNames(process), problems);
+        final ParseContext context = new ParseContext(workflowVersion, ParseScope.of(root, problems), author,
+            Calendar.getInstance(), messageNames(process));
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes =
             loadFlowNodeTypes(root.getChildNode(WORKFLOW_TYPES_ROOT_NAME), context.nodeTypesRoot());
         final Map<String, Element> elementsById = new LinkedHashMap<>();
@@ -301,9 +312,12 @@ public final class WorkflowDefinitionUtils
         for (final Element sequenceFlow : sequenceFlows) {
             createSequenceFlow(sequenceFlow, elementsById, flowNodeTypes, context);
         }
-        // Last, so that nothing the diagram wrote is overwritten by a default
-        context.createdNodes().values().forEach(node ->
-            NodeTypeUtils.autoCreateItems(node, context.nodeTypesRoot(), author, context.created()));
+        // Last, so that nothing the diagram wrote is overwritten by a default. Filling a node fills what it holds,
+        // so only the version's own children are filled.
+        context.createdNodes().entrySet().stream()
+            .filter(created -> workflowVersion.hasChildNode(created.getKey()))
+            .forEach(created -> NodeTypeUtils.autoCreateItems(created.getValue(), context.nodeTypesRoot(), author,
+                context.created()));
         return problems;
     }
 
@@ -459,11 +473,32 @@ public final class WorkflowDefinitionUtils
         if (flowNodeType == null) {
             return;
         }
+        reportHandlerByAttribute(element, flowNodeType, flowNodeTypes.get(localName), context);
         final NodeBuilder node = createNode(context.workflowVersion(), id, flowNodeType.jcrNodeType(), context);
         if (node == null) {
             return;
         }
         populate(node, element, id, flowNodeType, context);
+    }
+
+    /**
+     * Reports a generic task that names, as its {@code iap:handler} attribute, a handler with an entry of its own.
+     * Only that entry reads and checks the handler's parameters, and it matches the handler's element, not the
+     * attribute, so the handler would run unconfigured.
+     */
+    private static void reportHandlerByAttribute(final Element element, final FlowNodeTypeInfo matched,
+        final List<FlowNodeTypeInfo> candidates, final ParseContext context)
+    {
+        final String handler = element.getAttributeNS(IAP_NS, HANDLER_ATTRIBUTE);
+        if (matched.xmlExtensionElement() != null || handler.isEmpty()
+            || candidates.stream().noneMatch(candidate -> handler.equals(candidate.xmlExtensionElement()))) {
+            return;
+        }
+        final String id = element.getAttribute(ID_ATTRIBUTE);
+        LOGGER.warn("BPMN element {} in {} names the {} handler by attribute instead of by its element", id,
+            context.path(), handler);
+        context.problems().report("a task names a handler by attribute instead of its element",
+            context.problems().context().with(ELEMENT_DETAIL, id).with(HANDLER_ATTRIBUTE, handler));
     }
 
     /**
@@ -959,8 +994,15 @@ public final class WorkflowDefinitionUtils
     private static void applyJcrProperties(final FlowNodeTypeInfo flowNodeType, final NodeBuilder node,
         final ParseContext context)
     {
-        final JsonObject properties = flowNodeType.jcrProperties();
-        if (properties == null) {
+        final String declared = flowNodeType.jcrProperties();
+        if (StringUtils.isBlank(declared)) {
+            return;
+        }
+        final JsonObject properties;
+        try (JsonReader reader = Json.createReader(new StringReader(declared))) {
+            properties = reader.readObject();
+        } catch (final RuntimeException e) {
+            // A malformed vocabulary entry must not take the parse, or the commit, down with it
             LOGGER.warn("FlowNodeType {} in {} declares jcrProperties that are not a JSON object, ignoring them",
                 flowNodeType.identifier(), context.path());
             context.problems().report("FlowNodeType declares jcrProperties that are not a JSON object",
@@ -1005,8 +1047,7 @@ public final class WorkflowDefinitionUtils
     private static void applyParameters(final FlowNodeTypeInfo flowNodeType, final Element element,
         final NodeBuilder node, final ParseContext context)
     {
-        ParameterTranslation.applyParameters(flowNodeType, element, node, context.root(), context.nodeTypesRoot(),
-            context.problems());
+        ParameterTranslation.applyParameters(flowNodeType, element, node, context.scope());
     }
 
     private static void createSequenceFlow(final Element element, final Map<String, Element> elementsById,

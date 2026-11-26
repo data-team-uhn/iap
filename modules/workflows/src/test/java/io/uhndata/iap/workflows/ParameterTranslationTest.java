@@ -223,7 +223,7 @@ class ParameterTranslationTest
                 + "<iap:toState>ACTIVE</iap:toState><iap:fromStates>DRAFT</iap:fromStates></iap:setState>"));
 
             assertFalse(after.getChildNode(TASK).hasProperty(TO_STATE));
-            assertEquals(List.of("a parameter taking one value has it written as child elements instead",
+            assertEquals(List.of("a single-valued parameter is written as child elements",
                 "a required parameter has no value"),
                 problems.names());
         }
@@ -278,7 +278,7 @@ class ParameterTranslationTest
                 parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:handler=\"checkBudget\"/>\n");
 
             assertEquals("checkBudget", after.getChildNode(TASK).getString(HANDLER));
-            assertEquals(List.of("a parameter is not an attribute of an entry that declares no extension element"),
+            assertEquals(List.of("a non-attribute parameter on an entry with no extension element"),
                 problems.names());
             assertEquals(TASK, problems.all().get(0).details().get(ELEMENT_DETAIL));
             assertEquals(HANDLER, problems.all().get(0).details().get(PARAMETER_DETAIL));
@@ -355,9 +355,24 @@ class ParameterTranslationTest
 
             assertEquals("moveContent", after.getChildNode(TASK).getString(HANDLER));
             assertFalse(after.getChildNode(TASK).hasProperty("within"));
-            assertEquals(List.of("an IAP attribute belongs to no parameter of the matching FlowNodeType"),
+            assertEquals(List.of("an IAP attribute is read by no parameter of its entry"),
                 problems.names());
             assertEquals("within", problems.all().get(0).details().get(ATTRIBUTE_DETAIL));
+        }
+    }
+
+    @Test
+    void reportsAGenericTaskNamingAHandlerThatHasAnEntryOfItsOwn() throws Exception
+    {
+        final NodeBuilder root = withSetState();
+        VocabularyFixture.attributeParameter(
+            VocabularyFixture.entry(root, GENERIC_SERVICE_TASK, SERVICE_TASK_ELEMENT, ACTIVITY, 0), HANDLER, TEXT, 1);
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:handler=\"" + SET_STATE + "\"/>\n");
+
+            assertEquals(List.of("a task names a handler by attribute instead of its element"), problems.names());
+            assertEquals(SET_STATE, problems.all().get(0).details().get(HANDLER));
         }
     }
 
@@ -372,7 +387,7 @@ class ParameterTranslationTest
                 + "      <bpmn:extensionElements>" + setState("ACTIVE") + "</bpmn:extensionElements>\n"
                 + "    </bpmn:serviceTask>\n");
 
-            assertEquals(List.of("an IAP attribute belongs to no parameter of the matching FlowNodeType"),
+            assertEquals(List.of("an IAP attribute is read by no parameter of its entry"),
                 problems.names());
             assertEquals(HANDLER, problems.all().get(0).details().get(ATTRIBUTE_DETAIL));
             assertEquals("SetState", problems.all().get(0).details().get(FLOW_NODE_TYPE));
@@ -393,9 +408,9 @@ class ParameterTranslationTest
                 + "</iap:setState></bpmn:extensionElements>\n"
                 + "    </bpmn:serviceTask>\n");
 
-            assertEquals(List.of("an IAP attribute belongs to no parameter of the matching FlowNodeType",
-                "an attribute of an IAP extension element belongs to no parameter of the matching FlowNodeType",
-                "a child of an IAP extension element belongs to no parameter of the matching FlowNodeType"),
+            assertEquals(List.of("an IAP attribute is read by no parameter of its entry",
+                "an IAP extension attribute is read by no parameter of its entry",
+                "an IAP extension child is read by no parameter of its entry"),
                 problems.names());
             assertEquals(List.of(TO_STATE, COLOUR, "fromState"), problems.all().stream()
                 .map(problem -> problem.details().getOrDefault(ATTRIBUTE_DETAIL, problem.details().get("child")))
@@ -486,7 +501,7 @@ class ParameterTranslationTest
 
             assertEquals("review", after.getChildNode(TASK).getString(HANDLER));
             assertFalse(after.getChildNode(TASK).hasProperty("outcomes"));
-            assertEquals(List.of("a parameter is declared differently by the node type it is stored in"),
+            assertEquals(List.of("a parameter disagrees with the node type it is stored in"),
                 problems.names());
             assertEquals("outcomes", problems.all().get(0).details().get(PARAMETER_DETAIL));
         }
@@ -571,7 +586,7 @@ class ParameterTranslationTest
         try (RecordedProblems problems = new RecordedProblems()) {
             parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
 
-            assertEquals(List.of("a vocabulary entry holds a parameter that is not a wf:Parameter node"),
+            assertEquals(List.of("a vocabulary entry holds a parameter of the wrong node type"),
                 problems.names());
             assertEquals("note", problems.all().get(0).details().get(PARAMETER_DETAIL));
         }
@@ -757,10 +772,10 @@ class ParameterTranslationTest
                 "timerEventDefinition/timeCycle"), problems.all().stream()
                     .map(problem -> problem.details().getOrDefault(ATTRIBUTE_DETAIL, problem.details().get("child")))
                     .toList());
-            assertEquals(List.of("a BPMN element is read by no parameter of the matching FlowNodeType",
-                "a BPMN attribute is read by no parameter of the matching FlowNodeType",
-                "a BPMN attribute is read by no parameter of the matching FlowNodeType",
-                "a BPMN element is read by no parameter of the matching FlowNodeType"), problems.names());
+            assertEquals(List.of("a BPMN element is read by no parameter of its entry",
+                "a BPMN attribute is read by no parameter of its entry",
+                "a BPMN attribute is read by no parameter of its entry",
+                "a BPMN element is read by no parameter of its entry"), problems.names());
         }
     }
 

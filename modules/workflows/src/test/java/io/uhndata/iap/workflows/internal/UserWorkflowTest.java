@@ -204,7 +204,8 @@ class UserWorkflowTest
     }
 
     /**
-     * Builds one way out of the process: a task that tags the host, then an end event.
+     * Builds one way out of the process: a task that tags the host in place of its lifecycle tag, as the demos do,
+     * then an end event.
      *
      * @param elementId the identifier of the tagging task, which the gateway's arc targets
      * @param tag the tag placed on the host
@@ -213,7 +214,8 @@ class UserWorkflowTest
     {
         final String end = elementId + "End";
         this.context.create().resource(PROCESS + "/" + elementId, Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, elementId, HANDLER, AddTagHandler.HANDLER_NAME, "tag", tag));
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, elementId, HANDLER, AddTagHandler.HANDLER_NAME, "tag", tag,
+            "replaceExisting", true));
         this.context.create().resource(PROCESS + "/" + elementId + "/toEnd", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, elementId + "ToEnd", TARGET_REF, end));
         this.context.create().resource(PROCESS + "/" + end, Map.of(
@@ -436,7 +438,7 @@ class UserWorkflowTest
         assertThrows(NoApplicableWorkflowException.class,
             () -> engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT));
         assertEquals("completed", read(TASK).get(STATUS));
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -1015,7 +1017,7 @@ class UserWorkflowTest
         assertNotNull(instance.get("endTime"));
         // The token is spent, and the task before the end event said what finishing that way means to the host
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -1027,7 +1029,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(
             TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "rejected")));
 
-        assertEquals(List.of("draft", "rejected"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(List.of("rejected"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -1349,7 +1351,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
             new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of()));
 
-        assertEquals(List.of("draft", "rejected"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(List.of("rejected"), List.of((String[]) read(HOST).get("tags")));
         assertNull(read(TASK).get("outcome"));
     }
 
@@ -1445,7 +1447,7 @@ class UserWorkflowTest
 
         assertEquals("approved",
             read(HOST + "/wf:instances/timeOffRequest/outcome").get("stringValue"));
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -1578,7 +1580,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
         assertEquals(HOST, handler.target);
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test

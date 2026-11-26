@@ -61,7 +61,14 @@ function FormDialog(props: FormDialogProps) {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" onClick={() => run(onSubmit)} disabled={working || !valid} loading={working}>
+        <Button
+          variant="contained"
+          onClick={() => run(onSubmit)}
+          disabled={working || !valid}
+          loading={working}
+          // At the start, so the label saying what is under way stays visible beside the spinner
+          loadingPosition="start"
+        >
           {working ? workingLabel ?? submitLabel : submitLabel}
         </Button>
       </DialogActions>

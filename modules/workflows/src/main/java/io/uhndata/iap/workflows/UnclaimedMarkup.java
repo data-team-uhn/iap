@@ -103,8 +103,8 @@ final class UnclaimedMarkup
         final Set<String> attributes = parameterNames(match, parameter -> readFromElement(parameter, match));
         attributes(element).filter(attribute -> WorkflowDefinitionUtils.IAP_NS.equals(attribute.getNamespaceURI())
             && !attributes.contains(attribute.getLocalName()))
-            .forEach(attribute -> reportUnclaimed("an IAP attribute belongs to no parameter of the matching"
-                + " FlowNodeType", ATTRIBUTE_DETAIL, attribute.getLocalName(), element, match, problems));
+            .forEach(attribute -> reportUnclaimed("an IAP attribute is read by no parameter of its entry",
+                ATTRIBUTE_DETAIL, attribute.getLocalName(), element, match, problems));
         if (own.isEmpty()) {
             return;
         }
@@ -129,12 +129,11 @@ final class UnclaimedMarkup
     {
         attributes(holder).filter(attribute -> attribute.getNamespaceURI() == null
             && !names.contains(attribute.getLocalName()))
-            .forEach(attribute -> reportUnclaimed("an attribute of an IAP extension element belongs to no"
-                + " parameter of the matching FlowNodeType", ATTRIBUTE_DETAIL, prefix + attribute.getLocalName(),
-                element, match, problems));
+            .forEach(attribute -> reportUnclaimed("an IAP extension attribute is read by no parameter of its entry",
+                ATTRIBUTE_DETAIL, prefix + attribute.getLocalName(), element, match, problems));
         iapChildren(holder).filter(child -> !names.contains(child.getLocalName()))
-            .forEach(child -> reportUnclaimed("a child of an IAP extension element belongs to no parameter of the"
-                + " matching FlowNodeType", CHILD_DETAIL, prefix + child.getLocalName(), element, match, problems));
+            .forEach(child -> reportUnclaimed("an IAP extension child is read by no parameter of its entry",
+                CHILD_DETAIL, prefix + child.getLocalName(), element, match, problems));
     }
 
     /**
@@ -210,10 +209,10 @@ final class UnclaimedMarkup
     {
         attributes(at).filter(attribute -> attribute.getNamespaceURI() == null
             && !attributes.contains(attribute.getLocalName()))
-            .forEach(attribute -> reportUnclaimed("a BPMN attribute is read by no parameter of the matching"
-                + " FlowNodeType", ATTRIBUTE_DETAIL, prefix + attribute.getLocalName(), element, match, problems));
+            .forEach(attribute -> reportUnclaimed("a BPMN attribute is read by no parameter of its entry",
+                ATTRIBUTE_DETAIL, prefix + attribute.getLocalName(), element, match, problems));
         bpmnChildren(at).filter(child -> !children.contains(child.getLocalName()))
-            .forEach(child -> reportUnclaimed("a BPMN element is read by no parameter of the matching FlowNodeType",
+            .forEach(child -> reportUnclaimed("a BPMN element is read by no parameter of its entry",
                 CHILD_DETAIL, prefix + child.getLocalName(), element, match, problems));
     }
 

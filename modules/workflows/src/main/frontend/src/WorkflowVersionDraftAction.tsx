@@ -24,7 +24,7 @@ import { useNavigate } from "react-router";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import NewVersionDialog from "./NewVersionDialog";
+import DraftFromVersionDialog from "./DraftFromVersionDialog";
 import { adminUrl } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
@@ -46,7 +46,7 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
       <ActionIcon label="New draft from this" icon={<ContentCopyOutlinedIcon fontSize="small" />}
         onClick={() => setNaming(true)} />
       { naming && (
-        <NewVersionDialog
+        <DraftFromVersionDialog
           workflow={workflow}
           source={version}
           onClose={() => setNaming(false)}

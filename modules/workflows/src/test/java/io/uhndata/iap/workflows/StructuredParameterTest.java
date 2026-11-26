@@ -179,8 +179,8 @@ class StructuredParameterTest
 
             assertEquals(List.of(
                 "a parameter has more values than it accepts",
-                "an attribute of an IAP extension element belongs to no parameter of the matching FlowNodeType",
-                "a child of an IAP extension element belongs to no parameter of the matching FlowNodeType",
+                "an IAP extension attribute is read by no parameter of its entry",
+                "an IAP extension child is read by no parameter of its entry",
                 "a required parameter has no value",
                 "a parameter has a value that is not a whole number"),
                 problems.names());
@@ -254,8 +254,8 @@ class StructuredParameterTest
             final NodeState task = parse(root, serviceTask("<iap:misspelt label=\"Kept\"><iap:single path=\"/a\"/>"
                 + "<iap:repeated name=\"a\"/></iap:misspelt>")).getChildNode(TASK);
 
-            assertEquals(List.of("a structured parameter is stored as a node type that is not registered",
-                "a structured parameter is stored as a node type that is not registered"), problems.names());
+            assertEquals(List.of("a structured parameter has a node type that is not registered",
+                "a structured parameter has a node type that is not registered"), problems.names());
             assertFalse(task.hasChildNode("single") || task.hasChildNode("repeated"));
             assertEquals("Kept", task.getString(LABEL));
         }
@@ -289,8 +289,8 @@ class StructuredParameterTest
                 + "<iap:mixin name=\"a\"/><iap:file name=\"a\"/><iap:part name=\"a\"/><iap:plain name=\"a\"/>"
                 + "<iap:single path=\"/a\"/></iap:strict>")).getChildNode(TASK);
 
-            final String uninstantiable = "a structured parameter is stored as an abstract or mixin node type";
-            final String mandatory = "a structured parameter is stored as a node type with mandatory items";
+            final String uninstantiable = "a structured parameter has an abstract or mixin node type";
+            final String mandatory = "a structured parameter has a node type with mandatory items";
             assertEquals(Map.of("abstract", uninstantiable, "mixin", uninstantiable, "file", mandatory,
                 "part", mandatory, "single", mandatory), problems.all().stream().collect(Collectors.toMap(
                     problem -> problem.details().get(PARAMETER_DETAIL), RecordedProblems.Problem::problem)));
@@ -349,7 +349,7 @@ class StructuredParameterTest
                 + "<iap:target path=\"/a\"/><iap:note label=\"N\"/><iap:extras name=\"e\"/>"
                 + "</iap:holders></iap:hold>")).getChildNode(TASK).getChildNode("holders").getChildNode("h");
 
-            assertEquals(List.of("a parameter is declared differently by the node type it is stored in",
+            assertEquals(List.of("a parameter disagrees with the node type it is stored in",
                 "a parameter is not allowed by the node type it is stored in"), problems.names());
             assertEquals("holders/h/note", problems.all().get(0).details().get(PARAMETER_DETAIL));
             assertEquals("holders/h/extras", problems.all().get(1).details().get(PARAMETER_DETAIL));
@@ -397,7 +397,7 @@ class StructuredParameterTest
 
             assertEquals(4, problems.all().size(), () -> String.valueOf(problems.messages()));
             problems.all().forEach(problem -> assertEquals(
-                "a repeated structured parameter declares no single-valued key field", problem.problem()));
+                "a repeated structured parameter declares no single-valued key", problem.problem()));
             assertFalse(task.hasChildNode("none") || task.hasChildNode("missing") || task.hasChildNode("listed")
                 || task.hasChildNode("nested"));
         }
@@ -416,8 +416,8 @@ class StructuredParameterTest
         try (RecordedProblems problems = new RecordedProblems()) {
             parse(root, serviceTask("<iap:inline/>") + "    <bpmn:scriptTask id=\"script1\"/>\n");
 
-            assertEquals(List.of("a structured parameter is not written inside an extension element",
-                "a structured parameter is not written inside an extension element"), problems.names());
+            assertEquals(List.of("a structured parameter is not inside an extension element",
+                "a structured parameter is not inside an extension element"), problems.names());
         }
     }
 
@@ -480,7 +480,7 @@ class StructuredParameterTest
             final NodeState stored = parse(root, serviceTask("<iap:configure><iap:target path=\"/a\"/>"
                 + "</iap:configure>")).getChildNode(TASK).getChildNode(TARGET);
 
-            assertEquals(List.of("a vocabulary entry declares a field outside its structure's parameters node"),
+            assertEquals(List.of("a vocabulary entry declares a field outside a structure"),
                 problems.names());
             assertEquals("target/flag", problems.all().get(0).details().get(PARAMETER_DETAIL));
             assertEquals("/a", stored.getString(PATH), "the fields that are declared properly are still read");
@@ -500,8 +500,8 @@ class StructuredParameterTest
         try (RecordedProblems problems = new RecordedProblems()) {
             parse(root, serviceTask("<iap:updateContent><iap:fields name=\"title\"/></iap:updateContent>"));
 
-            assertEquals(List.of("a vocabulary entry holds a parameter that is not a wf:Parameter node",
-                "a vocabulary entry declares a field outside its structure's parameters node"),
+            assertEquals(List.of("a vocabulary entry holds a parameter of the wrong node type",
+                "a vocabulary entry declares a field outside a structure"),
                 problems.names());
             assertEquals("fields/parameters/note", problems.all().get(0).details().get(PARAMETER_DETAIL));
             assertEquals("fields/parameters/choices/hint", problems.all().get(1).details().get(PARAMETER_DETAIL));

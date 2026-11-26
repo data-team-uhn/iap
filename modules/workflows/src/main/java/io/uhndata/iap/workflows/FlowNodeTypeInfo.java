@@ -17,17 +17,11 @@
  */
 package io.uhndata.iap.workflows;
 
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
-import jakarta.json.Json;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
-import jakarta.json.JsonValue;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
@@ -48,23 +42,17 @@ import io.uhndata.iap.workflows.models.Parameter;
  * @param xmlExtensionElement the local name of the IAP extension element a matching element must carry, and the
  *            element every parameter located in an extension element is read from, or {@code null} if the entry
  *            names none
- * @param jcrProperties the fixed properties to set on the stored node, empty when the entry declares none, and
- *            {@code null} when what it declares is not a JSON object
+ * @param jcrProperties the fixed properties to set on the stored node, as the JSON object text the entry declares,
+ *            or {@code null} when it declares none
  * @param priority how specific this entry is; the highest matching entry wins
  * @param parameters the values a node of this type carries beyond the ones every flow node has
  * @version $Id$
  * @since 0.1.0
  */
 record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, String xmlChildElement,
-    String xmlExtensionElement, JsonObject jcrProperties, long priority, Parameters parameters)
+    String xmlExtensionElement, String jcrProperties, long priority, Parameters parameters)
 {
-    private static final String PARAMETER_NODETYPE = "wf:Parameter";
-
-    private static final String JCR_PRIMARY_TYPE = "jcr:primaryType";
-
     private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
-
-    private static final String PARAMETER_OPTION_NODETYPE = "wf:ParameterOption";
 
     private static final String JCR_UUID = "jcr:uuid";
 
@@ -121,7 +109,8 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
 
         /**
          * The location a parameter declaration names. The node type requires a known one, so only a declaration
-         * stored as a node of another type can name none or an unknown one. It is read as the default.
+         * written past its checks, as straight into a NodeBuilder, can name none or an unknown one. It is read as the
+         * default.
          *
          * @param value the stored {@code xmlLocation}, or {@code null} if none is stored
          * @return the location it names, {@link #EXTENSION_ELEMENT} when it names none
@@ -264,7 +253,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         return new FlowNodeTypeInfo(name, node.getString(JCR_UUID), node.getString(JCR_NODE_TYPE_PROPERTY),
             childElement == null ? null : WorkflowDefinitionUtils.localName(childElement),
             extensionElement == null ? null : WorkflowDefinitionUtils.localName(extensionElement),
-            jcrProperties(node.getString(JCR_PROPERTIES_PROPERTY)), node.getLong(PRIORITY_PROPERTY),
+            node.getString(JCR_PROPERTIES_PROPERTY), node.getLong(PRIORITY_PROPERTY),
             new Parameters(parameters, unread, misplaced));
     }
 
@@ -288,7 +277,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         final List<ParameterInfo> result = new ArrayList<>();
         for (final String name : orderedChildNames(parent)) {
             final NodeState state = parent.getChildNode(name);
-            if (isA(state, PARAMETER_NODETYPE, nodeTypesRoot)) {
+            if (NodeTypeUtils.isOfType(state, Parameter.NODE_TYPE, nodeTypesRoot)) {
                 result.add(parameter(name, prefix + name, state, nodeTypesRoot, strays));
             } else if (isUnreadParameter(state)) {
                 strays.unread().add(prefix + name);
@@ -315,24 +304,6 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         return Parameter.RESOURCE_TYPE.equals(node.getString(SLING_RESOURCE_TYPE));
     }
 
-    private static JsonObject jcrProperties(final String raw)
-    {
-        if (StringUtils.isBlank(raw)) {
-            return JsonValue.EMPTY_JSON_OBJECT;
-        }
-        try (JsonReader reader = Json.createReader(new StringReader(raw))) {
-            return reader.readObject();
-        } catch (final RuntimeException e) {
-            // Reported for each element the entry matches. A malformed entry must not take the parse down with it.
-            return null;
-        }
-    }
-
-    private static boolean isA(final NodeState node, final String type, final NodeState nodeTypesRoot)
-    {
-        return NodeTypeUtils.isOrExtends(node.getName(JCR_PRIMARY_TYPE), type, nodeTypesRoot);
-    }
-
     /**
      * Reads one parameter declaration.
      *
@@ -343,14 +314,14 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         final NodeState nodeTypesRoot, final Strays strays)
     {
         final String dataType = node.getString(Parameter.DATA_TYPE_PROPERTY);
-        // Autocreated in the node type, so absent only for an entry stored as a node of another type. An absent
-        // maximum must not read as 0, which means unbounded rather than one.
+        // Autocreated in the node type, so absent only for a declaration written past it, as straight into a
+        // NodeBuilder. An absent maximum must not read as 0, which means unbounded rather than one.
         final long maxValues = node.hasProperty(Parameter.MAX_VALUES_PROPERTY)
             ? node.getLong(Parameter.MAX_VALUES_PROPERTY) : Parameter.DEFAULT_MAX_VALUES;
         // A field declared beside the fields node rather than inside it is an easy mistake to make
         for (final ChildNodeEntry child : node.getChildNodeEntries()) {
             final NodeState state = child.getNodeState();
-            if (isA(state, PARAMETER_NODETYPE, nodeTypesRoot) || isUnreadParameter(state)) {
+            if (NodeTypeUtils.isOfType(state, Parameter.NODE_TYPE, nodeTypesRoot) || isUnreadParameter(state)) {
                 strays.misplaced().add(path + "/" + child.getName());
             }
         }
@@ -380,7 +351,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         final Set<String> result = new LinkedHashSet<>();
         for (final String name : orderedChildNames(node)) {
             final NodeState child = node.getChildNode(name);
-            if (isA(child, PARAMETER_OPTION_NODETYPE, nodeTypesRoot)) {
+            if (NodeTypeUtils.isOfType(child, Parameter.OPTION_NODE_TYPE, nodeTypesRoot)) {
                 final String value = child.getString(Parameter.OPTION_VALUE_PROPERTY);
                 if (value != null) {
                     result.add(value);

@@ -103,7 +103,7 @@ final class ParameterTranslation
     private static final String MANDATORY_CHILD_NODES = "rep:mandatoryChildNodes";
 
     private static final String DECLARED_DIFFERENTLY =
-        "a parameter is declared differently by the node type it is stored in";
+        "a parameter disagrees with the node type it is stored in";
 
     private static final String NOT_ALLOWED = "a parameter is not allowed by the node type it is stored in";
 
@@ -126,19 +126,31 @@ final class ParameterTranslation
      *
      * @param type the vocabulary entry the element matched
      * @param element the BPMN element being translated
-     * @param root the committed repository root, which a parameter type may look values up in
-     * @param nodeTypesRoot the {@code /jcr:system/jcr:nodeTypes} node state
-     * @param problems where whatever is wrong is reported
+     * @param scope the repository, its node type registry, and where whatever is wrong is reported
      * @param level the flow node being written, or the structure inside it being read
      * @since 0.1.0
      */
-    private record Context(FlowNodeTypeInfo type, Element element, NodeState root, NodeState nodeTypesRoot,
-        ParseProblems problems, Level level)
+    private record Context(FlowNodeTypeInfo type, Element element, ParseScope scope, Level level)
     {
         /** The same element, one structure further down. */
         Context into(final Level inner)
         {
-            return new Context(this.type, this.element, this.root, this.nodeTypesRoot, this.problems, inner);
+            return new Context(this.type, this.element, this.scope, inner);
+        }
+
+        NodeState root()
+        {
+            return this.scope.root();
+        }
+
+        NodeState nodeTypesRoot()
+        {
+            return this.scope.registry();
+        }
+
+        ParseProblems problems()
+        {
+            return this.scope.problems();
         }
 
         /** The element values are read from, or {@code null} when the entry declares no extension element. */
@@ -176,23 +188,22 @@ final class ParameterTranslation
      * @param type the vocabulary entry the element matched
      * @param element the BPMN element being translated
      * @param node the flow node being written
-     * @param root the committed repository root, which a parameter type may look values up in
-     * @param nodeTypesRoot the {@code /jcr:system/jcr:nodeTypes} node state
-     * @param problems where whatever is wrong is reported
+     * @param scope the repository, its node type registry, and where whatever is wrong is reported
      */
     static void applyParameters(final FlowNodeTypeInfo type, final Element element, final NodeBuilder node,
-        final NodeState root, final NodeState nodeTypesRoot, final ParseProblems problems)
+        final ParseScope scope)
     {
         final Element extension = type.xmlExtensionElement() == null ? null
             : WorkflowDefinitionUtils.extensionElement(element, type.xmlExtensionElement());
-        final Context context = new Context(type, element, root, nodeTypesRoot, problems,
+        final Context context = new Context(type, element, scope,
             new Level(extension, node, type.jcrNodeType(), ""));
+        final ParseProblems problems = scope.problems();
         UnclaimedMarkup.report(element, type, problems);
         type.parameters().unread().forEach(path -> reportDeclaration(
-            "a vocabulary entry holds a parameter that is not a wf:Parameter node", path, type, element, problems));
+            "a vocabulary entry holds a parameter of the wrong node type", path, type, element, problems));
         // Nothing reads such a field, so a structure missing one would otherwise just look short of a field
         type.parameters().misplaced().forEach(path -> reportDeclaration(
-            "a vocabulary entry declares a field outside its structure's parameters node", path, type, element,
+            "a vocabulary entry declares a field outside a structure", path, type, element,
             problems));
         type.parameters().declared().forEach(parameter -> apply(parameter, context));
     }
@@ -257,7 +268,7 @@ final class ParameterTranslation
     private static void structure(final ParameterInfo parameter, final Context context)
     {
         if (parameter.location() != XmlLocation.EXTENSION_ELEMENT || context.extension() == null) {
-            reportDefect("a structured parameter is not written inside an extension element", parameter, context);
+            reportDefect("a structured parameter is not inside an extension element", parameter, context);
             return;
         }
         final List<Element> elements = WorkflowDefinitionUtils.childElements(context.extension(),
@@ -292,7 +303,7 @@ final class ParameterTranslation
         final String key = parameter.keyParameter();
         if (parameter.fields().stream().noneMatch(field -> field.name().equals(key) && !field.isMultiValued()
             && !field.isStructure())) {
-            reportDefect("a repeated structured parameter declares no single-valued key field", parameter, context);
+            reportDefect("a repeated structured parameter declares no single-valued key", parameter, context);
             return;
         }
         final NodeBuilder container = context.node().child(parameter.name());
@@ -382,7 +393,7 @@ final class ParameterTranslation
         }
         if (parameter.location() == XmlLocation.ATTRIBUTE || context.extension() == null) {
             if (parameter.location() != XmlLocation.ATTRIBUTE) {
-                reportDefect("a parameter is not an attribute of an entry that declares no extension element",
+                reportDefect("a non-attribute parameter on an entry with no extension element",
                     parameter, context);
             }
             return attributeValues(parameter,
@@ -394,7 +405,7 @@ final class ParameterTranslation
         final List<String> values = attributeValues(parameter, context.extension().getAttribute(parameter.name()));
         if (values.isEmpty()
             && !children(context.extension(), WorkflowDefinitionUtils.IAP_NS, parameter.name()).isEmpty()) {
-            report("a parameter taking one value has it written as child elements instead", parameter, context);
+            report("a single-valued parameter is written as child elements", parameter, context);
         }
         return values;
     }
@@ -538,14 +549,14 @@ final class ParameterTranslation
     private static String recordTypeRefusal(final NodeState record)
     {
         if (!record.exists()) {
-            return "a structured parameter is stored as a node type that is not registered";
+            return "a structured parameter has a node type that is not registered";
         }
         if (record.getBoolean(IS_ABSTRACT) || record.getBoolean(IS_MIXIN)) {
-            return "a structured parameter is stored as an abstract or mixin node type";
+            return "a structured parameter has an abstract or mixin node type";
         }
         final boolean mandatory = unfilled(record, MANDATORY_CHILD_NODES, NAMED_CHILD_NODE_DEFINITIONS)
             || unfilled(record, MANDATORY_PROPERTIES, NAMED_PROPERTY_DEFINITIONS);
-        return mandatory ? "a structured parameter is stored as a node type with mandatory items" : null;
+        return mandatory ? "a structured parameter has a node type with mandatory items" : null;
     }
 
     /** Whether a node type has a mandatory item that neither the parse writes nor the type autocreates. */
@@ -598,6 +609,8 @@ final class ParameterTranslation
     private static void reportDeclaration(final String problem, final String path, final FlowNodeTypeInfo type,
         final Element element, final ParseProblems problems)
     {
+        LOGGER.warn("Parameter {} of FlowNodeType {} for element {} in {}: {}", path, type.name(),
+            element.getAttribute(ID_ATTRIBUTE), problems.path(), problem);
         problems.report(problem, problems.context()
             .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE))
             .with("flowNodeType", type.name()).with(PARAMETER_DETAIL, path),

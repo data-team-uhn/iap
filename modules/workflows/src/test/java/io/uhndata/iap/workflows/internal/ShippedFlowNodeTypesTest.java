@@ -47,6 +47,8 @@ class ShippedFlowNodeTypesTest
         final JsonObject performers = readEntry("MessageIntermediateCatchEvent").getJsonObject("performers");
         assertEquals("principal", performers.getString("dataType"));
         assertEquals("attribute", performers.getString("xmlLocation"));
+        // Any number of principals, as the node type stores them
+        assertEquals(0, performers.getInt("maxValues"));
     }
 
     @Test
