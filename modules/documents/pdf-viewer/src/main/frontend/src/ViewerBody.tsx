@@ -258,10 +258,10 @@ export default function ViewerBody(props: ViewerBodyProps) {
     </PdfDocumentView>
   );
   const { older } = compared;
-  // PRETOTYPE: in a plain viewer, how changes are shown is chosen in the row of the page controls, the caller choosing
+  // PRETOTYPE: in a plain viewer, how changes are shown is chosen beside what heads the document, the caller choosing
   // whether to compare at all; side by side, the changes are stepped through where the page controls were
   const controls = plain ? compared.controls : undefined;
-  const plainView = controls && <Box sx={{ ml: 2 }}><ChangesMenu {...controls} withoutOff /></Box>;
+  const plainView = controls && <ChangesMenu {...controls} withoutOff />;
   const splitChanges = controls?.changes;
   const plainSplitSteps = splitChanges && splitChanges.length > 0 ? (
     <StepControls
@@ -301,15 +301,12 @@ export default function ViewerBody(props: ViewerBodyProps) {
       <Box sx={{ display: "flex", gap: listBeside && onListWidth ? 0 : 2, flex: "1 1 auto", minHeight: 0 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0,
           ...lead === undefined ? {} : { pl: 2, pt: 1.5 } }}>
-          {lead}
+          {plainView
+            ? <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 3 }}>{lead}{plainView}</Box>
+            : lead}
           <ViewerToolbar
             ref={toolbarRef}
-            start={split ? <>{plainView}{plainSplitSteps}</> : (
-              <>
-                <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />
-                {plainView}
-              </>
-            )}
+            start={split ? plainSplitSteps : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
             tools={
               <ZoomControls disabled={!opened} onZoomIn={zoomIn} onZoomOut={zoomOut} onFitWidth={fitWidth} />
             }
