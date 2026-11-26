@@ -37,6 +37,7 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -63,8 +64,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * </p>
  *
  * <p>A requirement whose condition does not hold for this submission is not asked, so nothing is generated for it.
- * Any failure to generate fails the step, with the generator's reason, rather than leaving the requirement looking
- * answered.</p>
+ * Any failure to generate fails the step rather than leaving the requirement looking answered. A busy or unreachable
+ * generator should be mentioned so the submitter can retry; any other failure is logged for the deployer to fix.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -120,12 +121,15 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         // Generate it
         final GenerationResult result = this.generator.generate(template, target);
         final GeneratedDocument generated = result.getDocument();
+        if (generated == null && result.getStatus() == Status.UNAVAILABLE) {
+            // A state, as the engine's own "somebody else changed this" is, so that the reason reaches the submitter
+            // rather than the generic answer to a failure
+            throw new InvalidStateException(requirement.getLabel() + " could not be generated right now, as the "
+                + "document service is busy or unreachable. Try again in a moment.");
+        }
         if (generated == null) {
-            // Busy or down; asking again later may work
-            throw new WorkflowFailedException(result.getStatus() == Status.UNAVAILABLE
-                ? requirement.getLabel() + " could not be generated right now, as the document service is busy or "
-                    + "unreachable. Try again in a moment."
-                : requirement.getLabel() + " could not be generated: " + result.getMessage());
+            throw new WorkflowFailedException(requirement.getLabel() + " could not be generated: "
+                + result.getMessage());
         }
 
         // Store it as the requirement's document

@@ -93,8 +93,7 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
       },
       (error: unknown) => {
         setBusy(false);
-        // Why the browser check refused the file, or the engine's own reason, such as a template that does not
-        // fit this schema
+        // Why the browser check refused the file, or the engine's own reason, such as a busy document service
         setFailure(messageOf(error));
       }
     );

@@ -279,7 +279,7 @@ class GenerateDocumentHandlerTest
     {
         generatorAnswers(GenerationResult.failed(Status.UNAVAILABLE, "The generation worker answered 503"));
 
-        final WorkflowFailedException failure = assertThrows(WorkflowFailedException.class,
+        final InvalidStateException failure = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(context(LETTER)));
 
         assertTrue(failure.getMessage().contains("Try again in a moment"), failure.getMessage());
