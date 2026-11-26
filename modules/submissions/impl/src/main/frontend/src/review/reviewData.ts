@@ -17,6 +17,7 @@
  */
 
 import type { PassageKind } from "@iap/documents-pdf-viewer/marksModel";
+import type { RevisionChange } from "@iap/documents-pdf-viewer/revisionDiffModel";
 
 import type { Message } from "./reviewModel";
 
@@ -559,4 +560,24 @@ export function resubmittedAt(submission: Node): string | undefined {
       && /(^r|R)espond$/.test(text(task.taskDefinitionId)))
     .map(task => text(task.endTime)).filter(Boolean)
     .sort((a, b) => Date.parse(b) - Date.parse(a)).at(0);
+}
+
+// PRETOTYPE. The changes of a comparison that fall in a passage quoted from the older version: those whose removed
+// text the quote holds, with words around it as well when that text is short; or, for text only added, those with
+// words just before or after them, in either version, that the quote holds, as an addition after a sentence has
+// words before it only in the newer. Words are compared without case or punctuation.
+export function changesInPassage(quote: string, changes: RevisionChange[]): RevisionChange[] {
+  const words = (value: string) => value.replace(/…/g, " ").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const passage = ` ${words(quote)} `;
+  const holds = (value: string) => value !== "" && passage.includes(` ${value} `);
+  const edge = (value: string, from: "start" | "end") => {
+    const each = words(value).split(" ").filter(Boolean);
+    return (from === "end" ? each.slice(-3) : each.slice(0, 3)).join(" ");
+  };
+  return changes.filter(change => {
+    const removed = words(change.removed);
+    const around = [ change.context.older, change.context.newer ]
+      .some(({ before, after }) => holds(edge(before, "end")) || holds(edge(after, "start")));
+    return removed === "" ? around : holds(removed) && (removed.length >= 15 || around);
+  });
 }

@@ -19,16 +19,18 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 
 import type { Mark, TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
 import PdfViewer from "@iap/documents-pdf-viewer/PdfViewer";
 import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
+import { getChangeInContext, type RevisionChange } from "@iap/documents-pdf-viewer/revisionDiffModel";
+import ValueChange from "@iap/frontend-commons/diff/ValueChange";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard, { ChangeHeading, DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
-import { kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument,
+import { changesInPassage, kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument,
   type ReviewNote } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
@@ -164,12 +166,35 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     const note = notes.find(one => one.id === mark.id);
     return note && <NoteHeading note={note} />;
   }, [ notes ]);
-  // PRETOTYPE: a note written on an older version whose passage the latest no longer has says its text changed
+  // PRETOTYPE: a note written on an older version whose passage the latest no longer has shows how it changed, as the
+  // comparison found it, or else says that it did
+  const [ changes, setChanges ] = useState<RevisionChange[]>([]);
   const describeUnfound = useCallback((mark: Mark) => {
-    const source = notes.find(one => one.id === mark.id)?.passage?.source;
-    return source && source !== document.version && document.versions.some(one => one.uuid === source)
-      ? "its passage changed since it was sent back" : undefined;
-  }, [ notes, document ]);
+    const passage = notes.find(one => one.id === mark.id)?.passage;
+    const source = passage?.source;
+    if (!passage || !source || source === document.version || !document.versions.some(one => one.uuid === source)) {
+      return undefined;
+    }
+    const found = changesInPassage(passage.quote, changes);
+    if (found.length === 0) {
+      return "its passage changed since it was sent back";
+    }
+    return (
+      <>
+        Changed since it was sent back
+        {found.map(change => {
+          const { before, removed, added, after } = getChangeInContext(change);
+          return (
+            <Typography key={change.id} variant="body2" component="span" sx={{ display: "block", color: "text.primary" }}>
+              {before}{before && " "}
+              <ValueChange inline before={removed || undefined} after={added || undefined} />
+              {after && " "}{after}
+            </Typography>
+          );
+        })}
+      </>
+    );
+  }, [ notes, document, changes ]);
   // At the end of the heading, changing or removing the reviewer's own note; changing it selects it, to open it whole
   const markHeadingActions = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
@@ -226,6 +251,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         )}
         listContainer={notesSlot}
         describeUnfound={describeUnfound}
+        onChanges={setChanges}
         compareWith={compareWith && { url: toFileUrl(compareWith.url), label: compareWith.label }}
         label={compareWith?.current}
         plain

@@ -112,7 +112,7 @@ interface ViewerBodyProps {
   lead?: ReactNode;
   leadEnd?: ReactNode;
   listContainer?: HTMLElement | null;
-  describeUnfound?: (mark: Mark) => string | undefined;
+  describeUnfound?: (mark: Mark) => ReactNode;
   // Whether the document spans the full width of a phone screen, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;

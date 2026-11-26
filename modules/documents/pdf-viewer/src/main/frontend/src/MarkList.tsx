@@ -88,7 +88,7 @@ function MarkList(props: {
   // the entry is, which they cannot go inside
   headingActions?: (mark: Mark) => ReactNode;
   // PRETOTYPE: what to say of a passage not found instead, where the caller knows why, such as text since changed
-  describeUnfound?: (mark: Mark) => string | undefined;
+  describeUnfound?: (mark: Mark) => ReactNode;
   onSelect: (id: string) => void;
 }) {
   const { marks, naming, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
@@ -264,7 +264,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, line
   selected: boolean;
   lines?: number;
   // PRETOTYPE: said instead of "not found in this document"
-  unfound?: string;
+  unfound?: ReactNode;
   heading?: ReactNode;
   // Whether buttons sit at the end of its heading, over the entry
   actionsRoom?: boolean;
@@ -299,7 +299,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, line
         ? null
         : (
           <Typography id={`${quoteId}-note`} component="span" variant="caption" sx={{ display: "block" }}>
-            {unfound !== undefined && "failed" in shownNote && shownNote.failed
+            {unfound !== undefined && unfound !== null && "failed" in shownNote && shownNote.failed
               ? unfound
               : <NoteText note={placeOnly && "foundOnPage" in shownNote ? { ...shownNote, searched: false } : shownNote} />}
           </Typography>

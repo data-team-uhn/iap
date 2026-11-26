@@ -23,7 +23,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { getMarkPage, getMarksKey, isUnmarkable, NO_MARKS } from "./marksModel";
 import { getFileName, PASSAGES, type DocumentSearch, type MarkName } from "./pdfViewerModel";
 import { PlainViewer } from "./plainViewer";
-import { getNearestShown } from "./revisionDiffModel";
+import { getNearestShown, type RevisionChange } from "./revisionDiffModel";
 import { getTextAnchor } from "./textAnchor";
 import { useComparedVersions } from "./useComparedVersions";
 import { useComparison } from "./useComparison";
@@ -89,7 +89,9 @@ export interface PdfViewerProps {
   markHeadingActions?: (mark: Mark) => ReactNode;
   // PRETOTYPE: what to say of a passage not found, in place of "not found in this document", where the caller knows
   // why, such as its text having changed since an older version it was written on
-  describeUnfound?: (mark: Mark) => string | undefined;
+  describeUnfound?: (mark: Mark) => ReactNode;
+  // PRETOTYPE: told the changes a comparison shows, each time they change, as for saying what changed in a passage
+  onChanges?: (changes: RevisionChange[]) => void;
   // PRETOTYPE: what ends the line heading the document's own column, such as a button to write about the document
   leadEnd?: ReactNode;
   // PRETOTYPE: what heads the document's own column, beside the passages, such as the title of the page it is on
@@ -136,6 +138,12 @@ function PdfViewerSession(props: PdfViewerProps) {
   const followedId = useRef<string | undefined>(undefined);
   const { pdf, openError, retry } = usePdfDocument(url);
   const comparing = useComparison(compareWith?.url, pdf);
+  // PRETOTYPE: the changes shown, told to the caller
+  const { onChanges } = props;
+  const shownChanges = comparing?.changes;
+  useEffect(() => {
+    onChanges?.(shownChanges ?? []);
+  }, [ shownChanges, onChanges ]);
   // PRETOTYPE: a plain viewer's caller chooses whether to compare, so a comparison it is given is not left off
   const { plain } = props;
   const comparedView = comparing?.view;
