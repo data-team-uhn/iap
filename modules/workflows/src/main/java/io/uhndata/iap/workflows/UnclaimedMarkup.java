@@ -68,7 +68,7 @@ final class UnclaimedMarkup
         Stream.of("incoming", "outgoing", "conditionExpression")).collect(Collectors.toSet());
 
     /** Resolved to {@code messageName} by the parse itself. */
-    private static final String MESSAGE_EVENT_DEFINITION = "messageEventDefinition";
+    private static final String MESSAGE_EVENT_DEFINITION_ELEMENT = "messageEventDefinition";
 
     private static final Set<String> MESSAGE_ATTRIBUTES = Set.of(ID_ATTRIBUTE, "messageRef");
 
@@ -172,8 +172,8 @@ final class UnclaimedMarkup
             reached = reached.stream()
                 .flatMap(at -> bpmnChildren(at).filter(child -> step.equals(child.getLocalName()))).toList();
         }
-        final Set<String> attributes = new HashSet<>(
-            MESSAGE_EVENT_DEFINITION.equals(path.get(path.size() - 1)) ? MESSAGE_ATTRIBUTES : COMMON_ATTRIBUTES);
+        final Set<String> attributes = new HashSet<>(MESSAGE_EVENT_DEFINITION_ELEMENT.equals(path.get(path.size() - 1))
+            ? MESSAGE_ATTRIBUTES : COMMON_ATTRIBUTES);
         final Set<String> children = new HashSet<>(COMMON_CHILDREN);
         claim(match, path, attributes, children);
         final String prefix = String.join("/", path) + "/";

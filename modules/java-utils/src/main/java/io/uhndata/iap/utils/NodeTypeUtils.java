@@ -46,26 +46,26 @@ public final class NodeTypeUtils
     /** The transitively expanded supertypes Oak stores on each registered node type. */
     private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
-    private static final String JCR_PRIMARY_TYPE = "jcr:primaryType";
+    private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
-    private static final String JCR_MIXIN_TYPES = "jcr:mixinTypes";
+    private static final String JCR_MIXIN_TYPES_PROPERTY = "jcr:mixinTypes";
 
-    private static final String JCR_UUID = "jcr:uuid";
+    private static final String JCR_UUID_PROPERTY = "jcr:uuid";
 
-    private static final String JCR_CREATED = "jcr:created";
+    private static final String JCR_CREATED_PROPERTY = "jcr:created";
 
-    private static final String JCR_CREATED_BY = "jcr:createdBy";
+    private static final String JCR_CREATED_BY_PROPERTY = "jcr:createdBy";
 
-    private static final String JCR_LAST_MODIFIED = "jcr:lastModified";
+    private static final String JCR_LAST_MODIFIED_PROPERTY = "jcr:lastModified";
 
-    private static final String JCR_LAST_MODIFIED_BY = "jcr:lastModifiedBy";
+    private static final String JCR_LAST_MODIFIED_BY_PROPERTY = "jcr:lastModifiedBy";
 
-    private static final String NAMED_PROPERTY_DEFINITIONS = "rep:namedPropertyDefinitions";
+    private static final String NAMED_PROPERTY_DEFINITIONS_CHILD = "rep:namedPropertyDefinitions";
 
-    private static final String NAMED_CHILD_NODE_DEFINITIONS = "rep:namedChildNodeDefinitions";
+    private static final String NAMED_CHILD_NODE_DEFINITIONS_CHILD = "rep:namedChildNodeDefinitions";
 
     /** Oak files the definition of {@code jcr:uuid} under this name. */
-    private static final String REP_UUID = "rep:uuid";
+    private static final String REP_UUID_PROPERTY = "rep:uuid";
 
     /** Oak files the definitions of {@code jcr:primaryType} and {@code jcr:mixinTypes} under these names. */
     private static final Set<String> TYPE_DEFINITIONS = Set.of("rep:primaryType", "rep:mixinTypes");
@@ -116,8 +116,8 @@ public final class NodeTypeUtils
     public static boolean isOfType(@NotNull final NodeState node, @NotNull final String wanted,
         @NotNull final NodeState registry)
     {
-        return Stream.concat(Stream.ofNullable(node.getName(JCR_PRIMARY_TYPE)),
-            StreamSupport.stream(node.getNames(JCR_MIXIN_TYPES).spliterator(), false))
+        return Stream.concat(Stream.ofNullable(node.getName(JCR_PRIMARY_TYPE_PROPERTY)),
+            StreamSupport.stream(node.getNames(JCR_MIXIN_TYPES_PROPERTY).spliterator(), false))
             .anyMatch(type -> isOrExtends(type, wanted, registry));
     }
 
@@ -137,8 +137,8 @@ public final class NodeTypeUtils
     public static void autoCreateItems(@NotNull final NodeBuilder node, @NotNull final NodeState registry,
         @Nullable final String userId, @NotNull final Calendar now)
     {
-        Stream.concat(Stream.ofNullable(node.getName(JCR_PRIMARY_TYPE)),
-            StreamSupport.stream(node.getNames(JCR_MIXIN_TYPES).spliterator(), false))
+        Stream.concat(Stream.ofNullable(node.getName(JCR_PRIMARY_TYPE_PROPERTY)),
+            StreamSupport.stream(node.getNames(JCR_MIXIN_TYPES_PROPERTY).spliterator(), false))
             .map(registry::getChildNode)
             .forEach(type -> {
                 autoCreateProperties(node, type, userId, now);
@@ -153,17 +153,19 @@ public final class NodeTypeUtils
     private static void autoCreateProperties(final NodeBuilder node, final NodeState type, final String userId,
         final Calendar now)
     {
-        for (final ChildNodeEntry definitions : type.getChildNode(NAMED_PROPERTY_DEFINITIONS).getChildNodeEntries()) {
-            final String name = REP_UUID.equals(definitions.getName()) ? JCR_UUID : definitions.getName();
+        for (final ChildNodeEntry definitions
+            : type.getChildNode(NAMED_PROPERTY_DEFINITIONS_CHILD).getChildNodeEntries()) {
+            final String name =
+                REP_UUID_PROPERTY.equals(definitions.getName()) ? JCR_UUID_PROPERTY : definitions.getName();
             final NodeState definition = autoCreated(definitions.getNodeState());
             if (definition == null || TYPE_DEFINITIONS.contains(name) || node.hasProperty(name)) {
                 continue;
             }
             final PropertyState property = switch (name) {
-                case JCR_UUID -> PropertyStates.createProperty(name, UUID.randomUUID().toString());
-                case JCR_CREATED, JCR_LAST_MODIFIED ->
+                case JCR_UUID_PROPERTY -> PropertyStates.createProperty(name, UUID.randomUUID().toString());
+                case JCR_CREATED_PROPERTY, JCR_LAST_MODIFIED_PROPERTY ->
                     PropertyStates.createProperty(name, ISO8601.format(now), Type.DATE);
-                case JCR_CREATED_BY, JCR_LAST_MODIFIED_BY ->
+                case JCR_CREATED_BY_PROPERTY, JCR_LAST_MODIFIED_BY_PROPERTY ->
                     PropertyStates.createProperty(name, Objects.toString(userId, ""));
                 default -> defaultValue(name, definition);
             };
@@ -188,12 +190,12 @@ public final class NodeTypeUtils
 
     private static void autoCreateChildren(final NodeBuilder node, final NodeState type)
     {
-        for (final ChildNodeEntry definitions : type.getChildNode(NAMED_CHILD_NODE_DEFINITIONS)
+        for (final ChildNodeEntry definitions : type.getChildNode(NAMED_CHILD_NODE_DEFINITIONS_CHILD)
             .getChildNodeEntries()) {
             final NodeState definition = autoCreated(definitions.getNodeState());
             final String childType = definition == null ? null : definition.getName("jcr:defaultPrimaryType");
             if (childType != null && !node.hasChildNode(definitions.getName())) {
-                node.child(definitions.getName()).setProperty(JCR_PRIMARY_TYPE, childType, Type.NAME);
+                node.child(definitions.getName()).setProperty(JCR_PRIMARY_TYPE_PROPERTY, childType, Type.NAME);
             }
         }
     }

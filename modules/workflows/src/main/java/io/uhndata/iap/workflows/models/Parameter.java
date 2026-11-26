@@ -64,40 +64,40 @@ public class Parameter extends EntityPart
     public static final String OPTION_NODE_TYPE = "wf:ParameterOption";
 
     /** A parameter holding free text. */
-    public static final String TYPE_TEXT = "text";
+    public static final String TEXT_DATA_TYPE = "text";
 
     /** A parameter holding true or false. */
-    public static final String TYPE_BOOLEAN = "boolean";
+    public static final String BOOLEAN_DATA_TYPE = "boolean";
 
     /** A parameter holding a whole number. */
-    public static final String TYPE_LONG = "long";
+    public static final String LONG_DATA_TYPE = "long";
 
     /** A parameter holding a reference to a node. */
-    public static final String TYPE_REFERENCE = "reference";
+    public static final String REFERENCE_DATA_TYPE = "reference";
 
     /** A parameter holding the name of a user or group. */
-    public static final String TYPE_PRINCIPAL = "principal";
+    public static final String PRINCIPAL_DATA_TYPE = "principal";
 
     /** A parameter holding {@link #getParameters() parameters} of its own. */
-    public static final String TYPE_STRUCTURE = "structure";
+    public static final String STRUCTURE_DATA_TYPE = "structure";
 
-    /** The child node holding a {@link #TYPE_STRUCTURE structure}'s fields. */
-    public static final String FIELDS_NODE = "parameters";
+    /** The child node holding a {@link #STRUCTURE_DATA_TYPE structure}'s fields. */
+    public static final String FIELDS_CHILD = "parameters";
 
     /**
      * Inside the extension element the vocabulary entry names, such as {@code sourceType="wf/WorkflowVersion"} on
      * {@code <iap:copyContent>}.
      */
-    public static final String LOCATION_EXTENSION_ELEMENT = "extensionElement";
+    public static final String EXTENSION_ELEMENT_LOCATION = "extensionElement";
 
     /** An IAP-namespaced attribute of the flow node's own element, such as {@code iap:performers="reviewers"}. */
-    public static final String LOCATION_ATTRIBUTE = "attribute";
+    public static final String ATTRIBUTE_LOCATION = "attribute";
 
     /** One of BPMN's own attributes, such as {@code cancelActivity="false"}. */
-    public static final String LOCATION_BPMN_ATTRIBUTE = "bpmnAttribute";
+    public static final String BPMN_ATTRIBUTE_LOCATION = "bpmnAttribute";
 
     /** The text of one of BPMN's own elements, such as {@code <bpmn:timeDuration>P5D</bpmn:timeDuration>}. */
-    public static final String LOCATION_BPMN_ELEMENT = "bpmnElement";
+    public static final String BPMN_ELEMENT_LOCATION = "bpmnElement";
 
     /** The property holding the parameter's data type. */
     public static final String DATA_TYPE_PROPERTY = "dataType";
@@ -191,15 +191,16 @@ public class Parameter extends EntityPart
     }
 
     /**
-     * The type of data this parameter stores: {@link #TYPE_TEXT}, {@link #TYPE_BOOLEAN}, {@link #TYPE_LONG},
-     * {@link #TYPE_REFERENCE}, {@link #TYPE_PRINCIPAL} or {@link #TYPE_STRUCTURE}.
+     * The type of data this parameter stores: {@link #TEXT_DATA_TYPE}, {@link #BOOLEAN_DATA_TYPE},
+     * {@link #LONG_DATA_TYPE}, {@link #REFERENCE_DATA_TYPE}, {@link #PRINCIPAL_DATA_TYPE} or
+     * {@link #STRUCTURE_DATA_TYPE}.
      *
-     * @return a data type name, {@link #TYPE_TEXT} if none is set
+     * @return a data type name, {@link #TEXT_DATA_TYPE} if none is set
      */
     @NotNull
     public String getDataType()
     {
-        return this.dataType == null ? TYPE_TEXT : this.dataType;
+        return this.dataType == null ? TEXT_DATA_TYPE : this.dataType;
     }
 
     /**
@@ -223,7 +224,7 @@ public class Parameter extends EntityPart
     }
 
     /**
-     * For a {@link #TYPE_REFERENCE reference}, the node type every referenced node must be, or a subtype of it.
+     * For a {@link #REFERENCE_DATA_TYPE reference}, the node type every referenced node must be, or a subtype of it.
      *
      * @return a JCR node type name, or {@code null} if unrestricted
      */
@@ -238,10 +239,10 @@ public class Parameter extends EntityPart
      *
      * <p>One of:</p>
      * <ul>
-     * <li>{@link #LOCATION_EXTENSION_ELEMENT}, the default</li>
-     * <li>{@link #LOCATION_ATTRIBUTE}</li>
-     * <li>{@link #LOCATION_BPMN_ATTRIBUTE}</li>
-     * <li>{@link #LOCATION_BPMN_ELEMENT}</li>
+     * <li>{@link #EXTENSION_ELEMENT_LOCATION}, the default</li>
+     * <li>{@link #ATTRIBUTE_LOCATION}</li>
+     * <li>{@link #BPMN_ATTRIBUTE_LOCATION}</li>
+     * <li>{@link #BPMN_ELEMENT_LOCATION}</li>
      * </ul>
      *
      * @return a location, never empty
@@ -249,7 +250,7 @@ public class Parameter extends EntityPart
     @NotNull
     public String getXmlLocation()
     {
-        return this.xmlLocation == null ? LOCATION_EXTENSION_ELEMENT : this.xmlLocation;
+        return this.xmlLocation == null ? EXTENSION_ELEMENT_LOCATION : this.xmlLocation;
     }
 
     /**
@@ -265,8 +266,8 @@ public class Parameter extends EntityPart
     }
 
     /**
-     * For a repeated {@link #TYPE_STRUCTURE structure}, the field whose value names the node each element is stored
-     * as, instead of being stored as a property.
+     * For a repeated {@link #STRUCTURE_DATA_TYPE structure}, the field whose value names the node each element is
+     * stored as, instead of being stored as a property.
      *
      * @return a field name, or {@code null} if the parameter names none
      */
@@ -277,15 +278,15 @@ public class Parameter extends EntityPart
     }
 
     /**
-     * The fields of a {@link #TYPE_STRUCTURE structure}, in the order they are declared under its
-     * {@link #FIELDS_NODE} child.
+     * The fields of a {@link #STRUCTURE_DATA_TYPE structure}, in the order they are declared under its
+     * {@link #FIELDS_CHILD} child.
      *
      * @return the nested parameters, empty for a parameter of any other type
      */
     @NotNull
     public List<Parameter> getParameters()
     {
-        return declaredIn(this.resource.getChild(FIELDS_NODE));
+        return declaredIn(this.resource.getChild(FIELDS_CHILD));
     }
 
     /**
@@ -311,7 +312,7 @@ public class Parameter extends EntityPart
     }
 
     /**
-     * The parameters declared as children of a vocabulary entry or of a structure's {@link #FIELDS_NODE}, in
+     * The parameters declared as children of a vocabulary entry or of a structure's {@link #FIELDS_CHILD}, in
      * order. A child counts by its node type, not its resource type.
      *
      * @param parent the resource declaring them, or {@code null} when there is none
@@ -385,7 +386,7 @@ public class Parameter extends EntityPart
         if (!fields.isEmpty()) {
             final JsonArrayBuilder array = Json.createArrayBuilder();
             fields.forEach(field -> array.add(field.toJsonBuilder()));
-            json.add(FIELDS_NODE, array);
+            json.add(FIELDS_CHILD, array);
         }
         return json;
     }

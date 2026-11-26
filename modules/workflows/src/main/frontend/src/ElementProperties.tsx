@@ -33,7 +33,7 @@ import ValueText from "@iap/frontend-commons/inputs/ValueText";
 
 import { commaSeparated, parameterEdit, readValues, typeEdit } from "./bpmnParameters";
 import { elementName } from "./moddle";
-import { PANEL_EDITS } from "./panelEdits";
+import { PANEL_EDITS_COMMAND } from "./panelEdits";
 import ParameterField from "./ParameterField";
 import { sameValues, settled } from "./parameterValues";
 import {
@@ -101,7 +101,7 @@ interface Pending {
 
 // Ahead of the listeners subscribed at the default priority. Those are the selection letting go of a
 // removed element, and the panel moving on to the next selection.
-const FIRST = 1500;
+const FIRST_PRIORITY = 1500;
 
 // One list for every render without a vocabulary, so that matching is not redone for a new empty one
 const NO_TYPES: readonly FlowNodeType[] = [];
@@ -182,7 +182,7 @@ export default function ElementProperties(props: ElementPropertiesProps) {
   const apply = (edits: (PanelEdit | undefined)[]) => {
     const written = edits.filter(edit => edit !== undefined);
     if (written.length > 0) {
-      viewer.get<CommandStack>("commandStack").execute(PANEL_EDITS, { edits: written } satisfies PanelEditsContext);
+      viewer.get<CommandStack>("commandStack").execute(PANEL_EDITS_COMMAND, { edits: written } satisfies PanelEditsContext);
     }
   };
 
@@ -261,9 +261,9 @@ export default function ElementProperties(props: ElementPropertiesProps) {
       }
     };
     const selectionChanged = () => writePending.current();
-    viewer.on([ "diagram.destroy", "diagram.clear" ], FIRST, leave);
-    viewer.on([ "shape.remove", "connection.remove" ], FIRST, removed);
-    viewer.on("selection.changed", FIRST, selectionChanged);
+    viewer.on([ "diagram.destroy", "diagram.clear" ], FIRST_PRIORITY, leave);
+    viewer.on([ "shape.remove", "connection.remove" ], FIRST_PRIORITY, removed);
+    viewer.on("selection.changed", FIRST_PRIORITY, selectionChanged);
     return () => {
       viewer.off([ "diagram.destroy", "diagram.clear" ], leave);
       viewer.off([ "shape.remove", "connection.remove" ], removed);

@@ -102,9 +102,9 @@ export const isRequired = (parameter: Parameter): boolean => parameter.minValues
 // A bound of anything but exactly one takes a list, as on the server.
 export const isMultiple = (parameter: Parameter): boolean => parameter.maxValues !== 1;
 
-const STRUCTURE = "structure";
+const STRUCTURE_DATA_TYPE = "structure";
 
-export const isStructure = (parameter: Parameter): boolean => parameter.dataType === STRUCTURE;
+export const isStructure = (parameter: Parameter): boolean => parameter.dataType === STRUCTURE_DATA_TYPE;
 
 export const fieldsOf = (parameter: Parameter): Parameter[] => parameter.parameters ?? [];
 

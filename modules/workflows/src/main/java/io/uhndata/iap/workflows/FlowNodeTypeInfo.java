@@ -52,9 +52,9 @@ import io.uhndata.iap.workflows.models.Parameter;
 record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, String xmlChildElement,
     String xmlExtensionElement, String jcrProperties, long priority, Parameters parameters)
 {
-    private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
+    private static final String SLING_RESOURCE_TYPE_PROPERTY = "sling:resourceType";
 
-    private static final String JCR_UUID = "jcr:uuid";
+    private static final String JCR_UUID_PROPERTY = "jcr:uuid";
 
     private static final String JCR_NODE_TYPE_PROPERTY = "jcrNodeType";
 
@@ -66,9 +66,9 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
 
     private static final String PRIORITY_PROPERTY = "priority";
 
-    private static final String NT_UNSTRUCTURED = "nt:unstructured";
+    private static final String NT_UNSTRUCTURED_TYPE = "nt:unstructured";
 
-    private static final String CHILD_ORDER = ":childOrder";
+    private static final String CHILD_ORDER_PROPERTY = ":childOrder";
 
     /**
      * What an entry declares about the values a node of its kind takes.
@@ -77,7 +77,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
      * @param unread the paths, relative to the entry, of nodes that say they are parameters by their resource type
      *            alone, which this parser cannot read
      * @param misplaced the paths, relative to the entry, of parameters declared directly under another parameter
-     *            rather than under its {@link Parameter#FIELDS_NODE} node, which this parser does not read
+     *            rather than under its {@link Parameter#FIELDS_CHILD} node, which this parser does not read
      * @since 0.1.0
      */
     record Parameters(List<ParameterInfo> declared, List<String> unread, List<String> misplaced)
@@ -92,13 +92,13 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
     enum XmlLocation
     {
         /** Inside the entry's extension element. */
-        EXTENSION_ELEMENT(Parameter.LOCATION_EXTENSION_ELEMENT),
+        EXTENSION_ELEMENT(Parameter.EXTENSION_ELEMENT_LOCATION),
         /** An attribute of the element itself. */
-        ATTRIBUTE(Parameter.LOCATION_ATTRIBUTE),
+        ATTRIBUTE(Parameter.ATTRIBUTE_LOCATION),
         /** One of BPMN's own attributes, unprefixed. */
-        BPMN_ATTRIBUTE(Parameter.LOCATION_BPMN_ATTRIBUTE),
+        BPMN_ATTRIBUTE(Parameter.BPMN_ATTRIBUTE_LOCATION),
         /** The text of one of BPMN's own child elements. */
-        BPMN_ELEMENT(Parameter.LOCATION_BPMN_ELEMENT);
+        BPMN_ELEMENT(Parameter.BPMN_ELEMENT_LOCATION);
 
         private final String value;
 
@@ -188,7 +188,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
          */
         boolean isStructure()
         {
-            return Parameter.TYPE_STRUCTURE.equals(this.dataType);
+            return Parameter.STRUCTURE_DATA_TYPE.equals(this.dataType);
         }
 
         /**
@@ -209,7 +209,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         String nodeType()
         {
             final String declared = this.declaration.getString(JCR_NODE_TYPE_PROPERTY);
-            return declared == null ? NT_UNSTRUCTURED : declared;
+            return declared == null ? NT_UNSTRUCTURED_TYPE : declared;
         }
 
         /**
@@ -250,7 +250,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         final List<String> unread = new ArrayList<>();
         final List<String> misplaced = new ArrayList<>();
         final List<ParameterInfo> parameters = declared(node, "", nodeTypesRoot, new Strays(unread, misplaced));
-        return new FlowNodeTypeInfo(name, node.getString(JCR_UUID), node.getString(JCR_NODE_TYPE_PROPERTY),
+        return new FlowNodeTypeInfo(name, node.getString(JCR_UUID_PROPERTY), node.getString(JCR_NODE_TYPE_PROPERTY),
             childElement == null ? null : WorkflowDefinitionUtils.localName(childElement),
             extensionElement == null ? null : WorkflowDefinitionUtils.localName(extensionElement),
             node.getString(JCR_PROPERTIES_PROPERTY), node.getLong(PRIORITY_PROPERTY),
@@ -294,14 +294,14 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
     private static Set<String> orderedChildNames(final NodeState parent)
     {
         final Set<String> result = new LinkedHashSet<>();
-        parent.getNames(CHILD_ORDER).forEach(result::add);
+        parent.getNames(CHILD_ORDER_PROPERTY).forEach(result::add);
         parent.getChildNodeNames().forEach(result::add);
         return result;
     }
 
     private static boolean isUnreadParameter(final NodeState node)
     {
-        return Parameter.RESOURCE_TYPE.equals(node.getString(SLING_RESOURCE_TYPE));
+        return Parameter.RESOURCE_TYPE.equals(node.getString(SLING_RESOURCE_TYPE_PROPERTY));
     }
 
     /**
@@ -325,9 +325,9 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
                 strays.misplaced().add(path + "/" + child.getName());
             }
         }
-        final List<ParameterInfo> fields = declared(node.getChildNode(Parameter.FIELDS_NODE),
-            path + "/" + Parameter.FIELDS_NODE + "/", nodeTypesRoot, strays);
-        return new ParameterInfo(name, dataType == null ? Parameter.TYPE_TEXT : dataType,
+        final List<ParameterInfo> fields = declared(node.getChildNode(Parameter.FIELDS_CHILD),
+            path + "/" + Parameter.FIELDS_CHILD + "/", nodeTypesRoot, strays);
+        return new ParameterInfo(name, dataType == null ? Parameter.TEXT_DATA_TYPE : dataType,
             node.getLong(Parameter.MIN_VALUES_PROPERTY), maxValues,
             new Placement(XmlLocation.of(node.getString(Parameter.XML_LOCATION_PROPERTY)),
                 path(node.getString(Parameter.XML_PATH_PROPERTY))),

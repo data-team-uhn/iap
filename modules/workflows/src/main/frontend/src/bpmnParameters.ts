@@ -44,7 +44,7 @@ import type { FlowNodeType, Parameter } from "./workflowTypes";
 // The prefix bound to the namespace when a document does not bind it yet.
 export const DEFAULT_IAP_PREFIX = "iap";
 
-const XMLNS = "xmlns:";
+const XMLNS_PREFIX = "xmlns:";
 
 // One change to hand to bpmn-js's `modeling.updateModdleProperties`, which applies it to the named
 // moddle object undoably and reports the flow node as changed.
@@ -59,8 +59,8 @@ const scalar = (value: unknown): string | undefined =>
 
 // The prefixes one element binds the IAP namespace to itself.
 const boundOn = (element: ModdleElement): string[] => Object.entries(element.$attrs ?? {})
-  .filter(([ name, uri ]) => name.startsWith(XMLNS) && uri === IAP_NS)
-  .map(([ name ]) => name.slice(XMLNS.length));
+  .filter(([ name, uri ]) => name.startsWith(XMLNS_PREFIX) && uri === IAP_NS)
+  .map(([ name ]) => name.slice(XMLNS_PREFIX.length));
 
 // Every prefix the IAP namespace is bound to where this element sits, nearest first. A document may
 // bind it on any ancestor, the process as readily as the definitions. The definitions are asked last
@@ -79,7 +79,7 @@ function iapPrefixes(element: ModdleElement, definitions: ModdleElement): string
 function writePrefix(element: ModdleElement, definitions: ModdleElement): string {
   const bound = iapPrefixes(element, definitions).at(0);
   if (bound === undefined) {
-    definitions.set?.(`${XMLNS}${DEFAULT_IAP_PREFIX}`, IAP_NS);
+    definitions.set?.(`${XMLNS_PREFIX}${DEFAULT_IAP_PREFIX}`, IAP_NS);
   }
   return bound ?? DEFAULT_IAP_PREFIX;
 }

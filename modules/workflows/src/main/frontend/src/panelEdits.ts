@@ -26,7 +26,7 @@ import type { TargetElement } from "bpmn-js/lib/features/replace/BpmnReplace";
 import type { Element } from "bpmn-js/lib/model/Types";
 import type CommandStack from "diagram-js/lib/command/CommandStack";
 
-export const PANEL_EDITS = "iap.properties.update";
+export const PANEL_EDITS_COMMAND = "iap.properties.update";
 
 // One edit the panel makes: a new name, new properties on one moddle object of the element, or the element
 // redrawn as another kind. A redrawn element is a new object under the same id, so what is written to it after is
@@ -73,7 +73,7 @@ class PanelEditsHandler {
 }
 
 function registerPanelEdits(commandStack: CommandStack) {
-  commandStack.registerHandler(PANEL_EDITS, PanelEditsHandler);
+  commandStack.registerHandler(PANEL_EDITS_COMMAND, PanelEditsHandler);
 }
 registerPanelEdits.$inject = [ "commandStack" ];
 

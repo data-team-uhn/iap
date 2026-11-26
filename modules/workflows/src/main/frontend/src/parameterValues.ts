@@ -69,11 +69,11 @@ export const splitList = (value: string): string[] => value.split(",").map(item 
 export const recordValues = (values: readonly ParameterValue[]): StructureRecord[] => values.filter(isRecordValue);
 
 // A whole number as the server reads one: a sign and then digits.
-const WHOLE = /^([+-]?)(\d*)$/;
+const WHOLE_PATTERN = /^([+-]?)(\d*)$/;
 
 // Whether text is a whole number the server can store, which is a 64-bit one.
 function isLong(value: string): boolean {
-  const [ , sign, written = "" ] = WHOLE.exec(value) ?? [];
+  const [ , sign, written = "" ] = WHOLE_PATTERN.exec(value) ?? [];
   const digits = written.replace(/^0+(?=\d)/, "");
   const limit = sign === "-" ? "9223372036854775808" : "9223372036854775807";
   return digits !== "" && (digits.length < limit.length || digits.length === limit.length && digits <= limit);

@@ -74,46 +74,46 @@ final class ParameterTranslation
 
     /** The parameter types, by the {@code dataType} that names them. */
     private static final Map<String, ParameterType> PARAMETER_TYPES = Map.of(
-        Parameter.TYPE_TEXT, new TextParameterType(),
-        Parameter.TYPE_BOOLEAN, new BooleanParameterType(),
-        Parameter.TYPE_LONG, new LongParameterType(),
-        Parameter.TYPE_REFERENCE, new ReferenceParameterType(),
-        Parameter.TYPE_PRINCIPAL, new PrincipalParameterType());
+        Parameter.TEXT_DATA_TYPE, new TextParameterType(),
+        Parameter.BOOLEAN_DATA_TYPE, new BooleanParameterType(),
+        Parameter.LONG_DATA_TYPE, new LongParameterType(),
+        Parameter.REFERENCE_DATA_TYPE, new ReferenceParameterType(),
+        Parameter.PRINCIPAL_DATA_TYPE, new PrincipalParameterType());
 
     private static final String ID_ATTRIBUTE = "id";
 
     private static final String PARAMETER_DETAIL = "parameter";
 
-    private static final String NAMED_PROPERTY_DEFINITIONS = "rep:namedPropertyDefinitions";
+    private static final String NAMED_PROPERTY_DEFINITIONS_CHILD = "rep:namedPropertyDefinitions";
 
-    private static final String RESIDUAL_PROPERTY_DEFINITIONS = "rep:residualPropertyDefinitions";
+    private static final String RESIDUAL_PROPERTY_DEFINITIONS_CHILD = "rep:residualPropertyDefinitions";
 
-    private static final String NAMED_CHILD_NODE_DEFINITIONS = "rep:namedChildNodeDefinitions";
+    private static final String NAMED_CHILD_NODE_DEFINITIONS_CHILD = "rep:namedChildNodeDefinitions";
 
-    private static final String RESIDUAL_CHILD_NODE_DEFINITIONS = "rep:residualChildNodeDefinitions";
+    private static final String RESIDUAL_CHILD_NODE_DEFINITIONS_CHILD = "rep:residualChildNodeDefinitions";
 
     private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
-    private static final String IS_ABSTRACT = "jcr:isAbstract";
+    private static final String IS_ABSTRACT_PROPERTY = "jcr:isAbstract";
 
-    private static final String IS_MIXIN = "jcr:isMixin";
+    private static final String IS_MIXIN_PROPERTY = "jcr:isMixin";
 
-    private static final String MANDATORY_PROPERTIES = "rep:mandatoryProperties";
+    private static final String MANDATORY_PROPERTIES_PROPERTY = "rep:mandatoryProperties";
 
-    private static final String MANDATORY_CHILD_NODES = "rep:mandatoryChildNodes";
+    private static final String MANDATORY_CHILD_NODES_PROPERTY = "rep:mandatoryChildNodes";
 
-    private static final String DECLARED_DIFFERENTLY =
+    private static final String DECLARED_DIFFERENTLY_PROBLEM =
         "a parameter disagrees with the node type it is stored in";
 
-    private static final String NOT_ALLOWED = "a parameter is not allowed by the node type it is stored in";
+    private static final String NOT_ALLOWED_PROBLEM = "a parameter is not allowed by the node type it is stored in";
 
-    private static final String JCR_PRIMARY_TYPE = "jcr:primaryType";
+    private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
     private static final String KEY_DETAIL = "key";
 
-    private static final String NT_UNSTRUCTURED = "nt:unstructured";
+    private static final String NT_UNSTRUCTURED_TYPE = "nt:unstructured";
 
-    private static final String CHILD_ORDER = ":childOrder";
+    private static final String CHILD_ORDER_PROPERTY = ":childOrder";
 
     private ParameterTranslation()
     {
@@ -293,7 +293,7 @@ final class ParameterTranslation
             return;
         }
         final NodeBuilder stored = context.node().child(parameter.name());
-        stored.setProperty(JCR_PRIMARY_TYPE, parameter.nodeType(), Type.NAME);
+        stored.setProperty(JCR_PRIMARY_TYPE_PROPERTY, parameter.nodeType(), Type.NAME);
         fields(parameter, elements.get(0), stored, context.level().prefix() + parameter.name() + "/", context, null);
     }
 
@@ -307,21 +307,22 @@ final class ParameterTranslation
             return;
         }
         final NodeBuilder container = context.node().child(parameter.name());
-        container.setProperty(JCR_PRIMARY_TYPE, NT_UNSTRUCTURED, Type.NAME);
+        container.setProperty(JCR_PRIMARY_TYPE_PROPERTY, NT_UNSTRUCTURED_TYPE, Type.NAME);
         final Set<String> keys = new LinkedHashSet<>();
         for (final Element element : elements) {
             final String value = element.getAttribute(key).trim();
             if (usableKey(value, keys, parameter, context)) {
                 // A key is often a qualified name, such as the property a field sets
                 final NodeBuilder stored = container.child(Text.escapeIllegalJcrChars(value));
-                stored.setProperty(JCR_PRIMARY_TYPE, parameter.nodeType(), Type.NAME);
+                stored.setProperty(JCR_PRIMARY_TYPE_PROPERTY, parameter.nodeType(), Type.NAME);
                 fields(parameter, element, stored, context.level().prefix() + parameter.name() + "/" + value + "/",
                     context, key);
             }
         }
         // Oak keeps the order of an orderable node's children in this hidden property, which only the JCR API
         // maintains by itself
-        container.setProperty(CHILD_ORDER, keys.stream().map(Text::escapeIllegalJcrChars).toList(), Type.NAMES);
+        container.setProperty(CHILD_ORDER_PROPERTY, keys.stream().map(Text::escapeIllegalJcrChars).toList(),
+            Type.NAMES);
     }
 
     /**
@@ -500,13 +501,13 @@ final class ParameterTranslation
         final boolean multiple = parameter.isMultiValued();
         final String typed = Type.fromTag(storageType, multiple).toString();
         final String untyped = Type.fromTag(PropertyType.UNDEFINED, multiple).toString();
-        final NodeState named = nodeType.getChildNode(NAMED_PROPERTY_DEFINITIONS).getChildNode(parameter.name());
+        final NodeState named = nodeType.getChildNode(NAMED_PROPERTY_DEFINITIONS_CHILD).getChildNode(parameter.name());
         if (named.exists()) {
-            return named.hasChildNode(typed) || named.hasChildNode(untyped) ? null : DECLARED_DIFFERENTLY;
+            return named.hasChildNode(typed) || named.hasChildNode(untyped) ? null : DECLARED_DIFFERENTLY_PROBLEM;
         }
-        final NodeState residual = nodeType.getChildNode(RESIDUAL_PROPERTY_DEFINITIONS);
+        final NodeState residual = nodeType.getChildNode(RESIDUAL_PROPERTY_DEFINITIONS_CHILD);
         return !nodeType.exists() || residual.hasChildNode(typed) || residual.hasChildNode(untyped) ? null
-            : NOT_ALLOWED;
+            : NOT_ALLOWED_PROBLEM;
     }
 
     /**
@@ -533,16 +534,16 @@ final class ParameterTranslation
             return unwritable;
         }
         final NodeState holder = types.getChildNode(context.level().nodeType());
-        final String stored = parameter.isMultiValued() ? NT_UNSTRUCTURED : parameter.nodeType();
+        final String stored = parameter.isMultiValued() ? NT_UNSTRUCTURED_TYPE : parameter.nodeType();
         final Set<String> satisfied = new LinkedHashSet<>();
         satisfied.add(stored);
         types.getChildNode(stored).getNames(SUPERTYPES_PROPERTY).forEach(satisfied::add);
-        final NodeState named = holder.getChildNode(NAMED_CHILD_NODE_DEFINITIONS).getChildNode(parameter.name());
+        final NodeState named = holder.getChildNode(NAMED_CHILD_NODE_DEFINITIONS_CHILD).getChildNode(parameter.name());
         if (named.exists()) {
-            return satisfied.stream().anyMatch(named::hasChildNode) ? null : DECLARED_DIFFERENTLY;
+            return satisfied.stream().anyMatch(named::hasChildNode) ? null : DECLARED_DIFFERENTLY_PROBLEM;
         }
-        final NodeState residual = holder.getChildNode(RESIDUAL_CHILD_NODE_DEFINITIONS);
-        return !holder.exists() || satisfied.stream().anyMatch(residual::hasChildNode) ? null : NOT_ALLOWED;
+        final NodeState residual = holder.getChildNode(RESIDUAL_CHILD_NODE_DEFINITIONS_CHILD);
+        return !holder.exists() || satisfied.stream().anyMatch(residual::hasChildNode) ? null : NOT_ALLOWED_PROBLEM;
     }
 
     /** Why no node of a structure's own type could be written, or {@code null} when one could. */
@@ -551,11 +552,11 @@ final class ParameterTranslation
         if (!record.exists()) {
             return "a structured parameter has a node type that is not registered";
         }
-        if (record.getBoolean(IS_ABSTRACT) || record.getBoolean(IS_MIXIN)) {
+        if (record.getBoolean(IS_ABSTRACT_PROPERTY) || record.getBoolean(IS_MIXIN_PROPERTY)) {
             return "a structured parameter has an abstract or mixin node type";
         }
-        final boolean mandatory = unfilled(record, MANDATORY_CHILD_NODES, NAMED_CHILD_NODE_DEFINITIONS)
-            || unfilled(record, MANDATORY_PROPERTIES, NAMED_PROPERTY_DEFINITIONS);
+        final boolean mandatory = unfilled(record, MANDATORY_CHILD_NODES_PROPERTY, NAMED_CHILD_NODE_DEFINITIONS_CHILD)
+            || unfilled(record, MANDATORY_PROPERTIES_PROPERTY, NAMED_PROPERTY_DEFINITIONS_CHILD);
         return mandatory ? "a structured parameter has a node type with mandatory items" : null;
     }
 
@@ -563,7 +564,7 @@ final class ParameterTranslation
     private static boolean unfilled(final NodeState type, final String mandatory, final String definitions)
     {
         return StreamSupport.stream(type.getNames(mandatory).spliterator(), false)
-            .filter(name -> !JCR_PRIMARY_TYPE.equals(name))
+            .filter(name -> !JCR_PRIMARY_TYPE_PROPERTY.equals(name))
             .anyMatch(name -> StreamSupport.stream(
                 type.getChildNode(definitions).getChildNode(name).getChildNodeEntries().spliterator(), false)
                 .noneMatch(definition -> definition.getNodeState().getBoolean("jcr:autoCreated")));
@@ -583,7 +584,7 @@ final class ParameterTranslation
     /** Reports a problem that lies in the vocabulary, which only an administrator can fix. */
     private static void reportDefect(final String problem, final ParameterInfo parameter, final Context context)
     {
-        report(problem, parameter, context, null, WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR);
+        report(problem, parameter, context, null, WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR_MESSAGE);
     }
 
     /**
@@ -614,6 +615,6 @@ final class ParameterTranslation
         problems.report(problem, problems.context()
             .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE))
             .with("flowNodeType", type.name()).with(PARAMETER_DETAIL, path),
-            WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR);
+            WorkflowDefinitionUtils.CONTACT_ADMINISTRATOR_MESSAGE);
     }
 }

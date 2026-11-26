@@ -48,7 +48,7 @@ class StructuredParameterTest
 {
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
-    private static final String TEXT = Parameter.TYPE_TEXT;
+    private static final String TEXT = Parameter.TEXT_DATA_TYPE;
 
     private static final String NT_UNSTRUCTURED = "nt:unstructured";
 
@@ -458,7 +458,7 @@ class StructuredParameterTest
         final NodeBuilder root = withConfigure();
         fields(root.child(WORKFLOW_TYPES).child("Configure").child(TARGET)).child("flag")
             .setProperty(PRIMARY_TYPE, "wf:Parameter", Type.NAME)
-            .setProperty(DATA_TYPE, Parameter.TYPE_TEXT)
+            .setProperty(DATA_TYPE, Parameter.TEXT_DATA_TYPE)
             .setProperty(XML_LOCATION, "attribute");
 
         try (RecordedProblems problems = new RecordedProblems()) {
@@ -492,7 +492,7 @@ class StructuredParameterTest
     {
         final NodeBuilder root = withUpdateContent();
         final NodeBuilder fields = root.child(WORKFLOW_TYPES).child("UpdateContent").child(FIELDS)
-            .child(Parameter.FIELDS_NODE);
+            .child(Parameter.FIELDS_CHILD);
         VocabularyFixture.parameter(fields.child(CHOICES), "hint", TEXT, 0, 1);
         fields.child("note").setProperty(PRIMARY_TYPE, NT_UNSTRUCTURED, Type.NAME)
             .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
@@ -569,19 +569,19 @@ class StructuredParameterTest
             .setProperty("minValues", 1L).setProperty(JCR_NODE_TYPE, "sling:Folder"));
         VocabularyFixture.parameter(target, PATH, TEXT, 1, 1);
         VocabularyFixture.parameter(target, TAGS, TEXT, 0, 0);
-        VocabularyFixture.parameter(target, DEPTH, Parameter.TYPE_LONG, 0, 1);
+        VocabularyFixture.parameter(target, DEPTH, Parameter.LONG_DATA_TYPE, 0, 1);
         return root;
     }
 
     private NodeBuilder structure(final NodeBuilder parent, final String name, final long maxValues)
     {
-        return VocabularyFixture.parameter(parent, name, Parameter.TYPE_STRUCTURE, 0, maxValues);
+        return VocabularyFixture.parameter(parent, name, Parameter.STRUCTURE_DATA_TYPE, 0, maxValues);
     }
 
     /** The node a structure's fields are declared under. */
     private NodeBuilder fields(final NodeBuilder structure)
     {
-        return structure.child(Parameter.FIELDS_NODE).setProperty(PRIMARY_TYPE, "wf:Parameters", Type.NAME);
+        return structure.child(Parameter.FIELDS_CHILD).setProperty(PRIMARY_TYPE, "wf:Parameters", Type.NAME);
     }
 
     private static List<String> names(final Iterable<String> values)

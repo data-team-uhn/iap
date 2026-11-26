@@ -81,20 +81,20 @@ class ParameterTest
         final Parameter parameter = this.createParameter("toState", Map.of(
             LABEL, "New state",
             "description", "The state the version is moved to.",
-            "dataType", Parameter.TYPE_TEXT,
+            "dataType", Parameter.TEXT_DATA_TYPE,
             "minValues", 1L,
             "maxValues", 1L,
-            "xmlLocation", Parameter.LOCATION_EXTENSION_ELEMENT));
+            "xmlLocation", Parameter.EXTENSION_ELEMENT_LOCATION));
 
         assertNotNull(parameter);
         assertEquals("toState", parameter.getName());
         assertEquals("New state", parameter.getLabel());
         assertEquals("The state the version is moved to.", parameter.getDescription());
-        assertEquals(Parameter.TYPE_TEXT, parameter.getDataType());
+        assertEquals(Parameter.TEXT_DATA_TYPE, parameter.getDataType());
         assertEquals(1L, parameter.getMinValues());
         assertEquals(1L, parameter.getMaxValues());
         assertNull(parameter.getReferenceType());
-        assertEquals(Parameter.LOCATION_EXTENSION_ELEMENT, parameter.getXmlLocation());
+        assertEquals(Parameter.EXTENSION_ELEMENT_LOCATION, parameter.getXmlLocation());
         assertNull(parameter.getXmlPath());
         assertTrue(parameter.getOptions().isEmpty());
     }
@@ -103,12 +103,12 @@ class ParameterTest
     void readsWhatARestrictedReferenceRequires()
     {
         final Parameter parameter = this.createParameter("template", Map.of(
-            LABEL, "Template", "dataType", Parameter.TYPE_REFERENCE, "referenceType", "mail:Template",
-            "xmlLocation", Parameter.LOCATION_ATTRIBUTE));
+            LABEL, "Template", "dataType", Parameter.REFERENCE_DATA_TYPE, "referenceType", "mail:Template",
+            "xmlLocation", Parameter.ATTRIBUTE_LOCATION));
 
-        assertEquals(Parameter.TYPE_REFERENCE, parameter.getDataType());
+        assertEquals(Parameter.REFERENCE_DATA_TYPE, parameter.getDataType());
         assertEquals("mail:Template", parameter.getReferenceType());
-        assertEquals(Parameter.LOCATION_ATTRIBUTE, parameter.getXmlLocation());
+        assertEquals(Parameter.ATTRIBUTE_LOCATION, parameter.getXmlLocation());
     }
 
     @Test
@@ -118,10 +118,10 @@ class ParameterTest
 
         assertEquals("recipients", parameter.getLabel());
         assertNull(parameter.getDescription());
-        assertEquals(Parameter.TYPE_TEXT, parameter.getDataType());
+        assertEquals(Parameter.TEXT_DATA_TYPE, parameter.getDataType());
         assertEquals(0L, parameter.getMinValues());
         assertEquals(1L, parameter.getMaxValues());
-        assertEquals(Parameter.LOCATION_EXTENSION_ELEMENT, parameter.getXmlLocation());
+        assertEquals(Parameter.EXTENSION_ELEMENT_LOCATION, parameter.getXmlLocation());
     }
 
     @Test
@@ -155,8 +155,8 @@ class ParameterTest
     {
         this.createParameter("fromStates", Map.of(
             LABEL, "Applies to", "description", "The states this move is for.",
-            "dataType", Parameter.TYPE_TEXT, "minValues", 1L, "maxValues", 0L,
-            "xmlLocation", Parameter.LOCATION_BPMN_ELEMENT, "xmlPath", "timerEventDefinition"));
+            "dataType", Parameter.TEXT_DATA_TYPE, "minValues", 1L, "maxValues", 0L,
+            "xmlLocation", Parameter.BPMN_ELEMENT_LOCATION, "xmlPath", "timerEventDefinition"));
         this.createOption("fromStates", "draft", Map.of(VALUE, "DRAFT", LABEL, "Draft"));
 
         final JsonObject json = this.parameter("fromStates").toJsonBuilder().build();
@@ -164,10 +164,10 @@ class ParameterTest
         assertEquals("fromStates", json.getString("name"));
         assertEquals("Applies to", json.getString(LABEL));
         assertEquals("The states this move is for.", json.getString("description"));
-        assertEquals(Parameter.TYPE_TEXT, json.getString("dataType"));
+        assertEquals(Parameter.TEXT_DATA_TYPE, json.getString("dataType"));
         assertEquals(1, json.getInt("minValues"));
         assertEquals(0, json.getInt("maxValues"));
-        assertEquals(Parameter.LOCATION_BPMN_ELEMENT, json.getString("xmlLocation"));
+        assertEquals(Parameter.BPMN_ELEMENT_LOCATION, json.getString("xmlLocation"));
         assertEquals("timerEventDefinition", json.getString("xmlPath"));
         assertEquals(1, json.getJsonArray(OPTIONS).size());
         assertEquals("DRAFT", json.getJsonArray(OPTIONS).getJsonObject(0).getString(VALUE));
@@ -178,7 +178,7 @@ class ParameterTest
     void leavesOutWhatAParameterDoesNotDeclare()
     {
         final Parameter parameter = this.createParameter("recipients", Map.of(
-            LABEL, "Recipients", "dataType", Parameter.TYPE_PRINCIPAL));
+            LABEL, "Recipients", "dataType", Parameter.PRINCIPAL_DATA_TYPE));
 
         final JsonObject json = parameter.toJsonBuilder().build();
 
@@ -192,7 +192,7 @@ class ParameterTest
     void serializesTheTypeAReferenceIsRestrictedTo()
     {
         final Parameter parameter = this.createParameter("workflowFrom", Map.of(
-            LABEL, "Workflow", "dataType", Parameter.TYPE_REFERENCE, "referenceType", "wf:WorkflowDefinition"));
+            LABEL, "Workflow", "dataType", Parameter.REFERENCE_DATA_TYPE, "referenceType", "wf:WorkflowDefinition"));
 
         assertEquals("wf:WorkflowDefinition", parameter.toJsonBuilder().build().getString("referenceType"));
     }
@@ -200,12 +200,12 @@ class ParameterTest
     @Test
     void declaresTheFieldsAndKeyOfAStructure()
     {
-        final Map<String, Object> structure = Map.of(LABEL, "Fields", "dataType", Parameter.TYPE_STRUCTURE,
+        final Map<String, Object> structure = Map.of(LABEL, "Fields", "dataType", Parameter.STRUCTURE_DATA_TYPE,
             "maxValues", 0L, "keyParameter", "name", "jcrNodeType", "sling:Folder");
         final Parameter parameter = this.createParameter("fields", structure);
         this.createParameter("fields/parameters/name", Map.of(LABEL, "Name", "minValues", 1L));
         this.createParameter("fields/parameters/choices",
-            Map.of(LABEL, "Choices", "dataType", Parameter.TYPE_STRUCTURE));
+            Map.of(LABEL, "Choices", "dataType", Parameter.STRUCTURE_DATA_TYPE));
         this.createParameter("fields/parameters/choices/parameters/value", Map.of(LABEL, "Value"));
         this.createOption("fields/parameters", "notAField", Map.of(VALUE, "x"));
         this.context.create().resource(ENTRY_PATH + "/fields/parameters/byResourceType",
@@ -236,7 +236,7 @@ class ParameterTest
         final Parameter parameter = this.parameter("fields");
 
         assertEquals("Field", parameter.getLabel());
-        assertEquals(Parameter.TYPE_STRUCTURE, parameter.getDataType());
+        assertEquals(Parameter.STRUCTURE_DATA_TYPE, parameter.getDataType());
         assertEquals(List.of("Label", "Data type"),
             parameter.getParameters().stream().map(Parameter::getLabel).toList());
         assertEquals(List.of(LABEL, "dataType"),

@@ -62,7 +62,7 @@ class ParameterTranslationTest
 
     private static final String ACTIVITY = "wf:Activity";
 
-    private static final String TEXT = Parameter.TYPE_TEXT;
+    private static final String TEXT = Parameter.TEXT_DATA_TYPE;
 
     private static final String FLOW_NODE_TYPE = "flowNodeType";
 
@@ -517,8 +517,8 @@ class ParameterTranslationTest
         definitions.child("retries").child("LONGS");
         definitions.child("note").child("UNDEFINED");
         final NodeBuilder type = root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK);
-        VocabularyFixture.attributeParameter(type, "urgent", Parameter.TYPE_BOOLEAN, 1);
-        VocabularyFixture.attributeParameter(type, "retries", Parameter.TYPE_LONG, 0);
+        VocabularyFixture.attributeParameter(type, "urgent", Parameter.BOOLEAN_DATA_TYPE, 1);
+        VocabularyFixture.attributeParameter(type, "retries", Parameter.LONG_DATA_TYPE, 0);
         VocabularyFixture.attributeParameter(type, "note", TEXT, 1);
 
         try (RecordedProblems problems = new RecordedProblems()) {
@@ -563,7 +563,7 @@ class ParameterTranslationTest
             .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
         final NodeBuilder required = VocabularyFixture.repository();
         VocabularyFixture.parameter(VocabularyFixture.handler(required, "Escalate", "escalate"), "count",
-            Parameter.TYPE_LONG, 1, 1);
+            Parameter.LONG_DATA_TYPE, 1, 1);
 
         final List<String> vocabulary = problemLines(broken, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
         final List<String> diagram = problemLines(required, serviceTask("<iap:escalate/>"));
@@ -629,7 +629,7 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.handler(root, "Escalate", "escalate");
-        VocabularyFixture.parameter(type, "retries", Parameter.TYPE_LONG, 0, 0);
+        VocabularyFixture.parameter(type, "retries", Parameter.LONG_DATA_TYPE, 0, 0);
 
         try (RecordedProblems problems = new RecordedProblems()) {
             final NodeState task = parse(root, serviceTask("<iap:escalate>"
@@ -648,7 +648,7 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         VocabularyFixture.parameter(VocabularyFixture.handler(root, "Escalate", "escalate"), "count",
-            Parameter.TYPE_LONG, 1, 1);
+            Parameter.LONG_DATA_TYPE, 1, 1);
 
         try (RecordedProblems problems = new RecordedProblems()) {
             final NodeState task = parse(root, serviceTask("<iap:escalate count=\"abc\"/>")).getChildNode(TASK);
@@ -722,7 +722,7 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.entry(root, "Scripted", SERVICE_TASK_ELEMENT, ACTIVITY, 0);
-        bpmnParameter(type, "scriptFormat", Parameter.LOCATION_BPMN_ATTRIBUTE, "bpmn:ioSpecification/bpmn:dataInput");
+        bpmnParameter(type, "scriptFormat", Parameter.BPMN_ATTRIBUTE_LOCATION, "bpmn:ioSpecification/bpmn:dataInput");
 
         try (RecordedProblems problems = new RecordedProblems()) {
             final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
@@ -738,8 +738,8 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.entry(root, "Scripted", SERVICE_TASK_ELEMENT, ACTIVITY, 0);
-        bpmnParameter(type, "script", Parameter.LOCATION_BPMN_ELEMENT, null).setProperty("maxValues", 0L);
-        bpmnParameter(type, "scriptFormat", Parameter.LOCATION_BPMN_ATTRIBUTE, null);
+        bpmnParameter(type, "script", Parameter.BPMN_ELEMENT_LOCATION, null).setProperty("maxValues", 0L);
+        bpmnParameter(type, "scriptFormat", Parameter.BPMN_ATTRIBUTE_LOCATION, null);
 
         try (RecordedProblems problems = new RecordedProblems()) {
             final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" scriptFormat=\" js \">\n"
@@ -889,9 +889,9 @@ class ParameterTranslationTest
         VocabularyFixture.entry(root, "UserTask", "bpmn:userTask", ACTIVITY, 0);
         final NodeBuilder timer = VocabularyFixture.entry(root, "TimerBoundaryEvent", "bpmn:boundaryEvent",
             "wf:IntermediateCatchingEvent", 10).setProperty("xmlChildElement", "bpmn:timerEventDefinition");
-        bpmnParameter(timer, TIME_DURATION, Parameter.LOCATION_BPMN_ELEMENT, "bpmn:timerEventDefinition");
-        bpmnParameter(timer, CANCEL_ACTIVITY, Parameter.LOCATION_BPMN_ATTRIBUTE, null)
-            .setProperty("dataType", Parameter.TYPE_BOOLEAN);
+        bpmnParameter(timer, TIME_DURATION, Parameter.BPMN_ELEMENT_LOCATION, "bpmn:timerEventDefinition");
+        bpmnParameter(timer, CANCEL_ACTIVITY, Parameter.BPMN_ATTRIBUTE_LOCATION, null)
+            .setProperty("dataType", Parameter.BOOLEAN_DATA_TYPE);
         VocabularyFixture.entry(root, SEQUENCE_FLOW, "bpmn:sequenceFlow", "wf:SequenceFlow", 0);
         return root;
     }
@@ -947,7 +947,7 @@ class ParameterTranslationTest
     {
         final NodeBuilder root = VocabularyFixture.repository();
         final NodeBuilder type = VocabularyFixture.handler(root, "Notify", "notify");
-        VocabularyFixture.parameter(type, TEMPLATE, Parameter.TYPE_REFERENCE, 1, 1)
+        VocabularyFixture.parameter(type, TEMPLATE, Parameter.REFERENCE_DATA_TYPE, 1, 1)
             .setProperty("referenceType", MAIL_TEMPLATE);
         return root;
     }
