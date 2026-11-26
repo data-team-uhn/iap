@@ -174,7 +174,7 @@
     <profile>
       <id>tests</id>
       <dependencies>
-        <!-- RecordingTaskContext, for calling a workflow handler without the engine -->
+        <!-- RecordingTaskContext and SystemWorkflowDefinitions, for handlers and definitions without the engine -->
         <dependency>
           <groupId>${project.groupId}</groupId>
           <artifactId>iap-workflows</artifactId>
