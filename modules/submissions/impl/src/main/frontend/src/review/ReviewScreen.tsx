@@ -85,7 +85,8 @@ import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { answersIn, changedAnswers, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout,
-  parseGroups, parseReview, parseTopics, raiseAsIssue, sentBackCopy, shortDate, withAnswerChanges, withDone,
+  parseGroups, parseReview, parseTopics, raiseAsIssue, resubmittedAt, sentBackCopy, shortDate, withAnswerChanges,
+  withDone,
   type NoteKind, type ReviewData, type ReviewedDocument, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import RowSplit from "./RowSplit";
@@ -681,8 +682,12 @@ export default function ReviewScreen({ path }: { path: string }) {
     />
   );
 
-  // PRETOTYPE: on a submission sent back and answered, whether what changed since is shown, for the whole of it
-  const changesToggle = sentBack && kept ? (
+  // PRETOTYPE: on a submission answered since it was sent back, which version is read, by the day it came back, and
+  // whether what changed since is shown, for the whole of it
+  const backAt = loaded && sentBack ? resubmittedAt(loaded.submission) : undefined;
+  const version = backAt && sentBack && Date.parse(backAt) > Date.parse(sentBack.at)
+    ? `Version of ${shortDate(backAt)}` : undefined;
+  const changesToggle = sentBack && kept && version ? (
     <ChangesToggle since={shortDate(sentBack.at)} on={showChanges} onChange={setShowChanges} />
   ) : undefined;
   // search beside them on wide screens
@@ -690,7 +695,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   usePublishedPageContext(header && {
     title: text(header.title),
     short: text(header.identifier),
-    details: text(header.pi),
+    // The version before the person, whose name gives way first where the bar is short
+    details: version ? `${version} · ${text(header.pi)}` : text(header.pi),
     badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
     end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} variant="caption" />,
     tools: <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>{changesToggle}{search(true)}</Stack>,

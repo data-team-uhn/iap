@@ -549,3 +549,14 @@ export function shortDate(iso: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric",
     ...date.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" } });
 }
+
+// PRETOTYPE. When the study team last sent the submission back into review, answering a group that asked for
+// changes: the latest end of their tasks answering the reviewers
+export function resubmittedAt(submission: Node): string | undefined {
+  const instances = isNode(submission["wf:instances"]) ? Object.values(submission["wf:instances"]).filter(isNode) : [];
+  return instances.flatMap(instance => Object.values(instance).filter(isNode))
+    .filter(task => task["jcr:primaryType"] === "wf:TaskInstance" && task.status === "completed"
+      && /(^r|R)espond$/.test(text(task.taskDefinitionId)))
+    .map(task => text(task.endTime)).filter(Boolean)
+    .sort((a, b) => Date.parse(b) - Date.parse(a)).at(0);
+}

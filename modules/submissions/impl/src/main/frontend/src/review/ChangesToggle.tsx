@@ -38,7 +38,7 @@ export default function ChangesToggle({ since, on, onChange }: {
             : { color: "text.secondary", borderColor: "divider" } };
       }}
     >
-      Changes since {since}
+      Changes since the version of {since}
     </Button>
   );
 }
