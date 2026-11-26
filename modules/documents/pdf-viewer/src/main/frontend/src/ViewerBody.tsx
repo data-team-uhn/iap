@@ -109,6 +109,7 @@ interface ViewerBodyProps {
   markHeadingActions?: (mark: Mark) => ReactNode;
   lead?: ReactNode;
   listContainer?: HTMLElement | null;
+  describeUnfound?: (mark: Mark) => string | undefined;
   // Whether the document spans the full width of a phone screen, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
@@ -121,7 +122,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
   const plain = useContext(PlainViewer);
   const { changeIds, searchedOutside = false, annotateLabel, condensedMarks, listWidth, onListWidth } = props;
-  const { markHeading, markHeadingActions, lead, listContainer } = props;
+  const { markHeading, markHeadingActions, lead, listContainer, describeUnfound } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   // The document has opened once its pages are counted.
   const opened = pageCount !== undefined;
@@ -333,7 +334,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
             marks={listed} naming={naming} places={places} status={status} selectedId={selected?.id}
             renderBody={renderBody} describeBody={describeBody} renderDetails={renderMarkDetails}
             condensed={condensedMarks} width="100%" heading={markHeading} headingActions={markHeadingActions}
-            onSelect={showSelected}
+            describeUnfound={describeUnfound} onSelect={showSelected}
           />,
           listContainer,
         )}
@@ -352,6 +353,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
               width={shownListWidth}
               heading={markHeading}
               headingActions={markHeadingActions}
+              describeUnfound={describeUnfound}
               onSelect={showSelected}
             />
           )

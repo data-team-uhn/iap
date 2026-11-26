@@ -109,6 +109,8 @@ export interface ReviewNote {
   confidence?: number;
   // How far, in percent, the submitter's answer ended up from the extracted one, once they kept or changed it
   distance?: number;
+  // PRETOTYPE: written before the submission was last sent back, about an answer that changed since
+  answerChanged?: boolean;
 }
 
 export interface ReviewedAnswer {
@@ -477,11 +479,41 @@ export function withDone(data: ReviewData): ReviewData {
 // PRETOTYPE. The copy of the submission kept when one of the reader's groups last sent it back for changes, by the
 // path of its version: the latest decided of their groups' reviews that names one; failing that, the latest kept
 // for any group, what changed since the submission was last sent back being worth reading all the same.
-export function sentBackCopy(submission: Node, myGroups: string[]): string | undefined {
+export function sentBackCopy(submission: Node, myGroups: string[]): { path: string; at: string } | undefined {
   const reviews = childrenOf(submission, "sub:Review").filter(review => text(review.sentBackCopy))
     .sort((a, b) => Date.parse(text(b.decidedAt)) - Date.parse(text(a.decidedAt)));
   const latest = reviews.find(review => myGroups.includes(text(review.group))) ?? reviews.at(0);
-  return latest ? text(latest.sentBackCopy) : undefined;
+  return latest ? { path: text(latest.sentBackCopy), at: text(latest.decidedAt) } : undefined;
+}
+
+// PRETOTYPE. Whether an answer is not what it was, the order of several values aside
+export function isChanged(was: string[], now: string[]): boolean {
+  const normal = (values: string[]) => [ ...values ].map(value => value.trim()).sort().join("\n");
+  return normal(was) !== normal(now);
+}
+
+// PRETOTYPE. The questions whose answers changed since the copy, by path
+export function changedAnswers(data: ReviewData): Set<string> {
+  const before = data.before;
+  if (!before) {
+    return new Set();
+  }
+  const paths = new Set([ ...before.keys(), ...data.answers.keys() ]);
+  return new Set([ ...paths ].filter(path => isChanged(before.get(path) ?? [], data.answers.get(path)?.values ?? [])));
+}
+
+// PRETOTYPE. What was written before the submission was last sent back says when an answer it is about changed since;
+// linked answers and contradictions are read against the answers as they are, so they say nothing of it
+export function withAnswerChanges(data: ReviewData, sentBackAt: string | undefined): ReviewData {
+  const changed = changedAnswers(data);
+  if (changed.size === 0 || !sentBackAt) {
+    return data;
+  }
+  const at = Date.parse(sentBackAt);
+  return { ...data, notes: data.notes.map(note => note.kind !== "evidence" && note.kind !== "contradiction"
+    && Date.parse(note.created) <= at
+    && note.subjects.some(subject => changed.has(data.partOf.get(subject) ?? "")) ? { ...note, answerChanged: true }
+    : note) };
 }
 
 // PRETOTYPE. Each answer in a copy of the submission, by its question's path relative to the schema version

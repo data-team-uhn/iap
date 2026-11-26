@@ -48,8 +48,8 @@ import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm"
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard, { DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { GroupChip } from "./people";
-import { groupShortName, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
-  type ReviewNote } from "./reviewData";
+import { groupShortName, isChanged, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData,
+  type ReviewGroup, type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
 
 // How wide the form must be for a question's notes to go beside it, as a document's are beside its pages, rather
@@ -223,7 +223,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               outline: outline ? "2px solid" : "none", outlineColor: outline ? getSelectedOutline(theme, outline) : undefined,
             } : {} })}
           >
-            {was !== undefined && changedFrom(question, was) ? <AnswerChange question={question} was={was} /> : (
+            {was !== undefined && isChanged(was, question.value) ? <AnswerChange question={question} was={was} /> : (
               <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                 <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
               </Typography>
@@ -311,12 +311,6 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
       )}
     </Box>
   );
-}
-
-// PRETOTYPE. Whether an answer is not what it was, the order of several values aside
-function changedFrom(question: FormQuestion, was: string[]): boolean {
-  const normal = (values: string[]) => [ ...values ].map(value => value.trim()).sort().join("\n");
-  return normal(was) !== normal(question.value);
 }
 
 // PRETOTYPE. An answer changed since the submission was last sent back, said as such, with what it was: a choice, a

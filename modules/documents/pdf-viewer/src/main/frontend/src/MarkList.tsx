@@ -87,6 +87,8 @@ function MarkList(props: {
   // PRETOTYPE: buttons at the end of an entry's heading, such as changing one's own comment, kept out of the button
   // the entry is, which they cannot go inside
   headingActions?: (mark: Mark) => ReactNode;
+  // PRETOTYPE: what to say of a passage not found instead, where the caller knows why, such as text since changed
+  describeUnfound?: (mark: Mark) => string | undefined;
   onSelect: (id: string) => void;
 }) {
   const { marks, naming, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
@@ -190,6 +192,7 @@ function MarkList(props: {
                 lines={lines?.quote ?? MAX_LINES}
                 heading={props.heading?.(mark)}
                 actionsRoom={hasActions}
+                unfound={props.describeUnfound?.(mark)}
                 onSelect={() => onSelect(mark.id)}
               />
               {hasActions && <Box sx={{ position: "absolute", top: 4, right: 12 }}>{actions}</Box>}
@@ -251,7 +254,7 @@ function MarkDetails({ cut, lines, onOpen, children }: {
 // The button that shows a mark's passage, or the body shown in its place, and its note. Clicking it selects
 // the mark.
 function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, lines = MAX_LINES, heading, actionsRoom,
-  onSelect }: {
+  unfound, onSelect }: {
   mark: Mark;
   body: ReactNode;
   bodySaid: string | undefined;
@@ -260,6 +263,8 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, line
   status: ViewerStatus;
   selected: boolean;
   lines?: number;
+  // PRETOTYPE: said instead of "not found in this document"
+  unfound?: string;
   heading?: ReactNode;
   // Whether buttons sit at the end of its heading, over the entry
   actionsRoom?: boolean;
@@ -294,7 +299,9 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, line
         ? null
         : (
           <Typography id={`${quoteId}-note`} component="span" variant="caption" sx={{ display: "block" }}>
-            <NoteText note={placeOnly && "foundOnPage" in shownNote ? { ...shownNote, searched: false } : shownNote} />
+            {unfound !== undefined && "failed" in shownNote && shownNote.failed
+              ? unfound
+              : <NoteText note={placeOnly && "foundOnPage" in shownNote ? { ...shownNote, searched: false } : shownNote} />}
           </Typography>
         )}
     </>

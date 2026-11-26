@@ -159,6 +159,12 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     const note = notes.find(one => one.id === mark.id);
     return note && <NoteHeading note={note} />;
   }, [ notes ]);
+  // PRETOTYPE: a note written on an older version whose passage the latest no longer has says its text changed
+  const describeUnfound = useCallback((mark: Mark) => {
+    const source = notes.find(one => one.id === mark.id)?.passage?.source;
+    return source && source !== document.version && document.versions.some(one => one.uuid === source)
+      ? "its passage changed since it was sent back" : undefined;
+  }, [ notes, document ]);
   // At the end of the heading, changing or removing the reviewer's own note; changing it selects it, to open it whole
   const markHeadingActions = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
@@ -202,6 +208,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         markHeadingActions={markHeadingActions}
         lead={heading}
         listContainer={notesSlot}
+        describeUnfound={describeUnfound}
         compareWith={compareWith && { url: toFileUrl(compareWith.url), label: compareWith.label }}
         label={compareWith?.current}
         plain

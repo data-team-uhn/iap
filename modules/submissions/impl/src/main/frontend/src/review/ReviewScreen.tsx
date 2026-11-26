@@ -23,6 +23,7 @@ import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import SplitscreenOutlined from "@mui/icons-material/SplitscreenOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
@@ -82,8 +83,8 @@ import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
-import { answersIn, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview,
-  parseTopics, raiseAsIssue, sentBackCopy, withDone,
+import { answersIn, changedAnswers, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout,
+  parseGroups, parseReview, parseTopics, raiseAsIssue, sentBackCopy, withAnswerChanges, withDone,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import RowSplit from "./RowSplit";
@@ -336,13 +337,17 @@ export default function ReviewScreen({ path }: { path: string }) {
     [ loaded, schema ]);
   // PRETOTYPE: the copy kept when the reader's group sent the submission back, which documents and answers are
   // compared with
-  const copy = loaded ? loaded.copies.get(sentBackCopy(loaded.submission, myGroups) ?? "") : undefined;
+  const sentBack = loaded ? sentBackCopy(loaded.submission, myGroups) : undefined;
+  const copy = sentBack && loaded?.copies.get(sentBack.path);
+  const sentBackAt = sentBack?.at;
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
   const data: ReviewData | undefined = useMemo(() => loaded && me
-    ? { ...withDone(withSources(parseReview(loaded.submission, schema, me, topics),
+    ? withAnswerChanges({ ...withDone(withSources(parseReview(loaded.submission, schema, me, topics),
       loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))),
-    before: copy && answersIn(copy, schema) }
-    : undefined, [ loaded, schema, me, topics, copy ]);
+    before: copy && answersIn(copy, schema) }, sentBackAt)
+    : undefined, [ loaded, schema, me, topics, copy, sentBackAt ]);
+  // PRETOTYPE: the questions whose answers changed since the submission was last sent back
+  const changed = useMemo(() => data ? changedAnswers(data) : new Set<string>(), [ data ]);
   // What the pages and their notes show: what is done with only when the reviewer asks
   const peeking = peek !== undefined && (mark.id === peek || belowMark.id === peek) ? peek : undefined;
   const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
@@ -389,6 +394,22 @@ export default function ReviewScreen({ path }: { path: string }) {
     return found.size > 0 ? [ ...found.values() ] : undefined;
   };
 
+  // PRETOTYPE: what changed in a part since the submission was last sent back, as its contents entry says it: a document's
+  // new version, or how many of a form's answers changed
+  const changeOf = (requirement: Requirement): { shown: string; said: string } | undefined => {
+    if (!data) {
+      return undefined;
+    }
+    if (isFormRequirement(requirement)) {
+      const many = questions(requirement.items).filter(question => changed.has(question.path)).length;
+      return many > 0 ? { shown: String(many),
+        said: `${many} ${many === 1 ? "answer" : "answers"} changed since it was sent back` } : undefined;
+    }
+    const document = data.documents.get(requirement.name);
+    const compared = document && comparisonFor(document, copy);
+    return compared ? { shown: "New", said: `${compared.current}, new since ${compared.label.toLowerCase()}` }
+      : undefined;
+  };
   // What each part has to read, counted in the contents: a note done with that a link shows meanwhile is not
   const notesOf = useCallback((requirement: Requirement, withDone = showDone): ReviewNote[] => {
     if (!data) {
@@ -1032,24 +1053,37 @@ export default function ReviewScreen({ path }: { path: string }) {
                 }
                 secondary={<>
                   {requirement.name === current?.name && requirement.description}
-                  {/* How many notes of each kind shown, on a line of their own so the name keeps the row's width */}
-                  {!terms && counted.length > 0 && (
-                    <Tooltip title={countText(counted)} placement="right">
-                      <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-                        {NOTE_KINDS.map(({ kind }) => {
-                          const many = counted.filter(note => note.kind === kind).length;
-                          return many > 0 && (
-                          // Each on its kind's tint, as its notes are, to stand out on the contents' own
-                            <Box component="span" key={kind}
-                              sx={theme => ({ ...getPassageCardStyle(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
-                                display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
-                                color: `${kindInfo(kind).mark}.main` })}>
-                              <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
-                            </Box>
-                          );
-                        })}
-                      </Box>
-                    </Tooltip>
+                  {/* How many notes of each kind shown, on a line of their own so the name keeps the row's width;
+                      PRETOTYPE: led by what changed since the submission was last sent back */}
+                  {!terms && (counted.length > 0 || changeOf(requirement)) && (
+                    <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+                      {changeOf(requirement) && (
+                        <Tooltip title={changeOf(requirement)?.said} placement="right">
+                          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5,
+                            lineHeight: 1.6, borderRadius: 1, bgcolor: "action.selected", color: "text.secondary" }}>
+                            <DifferenceOutlined sx={{ fontSize: "0.9rem" }} />{changeOf(requirement)?.shown}
+                          </Box>
+                        </Tooltip>
+                      )}
+                      {counted.length > 0 && (
+                        <Tooltip title={countText(counted)} placement="right">
+                          <Box component="span" sx={{ display: "inline-flex", flexWrap: "wrap", gap: 0.5 }}>
+                            {NOTE_KINDS.map(({ kind }) => {
+                              const many = counted.filter(note => note.kind === kind).length;
+                              return many > 0 && (
+                              // Each on its kind's tint, as its notes are, to stand out on the contents' own
+                                <Box component="span" key={kind}
+                                  sx={theme => ({ ...getPassageCardStyle(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
+                                    display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
+                                    color: `${kindInfo(kind).mark}.main` })}>
+                                  <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        </Tooltip>
+                      )}
+                    </Box>
                   )}
                   {!focused && (
                     <Box component="span" sx={{ display: "block", mt: 0.25 }}>

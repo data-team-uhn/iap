@@ -86,6 +86,10 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
       <Box component="span" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>{info.single}</Box>
       {written && <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}>{written}</Box></>}
       {note.done && <>{dot}<Box component="span" sx={{ fontWeight: "fontWeightBold" }}>{DONE[note.done]}</Box></>}
+      {/* PRETOTYPE: from before the submission was last sent back, about an answer that changed since */}
+      {note.answerChanged && (
+        <>{dot}<Box component="span" sx={{ fontWeight: "fontWeightBold", whiteSpace: "nowrap" }}>Answer changed</Box></>
+      )}
       {!byTheAi && note.kind !== "note" && (
         <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}><PersonName user={note.author} /></Box></>
       )}
