@@ -16,11 +16,13 @@
  * limitations under the License.
  */
 
-import { Fragment, useState } from "react";
+import { Fragment, type MouseEvent, useState } from "react";
 
 import GenerateIcon from "@mui/icons-material/NoteAdd";
 import { Alert, Button, Link, Stack, Typography } from "@mui/material";
 
+import { NO_MARKS } from "@iap/documents-pdf-viewer/marksModel";
+import PdfViewer from "@iap/documents-pdf-viewer/PdfViewer";
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
@@ -43,9 +45,13 @@ export interface GeneratedDocumentProps {
 // The name an editable copy is saved under: the PDF's, as a .docx
 const docxName = (title: string) => `${title.replace(/\.pdf$/i, "")}.docx`;
 
-// One version of the document. A generated doc can be read in the browser, or downloaded as a .docx
+// What the viewer shows: a version the submitter opened, or the one their preview adds. Until the form read again
+// lists it, the newest generated version is still the one the preview replaces.
+type Viewing = { document: AttachedDocument } | { replacing: string | undefined };
+
+// One version of the document. A generated doc opens in the viewer, or can be downloaded as a .docx
 // A submitter-uploaded document can only be downloaded as-is.
-function Version({ document }: { document: AttachedDocument }) {
+function Version({ document, onView }: { document: AttachedDocument; onView: (document: AttachedDocument) => void }) {
   if (!document.path) {
     return <>{document.title}</>;
   }
@@ -60,7 +66,16 @@ function Version({ document }: { document: AttachedDocument }) {
   return (
     <>
       {"Generated from your answers: "}
-      <Link href={toFileUrl(document.path)} target="_blank" rel="noopener">{document.title}</Link>
+      {/* The href stays, so the link can still be copied or opened in a tab from its menu */}
+      <Link
+        href={toFileUrl(document.path)}
+        onClick={(event: MouseEvent) => {
+          event.preventDefault();
+          onView(document);
+        }}
+      >
+        {document.title}
+      </Link>
       {" · "}
       <Link href={toFileUrl(document.docx)} download={docxName(document.title)}>Download to edit (.docx)</Link>
     </>
@@ -72,13 +87,24 @@ function Version({ document }: { document: AttachedDocument }) {
 function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated }: GeneratedDocumentProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [viewing, setViewing] = useState<Viewing | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
   const versions = requirement.attached;
   const name = requirement.label || requirement.name;
+  const generated = versions.find(document => document.path !== undefined && document.docx !== undefined);
+  let shown: AttachedDocument | undefined;
+  if (viewing && "document" in viewing) {
+    shown = viewing.document;
+  } else if (viewing && generated?.path !== viewing.replacing) {
+    shown = generated;
+  }
 
   // Either way, the form is read again on success, since what is attached has changed. An upload is checked in
   // the browser first, as any other is, and only a file that passes waits in the queue.
-  const send = (start: () => Promise<unknown>, check: Promise<string | undefined> = Promise.resolve(undefined)) => {
+  const send = (start: () => Promise<unknown>, { check = Promise.resolve(undefined), onSent }: {
+    check?: Promise<string | undefined>;
+    onSent?: () => void;
+  } = {}) => {
     setBusy(true);
     setFailure(undefined);
     check.then(problem => {
@@ -89,6 +115,7 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
     }).then(
       () => {
         setBusy(false);
+        onSent?.();
         onGenerated();
       },
       (error: unknown) => {
@@ -108,12 +135,18 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
             {versions.map((document, index) => (
               <Fragment key={document.path ?? document.title}>
                 {index > 0 ? "; " : null}
-                <Version document={document} />
+                <Version document={document} onView={opened => setViewing({ document: opened })} />
               </Fragment>
             ))}
           </Typography>
         )
         : <Typography variant="placeholder">Filled in from your answers when you send this request</Typography>}
+      {shown?.path
+        ? (
+          <PdfViewer url={toFileUrl(shown.path)} marks={NO_MARKS} title={shown.title}
+            onClose={() => setViewing(undefined)} />
+        )
+        : null}
       <Stack direction="row" spacing={1}>
         <Button
           size="small"
@@ -121,7 +154,10 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
           startIcon={<GenerateIcon />}
           disabled={disabled || busy}
           aria-label={`Preview "${name}"`}
-          onClick={() => send(() => sendEvent(doFetch, path, "generateDocument", { requirement: requirement.name }))}
+          onClick={() => send(
+            () => sendEvent(doFetch, path, "generateDocument", { requirement: requirement.name }),
+            { onSent: () => setViewing({ replacing: generated?.path }) },
+          )}
         >
           {versions.length > 0 ? "Preview again" : "Preview from my answers"}
         </Button>
@@ -130,8 +166,9 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
           ariaLabel={`Upload your own version of "${name}"`}
           accepted={requirement.acceptedFileTypes}
           disabled={disabled || busy}
-          onPick={file => send(() => attachDocument(doFetch, path, requirement.name, file),
-            validateUpload(file, { accepted: requirement.acceptedFileTypes, timeoutMs: CHECK_TIMEOUT_MS }))}
+          onPick={file => send(() => attachDocument(doFetch, path, requirement.name, file), {
+            check: validateUpload(file, { accepted: requirement.acceptedFileTypes, timeoutMs: CHECK_TIMEOUT_MS }),
+          })}
         />
       </Stack>
     </Stack>

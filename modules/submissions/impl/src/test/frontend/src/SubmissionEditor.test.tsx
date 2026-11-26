@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import type { PdfViewerProps } from "@iap/documents-pdf-viewer/PdfViewer";
 import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
@@ -59,6 +60,18 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 // The file check has its own tests; here it passes every file unless a test says otherwise
 vi.mock("@iap/frontend-commons/fileValidation", () => ({
   validateUpload: vi.fn(() => Promise.resolve(undefined)),
+}));
+
+// The viewer has its own tests; here it says which PDF it shows, and can be closed
+vi.mock("@iap/documents-pdf-viewer/PdfViewer", () => ({
+  default: function StandInViewer({ url, title, onClose }: PdfViewerProps) {
+    return (
+      <div role="dialog" aria-label={title}>
+        {url}
+        <button type="button" onClick={onClose}>Close the viewer</button>
+      </div>
+    );
+  },
 }));
 
 // Settles the loads before the first render, so the editor draws the form rather than a spinner,
@@ -598,12 +611,16 @@ describe("SubmissionEditor", () => {
 
       const link = await screen.findByRole("link", { name: "Decision letter.pdf" });
       expect(link).toHaveAttribute("href", LETTER_FILE.path);
-      expect(link).toHaveAttribute("target", "_blank");
       expect(link).not.toHaveAttribute("download");
       const editable = screen.getByRole("link", { name: "Download to edit (.docx)" });
       expect(editable).toHaveAttribute("href", LETTER_FILE.docx);
       expect(editable).toHaveAttribute("download", "Decision letter.docx");
       expect(screen.getByRole("button", { name: /Preview "Decision letter"/ })).toHaveTextContent("Preview again");
+
+      await userEvent.click(link);
+      expect(screen.getByRole("dialog", { name: "Decision letter.pdf" })).toHaveTextContent(LETTER_FILE.path);
+      await userEvent.click(screen.getByRole("button", { name: "Close the viewer" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     it("names a document with no file yet without linking it, and an unlabelled one by its name", async () => {
@@ -663,8 +680,19 @@ describe("SubmissionEditor", () => {
       const init = request![1]!;
       expect(init.method).toBe("POST");
       expect((init.body as URLSearchParams).get("requirement")).toBe("decisionLetter");
-      // What the server now says was generated, rather than what this page hoped
+      // What the server now says was generated, rather than what this page hoped, opened to be read
       expect(await screen.findByRole("link", { name: "Decision letter.pdf" })).toBeInTheDocument();
+      expect(await screen.findByRole("dialog", { name: "Decision letter.pdf" })).toHaveTextContent(LETTER_FILE.path);
+    });
+
+    it("opens the version a preview adds, never the one it replaces", async () => {
+      const again = { ...LETTER_FILE, path: "/Submissions/x/d1/v2/file/uploadedFile" };
+      vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] }), asked({ attached: [ again ] })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
+
+      expect(await screen.findByRole("dialog")).toHaveTextContent(again.path);
     });
 
     it("says why it could not be generated, in the engine's own words, and lets that be dismissed", async () => {
@@ -681,6 +709,7 @@ describe("SubmissionEditor", () => {
       await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
 
       expect(await screen.findByText(/'decision' is undefined/)).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).toBeNull();
       await userEvent.click(screen.getByRole("button", { name: /Close/ }));
       expect(screen.queryByText(/'decision' is undefined/)).toBeNull();
     });
