@@ -1,7 +1,8 @@
 # Demo: Digital Health Platform intake
 
-A researcher describes the patient data their study needs and sends the request. Their research plan is filled
-in from the answers as it is sent.
+A researcher describes the patient data their study needs and sends the request. If they upload their research
+proposal first, the study information and dates are read out of it and suggested for them to check. Their
+research plan is filled in from the answers as it is sent.
 
 The questions are the "Proposed question flow" (Q1–Q17) of the DHP intake questionnaire. A "Study information"
 section comes first, holding what the research plan needs that Q1–Q17 do not ask: the title, the Principal
@@ -16,7 +17,7 @@ mvn clean install
 
 | Path                      | What                                                                       |
 |---------------------------|----------------------------------------------------------------------------|
-| `/Schemas/dhpIntake`      | The intake questionnaire in eight sections, and the research plan generated from it |
+| `/Schemas/dhpIntake`      | An optional research proposal upload, the intake questionnaire in eight sections, and the research plan generated from it |
 | `/Workflows/dhpIntake`    | The process, as BPMN: raised → filled in and sent → research plan generated → marked submitted |
 | `DhpIntakeDatesEvaluator` | Keeps a request from being sent while its start date is in the future, its end date comes before its start date, or a repeating request stops in a month already over |
 
@@ -30,6 +31,29 @@ section of its own, and that section carries the condition. A question that is h
 
 Yes/No questions offer `yes` and `no` options rather than using the `boolean` type, so that conditions and the
 template compare known values.
+
+## Reading the research proposal
+
+The `proposal` upload is optional. The `intake` form names it in `documents`, so the answer-extraction module
+(see [docs/extraction.md](../../docs/extraction.md)) reads it. Ten questions carry an `extractionPrompt`: the
+eight of "Study information", and the start and end dates. The rest are left to the researcher.
+
+The request is filled in steps:
+1. **The upload.** Next sends the proposal to be parsed. With nothing uploaded, Next goes straight to the
+   questionnaire and nothing is read.
+2. **The reading.** It waits for the parse, then Next asks the model the ten questions.
+3. **The questionnaire.** Each answer found is shown as a suggestion, beside the quotes it came from. A
+   suggestion is saved only once the researcher confirms or edits it, so the research plan only ever holds
+   what the researcher confirmed.
+
+There is no check that the upload is a research proposal, and no category to confirm, so the workflow has no
+task of its own for the reading.
+
+The reading needs the document daemon and an LLM provider beside IAP, set up as in the
+[research proposal demo](../research-proposal/README.md#running-it-on-a-developer-machine). On the daemon's side:
+`IAP_SHARED_DOCS`, `IAP_DOCLING_CALLBACK_URL` and `IAP_DOCLING_CALLBACK_JWT`. On IAP's side: the same
+`IAP_SHARED_DOCS` and `IAP_DOCLING_CALLBACK_JWT`, and `PROMPTER_API_KEY`. The questionnaire works without
+any of them, as long as nothing is uploaded.
 
 ## The generated research plan
 
@@ -52,7 +76,7 @@ The questionnaire asks for some things the platform cannot do yet. Each has a st
 
 | The questionnaire asks for                        | For now                                                            |
 |---------------------------------------------------|--------------------------------------------------------------------|
-| Paragraph-length answers (background, analysis…)  | One-line text questions                                            |
+| Paragraph-length answers (background, analysis…)  | Text fields grow as they are typed in; a line break becomes a line break in the research plan, not a new paragraph |
 | Q10 as a month picker                             | Text in the form `YYYY-MM`, checked by a pattern                   |
 | Q13a as repeatable source/owner pairs             | One source per line of a multi-line answer                         |
 | Q17 as a single checkbox                          | One "I confirm" option, required                                   |
