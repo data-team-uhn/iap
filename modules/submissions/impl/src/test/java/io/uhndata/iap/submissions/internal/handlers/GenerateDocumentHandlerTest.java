@@ -301,6 +301,16 @@ class GenerateDocumentHandlerTest
     }
 
     @Test
+    void aStepPointedAtAnythingButASubmissionIsADefinitionError() throws PersistenceException
+    {
+        this.target.adaptTo(ModifiableValueMap.class).put(TYPE, "sub/SubmissionsHomepage");
+        this.context.resourceResolver().commit();
+
+        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(context(LETTER)));
+        Mockito.verifyNoInteractions(this.generator);
+    }
+
+    @Test
     void anActivityThatNamesNoRequirementIsADefinitionErrorRatherThanAPreview()
     {
         // Or a submitter could pick, in the event that sends the request, which document the step fills in

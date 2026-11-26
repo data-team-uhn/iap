@@ -109,8 +109,7 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
-        final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
-            "The generate step only applies to submissions");
+        final Submission submission = SubmissionHost.read(target, HANDLER_NAME);
         final boolean preview = Boolean.parseBoolean(String.valueOf(context.getActivity().get(PREVIEW_PARAMETER)));
         final DocumentRequirement requirement = preview ? requested(submission, context) : named(submission, context);
         if (!submission.isApplicable(requirement) || !preview && isUploadedBySubmitter(submission, requirement)) {
