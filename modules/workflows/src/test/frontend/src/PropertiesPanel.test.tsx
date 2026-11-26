@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import PropertiesPanel from "@iap/workflows/PropertiesPanel";
@@ -28,37 +28,29 @@ import { type } from "./vocabulary.fixture";
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
 
-// The panel uses the canvas as an event bus, plus the `get` and `getDefinitions` ElementProperties
-// needs, so a recording stand-in is enough to drive it. Its registry holds whatever was selected or
+// How many of the panel's subscriptions to an event are still in place, from what it asked of the canvas
+const subscriptions = (on: { mock: { calls: unknown[][] } }, off: { mock: { calls: unknown[][] } }, event: string) => {
+  const naming = (calls: unknown[][]) => calls.filter(([ events ]) => [ events ].flat().includes(event)).length;
+  return naming(on.mock.calls) - naming(off.mock.calls);
+};
+
+// The shared canvas, watched for what the panel subscribes to. Its registry holds whatever was selected or
 // reported changed, as the canvas's would.
 const createViewer = () => {
-  const handlers: Record<string, ((event: never) => void)[] | undefined> = {};
-  const updateLabel = vi.fn();
-  const registered = new Map<string, Element>();
-  const elementRegistry = { get: (id: string) => registered.get(id) };
-  const viewer = {
-    // A priority given ahead of the handler is dropped: whatever subscribed first is told first
-    on: vi.fn((events: string | string[], ...rest: unknown[]) => {
-      const handler = rest.find(argument => typeof argument === "function") as (event: never) => void;
-      [ events ].flat().forEach(event => (handlers[event] ??= []).push(handler));
-    }),
-    off: vi.fn((events: string | string[], handler: (event: never) => void) => {
-      [ events ].flat().forEach(event => {
-        handlers[event] = (handlers[event] ?? []).filter(subscribed => subscribed !== handler);
-      });
-    }),
-    get: vi.fn((service: string) => service === "elementRegistry" ? elementRegistry : { updateLabel }),
-    getDefinitions: vi.fn(() => ({ $attrs: {} })),
-  };
-  // Whatever is subscribed at the time, so that a handler the panel has since dropped cannot answer.
-  // The callback is `async` even though the dispatch is not. That makes `act` hand back a promise for
-  // the call sites to await, so the effects the dispatch schedules are flushed before the assertions run.
-  const fire = (event: string, payload: unknown) => act(async () => {
+  const canvas = createCanvas();
+  const on = vi.spyOn(canvas.viewer, "on");
+  const off = vi.spyOn(canvas.viewer, "off");
+  const fire = (event: string, payload: object) => {
     const { newSelection = [], elements = [] } = payload as { newSelection?: Element[]; elements?: Element[] };
-    [ ...newSelection, ...elements ].forEach(element => registered.set(element.id, element));
-    (handlers[event] ?? []).forEach(handler => (handler as (e: unknown) => void)(payload));
-  });
-  return { viewer: viewer as unknown as BaseViewer, fire, updateLabel, handlers };
+    [ ...newSelection, ...elements ].forEach(element => canvas.registered.set(element.id, element));
+    return canvas.fire(event, payload);
+  };
+  return {
+    viewer: canvas.viewer,
+    fire,
+    updateLabel: canvas.updateLabel,
+    listening: (event: string) => subscriptions(on, off, event),
+  };
 };
 
 const element = (id: string, name?: string) => ({ id, businessObject: name ? { name } : {} }) as unknown as Element;
@@ -155,20 +147,20 @@ describe("PropertiesPanel", () => {
   });
 
   it("subscribes to a canvas once, however often the selection changes", async () => {
-    const { viewer, fire, handlers } = createViewer();
+    const { viewer, fire, listening } = createViewer();
     renderPanel(viewer);
 
     await fire("selection.changed", { newSelection: [element("A", "First")] });
     await fire("selection.changed", { newSelection: [element("B", "Second")] });
 
     // The panel's own, and the one the element shown writes what is pending with
-    expect(handlers["selection.changed"]).toHaveLength(2);
-    expect(handlers["elements.changed"]).toHaveLength(1);
+    expect(listening("selection.changed")).toBe(2);
+    expect(listening("elements.changed")).toBe(1);
     expect(screen.getByRole("textbox")).toHaveValue("Second");
   });
 
   it("stops listening to a canvas it is no longer showing", async () => {
-    const { viewer, fire, handlers } = createViewer();
+    const { viewer, fire, listening } = createViewer();
     const { unmount } = renderPanel(viewer);
     await fire("selection.changed", { newSelection: [element("A", "First")] });
 
@@ -176,8 +168,8 @@ describe("PropertiesPanel", () => {
 
     expect(viewer.off).toHaveBeenCalledWith("selection.changed", expect.any(Function));
     expect(viewer.off).toHaveBeenCalledWith("elements.changed", expect.any(Function));
-    expect(handlers["selection.changed"]).toHaveLength(0);
-    expect(handlers["elements.changed"]).toHaveLength(0);
+    expect(listening("selection.changed")).toBe(0);
+    expect(listening("elements.changed")).toBe(0);
   });
 
   it("follows the canvas it is given when that changes, and forgets the previous one's selection", async () => {
@@ -189,8 +181,8 @@ describe("PropertiesPanel", () => {
 
     rerender(<PropertiesPanel viewer={second.viewer} />);
 
-    expect(first.handlers["selection.changed"]).toHaveLength(0);
-    expect(second.handlers["selection.changed"]).toHaveLength(1);
+    expect(first.listening("selection.changed")).toBe(0);
+    expect(second.listening("selection.changed")).toBe(1);
     expect(screen.getByText("Please select an element.")).toBeInTheDocument();
   });
 
@@ -239,21 +231,5 @@ describe("PropertiesPanel", () => {
     expect(screen.getByText("Identifier")).toBeInTheDocument();
     expect(screen.getByText("B")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("Second");
-  });
-
-  it("writes nothing into a canvas being replaced, whatever was being typed", async () => {
-    // Switching between editing and viewing destroys the canvas before the panel is given the next one
-    const user = userEvent.setup();
-    const first = createViewer();
-    const second = createViewer();
-    const { rerender } = renderPanel(first.viewer);
-    await first.fire("selection.changed", { newSelection: [ element("A", "First") ] });
-
-    await user.type(screen.getByRole("textbox"), "ly");
-    await first.fire("diagram.destroy", {});
-    rerender(<PropertiesPanel viewer={second.viewer} />);
-
-    expect(first.updateLabel).not.toHaveBeenCalled();
-    expect(second.updateLabel).not.toHaveBeenCalled();
   });
 });

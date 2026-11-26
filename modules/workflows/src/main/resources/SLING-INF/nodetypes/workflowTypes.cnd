@@ -66,6 +66,8 @@
 [wf:FlowNodeType] > data:Entity, mix:referenceable
   query
   abstract
+  // The parameters keep the order they are declared in, which is the order the
+  // properties panel shows them in. Oak keeps that order only for an orderable type.
   orderable
 
   // Hardcode the supertype to the parent wf/FlowNodeType type.
@@ -102,7 +104,9 @@
   - xmlChildElement (STRING)
 
   // The IAP element under bpmn:extensionElements that identifies this type and
-  // holds its parameters, e.g. "createContent" for <iap:createContent>
+  // holds its parameters, e.g. "createContent" for <iap:createContent>. When set,
+  // a node matches this type only if it carries the element, which is what tells
+  // one service task handler from another.
   - xmlExtensionElement (STRING)
 
 
@@ -208,7 +212,9 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The values this parameter offers if provided.
+  // The values this parameter offers. A parameter declaring none takes whatever
+  // its dataType accepts. One declaring options takes only their values, and the
+  // parser reports any other.
   + * (wf:ParameterOption)
 
   // For a structure, its fields, read from inside each of its elements.

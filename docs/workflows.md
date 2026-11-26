@@ -287,7 +287,9 @@ value. The shipped entries declare two of these. The timer entries take `timeDur
 
 The boundary event entries take `cancelActivity`, a boolean BPMN attribute. The properties panel shows one
 a diagram leaves out as BPMN's default, true, since saving never writes a value equal to that default. The
-parser then stores nothing, and the node type defaults it to true as well. `SequenceFlow`, a
+parser then stores nothing, and the node type defaults it to true as well. BPMN types its boolean attributes as XML Schema
+booleans, so `1` and `0` are valid too. bpmn-moddle reads only `true` as true, so the editor rewrites `1` and
+`0` as `true` and `false` before importing a diagram, and reads it as the parser does. `SequenceFlow`, a
 `wf:SequenceFlowType` entry, declares no parameters yet: an arc's guard is a `cond:condition` subtree, which no
 parameter type can hold (see [Known gaps](#known-gaps)). An arc is stored as a `wf:SequenceFlow` inside the
 node it leaves whichever entry it matches, so its entry only adds parameters; `elementId`, `targetRef`,
@@ -375,11 +377,12 @@ first keystroke, so leaving the page asks first even before the value is written
 the entry the element still means: after an undo removed the entry's extension element, nothing brings it
 back. Each field flags a value its type cannot store (a `long` that is no whole number, a `boolean` that is
 neither `true`, `false`, `1` nor `0`) and, once it has been left, a required parameter with no value it can store. The
-parser reads `true`, `false`, `1` and `0` in any letter case as a `boolean`, and reports and drops any other word. A
+parser reads a `boolean` as XML Schema writes one, `true`, `false`, `1` or `0` in lower case, the rule BPMN gives
+its own boolean attributes, and reports and drops anything else. A `long` is ASCII digits with an optional sign. A
 repeated structure flags a record whose trimmed key an earlier record already has, which the parser drops.
-**Save refuses a diagram holding a record the parser would drop for its key**, one with a repeated key or
-content and no key, at any depth. It lists them in an error and sends nothing. The check runs only when Save
-is pressed. The panel matches element names exactly, as the parser does: a vocabulary's `bpmn:serviceTask`
+Save sends the diagram whatever the fields flag, and the parser reports what it drops, as for any other
+problem. A repeated structure whose `keyParameter` names no single-valued field is shown read-only, with a
+warning: the parser stores none of it. The panel matches element names exactly, as the parser does: a vocabulary's `bpmn:serviceTask`
 matches, `bpmn:ServiceTask` does not.
 
 Each parameter is stored in the JCR type its `dataType` says: text, a reference or a principal as

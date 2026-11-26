@@ -18,19 +18,23 @@
 package io.uhndata.iap.workflows.internal.types;
 
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import javax.jcr.PropertyType;
 
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * A whole number.
+ * A whole number, written in ASCII digits with an optional sign, as XML Schema writes one.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public class LongParameterType implements ParameterType
 {
+    /** {@link Long#valueOf(String)} also reads digits of other scripts, which XML Schema does not allow. */
+    private static final Pattern WHOLE_NUMBER = Pattern.compile("[+-]?[0-9]+");
+
     @Override
     public int storageType()
     {
@@ -41,10 +45,13 @@ public class LongParameterType implements ParameterType
     public Object convert(final String raw, final NodeState root, final Consumer<String> report)
     {
         try {
-            return Long.valueOf(raw);
+            if (WHOLE_NUMBER.matcher(raw).matches()) {
+                return Long.valueOf(raw);
+            }
         } catch (final NumberFormatException e) {
-            report.accept("a parameter has a value that is not a whole number");
-            return null;
+            // Too large for a long: reported below like any other value that is not one
         }
+        report.accept("a parameter has a value that is not a whole number");
+        return null;
     }
 }

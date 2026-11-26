@@ -118,10 +118,11 @@ const load = async (prefix = DEFAULT_IAP_PREFIX, xml = diagram(prefix)): Promise
   };
 };
 
-// What bpmn-js does with an edit: every named property is set on the one moddle object the edit names.
-const apply = (edit: ParameterEdit | undefined) => {
-  expect(edit).toBeDefined();
-  Object.entries(edit!.properties).forEach(([ name, value ]) => edit!.moddleElement.set?.(name, value));
+// What bpmn-js does with each edit, in order: every named property is set on the one moddle object it names.
+const apply = (edits: ParameterEdit[]) => {
+  expect(edits).not.toHaveLength(0);
+  edits.forEach(edit =>
+    Object.entries(edit.properties).forEach(([ name, value ]) => edit.moddleElement.set?.(name, value)));
 };
 
 describe("reading a parameter", () => {
@@ -194,6 +195,30 @@ describe("declaring the namespace", () => {
     expect(written.match(/xmlns:iap=/g)).toHaveLength(1);
     expect(written).toContain('iap:handler="setState"');
     expect(written).toContain('iap:performers="authors"');
+  });
+});
+
+describe("binding the namespace", () => {
+  it("binds it in an edit of its own, made with what is written under it, so one undo takes both back", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, PLAIN);
+
+    const edits = parameterEdit(moddle, task, definitions, SERVICE_TASK, parameter("handler"), [ "setState" ]);
+
+    expect(definitions.$attrs?.["xmlns:iap"]).toBeUndefined();
+    expect(edits.map(edit => edit.moddleElement)).toEqual([ definitions, task ]);
+    expect(edits[0].properties).toEqual({ "xmlns:iap": IAP_NS });
+  });
+
+  it("binds it under a prefix of its own where the document gives the usual one to another namespace", async () => {
+    const taken = PLAIN.replace('id="Definitions_2"', 'xmlns:iap="urn:other" id="Definitions_2"');
+    const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, taken);
+
+    apply(parameterEdit(moddle, task, definitions, SERVICE_TASK, parameter("handler"), [ "setState" ]));
+
+    const written = await serialize();
+    expect(written).toContain('xmlns:iap="urn:other"');
+    expect(written).toContain(`xmlns:iap2="${IAP_NS}"`);
+    expect(written).toContain('iap2:handler="setState"');
   });
 });
 
@@ -305,8 +330,8 @@ describe("editing an element-located parameter", () => {
     // reverse that undo
     const { moddle, definitions, start } = await load();
 
-    expect(parameterEdit(moddle, start, definitions, SET_STATE, TO_STATE, [ "RETIRED" ])).toBeUndefined();
-    expect(parameterEdit(moddle, start, definitions, SET_STATE, FROM_STATES, [ "DRAFT" ])).toBeUndefined();
+    expect(parameterEdit(moddle, start, definitions, SET_STATE, TO_STATE, [ "RETIRED" ])).toEqual([]);
+    expect(parameterEdit(moddle, start, definitions, SET_STATE, FROM_STATES, [ "DRAFT" ])).toEqual([]);
   });
 });
 
@@ -515,7 +540,7 @@ describe("a parameter BPMN holds", () => {
 
     expect(readValues(element("review"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION)).toEqual([]);
     expect(parameterEdit(moddle, element("review"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION, [ "P1D" ]))
-      .toBeUndefined();
+      .toEqual([]);
   });
 
   it("follows a path only in the case a document writes its steps, as the server does", async () => {
@@ -524,7 +549,7 @@ describe("a parameter BPMN holds", () => {
 
     expect(readValues(element("deadline"), definitions, TIMER_BOUNDARY_EVENT, miscased)).toEqual([]);
     expect(parameterEdit(moddle, element("deadline"), definitions, TIMER_BOUNDARY_EVENT, miscased, [ "P1D" ]))
-      .toBeUndefined();
+      .toEqual([]);
     apply(parameterEdit(moddle, element("deadline"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION, [ "P1D" ]));
     expect(readValues(element("deadline"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION)).toEqual([ "P1D" ]);
   });
@@ -595,7 +620,7 @@ describe("a parameter BPMN holds", () => {
     };
     const guards = parameter("guards", { xmlLocation: "bpmnElement", maxValues: 0 });
 
-    const edit = parameterEdit(moddle, holder, {}, SEQUENCE_FLOW, guards, [ "a", "b" ]);
+    const [ edit ] = parameterEdit(moddle, holder, {}, SEQUENCE_FLOW, guards, [ "a", "b" ]);
 
     expect(edit?.properties).toEqual({ guards: [ { body: "a" }, { body: "b" } ] });
   });
@@ -669,10 +694,10 @@ describe("a structured parameter", () => {
     const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, structured);
     const wanted = [ { ...WORKFLOW, choices: [ { value: [ "a" ], label: [ "Ay" ] } ] }, STATUS ];
 
-    const edit = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, wanted);
+    const edits = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, wanted);
 
-    expect(edit?.properties).toEqual({ label: "Ay" });
-    apply(edit);
+    expect(edits.map(edit => edit.properties)).toEqual([ { label: "Ay" } ]);
+    apply(edits);
     const written = await serialize();
     expect(written).toContain('<iap:choices value="a" label="Ay" />');
     expect(written).toContain('hint="kept"');
@@ -714,10 +739,10 @@ describe("a structured parameter", () => {
   it("moves two records past each other in one step", async () => {
     const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
 
-    const edit = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, [ STATUS, WORKFLOW ]);
+    const edits = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, [ STATUS, WORKFLOW ]);
 
-    expect(edit?.moddleElement.$descriptor?.ns?.localName).toBe("updateContent");
-    apply(edit);
+    expect(edits.map(edit => edit.moddleElement.$descriptor?.ns?.localName)).toEqual([ "updateContent" ]);
+    apply(edits);
     expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual([ STATUS, WORKFLOW ]);
   });
 
@@ -737,26 +762,47 @@ describe("a structured parameter", () => {
   it("reads a field a record leaves out as one left empty", async () => {
     const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
 
-    const edit = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS,
+    const edits = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS,
       [ WORKFLOW, { name: [ "status" ], label: [ "State" ] } ]);
 
-    expect(edit?.properties).toEqual({ label: "State" });
+    expect(edits.map(edit => edit.properties)).toEqual([ { label: "State" } ]);
   });
 
-  it("reads a structure that declares no fields as records holding nothing", async () => {
-    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+  it("reads no record of a structure that declares no fields, since no element holds anything it declares", async () => {
+    const { definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
     const bare = parameter("fields", { dataType: "structure", maxValues: 0 });
     const holder = type("UpdateContent", { xmlExtensionElement: "updateContent", parameters: [ bare ] });
 
-    expect(readValues(task, definitions, holder, bare)).toEqual([ {}, {} ]);
-    expect(parameterEdit(moddle, task, definitions, holder, bare, [ { name: [ "x" ] } ])).toBeDefined();
+    expect(readValues(task, definitions, holder, bare)).toEqual([]);
+  });
+
+  it("passes over an element that reads as an empty record, and leaves it and its neighbours as written", async () => {
+    const stale = structured.replace('<iap:other />', '<iap:other />\n          <iap:fields oldField="z" />');
+    const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, stale);
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual([ WORKFLOW, STATUS ]);
+
+    apply(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, [ { ...WORKFLOW, label: [ "Flow" ] }, STATUS ]));
+
+    const written = await serialize();
+    expect(written).toContain('<iap:fields oldField="z" />');
+    expect(written).toContain('hint="kept"');
+  });
+
+  it("keeps an element that reads as an empty record when the records are rewritten", async () => {
+    const stale = structured.replace('<iap:other />', '<iap:other />\n          <iap:fields oldField="z" />');
+    const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, stale);
+
+    apply(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, [ STATUS, WORKFLOW ]));
+
+    expect(await serialize()).toContain('<iap:fields oldField="z" />');
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual([ STATUS, WORKFLOW ]);
   });
 
   it("writes nothing when the records are what the diagram holds, once settled", async () => {
     const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
     const spaced = [ { ...WORKFLOW, label: [ " Workflow  " ] }, STATUS, {} ];
 
-    expect(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, spaced)).toBeUndefined();
+    expect(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, spaced)).toEqual([]);
   });
 
   it("writes every level of a record into the entry's element a change of kind brought in", async () => {
@@ -774,8 +820,8 @@ describe("a structured parameter", () => {
     const outside = { ...FIELDS, xmlLocation: "attribute" as const };
 
     expect(readValues(task, definitions, UPDATE_CONTENT, outside)).toEqual([]);
-    expect(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, outside, [ STATUS ])).toBeUndefined();
+    expect(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, outside, [ STATUS ])).toEqual([]);
     expect(parameterEdit(moddle, task, definitions, type("Bare", { parameters: [ FIELDS ] }), FIELDS, [ STATUS ]))
-      .toBeUndefined();
+      .toEqual([]);
   });
 });

@@ -167,16 +167,6 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
       }
       return;
     }
-    // Refused before anything is sent: the server would drop these records and report them afterwards
-    const refused = editor.problems();
-    if (refused.length > 0) {
-      notify({
-        title: "The workflow was not saved. Fix these first.",
-        message: refused.join("\n"),
-        severity: "error",
-      });
-      return;
-    }
     const changes = changesRef.current;
     setSaving(true);
     void editor.serialize()

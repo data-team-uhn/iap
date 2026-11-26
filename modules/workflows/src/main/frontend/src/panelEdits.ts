@@ -34,7 +34,7 @@ export const PANEL_EDITS_COMMAND = "iap.properties.update";
 export type PanelEdit =
   | { element: Element; label: string }
   | { element: Element; moddleElement: ModdleElement; properties: Record<string, unknown> }
-  | { element: Element; replaceWith: ReplaceTarget; then?: (replaced: Element) => PanelEdit | undefined };
+  | { element: Element; replaceWith: ReplaceTarget; then?: (replaced: Element) => PanelEdit[] };
 
 export interface PanelEditsContext {
   edits: PanelEdit[];
@@ -58,14 +58,12 @@ class PanelEditsHandler {
     context.edits.forEach(edit => this.run(edit));
   }
 
-  private run(edit: PanelEdit | undefined) {
-    if (edit === undefined) {
-      return;
-    }
+  private run(edit: PanelEdit) {
     if ("label" in edit) {
       this.modeling.updateLabel(edit.element, edit.label);
     } else if ("replaceWith" in edit) {
-      this.run(edit.then?.(this.replace.replaceElement(edit.element, edit.replaceWith as TargetElement)));
+      const replaced = this.replace.replaceElement(edit.element, edit.replaceWith as TargetElement);
+      edit.then?.(replaced).forEach(next => this.run(next));
     } else {
       this.modeling.updateModdleProperties(edit.element, edit.moddleElement, edit.properties);
     }

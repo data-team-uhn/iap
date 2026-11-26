@@ -43,9 +43,15 @@ describe("a parameter holding yes or no", () => {
 
   it("flags none of the spellings the server reads as a boolean", () => {
     renderField(BooleanParameterField, { dataType: "boolean", maxValues: 0, description: "Whether to notify" },
-      [ "TRUE", "1", "False", "0" ]);
+      [ "true", "1", "false", "0" ]);
 
     expect(screen.getByText("Whether to notify")).toBeInTheDocument();
+  });
+
+  it("flags a boolean written in capitals, which the server does not read", () => {
+    renderField(BooleanParameterField, { dataType: "boolean", maxValues: 0 }, [ "TRUE" ]);
+
+    expect(screen.getByText('"TRUE" is not true or false, so it will be ignored.')).toBeInTheDocument();
   });
 
   it("shows a word the server ignores as it was written, flagged, and lets a valid one replace it", async () => {

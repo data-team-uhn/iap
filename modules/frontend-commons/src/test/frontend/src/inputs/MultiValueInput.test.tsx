@@ -118,7 +118,7 @@ describe("MultiValueInput", () => {
 
   it("says when a list holds more values than it accepts, after the problems it was given", () => {
     renderInput({ maxValues: 1, values: [ "a", "b" ], problems: [ "Not a tag." ] });
-    expect(screen.getByText("Not a tag. At most 1 values are accepted.")).toBeInTheDocument();
+    expect(screen.getByText("Not a tag. At most 1 value is accepted.")).toBeInTheDocument();
   });
 
   it("shows the values as text when read-only", () => {

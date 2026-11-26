@@ -16,12 +16,7 @@
  * limitations under the License.
  */
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useMemo, useState } from "react";
 
 import { Alert, Stack } from "@mui/material";
 
@@ -31,77 +26,29 @@ import TextInput from "@iap/frontend-commons/inputs/TextInput";
 import { fromSingle, singleValue } from "@iap/frontend-commons/inputs/values";
 import ValueText from "@iap/frontend-commons/inputs/ValueText";
 
-import { commaSeparated, parameterEdit, readValues, typeEdit } from "./bpmnParameters";
-import { elementName } from "./moddle";
+import { commaSeparated } from "./bpmnParameters";
+import { entryEdits, finished, nameEdits, reconciled, snapshotOf, valueEdits } from "./elementEdits";
+import { businessObjectOf, elementName } from "./moddle";
 import { PANEL_EDITS_COMMAND } from "./panelEdits";
 import ParameterField from "./ParameterField";
-import { sameValues, settled } from "./parameterValues";
+import { usePendingWrites } from "./usePendingWrites";
 import {
   elementTypeOf,
   entriesOf,
   matchFlowNodeType,
-  replacementFor,
   switchableTypes,
   typeGroupOf,
 } from "./workflowTypes";
 
+import type { EditedElement } from "./elementEdits";
 import type { Moddle, ModdleElement } from "./moddle";
 import type { PanelEdit, PanelEditsContext } from "./panelEdits";
 import type { ParameterValue } from "./parameterValues";
+import type { Pending } from "./usePendingWrites";
 import type { FlowNodeType, Parameter } from "./workflowTypes";
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
 import type CommandStack from "diagram-js/lib/command/CommandStack";
-import type ElementRegistry from "diagram-js/lib/core/ElementRegistry";
-
-// Everything read off the diagram at once, so that one report of a change re-reads one object rather
-// than each field having to notice for itself.
-interface Snapshot {
-  name: string;
-  values: Record<string, ParameterValue[] | undefined>;
-}
-
-const nameOf = (element: Element) => (element.businessObject as { name?: string } | undefined)?.name ?? "";
-
-// The element type marks `businessObject` optional. Fall back to an empty object, which reads as no name,
-// no node type and no parameters.
-const objectOf = (element: Element) => (element.businessObject ?? {}) as ModdleElement;
-
-function snapshotOf(
-  element: Element,
-  businessObject: ModdleElement,
-  definitions: ModdleElement,
-  type: FlowNodeType | undefined
-): Snapshot {
-  return {
-    name: nameOf(element),
-    values: type === undefined ? {} : Object.fromEntries(type.parameters
-      .map(parameter => [ parameter.name, readValues(businessObject, definitions, type, parameter) ] as const)),
-  };
-}
-
-// What the fields should show once the diagram has been reread. A value the diagram holds the same
-// once trimmed is kept as typed. Reading trims, so rereading after the panel's own edit would otherwise
-// swallow a space the moment it was typed. Anything else is a change made elsewhere, and wins.
-function reconciled(shown: Snapshot, reread: Snapshot): Snapshot {
-  return {
-    name: reread.name,
-    values: Object.fromEntries(Object.entries(reread.values).map(([ name, values = [] ]) => {
-      const typed = shown.values[name];
-      return [ name, typed !== undefined && sameValues(settled(typed), values) ? typed : values ];
-    })),
-  };
-}
-
-// What has been typed and not yet written: whether the name has, and which parameters by name.
-interface Pending {
-  name: boolean;
-  parameters: string[];
-}
-
-// Ahead of the listeners subscribed at the default priority. Those are the selection letting go of a
-// removed element, and the panel moving on to the next selection.
-const FIRST_PRIORITY = 1500;
 
 // One list for every render without a vocabulary, so that matching is not redone for a new empty one
 const NO_TYPES: readonly FlowNodeType[] = [];
@@ -148,128 +95,76 @@ export default function ElementProperties(props: ElementPropertiesProps) {
 
   // Worked out once per change to the diagram rather than on every keystroke. bpmn-js edits these objects
   // in place, so the revision is what says they changed.
-  const { businessObject, definitions, switchable, type } = useMemo(() => {
-    const object = objectOf(element);
-    return {
-      businessObject: object,
-      // The prefix the document binds the IAP namespace to is declared here, so every read and write of a
-      // parameter needs the document as well as the element.
+  const { edited, switchable, type } = useMemo(() => {
+    const businessObject = businessObjectOf(element);
+    const described: EditedElement = {
+      element,
+      businessObject,
       definitions: (viewer.getDefinitions() ?? {}) as ModdleElement,
-      switchable: switchableTypes(object, types),
-      type: matchFlowNodeType(object, types),
+      types,
+      moddle: () => viewer.get<Moddle>("moddle"),
+    };
+    return {
+      edited: described,
+      switchable: switchableTypes(businessObject, types),
+      type: matchFlowNodeType(businessObject, types),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ element, viewer, types, revision ]);
 
   // What the fields show: the diagram as last read, with what is being typed.
-  const [ snapshot, setSnapshot ] = useState(() => snapshotOf(element, businessObject, definitions, type));
+  const [ snapshot, setSnapshot ] = useState(() => snapshotOf(edited, type));
+
+  // Every edit goes through the command stack, as one step however many it writes. A parameter change is
+  // then undone by the same keystroke as a move on the canvas, and reported to the panel as a change to
+  // this element.
+  const apply = (edits: PanelEdit[]) => {
+    if (edits.length > 0) {
+      viewer.get<CommandStack>("commandStack").execute(PANEL_EDITS_COMMAND, { edits } satisfies PanelEditsContext);
+    }
+  };
+
+  // What is typed and not written yet is written as the selection moves on, as one step to undo. A change
+  // made elsewhere that has not been reread yet is never undone, and a value its field holds back stays so.
+  const writePending = (held: Pending) => apply([
+    ...held.name ? nameEdits(element, snapshot.name) : [],
+    ...type?.parameters.filter(parameter => held.parameters.includes(parameter.name))
+      .map(parameter => [ parameter, snapshot.values[parameter.name] ?? [] ] as const)
+      .filter(([ parameter, values ]) => finished(parameter, values))
+      .flatMap(([ parameter, values ]) => valueEdits(edited, type, parameter, values)) ?? [],
+  ]);
+  const { pending, holdName, releaseName, holdParameter, releaseParameter } =
+    usePendingWrites(viewer, element, writePending);
 
   // Reread on every revision, this panel's own edits included. The matched kind is watched too, so that a
   // vocabulary arriving after the element was selected fills the fields it brings.
   const [ synced, setSynced ] = useState({ revision, typeName: type?.name });
   if (revision !== synced.revision || type?.name !== synced.typeName) {
     setSynced({ revision, typeName: type?.name });
-    setSnapshot(reconciled(snapshot, snapshotOf(element, businessObject, definitions, type)));
+    setSnapshot(reconciled(snapshot, snapshotOf(edited, type), pending.name));
   }
 
-  // What is typed and not written yet, so that only that is written when the panel moves on. A change
-  // made elsewhere that has not been reread yet is never undone.
-  const [ pending, setPending ] = useState<Pending>({ name: false, parameters: [] });
-
-  // Every edit goes through the command stack, as one step however many it writes. A parameter change is
-  // then undone by the same keystroke as a move on the canvas, and reported to the panel as a change to
-  // this element.
-  const apply = (edits: (PanelEdit | undefined)[]) => {
-    const written = edits.filter(edit => edit !== undefined);
-    if (written.length > 0) {
-      viewer.get<CommandStack>("commandStack").execute(PANEL_EDITS_COMMAND, { edits: written } satisfies PanelEditsContext);
-    }
-  };
-
-  // What is typed stays in the panel until the field is finished with. Leaving a field untouched writes
-  // nothing, or every visit to it would leave an empty step to undo.
-  const nameEdit = (): PanelEdit | undefined =>
-    snapshot.name === nameOf(element) ? undefined : { element, label: snapshot.name };
-
   const commitName = () => {
-    setPending(held => ({ ...held, name: false }));
-    apply([ nameEdit() ]);
+    releaseName();
+    apply(nameEdits(element, snapshot.name));
   };
 
   const draftName = (name: string) => {
     onDraft?.();
-    setPending(held => ({ ...held, name: true }));
+    holdName();
     setSnapshot({ ...snapshot, name });
   };
 
   const draftParameter = (parameter: Parameter, values: ParameterValue[]) => {
     onDraft?.();
-    setPending(held => held.parameters.includes(parameter.name) ? held
-      : { ...held, parameters: [ ...held.parameters, parameter.name ] });
+    holdParameter(parameter.name);
     setSnapshot(shown => ({ ...shown, values: { ...shown.values, [parameter.name]: values } }));
   };
 
-  // A field is built for the entry the element meant when it rendered. After an undo it may mean
-  // another, whose parameters the value is not one of.
-  const valueEdit = (matched: FlowNodeType, parameter: Parameter, values: ParameterValue[]): PanelEdit | undefined => {
-    if (matchFlowNodeType(businessObject, types)?.name !== matched.name
-      || sameValues(settled(values), readValues(businessObject, definitions, matched, parameter))) {
-      return undefined;
-    }
-    const edit = parameterEdit(viewer.get<Moddle>("moddle"), businessObject, definitions, matched, parameter, values);
-    return edit && { element, ...edit };
-  };
-
   const commitParameter = (matched: FlowNodeType, parameter: Parameter, values: ParameterValue[]) => {
-    setPending(held => ({ ...held, parameters: held.parameters.filter(name => name !== parameter.name) }));
-    apply([ valueEdit(matched, parameter, values) ]);
+    releaseParameter(parameter.name);
+    apply(valueEdits(edited, matched, parameter, values));
   };
-
-  // Set once the element is going: its canvas destroyed or cleared, or the element removed, as by undoing
-  // its creation. There is then nothing left to write into.
-  const gone = useRef(false);
-
-  // Selecting another element need not leave the field being typed in, so what is pending is written as
-  // the selection changes, as one step to undo.
-  const writePending = useRef<() => void>(() => undefined);
-  useEffect(() => {
-    writePending.current = () => {
-      if (!pending.name && pending.parameters.length === 0) {
-        return;
-      }
-      setPending({ name: false, parameters: [] });
-      if (gone.current || viewer.get<ElementRegistry>("elementRegistry").get(element.id) !== element) {
-        return;
-      }
-      apply([
-        ...pending.name ? [ nameEdit() ] : [],
-        ...type?.parameters.filter(parameter => pending.parameters.includes(parameter.name))
-          .map(parameter => valueEdit(type, parameter, snapshot.values[parameter.name] ?? [])) ?? [],
-      ]);
-    };
-  });
-
-  // Replacing an element keeps its id, so the panel is handed the replacement without remounting
-  useEffect(() => {
-    gone.current = false;
-    const leave = () => {
-      gone.current = true;
-    };
-    const removed = (event: { element: Element }) => {
-      if (event.element === element) {
-        leave();
-      }
-    };
-    const selectionChanged = () => writePending.current();
-    viewer.on([ "diagram.destroy", "diagram.clear" ], FIRST_PRIORITY, leave);
-    viewer.on([ "shape.remove", "connection.remove" ], FIRST_PRIORITY, removed);
-    viewer.on("selection.changed", FIRST_PRIORITY, selectionChanged);
-    return () => {
-      viewer.off([ "diagram.destroy", "diagram.clear" ], leave);
-      viewer.off([ "shape.remove", "connection.remove" ], removed);
-      viewer.off("selection.changed", selectionChanged);
-    };
-  }, [ viewer, element ]);
 
   // Built from a kind that is known to have matched, so that every field's handler knows which entry
   // it is writing a parameter of.
@@ -285,15 +180,7 @@ export default function ElementProperties(props: ElementPropertiesProps) {
     />
   ));
 
-  // An entry that needs another BPMN element, or another event in it, redraws the element first. The extension
-  // element that names the entry is then written to the redrawn one, in the same step.
-  const switchTo = (chosen: FlowNodeType) => {
-    const moddle = viewer.get<Moddle>("moddle");
-    const written = (target: Element) =>
-      ({ element: target, ...typeEdit(moddle, objectOf(target), definitions, type, chosen) });
-    const replaceWith = replacementFor(businessObject, chosen);
-    apply([ replaceWith ? { element, replaceWith, then: written } : written(element) ]);
-  };
+  const switchTo = (chosen: FlowNodeType) => apply(entryEdits(edited, type, chosen));
 
   const changeElementType = (name: string) => {
     const chosen = switchable.get(name);
@@ -332,7 +219,7 @@ export default function ElementProperties(props: ElementPropertiesProps) {
 
       {
         type === undefined
-          ? <ElementTypeUnknown name={elementName(businessObject)} described={types.length > 0} />
+          ? <ElementTypeUnknown name={elementName(edited.businessObject)} described={types.length > 0} />
           : (
             <ChoiceSelect
               label="Element Type"

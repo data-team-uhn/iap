@@ -62,31 +62,33 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
 
   const [selectedElements, setSelectedElements] = useState<Element[]>([]);
   const [element, setElement] = useState<Element | null>(null);
-  // Counts reported changes to the selected element. bpmn-js edits an element in place and hands back the very same
-  // object, so this counter -- not a comparison of elements -- is what tells ElementProperties to reread its name.
+  // Counts reported changes to the selected element. bpmn-js edits an element in place and hands back the same
+  // object, so a comparison of elements would see no change. This counter tells ElementProperties to reread it.
   const [revision, setRevision] = useState(0);
 
   // What the change handler compares against, kept out of the subscription's dependencies. The canvas
   // outlives many selections, and re-subscribing on each one would leave the previous subscription behind.
+  // Set where the selection is, so that a change reported before the next render is compared against it.
   const selected = useRef<Element | null>(null);
-  useEffect(() => {
-    selected.current = element;
-  }, [element]);
 
   useEffect(() => {
     if (!viewer) {
       return undefined;
     }
+    const select = (chosen: Element | null) => {
+      selected.current = chosen;
+      setElement(chosen);
+    };
     // ElementProperties writes what is still being typed into the element being left before this runs
     const selectionChanged = (event: SelectionChangedEvent) => {
       setSelectedElements(event.newSelection);
-      setElement(event.newSelection[0] ?? null);
+      select(event.newSelection[0] ?? null);
     };
     const elementsChanged = (event: ElementsChangedEvent) => {
       const current = selected.current;
       const changed = current && event.elements.find(candidate => candidate.id === current.id);
       if (changed) {
-        setElement(changed);
+        select(changed);
         setRevision(revisions => revisions + 1);
       }
     };
@@ -97,7 +99,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
       viewer.off('elements.changed', elementsChanged);
       // Whatever was selected belonged to the canvas going away, and is not in the one replacing it
       setSelectedElements([]);
-      setElement(null);
+      select(null);
     };
   }, [viewer]);
 
@@ -106,7 +108,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
       {
         selectedElements.length === 1 && element && viewer
           && <ElementProperties
-            // Remount on element change so ElementProperties' local name state resets.
+            // A new element starts fresh: its values read anew, with nothing typed and nothing pending
             key={ element.id }
             viewer={ viewer }
             element={ element }

@@ -16,21 +16,13 @@
  * limitations under the License.
  */
 
-// The records of a repeated structure the server drops for their key, and finding them in a whole diagram.
+// The records of a repeated structure the server drops for their key.
 
-import { readValues } from "./bpmnParameters";
-import { isRecordValue, recordValues, settled, textValues, valuesOf } from "./parameterValues";
-import { fieldsOf, isMultiple, isStructure, matchFlowNodeType } from "./workflowTypes";
+import { settled, textValues, valuesOf } from "./parameterValues";
+import { hasSingleValuedKey } from "./workflowTypes";
 
-import type { ModdleElement } from "./moddle";
-import type { ParameterValue, StructureRecord } from "./parameterValues";
-import type { FlowNodeType, Parameter } from "./workflowTypes";
-
-// What is read of a diagram element: bpmn-js's own type, less what it holds only for drawing.
-interface DiagramElement {
-  id: string;
-  businessObject?: unknown;
-}
+import type { StructureRecord } from "./parameterValues";
+import type { Parameter } from "./workflowTypes";
 
 export type KeyProblem = "blank" | "repeated";
 
@@ -43,55 +35,16 @@ export function keyOf(parameter: Parameter, record: StructureRecord): string {
 
 // What is wrong with the key of each record, in order. The server keeps the first record of a key and drops
 // a later one, and drops a record that has content but no key. A record with nothing in it is a draft, not a
-// problem, and a structure with no key parameter has no key to be wrong.
+// problem. A structure with no single-valued key field has no key to be wrong: the server stores none of it.
 export function keyProblems(parameter: Parameter, records: readonly StructureRecord[]): (KeyProblem | undefined)[] {
   const keys = records.map(record => keyOf(parameter, record));
   return records.map((record, index): KeyProblem | undefined => {
-    if (parameter.keyParameter === undefined) {
+    if (!hasSingleValuedKey(parameter)) {
       return undefined;
     }
     if (keys[index] === "") {
       return settled([ record ]).length > 0 ? "blank" : undefined;
     }
     return keys.indexOf(keys[index]) < index ? "repeated" : undefined;
-  });
-}
-
-// The problems of the structures held in one parameter's values, and of those inside their records.
-function parameterProblems(parameter: Parameter, values: readonly ParameterValue[], where: string): string[] {
-  if (!isStructure(parameter)) {
-    return [];
-  }
-  const records = recordValues(values);
-  const own = isMultiple(parameter) ? keyProblems(parameter, records).flatMap((problem, index) => {
-    const key = keyOf(parameter, records[index]);
-    return problem === "blank" ? [ `${where}: a ${parameter.label} has no key.` ]
-      : problem === "repeated" ? [ `${where}: the key "${key}" of ${parameter.label} is already in use.` ] : [];
-  }) : [];
-  const inner = records.flatMap(record => fieldsOf(parameter).flatMap(field => {
-    const held = valuesOf(record, field.name).filter(isRecordValue);
-    const named = keyOf(parameter, record);
-    return parameterProblems(field, held, `${where}, ${parameter.label} ${named === "" ? "without a key" : `"${named}"`}`);
-  }));
-  return [ ...own, ...inner ];
-}
-
-// A line for every record in the diagram the server would drop for its key, naming the element, the
-// parameter and the key. Empty when there is none.
-export function diagramKeyProblems(
-  elements: readonly DiagramElement[],
-  definitions: ModdleElement,
-  types: readonly FlowNodeType[]
-): string[] {
-  return elements.flatMap(element => {
-    const businessObject = (element.businessObject ?? {}) as ModdleElement;
-    const type = matchFlowNodeType(businessObject, types);
-    const name = (businessObject as { name?: string }).name?.trim() ?? "";
-    return type === undefined ? [] : type.parameters.flatMap(parameter =>
-      parameterProblems(
-        parameter,
-        readValues(businessObject, definitions, type, parameter),
-        name === "" ? element.id : name
-      ));
   });
 }

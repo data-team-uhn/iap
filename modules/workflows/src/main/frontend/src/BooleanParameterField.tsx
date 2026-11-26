@@ -26,6 +26,8 @@ import { isMultiple } from "./workflowTypes";
 
 import type { ParameterFieldProps } from "./parameterWidget";
 
+const CHOICES = booleanChoices();
+
 // A parameter holding yes or no. A list of them is picked from yes and no as chips.
 export default function BooleanParameterField(props: ParameterFieldProps) {
   const { parameter, values, readOnly = false } = props;
@@ -35,7 +37,7 @@ export default function BooleanParameterField(props: ParameterFieldProps) {
       <MultiValueInput
         {...inputProps(props)}
         {...countLimits(parameter)}
-        choices={booleanChoices()}
+        choices={CHOICES}
         chipError={value => !isBoolean(value)}
       />
     );

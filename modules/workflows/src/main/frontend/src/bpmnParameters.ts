@@ -47,7 +47,8 @@ export const DEFAULT_IAP_PREFIX = "iap";
 const XMLNS_PREFIX = "xmlns:";
 
 // One change to hand to bpmn-js's `modeling.updateModdleProperties`, which applies it to the named
-// moddle object undoably and reports the flow node as changed.
+// moddle object undoably and reports the flow node as changed. Edits come in lists, applied in order as
+// one step: writing under a prefix the document does not bind yet binds it first.
 export interface ParameterEdit {
   moddleElement: ModdleElement;
   properties: Record<string, unknown>;
@@ -57,31 +58,52 @@ export interface ParameterEdit {
 const scalar = (value: unknown): string | undefined =>
   typeof value === "string" || typeof value === "boolean" || typeof value === "number" ? String(value) : undefined;
 
-// The prefixes one element binds the IAP namespace to itself.
-const boundOn = (element: ModdleElement): string[] => Object.entries(element.$attrs ?? {})
-  .filter(([ name, uri ]) => name.startsWith(XMLNS_PREFIX) && uri === IAP_NS)
-  .map(([ name ]) => name.slice(XMLNS_PREFIX.length));
-
-// Every prefix the IAP namespace is bound to where this element sits, nearest first. A document may
-// bind it on any ancestor, the process as readily as the definitions. The definitions are asked last
-// in their own right, since an element built by an edit has no parent to walk up from yet.
-function iapPrefixes(element: ModdleElement, definitions: ModdleElement): string[] {
-  const found: string[] = [];
+// Where a prefix bound for this element can be declared, nearest first: the element, each of its ancestors,
+// and the definitions. A document may bind one on any ancestor, the process as readily as the definitions.
+// The definitions are asked in their own right, since an element built by an edit has no parent yet.
+function scopeOf(element: ModdleElement, definitions: ModdleElement): ModdleElement[] {
+  const scope: ModdleElement[] = [];
   for (let at: ModdleElement | undefined = element; at !== undefined; at = at.$parent) {
-    found.push(...boundOn(at));
+    scope.push(at);
   }
-  return [ ...new Set([ ...found, ...boundOn(definitions) ]) ];
+  return [ ...scope, definitions ];
 }
 
-// The prefix every IAP attribute and element written onto this element goes under. It is the binding in
-// force there, or a new one on the document when there is none. A prefixed attribute whose namespace
-// the document does not declare is dropped on save without failing, so the binding comes first.
-function writePrefix(element: ModdleElement, definitions: ModdleElement): string {
+// The prefixes one element binds, with the namespace each is bound to.
+const bindingsOn = (element: ModdleElement): [ string, string | undefined ][] => Object.entries(element.$attrs ?? {})
+  .filter(([ name ]) => name.startsWith(XMLNS_PREFIX))
+  .map(([ name, uri ]) => [ name.slice(XMLNS_PREFIX.length), uri ]);
+
+// Every prefix the IAP namespace is bound to where this element sits, nearest first.
+const iapPrefixes = (element: ModdleElement, definitions: ModdleElement): string[] => [ ...new Set(
+  scopeOf(element, definitions)
+    .flatMap(at => bindingsOn(at).filter(([ , uri ]) => uri === IAP_NS).map(([ prefix ]) => prefix))
+) ];
+
+// Every prefix bound to any namespace where this element sits, which a new binding must not take over.
+const boundPrefixes = (element: ModdleElement, definitions: ModdleElement): Set<string> =>
+  new Set(scopeOf(element, definitions).flatMap(at => bindingsOn(at).map(([ prefix ]) => prefix)));
+
+// The prefix every IAP attribute and element written onto this element goes under, and the edit that binds it
+// when the document does not yet. The binding is in force there, or a new one on the document, under a prefix
+// no other namespace has. A save drops a prefixed attribute whose namespace the document does not declare.
+// So the binding goes in the same step as what is written under it.
+interface Prefixed {
+  prefix: string;
+  binding: ParameterEdit[];
+}
+
+function writePrefix(element: ModdleElement, definitions: ModdleElement): Prefixed {
   const bound = iapPrefixes(element, definitions).at(0);
-  if (bound === undefined) {
-    definitions.set?.(`${XMLNS_PREFIX}${DEFAULT_IAP_PREFIX}`, IAP_NS);
+  if (bound !== undefined) {
+    return { prefix: bound, binding: [] };
   }
-  return bound ?? DEFAULT_IAP_PREFIX;
+  const taken = boundPrefixes(element, definitions);
+  let prefix = DEFAULT_IAP_PREFIX;
+  for (let suffix = 2; taken.has(prefix); suffix++) {
+    prefix = `${DEFAULT_IAP_PREFIX}${suffix}`;
+  }
+  return { prefix, binding: [ { moddleElement: definitions, properties: { [`${XMLNS_PREFIX}${prefix}`]: IAP_NS } } ] };
 }
 
 // The key an IAP attribute is held under on this element, whichever bound prefix it was written with.
@@ -220,6 +242,8 @@ const namedChildren = (holder: ModdleElement, parameter: Parameter): ModdleEleme
 const otherChildren = (holder: ModdleElement, parameter: Parameter): ModdleElement[] =>
   (holder.$children ?? []).filter(child => !isIapElement(child, parameter.name));
 
+const hasContent = (record: StructureRecord): boolean => settled([ record ]).length > 0;
+
 const readRecord = (element: ModdleElement, parameter: Parameter): StructureRecord =>
   Object.fromEntries(fieldsOf(parameter).map(field => [ field.name, readInside(element, field) ]));
 
@@ -227,8 +251,9 @@ const readRecord = (element: ModdleElement, parameter: Parameter): StructureReco
 // element of a structure. A single value is an unprefixed attribute of it, a list is one IAP-namespaced
 // child per value. A structure is one child per record, holding its fields the same way.
 function readInside(holder: ModdleElement, parameter: Parameter): ParameterValue[] {
+  // An element that reads as an empty record is not one: it holds nothing the vocabulary declares
   if (isStructure(parameter)) {
-    return namedChildren(holder, parameter).map(element => readRecord(element, parameter));
+    return namedChildren(holder, parameter).map(element => readRecord(element, parameter)).filter(hasContent);
   }
   return settled(isMultiple(parameter)
     ? namedChildren(holder, parameter).map(child => text(child.$body))
@@ -279,7 +304,11 @@ function structureEdit(
   parameter: Parameter,
   wanted: StructureRecord[]
 ): ParameterEdit | undefined {
-  const existing = namedChildren(holder, parameter);
+  // An element read as no record is carried over as it is
+  const named = namedChildren(holder, parameter);
+  const read = (element: ModdleElement) => hasContent(readRecord(element, parameter));
+  const existing = named.filter(read);
+  const kept = [ ...otherChildren(holder, parameter), ...named.filter(element => !read(element)) ];
   const held = existing.map(element => readRecord(element, parameter));
   if (held.length === wanted.length) {
     const changed = held.flatMap((record, index) => sameRecord(record, wanted[index]) ? [] : [ index ]);
@@ -296,7 +325,7 @@ function structureEdit(
     const index = unused.findIndex(each => sameRecord(each.record, record));
     return index < 0 ? recordElement(moddle, prefix, parameter, record) : unused.splice(index, 1)[0].element;
   });
-  return { moddleElement: holder, properties: { $children: [ ...otherChildren(holder, parameter), ...elements ] } };
+  return { moddleElement: holder, properties: { $children: [ ...kept, ...elements ] } };
 }
 
 // The edit that changes the fields of one record that differ, made on the record's own element. A change
@@ -323,10 +352,10 @@ function recordEdit(
   return { moddleElement: element, properties };
 }
 
-// The edit that gives a parameter the values passed in, or clears it when they are empty. Clearing
+// The edits that give a parameter the values passed in, or clear it when they are empty. Clearing
 // removes an attribute rather than leaving it blank, and a list's children rather than leaving an empty
-// element. The diagram then never carries a value the parser would reject. Undefined when the flow node
-// lacks the element a value would be written in, BPMN's or the entry's own.
+// element. The diagram then never carries a value the parser would reject. None when nothing changes, or
+// when the flow node lacks the element a value would be written in, BPMN's or the entry's own.
 export function parameterEdit(
   moddle: Moddle,
   businessObject: ModdleElement,
@@ -334,41 +363,42 @@ export function parameterEdit(
   type: FlowNodeType,
   parameter: Parameter,
   values: ParameterValue[]
-): ParameterEdit | undefined {
+): ParameterEdit[] {
   if (misplacedStructure(type, parameter)) {
-    return undefined;
+    return [];
   }
   // The parser trims every value and drops a blank one
   const wanted = settled(values);
   if (locatedInBpmn(parameter)) {
     const holder = bpmnHolder(businessObject, parameter);
     if (holder === undefined) {
-      return undefined;
+      return [];
     }
     const property = descriptorProperty(holder, parameter.name);
-    return {
+    return [ {
       moddleElement: holder,
       properties: {
         [parameter.name]: bpmnValue(moddle, property, parameter, textValues(wanted)),
       },
-    };
+    } ];
   }
   if (locatedInAttribute(type, parameter)) {
-    const prefix = writePrefix(businessObject, definitions);
+    const { prefix, binding } = writePrefix(businessObject, definitions);
     const joined = textValues(wanted).join(", ");
     const key = attributeKey(businessObject, definitions, parameter.name) ?? `${prefix}:${parameter.name}`;
-    return { moddleElement: businessObject, properties: { [key]: joined === "" ? undefined : joined } };
+    return [ ...binding, { moddleElement: businessObject, properties: { [key]: joined === "" ? undefined : joined } } ];
   }
   // An entry with an element of its own only matches a node carrying it. Without it, the edit was made
   // for what the node meant before an undo, and bringing the element back would reverse that undo.
   const extension = iapExtension(businessObject, type.xmlExtensionElement);
   if (extension === undefined) {
-    return undefined;
+    return [];
   }
-  const prefix = writePrefix(businessObject, definitions);
-  return isStructure(parameter)
+  const { prefix, binding } = writePrefix(businessObject, definitions);
+  const edit = isStructure(parameter)
     ? structureEdit(moddle, prefix, extension, parameter, recordValues(wanted))
     : { moddleElement: extension, properties: insideProperties(moddle, prefix, parameter, wanted, extension) };
+  return edit === undefined ? [] : [ ...binding, edit ];
 }
 
 // The attribute-located parameters of an entry, by name.
@@ -388,21 +418,22 @@ export function typeEdit(
   definitions: ModdleElement,
   from: FlowNodeType | undefined,
   to: FlowNodeType
-): ParameterEdit {
+): ParameterEdit[] {
   const leaving = from?.xmlExtensionElement === to.xmlExtensionElement ? undefined : from?.xmlExtensionElement;
   const kept = extensionValues(businessObject).filter(value => !isIapElement(value, leaving));
-  const values = to.xmlExtensionElement === undefined || kept.some(value => isIapElement(value, to.xmlExtensionElement))
-    ? kept
-    : [ ...kept, moddle.createAny(`${writePrefix(businessObject, definitions)}:${to.xmlExtensionElement}`, IAP_NS, {}) ];
+  const arriving = to.xmlExtensionElement !== undefined
+    && !kept.some(value => isIapElement(value, to.xmlExtensionElement));
+  const { prefix, binding } = arriving ? writePrefix(businessObject, definitions) : { prefix: "", binding: [] };
+  const values = arriving ? [ ...kept, moddle.createAny(`${prefix}:${to.xmlExtensionElement}`, IAP_NS, {}) ] : kept;
   const staying = attributeNames(to);
   const dropped = [ ...attributeNames(from) ].filter(name => !staying.has(name))
     .flatMap(name => attributeKey(businessObject, definitions, name) ?? []);
-  return {
+  return [ ...binding, {
     moddleElement: businessObject,
     properties: {
       // An empty container would serialize as an empty `bpmn:extensionElements` element
       extensionElements: values.length === 0 ? undefined : moddle.create("bpmn:ExtensionElements", { values }),
       ...Object.fromEntries(dropped.map(key => [ key, undefined ])),
     },
-  };
+  } ];
 }

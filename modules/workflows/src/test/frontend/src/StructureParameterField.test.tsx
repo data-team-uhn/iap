@@ -98,6 +98,56 @@ describe("StructureParameterField", () => {
     expect(await screen.findByRole("group", { name: "New Choice" })).toBeInTheDocument();
   });
 
+  it("shows a repeated structure with no single-valued key as text, and says the server ignores it", async () => {
+    renderStructure({ ...CHOICES, keyParameter: "missing" }, [ A ]);
+
+    expect(await screen.findByText(/declare no single-valued key for Choice, so the server ignores it/))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("keeps the focus on the record it moved, so pressing again moves it further", async () => {
+    const { onCommit, user } = renderStructure(CHOICES, [ A, B, { value: [ "c" ] } ]);
+
+    await user.click(await screen.findByRole("button", { name: "Move a down" }));
+    await user.keyboard("{Enter}");
+
+    expect(onCommit).toHaveBeenLastCalledWith([ B, { value: [ "c" ] }, A ]);
+  });
+
+  it("removes a record with the state of its fields, leaving the next one untouched", async () => {
+    const required = { ...CHOICES, parameters: [ parameter("value", { label: "Value", minValues: 1 }) ] };
+    const { user } = renderStructure(required, [ { value: [ "a" ] }, { label: [ "B" ] } ]);
+
+    await user.clear(within(await screen.findByRole("group", { name: "a" })).getByLabelText(/^Value/));
+    await user.tab();
+    expect(screen.getByText("A value is required.")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Remove New Choice" })[0]);
+
+    expect(screen.queryByText("A value is required.")).not.toBeInTheDocument();
+  });
+
+  it("shows removing a record as the outlined bin, in the colour of a destructive action", async () => {
+    renderStructure(CHOICES, [ A ]);
+
+    const remove = await screen.findByRole("button", { name: "Remove a" });
+    expect(within(remove).getByTestId("DeleteOutlinedIcon")).toBeInTheDocument();
+    expect(remove).toHaveClass("MuiIconButton-colorError");
+  });
+
+  it("flags a repeated structure holding fewer records than it needs", async () => {
+    renderStructure({ ...CHOICES, minValues: 2 }, [ A ]);
+
+    expect(await screen.findByRole("group", { name: "Choice" })).toHaveAccessibleDescription("At least 2 values are needed.");
+  });
+
+  it("flags a repeated structure holding more records than it accepts", async () => {
+    renderStructure({ ...CHOICES, maxValues: 2 }, [ A, B, { value: [ "c" ] } ]);
+
+    expect(await screen.findByText("At most 2 values are accepted.")).toBeInTheDocument();
+  });
+
   it("adds a record as a draft, up to the most the structure accepts", async () => {
     const { onChange, onCommit, user } = renderStructure(CHOICES, [ A ]);
 
@@ -132,7 +182,7 @@ describe("StructureParameterField", () => {
     renderStructure(CHOICES, [ A, { value: [ " a " ] }, { value: [ " " ] }, {} ]);
 
     const [ , later ] = await screen.findAllByRole("group", { name: "a" });
-    expect(within(later).getByText('The key "a" is already in use. Change it before saving.')).toBeInTheDocument();
+    expect(later).toHaveAccessibleDescription('The key "a" is already in use, so this Choice will be ignored.');
     expect(screen.getAllByText(/is already in use/)).toHaveLength(1);
   });
 

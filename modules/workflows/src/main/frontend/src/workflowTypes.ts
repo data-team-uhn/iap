@@ -20,20 +20,15 @@
 // a drawn BPMN element means. The rule is the editor's copy of the server parser's, and the two have to
 // resolve the same element to the same entry.
 
-import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { readNode } from "@iap/frontend-commons/useNode";
+
+import type { Choice } from "@iap/frontend-commons/inputs/choices";
+import { isNode } from "@iap/frontend-commons/serializedNode";
 
 import { bpmnChildren, capitalised, elementName, iapExtensionNames, localName, text } from "./moddle";
 
 import type { ModdleElement } from "./moddle";
 
 export const WORKFLOW_TYPES_PATH = "/WorkflowTypes";
-
-// One choice offered for a parameter, such as `{ value: "draft", label: "Draft" }`.
-export interface ParameterOption {
-  value: string;
-  label: string;
-}
 
 // Where a diagram writes a parameter's value. The rules are in bpmnParameters.
 export type XmlLocation = "extensionElement" | "attribute" | "bpmnAttribute" | "bpmnElement";
@@ -56,9 +51,10 @@ export interface Parameter {
   // The local names of the BPMN child elements leading to the one holding the value, such as
   // `["timerEventDefinition"]`. Empty when the flow node holds it itself.
   xmlPath: string[];
-  // The node type a reference points at, such as `"wf/WorkflowVersion"`.
+  // The node type a reference points at, such as `"wf:WorkflowVersion"`.
   referenceType?: string;
-  options: ParameterOption[];
+  // The values offered for it, such as `{ value: "draft", label: "Draft" }`
+  options: Choice[];
   // The fields of a structure.
   parameters?: Parameter[];
   // The field of a repeated structure whose value names each element.
@@ -85,9 +81,6 @@ export interface FlowNodeType {
   parameters: Parameter[];
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const optionalText = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
 
@@ -108,14 +101,19 @@ export const isStructure = (parameter: Parameter): boolean => parameter.dataType
 
 export const fieldsOf = (parameter: Parameter): Parameter[] => parameter.parameters ?? [];
 
+// Whether a structure names one of its single-valued fields as its key. The server stores none of a repeated
+// structure without one.
+export const hasSingleValuedKey = (parameter: Parameter): boolean => fieldsOf(parameter)
+  .some(field => field.name === parameter.keyParameter && !isStructure(field) && !isMultiple(field));
+
 // An element name reduced to its local part, as the server keeps it: `iap:notify` and `notify` are the same.
 const bareName = (value: unknown): string | undefined => {
   const named = optionalText(value);
   return named === undefined ? undefined : optionalText(localName(named));
 };
 
-function parseOption(raw: unknown): ParameterOption | undefined {
-  if (!isRecord(raw)) {
+function parseOption(raw: unknown): Choice | undefined {
+  if (!isNode(raw)) {
     return undefined;
   }
   const value = text(raw.value);
@@ -123,7 +121,7 @@ function parseOption(raw: unknown): ParameterOption | undefined {
 }
 
 function parseParameter(raw: unknown): Parameter | undefined {
-  if (!isRecord(raw)) {
+  if (!isNode(raw)) {
     return undefined;
   }
   const name = text(raw.name);
@@ -147,7 +145,7 @@ function parseParameter(raw: unknown): Parameter | undefined {
 }
 
 function parseEntry(raw: unknown): FlowNodeType | undefined {
-  if (!isRecord(raw)) {
+  if (!isNode(raw)) {
     return undefined;
   }
   const name = text(raw.name);
@@ -176,7 +174,7 @@ function parseEntry(raw: unknown): FlowNodeType | undefined {
 // The documented vocabulary as one flat list. The server repeats an entry under each of its categories,
 // so the groups are flattened and the repeats collapsed by name.
 export function parseWorkflowTypes(raw: unknown): FlowNodeType[] {
-  const groups = isRecord(raw) && isRecord(raw.items) ? Object.values(raw.items) : [];
+  const groups = isNode(raw) && isNode(raw.items) ? Object.values(raw.items) : [];
   const byName = new Map<string, FlowNodeType>();
   for (const group of groups) {
     for (const raw of Array.isArray(group) ? group : []) {
@@ -187,17 +185,6 @@ export function parseWorkflowTypes(raw: unknown): FlowNodeType[] {
     }
   }
   return [ ...byName.values() ];
-}
-
-// Fetched each time an editor opens, since the vocabulary can be edited on a running server. Canvases opening
-// at once share one request. A failed request is not remembered.
-let request: Promise<FlowNodeType[]> | null = null;
-
-export function loadWorkflowTypes(fetchUtil: AuthenticatedFetch): Promise<FlowNodeType[]> {
-  request ??= readNode(fetchUtil, WORKFLOW_TYPES_PATH, "doc")
-    .then(parseWorkflowTypes)
-    .finally(() => request = null);
-  return request;
 }
 
 // The names of the BPMN child elements an element is written with, which the server's parser checks an

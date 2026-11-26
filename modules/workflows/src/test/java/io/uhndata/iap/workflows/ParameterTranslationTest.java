@@ -842,10 +842,10 @@ class ParameterTranslationTest
         VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
             Parameter.BOOLEAN_DATA_TYPE, 1);
 
-        final Parsed parsed = parsed(root, booleanTask("upper", "TRUE") + booleanTask("one", "1")
+        final Parsed parsed = parsed(root, booleanTask("word", "true") + booleanTask("one", "1")
             + booleanTask("lower", "false") + booleanTask("zero", "0"));
 
-        assertTrue(parsed.version().getChildNode("upper").getBoolean(URGENT));
+        assertTrue(parsed.version().getChildNode("word").getBoolean(URGENT));
         assertTrue(parsed.version().getChildNode("one").getBoolean(URGENT));
         assertEquals(Type.BOOLEAN, parsed.version().getChildNode("lower").getProperty(URGENT).getType());
         assertFalse(parsed.version().getChildNode("lower").getBoolean(URGENT));
@@ -866,6 +866,60 @@ class ParameterTranslationTest
         assertFalse(parsed.version().getChildNode(TASK).hasProperty(URGENT));
         assertEquals(List.of("a parameter has a value that is not a boolean (task1, parameter=urgent, value=yes)"),
             parsed.problems());
+    }
+
+    @Test
+    void readsABooleanInLowerCaseOnly() throws Exception
+    {
+        final NodeBuilder root = withGenericServiceTask();
+        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
+            Parameter.BOOLEAN_DATA_TYPE, 1);
+
+        final Parsed parsed = parsed(root, booleanTask(TASK, "TRUE"));
+
+        assertFalse(parsed.version().getChildNode(TASK).hasProperty(URGENT));
+        assertEquals(List.of("a parameter has a value that is not a boolean (task1, parameter=urgent, value=TRUE)"),
+            parsed.problems());
+    }
+
+    @Test
+    void readsABpmnBooleanWrittenAsADigit() throws Exception
+    {
+        final NodeBuilder root = withTimerBoundaryEvent();
+
+        final Parsed parsed = parsed(root, boundaryEvent(" cancelActivity=\"0\"", ""));
+
+        assertFalse(parsed.version().getChildNode(TASK).getChildNode(DEADLINE).getBoolean(CANCEL_ACTIVITY));
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void readsOnlyAsciiDigitsAsAWholeNumber() throws Exception
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        VocabularyFixture.parameter(VocabularyFixture.handler(root, "Escalate", "escalate"), "retries",
+            Parameter.LONG_DATA_TYPE, 0, 0);
+
+        final Parsed parsed = parsed(root, serviceTask("<iap:escalate>"
+            + "<iap:retries>+12</iap:retries><iap:retries>\uFF11\uFF12</iap:retries></iap:escalate>"));
+
+        assertEquals(List.of(12L), parsed.version().getChildNode(TASK).getProperty("retries").getValue(Type.LONGS));
+        assertEquals(List.of("a parameter has a value that is not a whole number (task1, parameter=retries,"
+            + " value=\uFF11\uFF12)"), parsed.problems());
+    }
+
+    @Test
+    void reportsAWholeNumberTooLargeToStore() throws Exception
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        VocabularyFixture.parameter(VocabularyFixture.handler(root, "Escalate", "escalate"), "retries",
+            Parameter.LONG_DATA_TYPE, 0, 1);
+
+        final Parsed parsed = parsed(root, serviceTask("<iap:escalate retries=\"9223372036854775808\"/>"));
+
+        assertFalse(parsed.version().getChildNode(TASK).hasProperty("retries"));
+        assertEquals(List.of("a parameter has a value that is not a whole number (task1, parameter=retries,"
+            + " value=9223372036854775808)"), parsed.problems());
     }
 
     @Test

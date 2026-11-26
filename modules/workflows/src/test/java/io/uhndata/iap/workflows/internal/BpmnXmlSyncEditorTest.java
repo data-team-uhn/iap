@@ -181,7 +181,7 @@ class BpmnXmlSyncEditorTest
         + "      <bpmn:messageEventDefinition/>\n"
         + "    </bpmn:startEvent>\n"
         + "    <bpmn:userTask id=\"task1\" name=\"Review\" iap:priority=\"7\"\n"
-        + "        iap:asynchronous=\"TRUE\" default=\"flow2\"/>\n"
+        + "        iap:asynchronous=\"1\" default=\"flow2\"/>\n"
         + "    <bpmn:intermediateCatchEvent id=\"ice1\">\n"
         + "      <bpmn:timerEventDefinition/>\n"
         + "    </bpmn:intermediateCatchEvent>\n"
@@ -547,7 +547,7 @@ class BpmnXmlSyncEditorTest
         VocabularyFixture.parameter(type, "levels", "long", 0, 0);
 
         final NodeState after = firstSave(root, withIapNs()
-            + serviceTask(TASK_1, "<iap:escalate urgent=\"TRUE\" retries=\"3\">"
+            + serviceTask(TASK_1, "<iap:escalate urgent=\"true\" retries=\"3\">"
                 + "<iap:levels>1</iap:levels><iap:levels>2</iap:levels></iap:escalate>")
             + PROCESS_CLOSE + DEFS_CLOSE);
 

@@ -67,6 +67,14 @@ export interface Moddle {
 
 export const text = (value: unknown): string => typeof value === "string" ? value : "";
 
+// The moddle object behind a canvas element. bpmn-js marks it optional: an empty object stands in, which reads
+// as no name, no node type and no parameters.
+export const businessObjectOf = (element: { businessObject?: unknown }): ModdleElement =>
+  (element.businessObject ?? {}) as ModdleElement;
+
+// The name an element is given in the diagram, as written.
+export const nameOf = (element: { businessObject?: unknown }): string => text(businessObjectOf(element).name);
+
 // The local part of a namespaced XML element name, e.g. `serviceTask` of `bpmn:serviceTask`. What a
 // document prefixes an element with is its own business, so only the local part is ever compared.
 export const localName = (qualified: string): string => qualified.slice(qualified.indexOf(":") + 1);

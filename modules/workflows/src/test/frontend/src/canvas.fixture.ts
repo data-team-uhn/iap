@@ -61,7 +61,7 @@ const UPDATE_HANDLER = {
 };
 
 // A canvas on diagram-js's own event bus and command stack, with the panel's command registered. Listener
-// priorities, grouped commands and undo then behave as in the modeler. Modeling is stood in for by
+// priorities, grouped commands, undo and deselecting what is removed then behave as in the modeler. Modeling is stood in for by
 // recorded calls, which `writeThrough` turns into commands. Any other service is given as is.
 export function createCanvas(services: Record<string, unknown> = {}, definitions: ModdleElement = {}) {
   const updateLabel = vi.fn();
@@ -82,6 +82,11 @@ export function createCanvas(services: Record<string, unknown> = {}, definitions
   const eventBus = injector.get<EventBus>("eventBus");
   const commandStack = injector.get<CommandStack>("commandStack");
   commandStack.register("test.update", UPDATE_HANDLER);
+  // As bpmn-js's selection does at the default priority: an element going away is deselected, which a
+  // listener ahead of it has to have seen coming
+  eventBus.on([ "shape.remove", "connection.remove" ], () => {
+    eventBus.fire("selection.changed", { newSelection: [] });
+  });
 
   const writeThrough = () => {
     updateLabel.mockImplementation((element: Element, label: string) =>

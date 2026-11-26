@@ -16,15 +16,11 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
-
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, screen } from "@testing-library/react";
 
 import LongParameterField from "@iap/workflows/LongParameterField";
 
-import { renderField, STATES, Themed } from "./parameterField.fixture";
-import { parameter } from "./vocabulary.fixture";
+import { renderField, STATES } from "./parameterField.fixture";
 
 describe("a parameter holding a whole number", () => {
   it("shows the number it holds, offering a keyboard of digits", () => {
@@ -35,19 +31,32 @@ describe("a parameter holding a whole number", () => {
     expect(input).toHaveAttribute("inputmode", "numeric");
   });
 
-  it("flags a decimal where a whole number is stored without handing it on, and takes a sign either way", () => {
-    const { onChange, onCommit } = renderField(LongParameterField, { dataType: "long" }, [ "3" ]);
+  it("flags a decimal where a whole number is stored", () => {
+    renderField(LongParameterField, { dataType: "long" }, [ "3" ]);
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "1.5" } });
+
+    expect(screen.getByText(/Enter a whole number\./)).toBeInTheDocument();
+  });
+
+  it("does not hand a decimal on to be written when left", () => {
+    const { onCommit } = renderField(LongParameterField, { dataType: "long" }, [ "3" ]);
     const input = screen.getByRole("textbox");
 
     fireEvent.change(input, { target: { value: "1.5" } });
-    expect(screen.getByText(/Enter a whole number\./)).toBeInTheDocument();
     fireEvent.blur(input);
+
     expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("takes a sign either way while it is typed", () => {
+    const { onChange } = renderField(LongParameterField, { dataType: "long" }, [ "3" ]);
+    const input = screen.getByRole("textbox");
 
     fireEvent.change(input, { target: { value: "-12" } });
-    expect(onChange).toHaveBeenCalledWith([ "-12" ]);
     fireEvent.change(input, { target: { value: "+" } });
-    expect(onChange).toHaveBeenCalledWith([ "+" ]);
+
+    expect(onChange.mock.calls).toEqual([ [ [ "-12" ] ], [ [ "+" ] ] ]);
   });
 
   it("takes a number written with a plus sign, as the server does", () => {
@@ -72,14 +81,18 @@ describe("a parameter holding a whole number", () => {
     expect(onCommit).toHaveBeenCalledExactlyOnceWith([ "34" ]);
   });
 
-  it("reports a cleared field as holding nothing at all, and is marked when a value is required", () => {
-    const { onChange } = renderField(LongParameterField, { dataType: "long", minValues: 1 }, [ "3" ]);
-    const input = screen.getByRole("textbox");
+  it("reports a cleared field as holding nothing at all", () => {
+    const { onChange } = renderField(LongParameterField, { dataType: "long" }, [ "3" ]);
 
-    expect(input).toBeRequired();
-    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "" } });
 
     expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("is marked when a value is required", () => {
+    renderField(LongParameterField, { dataType: "long", minValues: 1 }, [ "3" ]);
+
+    expect(screen.getByRole("textbox")).toBeRequired();
   });
 
   it("starts empty when it holds nothing", () => {
@@ -107,31 +120,29 @@ describe("a parameter holding a whole number", () => {
     expect(screen.getByRole("combobox")).toHaveTextContent("Draft");
   });
 
-  it("shows a value that is no number as written, and says it will be ignored", async () => {
+  it("shows a value that is no number as written, and says it will be ignored", () => {
+    renderField(LongParameterField, { dataType: "long", minValues: 1 }, [ "abc" ]);
+
+    expect(screen.getByRole("textbox")).toHaveValue("abc");
+    expect(screen.getByText('"abc" is not a whole number, so it will be ignored. Enter a whole number.'))
+      .toBeInTheDocument();
+  });
+
+  it("keeps flagging a value that is no number as it is edited and left", async () => {
     const { onChange, user } = renderField(LongParameterField, { dataType: "long", minValues: 1 }, [ "abc" ]);
     const input = screen.getByRole("textbox");
 
-    expect(input).toHaveValue("abc");
-    expect(screen.getByText('"abc" is not a whole number, so it will be ignored. Enter a whole number.'))
-      .toBeInTheDocument();
     fireEvent.change(input, { target: { value: "ab" } });
-    expect(onChange).toHaveBeenCalledWith([ "ab" ]);
     await user.click(input);
     await user.tab();
 
+    expect(onChange).toHaveBeenCalledWith([ "ab" ]);
     expect(screen.getByText('"ab" is not a whole number, so it will be ignored. Enter a whole number.'))
       .toBeInTheDocument();
   });
 
   it("stays a text field while a value that is no number is typed over, and flags what is no number", async () => {
-    // Fed what it reports, as the panel does, so that clearing the value is what the field then shows
-    function Edited() {
-      const [ values, setValues ] = useState([ "abc" ]);
-      return <LongParameterField parameter={parameter("count", { label: "Count", dataType: "long" })}
-        values={values} onChange={setValues} onCommit={() => undefined} />;
-    }
-    const user = userEvent.setup();
-    render(<Edited />, { wrapper: Themed });
+    const { user } = renderField(LongParameterField, { dataType: "long" }, [ "abc" ]);
     const input = screen.getByRole("textbox");
 
     await user.clear(input);
@@ -143,6 +154,13 @@ describe("a parameter holding a whole number", () => {
     expect(screen.getByText(/Enter a whole number\./)).toBeInTheDocument();
   });
 
+  it("flags digits of another script, which the server does not read", () => {
+    renderField(LongParameterField, { dataType: "long" }, [ "\uFF11\uFF12" ]);
+
+    expect(screen.getByText('"\uFF11\uFF12" is not a whole number, so it will be ignored. Enter a whole number.'))
+      .toBeInTheDocument();
+  });
+
   it("flags a number too large to be stored", () => {
     renderField(LongParameterField, { dataType: "long" }, [ "9223372036854775808" ]);
 
@@ -150,13 +168,22 @@ describe("a parameter holding a whole number", () => {
       .toBeInTheDocument();
   });
 
-  it("asks for a required value once it has been left empty, and nothing of an optional one", async () => {
+  it("asks for a required value once it has been left empty", async () => {
     const { user } = renderField(LongParameterField, { dataType: "long", minValues: 1 });
 
     await user.click(screen.getByRole("textbox"));
     await user.tab();
 
     expect(screen.getByText("A value is required.")).toBeInTheDocument();
+  });
+
+  it("asks for nothing when an optional one is left empty", async () => {
+    const { user } = renderField(LongParameterField, { dataType: "long" });
+
+    await user.click(screen.getByRole("textbox"));
+    await user.tab();
+
+    expect(screen.queryByText("A value is required.")).not.toBeInTheDocument();
   });
 
   it("takes the extremes of what can be stored", () => {

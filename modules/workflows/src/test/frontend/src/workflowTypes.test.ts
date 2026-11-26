@@ -27,13 +27,11 @@ import {
   isMultiple,
   isRequired,
   isStructure,
-  loadWorkflowTypes,
   matchFlowNodeType,
   parseWorkflowTypes,
   replacementFor,
   switchableTypes,
   typeGroupOf,
-  WORKFLOW_TYPES_PATH,
 } from "@iap/workflows/workflowTypes";
 import type { FlowNodeType } from "@iap/workflows/workflowTypes";
 
@@ -125,13 +123,6 @@ const DOCUMENTED = {
 };
 
 const documented = () => parseWorkflowTypes(DOCUMENTED);
-
-type FetchStub = (url: string) => Promise<Response>;
-
-const okResponse = (body: unknown) =>
-  ({ ok: true, status: 200, url: "", json: () => Promise.resolve(body) } as unknown as Response);
-
-const refused = (status: number) => ({ ok: false, status } as unknown as Response);
 
 describe("parseWorkflowTypes", () => {
   it("flattens the categories and lists every entry once", () => {
@@ -291,45 +282,6 @@ describe("parseWorkflowTypes", () => {
     expect(parseWorkflowTypes(undefined)).toEqual([]);
     expect(parseWorkflowTypes({})).toEqual([]);
     expect(parseWorkflowTypes({ items: [] })).toEqual([]);
-  });
-});
-
-describe("loadWorkflowTypes", () => {
-  it("asks the vocabulary to document itself each time an editor opens", async () => {
-    const fetchUtil = vi.fn<FetchStub>(() => Promise.resolve(okResponse(DOCUMENTED)));
-
-    const first = await loadWorkflowTypes(fetchUtil);
-    const second = await loadWorkflowTypes(fetchUtil);
-
-    expect(fetchUtil).toHaveBeenCalledTimes(2);
-    expect(fetchUtil).toHaveBeenCalledWith(`${WORKFLOW_TYPES_PATH}.doc.json`);
-    expect(first.map(type => type.name)).toContain("SetState");
-    expect(second).toEqual(first);
-  });
-
-  it("shares one request between canvases opening at the same time", async () => {
-    let answer: () => void = () => undefined;
-    const fetchUtil = vi.fn<FetchStub>(() => new Promise<Response>(resolve => {
-      answer = () => resolve(okResponse(DOCUMENTED));
-    }));
-
-    const asking = Promise.all([ loadWorkflowTypes(fetchUtil), loadWorkflowTypes(fetchUtil) ]);
-    answer();
-    const [ first, second ] = await asking;
-
-    expect(fetchUtil).toHaveBeenCalledTimes(1);
-    expect(second).toBe(first);
-  });
-
-  it("reports a refusal, and asks again rather than remembering it", async () => {
-    const fetchUtil = vi.fn<FetchStub>()
-      .mockResolvedValueOnce(refused(503))
-      .mockResolvedValue(okResponse(DOCUMENTED));
-
-    await expect(loadWorkflowTypes(fetchUtil)).rejects.toThrow("503");
-
-    await expect(loadWorkflowTypes(fetchUtil)).resolves.toHaveLength(4);
-    expect(fetchUtil).toHaveBeenCalledTimes(2);
   });
 });
 

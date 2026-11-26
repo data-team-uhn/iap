@@ -95,7 +95,7 @@ export function ActionIcon({
   icon: ReactNode;
   onClick?: (trigger: HTMLElement) => void;
   pressed?: boolean;
-  color?: "default" | "primary";
+  color?: "default" | "primary" | "error";
   disabled?: boolean;
   loading?: boolean;
   ref?: Ref<HTMLButtonElement>;

@@ -58,18 +58,25 @@ export function sameValues(left: readonly ParameterValue[], right: readonly Para
   });
 }
 
+const isTextValue = (value: ParameterValue): value is string => !isRecordValue(value);
+
+// The values of one kind. When every value is of that kind it is the same array, so a memo on it holds.
+const ofKind = <T extends ParameterValue>(
+  values: readonly ParameterValue[],
+  isKind: (value: ParameterValue) => value is T
+): T[] => values.every(isKind) ? values as T[] : values.filter(isKind);
+
 // The values of a parameter that holds text, for a field that edits text.
-export const textValues = (values: readonly ParameterValue[]): string[] =>
-  values.filter((value): value is string => !isRecordValue(value));
+export const textValues = (values: readonly ParameterValue[]): string[] => ofKind(values, isTextValue);
 
 // The items of a list written as one value joined with commas, trimmed, with blank ones dropped.
 export const splitList = (value: string): string[] => value.split(",").map(item => item.trim()).filter(Boolean);
 
 // The values of a structure, for the field that edits one.
-export const recordValues = (values: readonly ParameterValue[]): StructureRecord[] => values.filter(isRecordValue);
+export const recordValues = (values: readonly ParameterValue[]): StructureRecord[] => ofKind(values, isRecordValue);
 
-// A whole number as the server reads one: a sign and then digits.
-const WHOLE_PATTERN = /^([+-]?)(\d*)$/;
+// A whole number as the server reads one: a sign and then ASCII digits.
+const WHOLE_PATTERN = /^([+-]?)([0-9]*)$/;
 
 // Whether text is a whole number the server can store, which is a 64-bit one.
 function isLong(value: string): boolean {
@@ -79,8 +86,8 @@ function isLong(value: string): boolean {
   return digits !== "" && (digits.length < limit.length || digits.length === limit.length && digits <= limit);
 }
 
-// The text a boolean field accepts, as the server reads it: `true`, `false`, `1` or `0`, in any letter case.
-export const isBoolean = (value: string): boolean => /^(true|false|1|0)$/i.test(value);
+// The text a boolean field accepts, as the server reads it: `true`, `false`, `1` or `0`, in lower case.
+export const isBoolean = (value: string): boolean => /^(true|false|1|0)$/.test(value);
 
 // What the server stores a value as, for the types that can refuse one by its text alone. Text takes
 // anything, and a reference or a principal is checked against the repository, which only the server can do.

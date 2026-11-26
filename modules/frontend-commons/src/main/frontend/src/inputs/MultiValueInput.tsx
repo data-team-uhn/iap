@@ -24,7 +24,7 @@ import { Autocomplete, Chip, TextField } from "@mui/material";
 
 import { type Choice, withValues } from "./choices";
 import { useFieldProps, type ValueInputProps } from "./valueInput";
-import { changeAndCommit } from "./values";
+import { changeAndCommit, countProblems } from "./values";
 import ValueText from "./ValueText";
 
 interface MultiValueInputProps extends ValueInputProps {
@@ -44,14 +44,6 @@ interface MultiValueInputProps extends ValueInputProps {
   minValues?: number;
   // The most values the list may hold, e.g. 3. By default, any number.
   maxValues?: number;
-}
-
-// What is wrong with how many values the list holds.
-function countProblems(count: number, minValues = 0, maxValues = Infinity): string[] {
-  if (count > 0 && count < minValues) {
-    return [ `At least ${minValues} values are needed.` ];
-  }
-  return count > maxValues ? [ `At most ${maxValues} values are accepted.` ] : [];
 }
 
 // Several values, shown as chips, picked from a list or typed.

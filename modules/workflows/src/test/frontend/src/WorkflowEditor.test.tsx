@@ -59,8 +59,8 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 // The canvas reporting itself ready, with what it would serialize and what is wrong with it
-const ready = (serialize = () => Promise.resolve("<drawn/>"), problems: string[] = []) =>
-  (latestCanvas().onReady as (editor: unknown) => void)({ serialize, problems: () => problems });
+const ready = (serialize = () => Promise.resolve("<drawn/>")) =>
+  (latestCanvas().onReady as (editor: unknown) => void)({ serialize });
 
 // What the editor says when the saved process has problems
 const PROBLEMS_TITLE = "The workflow was saved, but its process has problems to fix before it can be activated.";
@@ -263,25 +263,6 @@ describe("WorkflowEditor", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     // The canvas is asked for a viewer, and is not offered anything to serialize into
     expect(latestCanvas().editable).toBe(false);
-  });
-
-  it("refuses to save a diagram with a repeated or blank key, and says which", async () => {
-    const user = userEvent.setup();
-    const fetchMock = stubServer();
-    renderEditor({ edit: true });
-    await screen.findByRole("heading", { name: /Standard review/ });
-    const serialize = vi.fn(() => Promise.resolve("<drawn/>"));
-    ready(serialize, [ 'Edit it: the key "x" of Fields is already in use.', "Edit it: a Fields has no key." ]);
-
-    await user.click(screen.getByRole("button", { name: "Save and close" }));
-
-    expect(await screen.findByText("The workflow was not saved. Fix these first.")).toBeInTheDocument();
-    expect(screen.getByText(/the key "x" of Fields is already in use\./)).toBeInTheDocument();
-    expect(serialize).not.toHaveBeenCalled();
-    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toHaveLength(0);
-    expect(currentUrl()).not.toBe("/admin/workflows/Workflows/review");
-    // Nothing was sent, so the page can be saved again
-    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
   it("saves the diagram in edit mode, and stops saying there are unsaved changes", async () => {

@@ -659,6 +659,48 @@ describe("ElementProperties when the selection changes mid-edit", () => {
     expect(updateLabel).toHaveBeenCalledWith(replacement, "Task!");
   });
 
+  it("writes nothing for an attribute of the entry the element meant before an undo", async () => {
+    // An attribute can be written whatever the element carries, so only the panel can tell it no longer applies
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties, fire } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    renderProperties(element, viewer, { types: VOCABULARY });
+
+    await user.type(field("Colour"), "red");
+    (element.businessObject as ModdleElement).extensionElements = { values: [] };
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+  });
+
+  it("holds back a whole number still being typed that the server would not store", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties, fire } = createViewer();
+    const retries = parameter("retries", { label: "Retries", dataType: "long", xmlLocation: "attribute" });
+    const element = task("Retry", { $attrs: { "iap:retries": "5" } });
+    renderProperties(element, viewer, { types: [ type("Retrying", { parameters: [ retries ] }) ] });
+
+    await user.clear(field("Retries"));
+    await user.type(field("Retries"), "-");
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+  });
+
+  it("keeps the name being typed when the vocabulary arrives, and writes it", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateLabel, fire } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    const { rerender } = renderProperties(element, viewer);
+
+    await user.type(screen.getByRole("textbox"), "d");
+    rerender(<ElementProperties element={element} viewer={viewer} types={VOCABULARY} />);
+    expect(screen.getAllByRole("textbox")[0]).toHaveValue("Promoted");
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateLabel).toHaveBeenCalledWith(element, "Promoted");
+  });
+
   it("writes nothing for a field of the entry the element meant before an undo", async () => {
     const user = userEvent.setup();
     const { viewer, updateModdleProperties, fire } = createViewer();

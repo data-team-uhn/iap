@@ -43,3 +43,15 @@ export function changeAndCommit<Value = string>({ onChange, onCommit }: {
     onCommit?.(next);
   };
 }
+
+// What is wrong with how many values a list holds: fewer than a list that holds any must hold, or more than it
+// may. Any number by default.
+export function countProblems(count: number, minValues = 0, maxValues = Infinity): string[] {
+  if (count > 0 && count < minValues) {
+    return [ `At least ${minValues} values are needed.` ];
+  }
+  if (count <= maxValues) {
+    return [];
+  }
+  return [ maxValues === 1 ? "At most 1 value is accepted." : `At most ${maxValues} values are accepted.` ];
+}

@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.types;
 
-import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -27,7 +26,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
  * A yes-or-no value, written the way XML Schema writes one: {@code true} or {@code 1}, {@code false} or {@code 0},
- * in any letter case. Anything else is reported and dropped, so the node type's default stands.
+ * in lower case. BPMN types its own boolean attributes that way, and an IAP parameter follows the same rule. Anything
+ * else is reported and dropped, so the node type's default stands.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,11 +47,10 @@ public class BooleanParameterType implements ParameterType
     @Override
     public Object convert(final String raw, final NodeState root, final Consumer<String> report)
     {
-        final String value = raw.toLowerCase(Locale.ROOT);
-        if (TRUE_VALUES.contains(value)) {
+        if (TRUE_VALUES.contains(raw)) {
             return Boolean.TRUE;
         }
-        if (FALSE_VALUES.contains(value)) {
+        if (FALSE_VALUES.contains(raw)) {
             return Boolean.FALSE;
         }
         report.accept("a parameter has a value that is not a boolean");
