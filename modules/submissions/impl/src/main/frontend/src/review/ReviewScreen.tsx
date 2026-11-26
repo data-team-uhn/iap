@@ -87,7 +87,7 @@ import { approvalLetter, draftLetter, letterText } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { answersIn, changedAnswers, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout,
   parseGroups, parseReview, parseTopics, raiseAsIssue, resubmittedAt, sentBackCopy, shortDate, withAnswerChanges,
-  withDone,
+  withDone, withSent,
   type NoteKind, type ReviewData, type ReviewedDocument, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import RowSplit from "./RowSplit";
@@ -366,8 +366,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const sentBackAt = sentBack?.at;
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
   const data: ReviewData | undefined = useMemo(() => loaded && me
-    ? withAnswerChanges({ ...withDone(withSources(parseReview(loaded.submission, schema, me, topics),
-      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))),
+    ? withAnswerChanges({ ...withDone(withSent(withSources(parseReview(loaded.submission, schema, me, topics),
+      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items))))),
     before: copy && answersIn(copy, schema), changesShown: showChanges }, sentBackAt)
     : undefined, [ loaded, schema, me, topics, copy, sentBackAt, showChanges ]);
   // PRETOTYPE: the questions whose answers changed since the submission was last sent back

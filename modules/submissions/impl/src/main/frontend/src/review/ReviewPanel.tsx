@@ -48,7 +48,7 @@ import AiGrid from "./AiGrid";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import LetterPage from "./LetterPage";
-import NoteCard, { Thread } from "./NoteCard";
+import NoteCard, { SentLock, Thread } from "./NoteCard";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PanelBody } from "./sidePanel";
@@ -808,7 +808,7 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
   const replies = issue.replies.length;
   return (
     <Box id={`review-issue-${issue.id}`} sx={{ py: 1, px: 1, mx: -1, borderRadius: 1, scrollMarginTop: 16 }}>
-      <RowHead note={issue} about={about} tools={(
+      <RowHead note={issue} about={about} tools={issue.sent ? <SentLock sent={issue.sent} /> : (
         <Box sx={{ display: "flex", mr: -0.75 }}>
           <Tooltip disableInteractive title="Change">
             <IconButton size="small" aria-label="Change" onClick={() => setEditing(true)}>

@@ -20,6 +20,7 @@ import { useContext, useState, type ReactNode } from "react";
 
 import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
+import LockOutlined from "@mui/icons-material/LockOutlined";
 import { Box, Button, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
 import TagChip from "@iap/tags/TagChip";
@@ -142,7 +143,19 @@ function Chips({ note }: { note: ReviewNote }) {
   );
 }
 
-// The buttons changing or removing one of the reader's own notes, at the end of the line heading it
+// PRETOTYPE. Where changing or removing an issue would be, once it went to the study team: it stays as they read it
+export function SentLock({ sent }: { sent: string }) {
+  const on = new Date(sent).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return (
+    <Tooltip disableInteractive title={`Sent to the study team on ${on}, so it stays as they read it. Reply to it instead.`}>
+      <LockOutlined fontSize="small" aria-label={`Sent to the study team on ${on}`}
+        sx={{ color: "text.disabled", mx: 0.75, my: 0.5 }} />
+    </Tooltip>
+  );
+}
+
+// The buttons changing or removing one of the reader's own notes, at the end of the line heading it; an issue sent
+// to the study team says it stays as sent instead
 export function NoteActions({ note, onEdit, onRemove }: {
   note: ReviewNote;
   onEdit?: () => void;
@@ -150,6 +163,9 @@ export function NoteActions({ note, onEdit, onRemove }: {
 }) {
   if (!note.mine || (!onEdit && !onRemove)) {
     return null;
+  }
+  if (note.sent) {
+    return <Box sx={{ ml: "auto", display: "flex" }}><SentLock sent={note.sent} /></Box>;
   }
   return (
     <Box sx={{ ml: "auto", display: "flex", mr: -0.75 }}>

@@ -34,7 +34,7 @@ import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolba
 import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
-import { Thread } from "./NoteCard";
+import { SentLock, Thread } from "./NoteCard";
 import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
@@ -204,12 +204,16 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
                   </IconButton>
                 </Tooltip>
               )}
-              <Tooltip title="Change">
-                <IconButton size="small" aria-label="Change the issue" onClick={() => startEditingText(row.id)}>
-                  <EditOutlined fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              {onRemove && <RemoveButton what="issue" text={row.text} onRemove={() => onRemove(row.issue)} />}
+              {row.issue.sent ? <SentLock sent={row.issue.sent} /> : (
+                <>
+                  <Tooltip title="Change">
+                    <IconButton size="small" aria-label="Change the issue" onClick={() => startEditingText(row.id)}>
+                      <EditOutlined fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  {onRemove && <RemoveButton what="issue" text={row.text} onRemove={() => onRemove(row.issue)} />}
+                </>
+              )}
             </Stack>
           )}
           {row.ai && onMakeIssue && (
@@ -292,7 +296,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
         getRowHeight={() => "auto"}
         // The AI's concerns are greyed, and are not changed in place: they become issues first
         // The new issue's row has its own editors, which the grid's must not take over
-        isCellEditable={({ row }: { row: IssueRow }) => !row.ai && row.id !== DRAFT}
+        isCellEditable={({ row }: { row: IssueRow }) => !row.ai && row.id !== DRAFT && !row.issue.sent}
         getDetailPanelContent={thread} getDetailPanelHeight={() => "auto"}
         detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
         // The replies count unfolds a thread, so the grid's own toggle column is left out

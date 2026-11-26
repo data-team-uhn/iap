@@ -112,6 +112,8 @@ export interface ReviewNote {
   distance?: number;
   // PRETOTYPE: written before the submission was last sent back, about an answer that changed since
   answerChanged?: boolean;
+  // PRETOTYPE: one of the reader's issues that went to the study team with a letter, when it went; it stays as sent
+  sent?: string;
 }
 
 export interface ReviewedAnswer {
@@ -449,6 +451,14 @@ export async function raiseAsIssue(write: (fields: Record<string, string | strin
 // comment they made into an issue, which then addresses it, as does a contradiction or a discussion entry anyone made
 // into one, and anything marked resolved. The AI comments they settled come back among the notes, done, to be shown
 // when asked.
+// PRETOTYPE. The reader's issues as of their last letter asking for changes, which went with it, marked so they stay
+// as the study team read them
+export function withSent(data: ReviewData): ReviewData {
+  const sentAt = data.letters.filter(letter => letter.outcome === "changes-requested").at(-1)?.at;
+  return !sentAt ? data : { ...data, notes: data.notes.map(note => note.kind === "issue" && note.mine
+    && Date.parse(note.created) <= Date.parse(sentAt) ? { ...note, sent: sentAt } : note) };
+}
+
 export function withDone(data: ReviewData): ReviewData {
   const done = (note: ReviewNote): ReviewNote["done"] => {
     if (note.kind === "aiIssue") {
