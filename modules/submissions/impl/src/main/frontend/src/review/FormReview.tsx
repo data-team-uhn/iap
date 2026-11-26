@@ -21,6 +21,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
+import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 import { createPortal } from "react-dom";
@@ -36,6 +37,9 @@ import {
 } from "@iap/documents-pdf-viewer/passageStyles";
 import StepControls from "@iap/documents-pdf-viewer/StepControls";
 import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
+import { compareText } from "@iap/frontend-commons/diff/contentDiffModel";
+import TextDiff from "@iap/frontend-commons/diff/TextDiff";
+import ValueChange from "@iap/frontend-commons/diff/ValueChange";
 import { keepInView } from "@iap/frontend-commons/scrollWithin";
 import { useElementWidth } from "@iap/frontend-commons/useElementWidth";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
@@ -170,6 +174,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   // The reviewer's own note being changed, whose card then shows its editor
   const [ editing, setEditing ] = useState<string>();
   const answer = data.answers.get(question.path);
+  // PRETOTYPE: what it was when the submission was last sent back, a question then unanswered having no values
+  const was = data.before ? data.before.get(question.path) ?? [] : undefined;
   const about = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
   const source = about.find(note => note.kind === "evidence");
   const contradiction = about.find(note => note.kind === "contradiction");
@@ -217,9 +223,11 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               outline: outline ? "2px solid" : "none", outlineColor: outline ? getSelectedOutline(theme, outline) : undefined,
             } : {} })}
           >
-            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-              <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
-            </Typography>
+            {was !== undefined && changedFrom(question, was) ? <AnswerChange question={question} was={was} /> : (
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
+              </Typography>
+            )}
             {/* An answer the protocol contradicts says so, always; one linked to a passage leads there, when linked answers
                 are shown */}
             {contradiction ? (
@@ -302,6 +310,32 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
         </Stack>
       )}
     </Box>
+  );
+}
+
+// PRETOTYPE. Whether an answer is not what it was, the order of several values aside
+function changedFrom(question: FormQuestion, was: string[]): boolean {
+  const normal = (values: string[]) => [ ...values ].map(value => value.trim()).sort().join("\n");
+  return normal(was) !== normal(question.value);
+}
+
+// PRETOTYPE. An answer changed since the submission was last sent back, said as such, with what it was: a choice, a
+// date, a number or an answer not given before as the two values, the old struck out; words as the words that changed
+function AnswerChange({ question, was }: { question: FormQuestion; was: string[] }) {
+  const before = answerText(question, was);
+  const after = answerText(question, question.value);
+  return (
+    <Stack sx={{ gap: 0.25 }}>
+      <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.secondary" }}>
+        <DifferenceOutlined sx={{ fontSize: "1rem" }} />
+        Changed since it was sent back
+      </Typography>
+      <Typography variant="body2" component="div">
+        {comparable(question) || was.length === 0 || question.value.length === 0
+          ? <ValueChange before={before} after={after} />
+          : <TextDiff lines={compareText(before, after)} />}
+      </Typography>
+    </Stack>
   );
 }
 

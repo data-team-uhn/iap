@@ -82,7 +82,7 @@ import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
-import { comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview,
+import { answersIn, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout, parseGroups, parseReview,
   parseTopics, raiseAsIssue, sentBackCopy, withDone,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
@@ -334,15 +334,17 @@ export default function ReviewScreen({ path }: { path: string }) {
     ? String((loaded.submission.schemaVersion as Node)["@path"]) : "";
   const topics = useMemo(() => loaded ? parseTopics(loaded.approvals, schema) : new Map<string, Topic>(),
     [ loaded, schema ]);
+  // PRETOTYPE: the copy kept when the reader's group sent the submission back, which documents and answers are
+  // compared with
+  const copy = loaded ? loaded.copies.get(sentBackCopy(loaded.submission, myGroups) ?? "") : undefined;
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
   const data: ReviewData | undefined = useMemo(() => loaded && me
-    ? withDone(withSources(parseReview(loaded.submission, schema, me, topics),
-      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items))))
-    : undefined, [ loaded, schema, me, topics ]);
+    ? { ...withDone(withSources(parseReview(loaded.submission, schema, me, topics),
+      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))),
+    before: copy && answersIn(copy, schema) }
+    : undefined, [ loaded, schema, me, topics, copy ]);
   // What the pages and their notes show: what is done with only when the reviewer asks
   const peeking = peek !== undefined && (mark.id === peek || belowMark.id === peek) ? peek : undefined;
-  // PRETOTYPE: the copy kept when the reader's group sent the submission back, which documents are compared with
-  const copy = loaded ? loaded.copies.get(sentBackCopy(loaded.submission, myGroups) ?? "") : undefined;
   const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
     : { ...data, notes: data.notes.filter(note => !note.done || note.id === peeking) }), [ data, showDone, peeking ]);
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is

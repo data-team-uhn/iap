@@ -154,6 +154,8 @@ export interface ReviewData {
   assessments: Map<string, string>;
   // The risks the reviewer has marked as considered, by path
   considered: Set<string>;
+  // PRETOTYPE: each answer as it was when the submission was last sent back, by question path, when it was
+  before?: Map<string, string[]>;
   // The reviewer's latest decision, and the letters that came with their decisions, latest last
   decided?: Decided;
   letters: Letter[];
@@ -176,6 +178,12 @@ const isNode = (value: unknown): value is Node => typeof value === "object" && v
 const text = (value: unknown): string => typeof value === "string" ? value : "";
 const uuidOf = (value: unknown): string => isNode(value) ? text(value["jcr:uuid"]) : text(value);
 const pathOf = (value: unknown): string => isNode(value) ? text(value["@path"]) : text(value);
+
+// An answer's values as text, a boolean or a number written as JSON
+function answerValues(node: Node): string[] {
+  return (Array.isArray(node.value) ? node.value : [ node.value ])
+    .filter(value => value !== undefined && value !== null).map(value => text(value) || JSON.stringify(value));
+}
 
 function childrenOf(node: Node, type: string): Node[] {
   return Object.values(node).filter((child): child is Node => isNode(child) && child["jcr:primaryType"] === type)
@@ -262,8 +270,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
     const type = node["sling:resourceType"];
     if (type === "sub/Answer") {
       const question = relative(pathOf(node.question), schema);
-      const values = (Array.isArray(node.value) ? node.value : [ node.value ])
-        .filter(value => value !== undefined && value !== null).map(value => text(value) || JSON.stringify(value));
+      const values = answerValues(node);
       const uuid = text(node["jcr:uuid"]);
       answers.set(question, { path: text(node["@path"]), uuid, values });
       partOf.set(uuid, question);
@@ -468,12 +475,19 @@ export function withDone(data: ReviewData): ReviewData {
 }
 
 // PRETOTYPE. The copy of the submission kept when one of the reader's groups last sent it back for changes, by the
-// path of its version: the latest decided of their groups' reviews that names one.
+// path of its version: the latest decided of their groups' reviews that names one; failing that, the latest kept
+// for any group, what changed since the submission was last sent back being worth reading all the same.
 export function sentBackCopy(submission: Node, myGroups: string[]): string | undefined {
-  const reviews = childrenOf(submission, "sub:Review")
-    .filter(review => myGroups.includes(text(review.group)) && text(review.sentBackCopy));
-  const latest = reviews.sort((a, b) => Date.parse(text(b.decidedAt)) - Date.parse(text(a.decidedAt))).at(0);
+  const reviews = childrenOf(submission, "sub:Review").filter(review => text(review.sentBackCopy))
+    .sort((a, b) => Date.parse(text(b.decidedAt)) - Date.parse(text(a.decidedAt)));
+  const latest = reviews.find(review => myGroups.includes(text(review.group))) ?? reviews.at(0);
   return latest ? text(latest.sentBackCopy) : undefined;
+}
+
+// PRETOTYPE. Each answer in a copy of the submission, by its question's path relative to the schema version
+export function answersIn(copy: Node, schema: string): Map<string, string[]> {
+  return new Map(childrenOf(copy, "sub:Answer").map(answer => [ relative(pathOf(answer.question), schema),
+    answerValues(answer) ]));
 }
 
 // PRETOTYPE. What a document is compared with on the review screen: the version it had in the copy kept when the
