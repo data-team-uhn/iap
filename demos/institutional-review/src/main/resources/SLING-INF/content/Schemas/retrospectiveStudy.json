@@ -2717,6 +2717,7 @@
     },
     "priorConsentForm": {
       "jcr:primaryType": "sch:DocumentRequirement",
+      "letterSection": "Consent Form - Main",
       "label": "Original consent form",
       "description": "The consent form this study relies on.",
       "required": true,
@@ -2746,8 +2747,10 @@
       "label": "Research ethics",
       "description": "The Research Ethics Board reviews every study.",
       "approverGroup": "reb-reviewers",
+      "letterTemplate": "uhnReb",
       "classification": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Study Design",
         "text": "Study misclassification",
         "description": "Work that is research going ahead as quality improvement, or a \"retrospective\" study that in fact contacts people or collects new data, which changes the consent obligation entirely.\n\nLook at: the stated purpose against the protocol's methods; any contact or new collection.\n\nPolicy: TCPS 2 Art. 2.5 (p. 21); Ch. 5 §D (p. 87); Art. 5.6 (p. 90).\n\nConsult QIRC when the answer is quality improvement, and Data Services to confirm the source systems.",
         "jcr:reference:sources": [
@@ -2763,6 +2766,7 @@
       },
       "design": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Study Design",
         "text": "Study design",
         "description": "Some designs are not a straightforward chart review, such as mixed methods with a chart review component, and need more than this form asks.",
         "jcr:reference:sources": [
@@ -2773,6 +2777,7 @@
       },
       "identifiability": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Privacy and Confidentiality",
         "text": "Identifiability",
         "description": "Whether the data is identifiable decides whether consent is required at all. Coded data treated as non-identifiable while the team can reach the key lets a study proceed without consent and without the waiver conditions ever being tested. Small cohorts, rare diagnoses and narrow geography make re-identification easier.\n\nPolicy: TCPS 2 Ch. 5 §A (pp. 79-80) and Glossary (pp. 271-272); Art. 5.5A, 5.5B; PHIPA; UHN Privacy and Access Policy 1.40.007.\n\nConsult Data Services, who build the extract and can state key custody and the field list, and the Privacy Office when data arrives directly identifying.",
         "jcr:reference:sources": [
@@ -2787,6 +2792,7 @@
       },
       "waiver": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Recruitment and Consenting Process",
         "text": "Waiver of consent",
         "description": "Every condition of a waiver is mandatory: a study approved on partial satisfaction is not approved. Use without a lawful basis exposes the institution and costs public trust.\n\nLook at: whether each condition is argued, not just asserted; inconvenience alone is not a reason. Art. 3.7A does not apply to secondary use.\n\nPolicy: TCPS 2 Art. 5.5A (p. 88), six conditions; Art. 5.5B (p. 90); PHIPA s. 44.\n\nOnly the REB can grant a waiver.",
         "jcr:reference:sources": [
@@ -2801,6 +2807,7 @@
       },
       "authority": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Recruitment and Consenting Process",
         "text": "Authority for the disclosure",
         "description": "Data released without the custodian's authorization, or used beyond the conditions the custodian attached. The REB cannot approve what the custodian has forbidden.\n\nPolicy: TCPS 2 Art. 5.5A(f) (pp. 88-89); PHIPA; UHN Privacy and Access Policy 1.40.007; data sharing agreement requirements.\n\nConsult Data Services and the Privacy Office, and Legal when an external agreement is involved.",
         "jcr:reference:sources": [
@@ -2812,6 +2819,7 @@
       },
       "linkage": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Privacy and Confidentiality",
         "text": "Re-identification through linkage",
         "description": "Linking datasets can make identifiable what was not identifiable in either. Linkage needs approval before it is done: approval after the merge is not a remedy.\n\nLook at: whether the safeguards are proportionate to how likely re-identification is, and how bad it would be, across collection, use, linkage, analysis, storage, sharing and dissemination.\n\nPolicy: TCPS 2 Art. 5.7 (pp. 91-92); Art. 2.4 (p. 19); Art. 5.3; PHIPA.\n\nConsult Data Services, who perform the linkage, and the Privacy Office for an external dataset.",
         "jcr:reference:sources": [
@@ -2823,6 +2831,7 @@
       },
       "indigenous": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Privacy and Confidentiality",
         "text": "First Nations, Inuit and Métis data governance",
         "description": "Secondary use of data identifiable as coming from an Indigenous community needs engagement before it begins. This is about community authority over data, not individual vulnerability. Geography alone can trigger it.\n\nPolicy: TCPS 2 Ch. 9, Art. 9.20-9.22 (pp. 179-180); OCAP principles; UHN Indigenous Health Policy.\n\nConsult the Indigenous health and community partnership function.",
         "jcr:reference:sources": [
@@ -2834,6 +2843,7 @@
       },
       "sensitive": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Privacy and Confidentiality",
         "text": "Sensitive information and vulnerable populations",
         "description": "Stigma, discrimination, and consequences for employment, insurance, immigration or legal status, which the applicant is often not the right person to recognize.\n\nPolicy: TCPS 2 Art. 5.5A (p. 89); Ch. 4 (p. 67); PHIPA; UHN Privacy and Access Policy 1.40.007.",
         "jcr:reference:sources": [
@@ -2845,6 +2855,7 @@
       },
       "transfer": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Privacy and Confidentiality",
         "text": "Data leaving institutional control",
         "description": "Health information going to a partner, a service provider, an automated or AI processing tool, or outside Canada, without that transfer being assessed. Applicants often don't see transcription, statistical consultants or document processing as a transfer at all. Destination and safeguard are what this turns on.\n\nPolicy: TCPS 2 Art. 5.3 (pp. 85-86), 5.4 (p. 87); PHIPA; UHN Information Security Policy 1.40.028; UHN Cloud Security Standard; PIA and TRA requirements.\n\nConsult Digital (demand intake), the AI Hub for automated processing, the Privacy Office for a PIA and Security for a TRA.",
         "jcr:reference:sources": [
@@ -2859,6 +2870,7 @@
       },
       "safeguards": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Privacy and Confidentiality",
         "text": "Safeguards over the data's life",
         "description": "A breach, unauthorized access, or no way to show proper handling on audit. Data kept without limit, or destroyed without a record.\n\nPolicy: TCPS 2 Art. 5.1-5.4; PHIPA; UHN Records Policy 1.30.007; UHN Information Security Policy 1.40.028.\n\nConsult the Privacy Office for a PIA, Security for a TRA, and Records Management for any deviation from 1.30.007.",
         "jcr:reference:sources": [
@@ -2874,6 +2886,7 @@
       },
       "rigour": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Study Design",
         "text": "Scientific rigour",
         "description": "Research waste and harm at the population level when the question, cohort or variables don't fit.\n\nLook at: whether the inclusion and exclusion criteria suit the question; whether identifiable information is essential.\n\nPolicy: TCPS 2 Art. 4.1 (p. 67); Art. 2.7 (p. 21); Art. 5.5A(a) (p. 88).",
         "jcr:reference:sources": [
@@ -2888,6 +2901,7 @@
       },
       "equity": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Study Design",
         "text": "Inclusion, exclusion and equity",
         "description": "Groups included or left out for reasons unrelated to the question, by language, age, race or ethnicity, sex or gender, which can perpetuate harm and bias the results.\n\nLook at: whether the criteria could reproduce disparities in who takes part in research, and what that means for validity.\n\nPolicy: TCPS 2 Art. 4.1, 4.7.\n\nConsult Research IDEA and IHP.",
         "jcr:reference:sources": [
@@ -2898,6 +2912,7 @@
       },
       "reporting": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Privacy and Confidentiality",
         "text": "Identification through results",
         "description": "People or small groups identifiable in published results, even from an aggregate analysis.\n\nPolicy: TCPS 2 Art. 5.3 (p. 86); Art. 5.2 (p. 84).",
         "jcr:reference:sources": [
@@ -2907,6 +2922,7 @@
       },
       "incidental": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Recruitment and Consenting Process",
         "text": "Incidental findings",
         "description": "A clinically actionable finding with no consent relationship to disclose it through, or a worrying pattern with no plan for what happens next.\n\nPolicy: TCPS 2 Art. 3.4 (p. 41); Art. 5.6 (p. 90).\n\nClinical services need to be involved where actionable findings are foreseeable.",
         "jcr:reference:sources": [
@@ -2916,6 +2932,7 @@
       },
       "terminology": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Other Issues",
         "text": "Terminology",
         "description": "Terms used loosely can describe the methods inaccurately and mislead the review.\n\nPolicy: TCPS 2 Art. 6.11; Art. 2.7.",
         "jcr:reference:sources": [
@@ -2926,6 +2943,7 @@
       },
       "conflict": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Other Issues",
         "text": "Conflict of interest",
         "description": "Undue influence, compromised privacy or confidentiality, or bias in decisions that affect participants or the study's integrity.\n\nLook at: whether the conflict is real, potential or perceived, and whether it could affect welfare or integrity.\n\nPolicy: TCPS 2 Art. 7.4; Art. 3.2(e).",
         "jcr:reference:sources": [
@@ -2937,6 +2955,7 @@
       },
       "dateRange": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Study Design",
         "text": "Extending the collection period",
         "description": "A date range reaching into the recent past may use data beyond what the waiver was granted for: some of those people could still be asked.\n\nLook at: whether the end date is far enough in the past; whether patients are still being seen.\n\nPolicy: TCPS 2 Ch. 1, Ch. 3.",
         "jcr:reference:sources": [
@@ -2947,6 +2966,7 @@
       },
       "ai": {
         "jcr:primaryType": "sch:Topic",
+        "letterSection": "Other Issues",
         "text": "AI and the risks above",
         "description": "Studies building AI tools, and studies using AI to carry out research, sharpen every risk above. TCPS 2 has not caught up, and guidance for REBs is thin.\n\nConsult the AI Hub and Digital.",
         "jcr:reference:sources": [

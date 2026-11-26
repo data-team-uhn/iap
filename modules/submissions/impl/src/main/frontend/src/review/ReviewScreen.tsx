@@ -79,11 +79,11 @@ import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
-import LetterDialog, { SentLetter } from "./LetterDialog";
+import { SentLetter } from "./LetterDialog";
 import NoteKindIcon from "./noteIcons";
 import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
-import { approvalLetter, draftLetter } from "./rebLetter";
+import { approvalLetter, draftLetter, letterText } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { answersIn, changedAnswers, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout,
   parseGroups, parseReview, parseTopics, raiseAsIssue, resubmittedAt, sentBackCopy, shortDate, withAnswerChanges,
@@ -211,6 +211,8 @@ interface Loaded {
   everyone: Set<string>;
   // PRETOTYPE: the copies kept as reviewer groups sent it back, by the path of their version
   copies: Map<string, Node>;
+  // PRETOTYPE: the section of a letter template issues on a document go in, by the document's requirement
+  letterSections: Map<string, string>;
 }
 
 
@@ -239,7 +241,10 @@ async function readAll(doFetch: ReturnType<typeof useAuthenticatedFetch>, path: 
   const copies = new Map((await Promise.all(kept.map(copy => read(`${copy}/jcr:frozenNode.deep.json`)
     .then(node => [ copy, node ] as const, () => undefined))))
     .filter((one): one is readonly [ string, Node ] => one !== undefined));
-  return { submission, form: form as unknown as SubmissionForm, approvals, everyone, copies };
+  const letterSections = new Map(Object.entries(version)
+    .filter(([ , part ]) => typeof part === "object" && part !== null && text((part as Node).letterSection))
+    .map(([ name, part ]) => [ name, text((part as Node).letterSection) ]));
+  return { submission, form: form as unknown as SubmissionForm, approvals, everyone, copies, letterSections };
 }
 
 
@@ -309,10 +314,18 @@ export default function ReviewScreen({ path }: { path: string }) {
     observer.observe(readEntry);
     return () => observer.disconnect();
   }, [ readEntry ]);
-  const [ dialog, setDialog ] = useState<"letter" | "board" | "approve" | "sentLetter">();
+  const [ dialog, setDialog ] = useState<"board" | "approve" | "sentLetter">();
   const [ sideTab, setSideTab ] = useStoredSetting<SideTab>("iap.review.sideTab", "notes", isSideTab);
-  // Whether the review is shown over the whole workspace, its contents and page, rather than beside the page
+  // Whether the review is shown over the whole workspace, its contents and page, rather than beside the page; and
+  // whether the reviewer is on the letter asking for changes there, leaving it as they leave the whole workspace
   const [ reviewFull, setReviewFull ] = useState(false);
+  const [ writingLetter, setWritingLetter ] = useState(false);
+  const spreadReview = (spread: boolean) => {
+    setReviewFull(spread);
+    if (!spread) {
+      setWritingLetter(false);
+    }
+  };
   const full = reviewFull && sideTab === "review";
   const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
   // Whether the reviewer sees only what concerns them, as they start, or the whole submission
@@ -850,7 +863,17 @@ export default function ReviewScreen({ path }: { path: string }) {
   const letterInput = { title: text(submission.title), identifier: text(submission.identifier),
     pi: text(submission.pi), about, issues: openIssues,
     risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
-    reviewer: myName, group: myGroupLabel.toLowerCase() };
+    reviewer: myName, group: myGroupLabel.toLowerCase(),
+    template: text(loaded.approvals.find(one => myGroups.includes(text(one.approverGroup)))?.letterTemplate)
+      || undefined,
+    sectionOf: (issue: ReviewNote) => [ ...loaded.letterSections ]
+      .find(([ name ]) => {
+        const document = data.documents.get(name);
+        return document && [ document.uuid, ...document.versions.map(one => one.uuid) ]
+          .some(uuid => issue.subjects.includes(uuid));
+      })?.[1] ?? (issue.topicPath ? topics.get(issue.topicPath)?.letterSection : undefined) };
+  // The letter asking for changes, as the reviewer's open issues say it now
+  const letter = draftLetter(letterInput);
   // What the reviewer last decided, said once it is with someone else, or when it comes back after changes
   const decidedOn = data.decided
     && new Date(data.decided.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -865,7 +888,11 @@ export default function ReviewScreen({ path }: { path: string }) {
     decided: !waiting || data.decided?.outcome === "changes-requested" ? decided : undefined,
     outcome: data.decided?.outcome,
     readLetter: lastLetter ? () => setDialog("sentLetter") : undefined,
-    send: () => setDialog("letter"),
+    send: () => {
+      setSideTab("review");
+      setReviewFull(true);
+      setWritingLetter(true);
+    },
     approve: () => setDialog("approve"),
     approveBlocked: !waiting ? "Your review is not waiting on a decision now"
       : blocking.length > 0
@@ -1031,7 +1058,11 @@ export default function ReviewScreen({ path }: { path: string }) {
           risks={risks} unfiled={unfiled} issueCount={myIssues.length} notes={generalNotes}
           others={othersRaised} about={about} waitingSince={waitingSince}
           doing={{ ...doing, decision: reviewActions }}
-          full={reviewFull} onFull={setReviewFull}
+          full={reviewFull} onFull={spreadReview}
+          letter={writingLetter ? { draft: letter, close: () => setWritingLetter(false), send: async () => {
+            await sendLetter(letterText(letter));
+            spreadReview(false);
+          } } : undefined}
         />
       </ReviewerTopics.Provider>
     </GroupLabels.Provider>
@@ -1334,13 +1365,6 @@ export default function ReviewScreen({ path }: { path: string }) {
                       {sideTab === "review" && reviewPanel}
                     </Box>
                   </Box>
-                )}
-                {dialog === "letter" && (
-                  <LetterDialog
-                    open submission={text(submission["@path"])} issueCount={openIssues.length}
-                    draft={draftLetter(letterInput)}
-                    onSend={sendLetter} onClose={() => setDialog(undefined)}
-                  />
                 )}
                 {dialog === "sentLetter" && lastLetter && (
                   <SentLetter letter={lastLetter} onClose={() => setDialog(undefined)} />

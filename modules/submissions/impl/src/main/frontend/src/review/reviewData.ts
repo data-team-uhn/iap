@@ -230,6 +230,8 @@ export interface Topic {
   path: string;
   label: string;
   description?: string;
+  // PRETOTYPE: the section of the approval's letter template that issues under it go in
+  letterSection?: string;
   approval: string;
   sources: string[];
 }
@@ -367,6 +369,7 @@ export function parseTopics(approvals: Node[], schema: string): Map<string, Topi
       }
       const path = text(topic["@path"]) || `${text(approval["@path"])}/${name}`;
       topics.set(path, { path, label: text(topic.text), description: text(topic.description) || undefined,
+        letterSection: text(topic.letterSection) || undefined,
         approval: text(approval["@name"]),
         sources: (Array.isArray(topic.sources) ? topic.sources : []).map(source => relative(pathOf(source), schema)) });
     }

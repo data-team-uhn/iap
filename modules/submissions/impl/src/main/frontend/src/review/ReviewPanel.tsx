@@ -34,10 +34,12 @@ import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Box, Button, ButtonBase, FormControlLabel, IconButton, LinearProgress, Link, Stack, Switch, Tooltip, Typography,
+  Box, Button, ButtonBase, DialogContentText, FormControlLabel, IconButton, LinearProgress, Link, Stack, Switch,
+  Tooltip, Typography,
 } from "@mui/material";
 
 import { getCutShortStyle, getPassageCardStyle } from "@iap/documents-pdf-viewer/passageStyles";
+import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 import TagChip from "@iap/tags/TagChip";
@@ -45,10 +47,13 @@ import TagChip from "@iap/tags/TagChip";
 import AiGrid from "./AiGrid";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
+import LetterPage from "./LetterPage";
 import NoteCard, { Thread } from "./NoteCard";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PanelBody } from "./sidePanel";
+
+import type { DraftedLetter } from "./rebLetter";
 
 // An answer the protocol contradicts, by the extracted answer read from it
 export interface Mismatch {
@@ -154,8 +159,10 @@ export default function ReviewPanel(props: ReviewProps & {
   // Whether it is shown over the whole workspace, rather than beside the page
   full: boolean;
   onFull: (full: boolean) => void;
+  // The letter asking for changes, while the reviewer is on it, shown beside their issues over the whole workspace
+  letter?: LetterWriting;
 }) {
-  const { risks, doing, full, onFull } = props;
+  const { risks, doing, full, onFull, letter } = props;
   // The risk opened or, laid out wide, the page chosen, kept from one layout to the other
   const [ chosen, setChosen ] = useState<string>();
   const [ root, setRoot ] = useState<HTMLDivElement | null>(null);
@@ -172,9 +179,13 @@ export default function ReviewPanel(props: ReviewProps & {
       <Stack direction="row" sx={{ alignItems: "center", gap: 2, pl: 1.5, pr: 0.5, py: 1,
         ...wide ? { borderBottom: 1, borderColor: "divider" } : {} }}>
         {/* Over the workspace, where the tabs naming it are hidden */}
-        {full && !compact && <Typography variant="panelTitle">Review</Typography>}
-        <Box sx={{ flex: 1, maxWidth: wide ? 560 : undefined }}><Progress risks={risks} more={wide} /></Box>
-        {wide && <Box sx={{ flex: 1 }} />}
+        {full && !compact && <Typography variant="panelTitle">{letter ? "Letter to the study team" : "Review"}</Typography>}
+        {letter ? <Box sx={{ flex: 1 }} /> : (
+          <>
+            <Box sx={{ flex: 1, maxWidth: wide ? 560 : undefined }}><Progress risks={risks} more={wide} /></Box>
+            {wide && <Box sx={{ flex: 1 }} />}
+          </>
+        )}
         <Tooltip disableInteractive title={full ? "Back beside the page" : "Open over the whole workspace"}
           placement="left">
           <IconButton size="small" aria-label={full ? "Show the review beside the page" : "Show the review over the whole workspace"}
@@ -183,29 +194,120 @@ export default function ReviewPanel(props: ReviewProps & {
           </IconButton>
         </Tooltip>
       </Stack>
-      {wide ? <WideReview {...props} chosen={chosen} onChosen={setChosen} row={!compact} roomy={full}
-        onShow={show} /> : (
-        <PanelBody>
-          {risks.map(risk => (
-            <Box key={risk.topic.path} sx={{ borderTop: 1, borderColor: "divider" }}>
-              <RiskHeading
-                risk={risk} doing={doing} open={chosen === risk.topic.path}
-                onClick={() => setChosen(chosen === risk.topic.path ? undefined : risk.topic.path)}
-              />
-              {chosen === risk.topic.path && (
-                <Box sx={{ pl: 5, pr: 1.5, pb: 1.25 }}>
-                  <RiskDetail risk={risk} dense about={props.about} doing={doing} onShow={show} />
-                </Box>
-              )}
+      {letter && full ? <LetterView {...props} letter={letter} row={!compact} onShow={show} />
+        : wide ? <WideReview {...props} chosen={chosen} onChosen={setChosen} row={!compact} roomy={full}
+          onShow={show} /> : (
+          <PanelBody>
+            {risks.map(risk => (
+              <Box key={risk.topic.path} sx={{ borderTop: 1, borderColor: "divider" }}>
+                <RiskHeading
+                  risk={risk} doing={doing} open={chosen === risk.topic.path}
+                  onClick={() => setChosen(chosen === risk.topic.path ? undefined : risk.topic.path)}
+                />
+                {chosen === risk.topic.path && (
+                  <Box sx={{ pl: 5, pr: 1.5, pb: 1.25 }}>
+                    <RiskDetail risk={risk} dense about={props.about} doing={doing} onShow={show} />
+                  </Box>
+                )}
+              </Box>
+            ))}
+            <Unfiled {...props} dense onShow={show} />
+            <Others others={props.others} doing={doing} />
+            <SelfNotes notes={props.notes} doing={doing} />
+          </PanelBody>
+        )}
+      {!(letter && full) && <Decision waitingSince={props.waitingSince} decision={doing.decision} wide={wide} />}
+    </Box>
+  );
+}
+
+// The letter asking for changes, drawn from the reviewer's issues, and what can be done with it
+export interface LetterWriting {
+  draft: DraftedLetter;
+  send: () => Promise<void>;
+  close: () => void;
+}
+
+// The letter beside the issues it says, in its order, under its headings: an issue changed is the letter changed. A
+// point clicked in the letter selects its issue, and an issue clicked its point. Sending it, after making sure,
+// asks the study team for changes
+function LetterView(props: ReviewProps & {
+  letter: LetterWriting;
+  row: boolean;
+  onShow: (note: ReviewNote) => void;
+}) {
+  const { letter, doing, row } = props;
+  const [ selected, setSelected ] = useState<string>();
+  const [ confirming, setConfirming ] = useState(false);
+  const issues = new Map([ ...props.risks.flatMap(one => one.issues), ...props.unfiled ]
+    .map(issue => [ issue.id, issue ]));
+  const select = (id: string, show: string) => {
+    setSelected(id);
+    document.getElementById(show)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
+  const points = letter.draft.sections.flatMap(section => section.points).length;
+  return (
+    <>
+      <Stack direction={row ? "row" : "column"} sx={{ flex: 1, minHeight: 0 }}>
+        <Box sx={{ width: row ? "40%" : undefined, maxWidth: row ? 560 : undefined, flexShrink: 0, overflowY: "auto",
+          px: 2, py: 1.5 }}>
+          {points === 0 && (
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {"You haven't raised any issues for the study team, so the letter has no points."}
+            </Typography>
+          )}
+          {letter.draft.sections.map(section => (
+            <Box key={section.heading} sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" component="h3" sx={{ fontWeight: "fontWeightBold", mb: 0.5 }}>
+                {section.heading}
+              </Typography>
+              {section.points.map(point => {
+                const issue = issues.get(point.id);
+                return issue && (
+                  <Stack key={point.id} direction="row" onClick={() => select(point.id, `letter-point-${point.id}`)}
+                    sx={theme => ({ gap: 1, px: 1, mx: -1, mb: 0.5, borderRadius: 1, cursor: "pointer",
+                      bgcolor: point.id === selected ? theme.alpha(theme.palette.issue.main, 0.12) : "background.paper",
+                      outline: point.id === selected ? `2px solid ${theme.palette.issue.main}` : "none" })}>
+                    <Typography variant="body2" sx={{ pt: 1.25, fontWeight: "fontWeightBold", minWidth: 20 }}>
+                      {point.number}.
+                    </Typography>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <IssueRow issue={issue} dense={false} about={props.about} doing={doing} onShow={props.onShow} />
+                    </Box>
+                  </Stack>
+                );
+              })}
             </Box>
           ))}
-          <Unfiled {...props} dense onShow={show} />
-          <Others others={props.others} doing={doing} />
-          <SelfNotes notes={props.notes} doing={doing} />
-        </PanelBody>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", p: { xs: 1, sm: 3 } }}>
+          <LetterPage letter={letter.draft} selected={selected}
+            onSelect={id => select(id, `review-issue-${id}`)} />
+        </Box>
+      </Stack>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}
+        sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: { sm: "center" } }}>
+        <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
+          The letter says your issues as they are. Change an issue to change the letter.
+        </Typography>
+        <Button size="small" onClick={letter.close}>Back to the review</Button>
+        <Button variant="contained" size="small" startIcon={<ForwardToInboxOutlined />}
+          onClick={() => setConfirming(true)}>
+          Send and request changes
+        </Button>
+      </Stack>
+      {confirming && (
+        <ConfirmActionDialog
+          title="Send the letter to the study team?" confirmLabel="Send" workingLabel="Sending…"
+          onConfirm={letter.send} onClose={() => setConfirming(false)}
+        >
+          <DialogContentText>
+            {"It asks them for changes, and pauses the clock until they answer. Your issues in it can't be changed "
+              + "after, only replied to."}
+          </DialogContentText>
+        </ConfirmActionDialog>
       )}
-      <Decision waitingSince={props.waitingSince} decision={doing.decision} wide={wide} />
-    </Box>
+    </>
   );
 }
 
