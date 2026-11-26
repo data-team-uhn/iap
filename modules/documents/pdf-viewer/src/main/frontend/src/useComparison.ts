@@ -50,8 +50,10 @@ const NO_CHANGES: RevisionChange[] = [];
 // state of the comparison, the changes shown, and the marks that show them on each version. It also returns
 // the person's choices of view and of strictness, with their setters. Returns undefined when there is no
 // older version. While the view is off, the older version is not opened and nothing is compared.
-export function useComparison(olderUrl: string | undefined, newer: OpenedDocument | undefined) {
-  const [strict, setStrict] = useStrictComparison();
+export function useComparison(olderUrl: string | undefined, newer: OpenedDocument | undefined, strictGiven?: boolean) {
+  const [storedStrict, setStrict] = useStrictComparison();
+  // PRETOTYPE: whether minor changes are included, when the caller chooses it for a whole submission
+  const strict = strictGiven ?? storedStrict;
   const [view, setView] = useComparisonView();
   const older = usePdfDocument(view === "off" ? undefined : olderUrl);
   const state = useRevisionDiff(older.pdf, newer);

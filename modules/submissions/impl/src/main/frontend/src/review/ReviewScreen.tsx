@@ -72,6 +72,7 @@ import {
   isFormRequirement,
   isQuestion,
 } from "../submissionForm";
+import ChangesToggle from "./ChangesToggle";
 import { ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
@@ -84,8 +85,8 @@ import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { answersIn, changedAnswers, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout,
-  parseGroups, parseReview, parseTopics, raiseAsIssue, sentBackCopy, withAnswerChanges, withDone,
-  type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
+  parseGroups, parseReview, parseTopics, raiseAsIssue, sentBackCopy, shortDate, withAnswerChanges, withDone,
+  type NoteKind, type ReviewData, type ReviewedDocument, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import RowSplit from "./RowSplit";
 import { SearchContext } from "./SearchHighlight";
@@ -259,6 +260,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ shown, setShown ] = useState(storedKinds);
   // Whether notes dismissed, resolved or addressed by an issue are shown, faded, rather than left out
   const [ showDone, setShowDone ] = useStoredSetting("iap.review.showDone", false, isFlag);
+  // PRETOTYPE: whether what changed since the submission was last sent back is shown, and minor changes with it
+  const [ showChanges, setShowChanges ] = useStoredSetting("iap.review.showChanges", true, isFlag);
+  const [ minorChanges, setMinorChanges ] = useStoredSetting("iap.review.minorChanges", false, isFlag);
   // A note done with that a link led to, shown all the same while it is the one selected
   const [ peek, setPeek ] = useState<string>();
   // Going to a note by path, for the cards, set once what is shown is known
@@ -337,17 +341,21 @@ export default function ReviewScreen({ path }: { path: string }) {
     [ loaded, schema ]);
   // PRETOTYPE: the copy kept when the reader's group sent the submission back, which documents and answers are
   // compared with
-  const sentBack = loaded ? sentBackCopy(loaded.submission, myGroups) : undefined;
-  const copy = sentBack && loaded?.copies.get(sentBack.path);
+  const sentBack = useMemo(() => loaded ? sentBackCopy(loaded.submission, myGroups) : undefined, [ loaded, myGroups ]);
+  const kept = useMemo(() => sentBack && loaded?.copies.get(sentBack.path), [ sentBack, loaded ]);
+  // Only while changes are shown is anything compared with it, a document with the version before its latest when
+  // there is no copy
+  const copy = showChanges ? kept : undefined;
+  const comparing = (document: ReviewedDocument) => showChanges ? comparisonFor(document, kept) : undefined;
   const sentBackAt = sentBack?.at;
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
   const data: ReviewData | undefined = useMemo(() => loaded && me
     ? withAnswerChanges({ ...withDone(withSources(parseReview(loaded.submission, schema, me, topics),
       loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))),
-    before: copy && answersIn(copy, schema) }, sentBackAt)
-    : undefined, [ loaded, schema, me, topics, copy, sentBackAt ]);
+    before: copy && answersIn(copy, schema), minorChanges }, sentBackAt)
+    : undefined, [ loaded, schema, me, topics, copy, sentBackAt, minorChanges ]);
   // PRETOTYPE: the questions whose answers changed since the submission was last sent back
-  const changed = useMemo(() => data ? changedAnswers(data) : new Set<string>(), [ data ]);
+  const changed = data ? changedAnswers(data) : new Set<string>();
   // What the pages and their notes show: what is done with only when the reviewer asks
   const peeking = peek !== undefined && (mark.id === peek || belowMark.id === peek) ? peek : undefined;
   const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
@@ -406,8 +414,8 @@ export default function ReviewScreen({ path }: { path: string }) {
         said: `${many} ${many === 1 ? "answer" : "answers"} changed since it was sent back` } : undefined;
     }
     const document = data.documents.get(requirement.name);
-    const compared = document && comparisonFor(document, copy);
-    return compared ? { shown: "New", said: `${compared.current}, new since ${compared.label.toLowerCase()}` }
+    const compared = document && comparing(document);
+    return compared ? { shown: "New", said: `${compared.current}, newer than the one sent back` }
       : undefined;
   };
   // What each part has to read, counted in the contents: a note done with that a link shows meanwhile is not
@@ -674,6 +682,13 @@ export default function ReviewScreen({ path }: { path: string }) {
     />
   );
 
+  // PRETOTYPE: on a submission sent back and answered, whether what changed since is shown, for the whole of it
+  const changesToggle = sentBack && kept ? (
+    <ChangesToggle
+      since={shortDate(sentBack.at)} on={showChanges} onChange={setShowChanges}
+      minor={minorChanges} onMinorChange={setMinorChanges}
+    />
+  ) : undefined;
   // search beside them on wide screens
   const header = loaded?.submission;
   usePublishedPageContext(header && {
@@ -682,7 +697,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     details: text(header.pi),
     badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
     end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} variant="caption" />,
-    tools: search(true),
+    tools: <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>{changesToggle}{search(true)}</Stack>,
     workspace: true,
   });
 
@@ -920,7 +935,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             <DocumentReview
               key={requirement.name}
               document={document} data={viewData ?? data} shown={showing} selected={paneMark.id}
-              compareWith={comparisonFor(document, copy)}
+              compareWith={comparing(document)} minorChanges={minorChanges}
               onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
               actions={actions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
@@ -1145,6 +1160,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Box>
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" }, display: { md: "none" } }}>
         <Box>{search(false)}</Box>
+        {changesToggle}
         {waiting ? (
           <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" }, flexWrap: "wrap" }}>
             {reviewActions.board && (
@@ -1248,7 +1264,8 @@ export default function ReviewScreen({ path }: { path: string }) {
                         <DocumentReview
                           key={current.name}
                           document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
-                          compareWith={comparisonFor(shownDocument, copy)}
+                          compareWith={comparing(shownDocument)}
+                          minorChanges={minorChanges}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                           actions={actions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}

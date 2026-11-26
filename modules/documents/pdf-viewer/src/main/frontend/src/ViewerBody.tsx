@@ -28,7 +28,8 @@ import {
   type ReactNode,
 } from "react";
 
-import { Box, Typography } from "@mui/material";
+import VerticalSplitOutlined from "@mui/icons-material/VerticalSplitOutlined";
+import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 import { createPortal } from "react-dom";
 
@@ -38,12 +39,14 @@ import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 
 import CommentButton from "./CommentButton";
 import ComparisonControls from "./ComparisonControls";
+import { countChanges } from "./comparisonText";
 import MarkList, { LIST_WIDTH } from "./MarkList";
 import { getMarkText, isLooking } from "./marksModel";
 import PageControls from "./PageControls";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import {
+  CHANGES,
   describeAmong,
   getPassageNote,
   getPassageStatus,
@@ -256,6 +259,36 @@ export default function ViewerBody(props: ViewerBodyProps) {
     </PdfDocumentView>
   );
   const { older } = compared;
+  // PRETOTYPE: in a plain viewer, the versions side by side or the newer alone, from the toolbar, and side by side,
+  // the changes stepped through where the page controls were
+  const controls = plain ? compared.controls : undefined;
+  const plainView = controls && (
+    <Tooltip disableInteractive title={controls.narrow ? "Side by side needs more room"
+      : controls.shownView === "split" ? "Show the newer version alone" : "Show the versions side by side"}>
+      <span>
+        <IconButton
+          aria-label="Side by side" aria-pressed={controls.shownView === "split"} disabled={controls.narrow}
+          color={controls.shownView === "split" ? "primary" : "default"}
+          onClick={() => controls.onViewChange(controls.shownView === "split" ? "unified" : "split")}
+        >
+          <VerticalSplitOutlined />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+  const splitChanges = controls?.changes;
+  const plainSplitSteps = splitChanges && splitChanges.length > 0 ? (
+    <StepControls
+      position={controls.selectedIndex === undefined ? 0 : controls.selectedIndex + 1}
+      count={splitChanges.length}
+      itemName="change"
+      heading={controls.selectedIndex === undefined ? countChanges(splitChanges.length)
+        : describeAmong(CHANGES, { index: controls.selectedIndex + 1, count: splitChanges.length })}
+      widest={[ countChanges(splitChanges.length), describeAmong(CHANGES, { index: splitChanges.length,
+        count: splitChanges.length }) ]}
+      onStep={next => showSelected(splitChanges[next - 1].id)}
+    />
+  ) : undefined;
   // Drawn even when empty, since a screen reader announces only the changes to a live region already there.
   const spoken = (
     <>
@@ -273,7 +306,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
       {plain
         ? <Typography id={titleId} sx={visuallyHidden}>{title}</Typography>
         : <ViewerTitle titleId={titleId} title={title} placeButton={placeButton} onClose={onClose} />}
-      {/* PRETOTYPE: a plain viewer shows them in the document's column, under what heads it */}
+      {/* PRETOTYPE: a plain viewer has whether to compare chosen by its caller, and its view in the toolbar */}
       {compared.controls === undefined || plain
         ? null
         : <ComparisonControls {...compared.controls} onShowChange={showSelected} />}
@@ -283,14 +316,14 @@ export default function ViewerBody(props: ViewerBodyProps) {
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0,
           ...lead === undefined ? {} : { pl: 2, pt: 1.5 } }}>
           {lead}
-          {compared.controls !== undefined && plain
-            ? <ComparisonControls {...compared.controls} onShowChange={showSelected} />
-            : null}
           <ViewerToolbar
             ref={toolbarRef}
-            start={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
+            start={split ? plainSplitSteps : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
             tools={
-              <ZoomControls disabled={!opened} onZoomIn={zoomIn} onZoomOut={zoomOut} onFitWidth={fitWidth} />
+              <>
+                {plainView}
+                <ZoomControls disabled={!opened} onZoomIn={zoomIn} onZoomOut={zoomOut} onFitWidth={fitWidth} />
+              </>
             }
             opened={opened}
             search={search}

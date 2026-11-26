@@ -156,8 +156,10 @@ export interface ReviewData {
   assessments: Map<string, string>;
   // The risks the reviewer has marked as considered, by path
   considered: Set<string>;
-  // PRETOTYPE: each answer as it was when the submission was last sent back, by question path, when it was
+  // PRETOTYPE: each answer as it was when the submission was last sent back, by question path, when it was and its
+  // changes are shown; and whether a change of punctuation or letter case alone counts, as a minor one
   before?: Map<string, string[]>;
+  minorChanges?: boolean;
   // The reviewer's latest decision, and the letters that came with their decisions, latest last
   decided?: Decided;
   letters: Letter[];
@@ -486,10 +488,17 @@ export function sentBackCopy(submission: Node, myGroups: string[]): { path: stri
   return latest ? { path: text(latest.sentBackCopy), at: text(latest.decidedAt) } : undefined;
 }
 
-// PRETOTYPE. Whether an answer is not what it was, the order of several values aside
-export function isChanged(was: string[], now: string[]): boolean {
-  const normal = (values: string[]) => [ ...values ].map(value => value.trim()).sort().join("\n");
+// PRETOTYPE. Whether an answer is not what it was, the order of several values aside; with minor changes left out,
+// a change of punctuation or letter case alone does not count
+export function isChanged(was: string[], now: string[], minor = true): boolean {
+  const normal = (values: string[]) => [ ...values ].map(value => minor ? value.trim()
+    : value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()).sort().join("\n");
   return normal(was) !== normal(now);
+}
+
+// PRETOTYPE. Whether an answer changed only in punctuation or letter case
+export function isMinorChange(was: string[], now: string[]): boolean {
+  return isChanged(was, now) && !isChanged(was, now, false);
 }
 
 // PRETOTYPE. The questions whose answers changed since the copy, by path
@@ -499,7 +508,8 @@ export function changedAnswers(data: ReviewData): Set<string> {
     return new Set();
   }
   const paths = new Set([ ...before.keys(), ...data.answers.keys() ]);
-  return new Set([ ...paths ].filter(path => isChanged(before.get(path) ?? [], data.answers.get(path)?.values ?? [])));
+  return new Set([ ...paths ].filter(path => isChanged(before.get(path) ?? [], data.answers.get(path)?.values ?? [],
+    data.minorChanges)));
 }
 
 // PRETOTYPE. What was written before the submission was last sent back says when an answer it is about changed since;
@@ -530,9 +540,20 @@ export function comparisonFor(document: ReviewedDocument, copy: Node | undefined
   const then = inCopy ? text(childrenOf(inCopy, "sub:DocumentVersion").at(-1)?.["jcr:uuid"]) : undefined;
   const older = then !== undefined ? document.versions.find(one => one.uuid === then)
     : document.versions.at(-2);
-  if (!older || older.uuid === document.version) {
+  const latest = document.versions.at(-1);
+  if (!older || !latest || older.uuid === document.version) {
     return undefined;
   }
-  return { url: older.url, label: `Version ${older.number}${then !== undefined ? ", as sent back" : ""}`,
-    current: `Version ${document.versions.length}` };
+  return { url: older.url, label: `Version of ${shortDate(older.created)}`,
+    current: `Version of ${shortDate(latest.created)}` };
+}
+
+// PRETOTYPE. A day as versions and rounds are named: "Nov 22", with the year when it is not this one
+export function shortDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric",
+    ...date.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" } });
 }

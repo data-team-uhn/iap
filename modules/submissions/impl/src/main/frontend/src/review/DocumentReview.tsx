@@ -41,10 +41,11 @@ const DRAFT = "draft";
 const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith }: {
+  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith, minorChanges }: {
   document: ReviewedDocument;
-  // PRETOTYPE: an older version to show what changed since, and what each is called
+  // PRETOTYPE: an older version to show what changed since, and what each is called; whether minor changes count
   compareWith?: { url: string; label: string; current: string };
+  minorChanges?: boolean;
   data: ReviewData;
   shown: Set<NoteKind>;
   selected?: string;
@@ -211,6 +212,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         describeUnfound={describeUnfound}
         compareWith={compareWith && { url: toFileUrl(compareWith.url), label: compareWith.label }}
         label={compareWith?.current}
+        minorChanges={minorChanges}
         plain
         onClose={onClose}
       />
