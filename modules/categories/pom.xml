@@ -45,6 +45,7 @@
             <Sling-Initial-Content>
               SLING-INF/content/libs/cat/;path:=/libs/cat/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -138,6 +139,14 @@
         <dependency>
           <groupId>${project.groupId}</groupId>
           <artifactId>iap-tags-api</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+        <!-- SystemWorkflowDefinitions, which loads the shipped workflows and says which one takes an event -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-workflows</artifactId>
           <version>${project.version}</version>
           <type>test-jar</type>
           <scope>test</scope>

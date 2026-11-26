@@ -1,0 +1,60 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Edit a category",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "cat/Category",
+    "description": "Changes a category's label, description and schema version.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "update",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toUpdate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpdate",
+        "targetRef": "update"
+      }
+    },
+    "update": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "update",
+      "label": "Apply the changes",
+      "handler": "updateContent",
+      "fields": {
+        "jcr:primaryType": "nt:unstructured",
+        "label": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Label"
+        },
+        "description": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Description",
+          "multiline": true
+        },
+        "schemaVersion": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Schema version",
+          "referenceType": "sch/SchemaVersion",
+          "referenceRoot": "/Schemas"
+        }
+      },
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Category edited",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

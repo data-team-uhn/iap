@@ -1,0 +1,55 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Retire a category",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "cat/Category",
+    "description": "Closes a category, and everything under it, to new submissions.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "retire",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "excludes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "tags"
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["retired"]
+        }
+      },
+      "toMarkRetired": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkRetired",
+        "targetRef": "markRetired"
+      }
+    },
+    "markRetired": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markRetired",
+      "label": "Mark it retired",
+      "handler": "addTag",
+      "tag": "retired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Category retired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
