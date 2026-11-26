@@ -311,6 +311,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   }, [ readEntry ]);
   const [ dialog, setDialog ] = useState<"letter" | "board" | "approve" | "sentLetter">();
   const [ sideTab, setSideTab ] = useStoredSetting<SideTab>("iap.review.sideTab", "notes", isSideTab);
+  // Whether the review is shown over the whole workspace, its contents and page, rather than beside the page
+  const [ reviewFull, setReviewFull ] = useState(false);
+  const full = reviewFull && sideTab === "review";
   const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
   // Whether the reviewer sees only what concerns them, as they start, or the whole submission
   const [ focused = true, setFocused ] = useStoredFlag(FOCUSED_KEY);
@@ -1025,11 +1028,10 @@ export default function ReviewScreen({ path }: { path: string }) {
     <GroupLabels.Provider value={groupLabels}>
       <ReviewerTopics.Provider value={reviewerTopics}>
         <ReviewPanel
-          identifier={text(submission.identifier)} risks={risks} unfiled={unfiled} issueCount={myIssues.length}
-          notes={generalNotes}
-          countdown={<Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />}
+          risks={risks} unfiled={unfiled} issueCount={myIssues.length} notes={generalNotes}
           others={othersRaised} about={about} waitingSince={waitingSince}
           doing={{ ...doing, decision: reviewActions }}
+          full={reviewFull} onFull={setReviewFull}
         />
       </ReviewerTopics.Provider>
     </GroupLabels.Provider>
@@ -1195,7 +1197,7 @@ export default function ReviewScreen({ path }: { path: string }) {
         {narrow && sideTab === "notes" && noteFilters}
         <Stack direction={{ xs: "column", md: "row" }}
           sx={{ gap: 1.5, alignItems: { xs: "flex-start", md: "stretch" }, flex: { md: 1 }, minHeight: { md: 0 },
-            ...narrow && sideTab === "review" ? { display: "none" } : {} }}>
+            position: "relative", ...narrow && sideTab === "review" ? { display: "none" } : {} }}>
           {railOpen || narrow ? (
           // Part of the frame, tinted like the app bar; the requirement being read is a tab of the white page beside it
             <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0,
@@ -1306,9 +1308,12 @@ export default function ReviewScreen({ path }: { path: string }) {
                       width={notesShown} onWidth={setNotesWidth} container={() => workArea} min={NOTES_LEAST}
                       reserve={PAGE_LEAST} label="Resize the notes"
                     />
+                    {/* Over the whole workspace, the review covers the contents and the page, which stay as they were
+                        under it, to come back to */}
                     <Box sx={{ width: notesShown, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
-                      bgcolor: "background.tinted" }}>
-                      {sideTabs}
+                      bgcolor: "background.tinted", ...full ? { position: "absolute", inset: 0, width: "auto",
+                        zIndex: 2, borderRadius: 1, border: 1, borderColor: "divider", overflow: "hidden" } : {} }}>
+                      {!full && sideTabs}
                       {/* Kept while the review is shown, the notes listed into it by the page staying in step */}
                       <Box sx={{ flex: 1, minHeight: 0, flexDirection: "column",
                         display: sideTab === "notes" ? "flex" : "none" }}>
