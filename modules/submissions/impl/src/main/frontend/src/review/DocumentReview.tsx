@@ -44,10 +44,12 @@ const DRAFT = "draft";
 const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith }: {
+  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith, hideChanges }: {
   document: ReviewedDocument;
-  // PRETOTYPE: an older version to show what changed since, and what each is called
+  // PRETOTYPE: an older version to show what changed since, and what each is called; whether the changes are left
+  // unshown, only told to the notes whose passage they changed
   compareWith?: { url: string; label: string; current: string };
+  hideChanges?: boolean;
   data: ReviewData;
   shown: Set<NoteKind>;
   selected?: string;
@@ -252,6 +254,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         listContainer={notesSlot}
         describeUnfound={describeUnfound}
         onChanges={setChanges}
+        hideChanges={hideChanges}
         compareWith={compareWith && { url: toFileUrl(compareWith.url), label: compareWith.label }}
         label={compareWith?.current}
         plain

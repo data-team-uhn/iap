@@ -175,7 +175,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   const [ editing, setEditing ] = useState<string>();
   const answer = data.answers.get(question.path);
   // PRETOTYPE: what it was when the submission was last sent back, a question then unanswered having no values
-  const was = data.before ? data.before.get(question.path) ?? [] : undefined;
+  const was = data.before && data.changesShown ? data.before.get(question.path) ?? [] : undefined;
   const about = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
   const source = about.find(note => note.kind === "evidence");
   const contradiction = about.find(note => note.kind === "contradiction");

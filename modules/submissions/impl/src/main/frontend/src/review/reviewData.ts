@@ -157,9 +157,10 @@ export interface ReviewData {
   assessments: Map<string, string>;
   // The risks the reviewer has marked as considered, by path
   considered: Set<string>;
-  // PRETOTYPE: each answer as it was when the submission was last sent back, by question path, when it was and its
-  // changes are shown
+  // PRETOTYPE: each answer as it was when the submission was last sent back, by question path, when it was; and
+  // whether the forms show what changed since, as the reviewer chooses
   before?: Map<string, string[]>;
+  changesShown?: boolean;
   // The reviewer's latest decision, and the letters that came with their decisions, latest last
   decided?: Decided;
   letters: Letter[];

@@ -343,17 +343,17 @@ export default function ReviewScreen({ path }: { path: string }) {
   // compared with
   const sentBack = useMemo(() => loaded ? sentBackCopy(loaded.submission, myGroups) : undefined, [ loaded, myGroups ]);
   const kept = useMemo(() => sentBack && loaded?.copies.get(sentBack.path), [ sentBack, loaded ]);
-  // Only while changes are shown is anything compared with it, a document with the version before its latest when
-  // there is no copy
-  const copy = showChanges ? kept : undefined;
-  const comparing = (document: ReviewedDocument) => showChanges ? comparisonFor(document, kept) : undefined;
+  // Compared with it always, a document with the version before its latest when there is no copy, so that notes say
+  // how what they are about changed; the documents and forms show the changes only while the reviewer asks
+  const copy = kept;
+  const comparing = (document: ReviewedDocument) => comparisonFor(document, kept);
   const sentBackAt = sentBack?.at;
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
   const data: ReviewData | undefined = useMemo(() => loaded && me
     ? withAnswerChanges({ ...withDone(withSources(parseReview(loaded.submission, schema, me, topics),
       loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))),
-    before: copy && answersIn(copy, schema) }, sentBackAt)
-    : undefined, [ loaded, schema, me, topics, copy, sentBackAt ]);
+    before: copy && answersIn(copy, schema), changesShown: showChanges }, sentBackAt)
+    : undefined, [ loaded, schema, me, topics, copy, sentBackAt, showChanges ]);
   // PRETOTYPE: the questions whose answers changed since the submission was last sent back
   const changed = data ? changedAnswers(data) : new Set<string>();
   // What the pages and their notes show: what is done with only when the reviewer asks
@@ -405,7 +405,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   // PRETOTYPE: what changed in a part since the submission was last sent back, as its contents entry says it: a document's
   // new version, or how many of a form's answers changed
   const changeOf = (requirement: Requirement): { shown: string; said: string } | undefined => {
-    if (!data) {
+    if (!data || !showChanges) {
       return undefined;
     }
     if (isFormRequirement(requirement)) {
@@ -938,7 +938,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             <DocumentReview
               key={requirement.name}
               document={document} data={viewData ?? data} shown={showing} selected={paneMark.id}
-              compareWith={comparing(document)}
+              compareWith={comparing(document)} hideChanges={!showChanges}
               onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
               actions={actions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
@@ -1267,7 +1267,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                         <DocumentReview
                           key={current.name}
                           document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
-                          compareWith={comparing(shownDocument)}
+                          compareWith={comparing(shownDocument)} hideChanges={!showChanges}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                           actions={actions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}

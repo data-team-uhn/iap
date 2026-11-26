@@ -92,6 +92,8 @@ export interface PdfViewerProps {
   describeUnfound?: (mark: Mark) => ReactNode;
   // PRETOTYPE: told the changes a comparison shows, each time they change, as for saying what changed in a passage
   onChanges?: (changes: RevisionChange[]) => void;
+  // PRETOTYPE: compare with the older version given, to tell the changes, without showing them or offering the menu
+  hideChanges?: boolean;
   // PRETOTYPE: what ends the line heading the document's own column, such as a button to write about the document
   leadEnd?: ReactNode;
   // PRETOTYPE: what heads the document's own column, beside the passages, such as the title of the page it is on
@@ -153,10 +155,12 @@ function PdfViewerSession(props: PdfViewerProps) {
       setComparedView?.("unified");
     }
   }, [ plain, comparedView, setComparedView ]);
-  const changes = comparing?.changes;
+  // PRETOTYPE: compared all the same, for what the caller says of passages that changed, but drawn as no comparison
+  const drawn = props.hideChanges ? undefined : comparing;
+  const changes = drawn?.changes;
   const changeIds = useMemo(() => new Set(changes?.map(change => change.id)), [changes]);
   const markName = props.markName ?? PASSAGES;
-  const changeMarks = comparing?.newerMarks ?? NO_MARKS;
+  const changeMarks = drawn?.newerMarks ?? NO_MARKS;
   const marks = useMemo(
     () => (changeMarks.length === 0 ? callerMarks : [ ...callerMarks, ...changeMarks ]),
     [callerMarks, changeMarks],
@@ -165,7 +169,7 @@ function PdfViewerSession(props: PdfViewerProps) {
   const firstMarkable = marks.find(mark => !isUnmarkable(places[mark.id]));
   // When the change the person chose is then left out as a minor change, the shown change nearest to it is
   // selected instead.
-  const allChanges = comparing?.state.status === "compared" ? comparing.state.changes : undefined;
+  const allChanges = drawn?.state.status === "compared" ? drawn.state.changes : undefined;
   const chosenLeftOut = chosenId !== undefined && !marks.some(mark => mark.id === chosenId);
   const nearestId = !chosenLeftOut || allChanges === undefined || changes === undefined
     ? undefined
@@ -188,7 +192,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       versions.followSelection(id);
     },
   });
-  const versions = useComparedVersions(comparing, view, { selectedId, select, changeIds });
+  const versions = useComparedVersions(drawn, view, { selectedId, select, changeIds });
   // PRETOTYPE: a search from outside, once the document is open
   const outside = props.search;
   const { onSearch } = props;
@@ -270,7 +274,7 @@ function PdfViewerSession(props: PdfViewerProps) {
   return (
     <ViewerPlacement
       container={container}
-      width={comparing === undefined ? "lg" : "xl"}
+      width={drawn === undefined ? "lg" : "xl"}
       titleId={titleId}
       onClose={onClose}
     >
@@ -291,9 +295,9 @@ function PdfViewerSession(props: PdfViewerProps) {
           selectedText={selectedText}
           onAnnotate={annotate}
           changeIds={changeIds}
-          comparison={comparing === undefined
+          comparison={drawn === undefined
             ? undefined
-            : { ...comparing, olderView: versions.olderView, olderLabel: compareWith?.label, newerLabel: props.label }}
+            : { ...drawn, olderView: versions.olderView, olderLabel: compareWith?.label, newerLabel: props.label }}
           placeButton={placeButton}
           searchedOutside={outside !== undefined}
           annotateLabel={props.annotateLabel}
