@@ -54,9 +54,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * submitter uploaded themselves, such as an edited copy of a preview, is what goes on, and nothing is generated over
  * it.</p>
  *
- * <p>The submitter can also ask for a preview from the form while the request is a draft. That activity names no
- * requirement, so it is taken from the event, and only from somebody who may still change the request. A preview is
- * always generated.</p>
+ * <p>The submitter can also ask for a preview from the form while the request is a draft. The preview's activity
+ * contains a {@code preview} property, and takes the {@code requirement} from the event payload, as long as the
+ * sender of that event can edit the request. A preview is always generated even if a user-submitted document
+ * was added.</p>
  *
  * <p>The result is stored as an upload is, so every reader of a submission's documents treats it alike: the PDF is
  * the file's {@code uploadedFile}, and the filled {@code .docx} sits beside it as {@link File#getGeneratedDocx()}.
@@ -81,6 +82,9 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
 
     /** The activity property naming the requirement to fill in. */
     static final String REQUIREMENT_PARAMETER = "requirement";
+
+    /** The activity property that makes it a preview, of the requirement the event names. */
+    static final String PREVIEW_PARAMETER = "preview";
 
     private final DocumentGenerator generator;
 
@@ -107,8 +111,8 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
             "The generate step only applies to submissions");
-        final boolean preview = context.getActivity().get(REQUIREMENT_PARAMETER) == null;
-        final DocumentRequirement requirement = requirement(submission, context);
+        final boolean preview = Boolean.parseBoolean(String.valueOf(context.getActivity().get(PREVIEW_PARAMETER)));
+        final DocumentRequirement requirement = preview ? requested(submission, context) : named(submission, context);
         if (!submission.isApplicable(requirement) || !preview && isUploadedBySubmitter(submission, requirement)) {
             return;
         }
@@ -152,19 +156,14 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
      * @param submission the submission being generated for
      * @param context the executing task's context
      * @return the requirement
-     * @throws WorkflowDefinitionException when the activity's {@code requirement} is not a name, or names one this
-     *             submission's schema does not have, or one that is not generated; the definition is wrong, not the
-     *             request
-     * @throws WorkflowException when the activity names none and the event's request is refused, see
-     *             {@link #requested}
+     * @throws WorkflowDefinitionException when the activity's {@code requirement} is missing or not a name, or names
+     *             one this submission's schema does not have, or one that is not generated; the definition is wrong,
+     *             not the request
      */
-    private static DocumentRequirement requirement(final Submission submission, final WorkflowTaskContext context)
-        throws WorkflowException
+    private static DocumentRequirement named(final Submission submission, final WorkflowTaskContext context)
+        throws WorkflowDefinitionException
     {
         final Object named = context.getActivity().get(REQUIREMENT_PARAMETER);
-        if (named == null) {
-            return requested(submission, context);
-        }
         if (!(named instanceof final String name) || name.isBlank()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not say which requirement to generate");

@@ -40,7 +40,7 @@
       <bpmn:outgoing>toGenerate</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toGenerate" sourceRef="parts" targetRef="generate" />
-    <bpmn:serviceTask id="generate" iap:handler="generateDocument" name="Generate the document">
+    <bpmn:serviceTask id="generate" iap:handler="generateDocument" iap:preview="true" name="Generate the document">
       <bpmn:incoming>toGenerate</bpmn:incoming>
       <bpmn:outgoing>toMark</bpmn:outgoing>
     </bpmn:serviceTask>

@@ -300,6 +300,17 @@ class GenerateDocumentHandlerTest
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(context(Boolean.TRUE)));
     }
 
+    @Test
+    void anActivityThatNamesNoRequirementIsADefinitionErrorRatherThanAPreview()
+    {
+        // Or a submitter could pick, in the event that sends the request, which document the step fills in
+        final WorkflowTaskContext sent =
+            context(null, false, Map.of(GenerateDocumentHandler.REQUIREMENT_PARAMETER, LETTER), REQUESTER);
+
+        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(sent));
+        Mockito.verifyNoInteractions(this.generator);
+    }
+
     // A preview the submitter asks for from the form, while the request is a draft
 
     @Test
@@ -340,7 +351,8 @@ class GenerateDocumentHandlerTest
     @Test
     void refusesToGenerateAnythingButAGeneratedDocumentOfThisRequest()
     {
-        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context(null)));
+        assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(null, true, Map.of(), REQUESTER)));
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(asked("consent", REQUESTER)));
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(asked("noSuchLetter", REQUESTER)));
         Mockito.verifyNoInteractions(this.generator);
@@ -382,23 +394,25 @@ class GenerateDocumentHandlerTest
     // An activity naming the requirement, as a schema's own workflow does
     private WorkflowTaskContext context(final Object requirement)
     {
-        return context(requirement, Map.of(), REQUESTER);
+        return context(requirement, false, Map.of(), REQUESTER);
     }
 
-    // An activity naming none, and an event from the form that does
+    // The preview's activity, and an event from the form naming the requirement
     private WorkflowTaskContext asked(final String requirement, final String actor)
     {
-        return context(null, Map.of(GenerateDocumentHandler.REQUIREMENT_PARAMETER, requirement), actor);
+        return context(null, true, Map.of(GenerateDocumentHandler.REQUIREMENT_PARAMETER, requirement), actor);
     }
 
-    private WorkflowTaskContext context(final Object requirement, final Map<String, Object> payload,
-        final String actor)
+    private WorkflowTaskContext context(final Object requirement, final boolean preview,
+        final Map<String, Object> payload, final String actor)
     {
         final ResourceResolver resolver = this.context.resourceResolver();
         final WorkflowEvent event = new WorkflowEvent("generateDocument", payload);
         final Activity activity = Mockito.mock(Activity.class);
         Mockito.when(activity.getPath()).thenReturn("/Workflows/ethics/v1/generate");
         Mockito.when(activity.get(GenerateDocumentHandler.REQUIREMENT_PARAMETER)).thenReturn(requirement);
+        // As the BPMN attribute is read: a string
+        Mockito.when(activity.get(GenerateDocumentHandler.PREVIEW_PARAMETER)).thenReturn(preview ? "true" : null);
         final Node asNode = this.node;
         final Resource submission = new ResourceWrapper(this.target)
         {
