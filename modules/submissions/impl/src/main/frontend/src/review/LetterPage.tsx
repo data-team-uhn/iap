@@ -38,9 +38,13 @@ export default function LetterPage({ letter, selected, onSelect }: {
     <Box sx={theme => ({ bgcolor: "common.white", color: "common.black", boxShadow: theme.shadows[2],
       maxWidth: 816, mx: "auto", px: { xs: 3, sm: 9 }, py: { xs: 3, sm: 6 }, fontFamily: BODY_FONT,
       "& p": { m: 0, mb: 2, fontSize: "0.95rem", lineHeight: 1.45 } })}>
+      {/* The logo at the top left, as wide as the template has it on the page, the address across from it */}
       {letter.letterhead && (
-        <Box sx={{ textAlign: "right", fontFamily: LETTERHEAD_FONT, color: "grey.600", lineHeight: 1.3, mb: 3 }}>
-          {lines(letter.letterhead)}
+        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2, mb: 3 }}>
+          {letter.logo && <Box component="img" src={letter.logo} alt="" sx={{ width: "27%", minWidth: 120 }} />}
+          <Box sx={{ flex: 1, textAlign: "right", fontFamily: LETTERHEAD_FONT, color: "grey.600", lineHeight: 1.3 }}>
+            {lines(letter.letterhead)}
+          </Box>
         </Box>
       )}
       <Box component="p" sx={{ textAlign: letter.letterhead ? "right" : undefined }}>{letter.date}</Box>

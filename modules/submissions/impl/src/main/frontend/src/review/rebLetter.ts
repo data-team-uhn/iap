@@ -17,6 +17,7 @@
  */
 
 import { SEVERITIES, type ReviewNote } from "./reviewData";
+import { UHN_LOGO } from "./uhnLogo";
 
 // PRETOTYPE. A reviewer's letter to the study team, drawn from the issues they raised, which stay what the letter
 // says: it is not edited itself. An approval naming a template, as the REB's does, gets that template's wording and
@@ -56,7 +57,8 @@ export interface LetterSection {
 
 // A letter as its template lays it out, every word of it, for the page showing it and the text sent
 export interface DraftedLetter {
-  // The sender's letterhead and the line at the foot of each page, when the template has them
+  // The sender's logo, its letterhead and the line at the foot of each page, when the template has them
+  logo?: string;
   letterhead?: string[];
   footer?: string;
   date: string;
@@ -110,6 +112,7 @@ export function draftLetter(input: LetterInput): DraftedLetter {
     const sections = pointsOf(UHN_REB_SECTIONS.map(heading => ({ heading,
       issues: issues.filter(issue => sectionOf(issue) === heading) })), about);
     return {
+      logo: UHN_LOGO,
       letterhead: [ "University Health Network", "Research Ethics Board", "4th Floor, 700 University Avenue",
         "Toronto, Ontario, M5G 1Z5", "Phone: (416) 581-7849" ],
       footer: "The UHN Research Ethics Board operates in compliance with the Tri-Council Policy Statement, ICH/GCP "

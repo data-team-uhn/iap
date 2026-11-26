@@ -248,9 +248,13 @@ function LetterView(props: ReviewProps & {
   const points = letter.draft.sections.flatMap(section => section.points).length;
   return (
     <>
-      <Stack direction={row ? "row" : "column"} sx={{ flex: 1, minHeight: 0 }}>
-        <Box sx={{ width: row ? "40%" : undefined, maxWidth: row ? 560 : undefined, flexShrink: 0, overflowY: "auto",
+      {/* The issues and the page side by side, together in the middle of whatever room is left over */}
+      <Stack direction={row ? "row" : "column"} sx={{ flex: 1, minHeight: 0, justifyContent: "center" }}>
+        <Box sx={{ flex: row ? "1 1 0" : undefined, minWidth: 0, maxWidth: row ? 640 : undefined, overflowY: "auto",
           px: 2, py: 1.5 }}>
+          <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+            The letter is drawn from your open issues. To change what it says, change your issues here.
+          </Typography>
           {points === 0 && (
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
               {"You haven't raised any issues for the study team, so the letter has no points."}
@@ -280,7 +284,8 @@ function LetterView(props: ReviewProps & {
             </Box>
           ))}
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", p: { xs: 1, sm: 3 } }}>
+        <Box sx={{ flex: row ? "0 1 880px" : undefined, minWidth: 0, overflowY: "auto", p: { xs: 1, sm: 3 },
+          pl: { sm: row ? 1 : 3 } }}>
           <LetterPage letter={letter.draft} selected={selected}
             onSelect={id => select(id, `review-issue-${id}`)} />
         </Box>
@@ -288,7 +293,7 @@ function LetterView(props: ReviewProps & {
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1}
         sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: { sm: "center" } }}>
         <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
-          The letter says your issues as they are. Change an issue to change the letter.
+          Sending it asks the study team for changes, and keeps your issues as they read them.
         </Typography>
         <Button size="small" onClick={letter.close}>Back to the review</Button>
         <Button variant="contained" size="small" startIcon={<ForwardToInboxOutlined />}
