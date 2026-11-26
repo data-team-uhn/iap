@@ -87,9 +87,6 @@ export interface PdfViewerProps {
   // PRETOTYPE: what heads each passage beside the document in place of the page it is on
   markHeading?: (mark: Mark) => ReactNode;
   markHeadingActions?: (mark: Mark) => ReactNode;
-  // PRETOTYPE: whether a comparison includes minor changes, of punctuation or letter case, when the caller chooses
-  // it rather than the person in the viewer
-  minorChanges?: boolean;
   // PRETOTYPE: what to say of a passage not found, in place of "not found in this document", where the caller knows
   // why, such as its text having changed since an older version it was written on
   describeUnfound?: (mark: Mark) => string | undefined;
@@ -136,7 +133,16 @@ function PdfViewerSession(props: PdfViewerProps) {
   // The mark the caller last selected. A change to the marks does not move the reader to it again.
   const followedId = useRef<string | undefined>(undefined);
   const { pdf, openError, retry } = usePdfDocument(url);
-  const comparing = useComparison(compareWith?.url, pdf, props.minorChanges);
+  const comparing = useComparison(compareWith?.url, pdf);
+  // PRETOTYPE: a plain viewer's caller chooses whether to compare, so a comparison it is given is not left off
+  const { plain } = props;
+  const comparedView = comparing?.view;
+  const setComparedView = comparing?.setView;
+  useEffect(() => {
+    if (plain && comparedView === "off") {
+      setComparedView?.("unified");
+    }
+  }, [ plain, comparedView, setComparedView ]);
   const changes = comparing?.changes;
   const changeIds = useMemo(() => new Set(changes?.map(change => change.id)), [changes]);
   const markName = props.markName ?? PASSAGES;

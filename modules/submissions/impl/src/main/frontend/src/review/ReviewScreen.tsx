@@ -260,9 +260,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ shown, setShown ] = useState(storedKinds);
   // Whether notes dismissed, resolved or addressed by an issue are shown, faded, rather than left out
   const [ showDone, setShowDone ] = useStoredSetting("iap.review.showDone", false, isFlag);
-  // PRETOTYPE: whether what changed since the submission was last sent back is shown, and minor changes with it
+  // PRETOTYPE: whether what changed since the submission was last sent back is shown
   const [ showChanges, setShowChanges ] = useStoredSetting("iap.review.showChanges", true, isFlag);
-  const [ minorChanges, setMinorChanges ] = useStoredSetting("iap.review.minorChanges", false, isFlag);
   // A note done with that a link led to, shown all the same while it is the one selected
   const [ peek, setPeek ] = useState<string>();
   // Going to a note by path, for the cards, set once what is shown is known
@@ -352,8 +351,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const data: ReviewData | undefined = useMemo(() => loaded && me
     ? withAnswerChanges({ ...withDone(withSources(parseReview(loaded.submission, schema, me, topics),
       loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items)))),
-    before: copy && answersIn(copy, schema), minorChanges }, sentBackAt)
-    : undefined, [ loaded, schema, me, topics, copy, sentBackAt, minorChanges ]);
+    before: copy && answersIn(copy, schema) }, sentBackAt)
+    : undefined, [ loaded, schema, me, topics, copy, sentBackAt ]);
   // PRETOTYPE: the questions whose answers changed since the submission was last sent back
   const changed = data ? changedAnswers(data) : new Set<string>();
   // What the pages and their notes show: what is done with only when the reviewer asks
@@ -684,10 +683,7 @@ export default function ReviewScreen({ path }: { path: string }) {
 
   // PRETOTYPE: on a submission sent back and answered, whether what changed since is shown, for the whole of it
   const changesToggle = sentBack && kept ? (
-    <ChangesToggle
-      since={shortDate(sentBack.at)} on={showChanges} onChange={setShowChanges}
-      minor={minorChanges} onMinorChange={setMinorChanges}
-    />
+    <ChangesToggle since={shortDate(sentBack.at)} on={showChanges} onChange={setShowChanges} />
   ) : undefined;
   // search beside them on wide screens
   const header = loaded?.submission;
@@ -935,7 +931,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             <DocumentReview
               key={requirement.name}
               document={document} data={viewData ?? data} shown={showing} selected={paneMark.id}
-              compareWith={comparing(document)} minorChanges={minorChanges}
+              compareWith={comparing(document)}
               onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
               actions={actions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
@@ -1265,7 +1261,6 @@ export default function ReviewScreen({ path }: { path: string }) {
                           key={current.name}
                           document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
                           compareWith={comparing(shownDocument)}
-                          minorChanges={minorChanges}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                           actions={actions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}

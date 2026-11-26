@@ -48,7 +48,7 @@ import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm"
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard, { DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { GroupChip } from "./people";
-import { groupShortName, isChanged, isMinorChange, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData,
+import { groupShortName, isChanged, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData,
   type ReviewGroup, type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
 
@@ -223,7 +223,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               outline: outline ? "2px solid" : "none", outlineColor: outline ? getSelectedOutline(theme, outline) : undefined,
             } : {} })}
           >
-            {was !== undefined && isChanged(was, question.value, data.minorChanges)
+            {was !== undefined && isChanged(was, question.value)
               ? <AnswerChange question={question} was={was} /> : (
                 <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                   <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
@@ -323,7 +323,7 @@ function AnswerChange({ question, was }: { question: FormQuestion; was: string[]
     <Stack sx={{ gap: 0.25 }}>
       <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.secondary" }}>
         <DifferenceOutlined sx={{ fontSize: "1rem" }} />
-        {isMinorChange(was, question.value) ? "Minor change since it was sent back" : "Changed since it was sent back"}
+        Changed since it was sent back
       </Typography>
       <Typography variant="body2" component="div">
         {comparable(question) || was.length === 0 || question.value.length === 0

@@ -157,9 +157,8 @@ export interface ReviewData {
   // The risks the reviewer has marked as considered, by path
   considered: Set<string>;
   // PRETOTYPE: each answer as it was when the submission was last sent back, by question path, when it was and its
-  // changes are shown; and whether a change of punctuation or letter case alone counts, as a minor one
+  // changes are shown
   before?: Map<string, string[]>;
-  minorChanges?: boolean;
   // The reviewer's latest decision, and the letters that came with their decisions, latest last
   decided?: Decided;
   letters: Letter[];
@@ -488,17 +487,11 @@ export function sentBackCopy(submission: Node, myGroups: string[]): { path: stri
   return latest ? { path: text(latest.sentBackCopy), at: text(latest.decidedAt) } : undefined;
 }
 
-// PRETOTYPE. Whether an answer is not what it was, the order of several values aside; with minor changes left out,
-// a change of punctuation or letter case alone does not count
-export function isChanged(was: string[], now: string[], minor = true): boolean {
-  const normal = (values: string[]) => [ ...values ].map(value => minor ? value.trim()
-    : value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()).sort().join("\n");
+// PRETOTYPE. Whether an answer is not what it was, the order of several values aside; every change to an answer
+// counts, minor changes being a document's alone
+export function isChanged(was: string[], now: string[]): boolean {
+  const normal = (values: string[]) => [ ...values ].map(value => value.trim()).sort().join("\n");
   return normal(was) !== normal(now);
-}
-
-// PRETOTYPE. Whether an answer changed only in punctuation or letter case
-export function isMinorChange(was: string[], now: string[]): boolean {
-  return isChanged(was, now) && !isChanged(was, now, false);
 }
 
 // PRETOTYPE. The questions whose answers changed since the copy, by path
@@ -508,8 +501,7 @@ export function changedAnswers(data: ReviewData): Set<string> {
     return new Set();
   }
   const paths = new Set([ ...before.keys(), ...data.answers.keys() ]);
-  return new Set([ ...paths ].filter(path => isChanged(before.get(path) ?? [], data.answers.get(path)?.values ?? [],
-    data.minorChanges)));
+  return new Set([ ...paths ].filter(path => isChanged(before.get(path) ?? [], data.answers.get(path)?.values ?? [])));
 }
 
 // PRETOTYPE. What was written before the submission was last sent back says when an answer it is about changed since;

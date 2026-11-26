@@ -28,8 +28,7 @@ import {
   type ReactNode,
 } from "react";
 
-import VerticalSplitOutlined from "@mui/icons-material/VerticalSplitOutlined";
-import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 import { createPortal } from "react-dom";
 
@@ -38,7 +37,7 @@ import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 
 import CommentButton from "./CommentButton";
-import ComparisonControls from "./ComparisonControls";
+import ComparisonControls, { ChangesMenu } from "./ComparisonControls";
 import { countChanges } from "./comparisonText";
 import MarkList, { LIST_WIDTH } from "./MarkList";
 import { getMarkText, isLooking } from "./marksModel";
@@ -259,23 +258,10 @@ export default function ViewerBody(props: ViewerBodyProps) {
     </PdfDocumentView>
   );
   const { older } = compared;
-  // PRETOTYPE: in a plain viewer, the versions side by side or the newer alone, from the toolbar, and side by side,
-  // the changes stepped through where the page controls were
+  // PRETOTYPE: in a plain viewer, how changes are shown is chosen in the row of the page controls, the caller choosing
+  // whether to compare at all; side by side, the changes are stepped through where the page controls were
   const controls = plain ? compared.controls : undefined;
-  const plainView = controls && (
-    <Tooltip disableInteractive title={controls.narrow ? "Side by side needs more room"
-      : controls.shownView === "split" ? "Show the newer version alone" : "Show the versions side by side"}>
-      <span>
-        <IconButton
-          aria-label="Side by side" aria-pressed={controls.shownView === "split"} disabled={controls.narrow}
-          color={controls.shownView === "split" ? "primary" : "default"}
-          onClick={() => controls.onViewChange(controls.shownView === "split" ? "unified" : "split")}
-        >
-          <VerticalSplitOutlined />
-        </IconButton>
-      </span>
-    </Tooltip>
-  );
+  const plainView = controls && <Box sx={{ ml: 2 }}><ChangesMenu {...controls} withoutOff /></Box>;
   const splitChanges = controls?.changes;
   const plainSplitSteps = splitChanges && splitChanges.length > 0 ? (
     <StepControls
@@ -318,12 +304,14 @@ export default function ViewerBody(props: ViewerBodyProps) {
           {lead}
           <ViewerToolbar
             ref={toolbarRef}
-            start={split ? plainSplitSteps : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
-            tools={
+            start={split ? <>{plainView}{plainSplitSteps}</> : (
               <>
+                <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />
                 {plainView}
-                <ZoomControls disabled={!opened} onZoomIn={zoomIn} onZoomOut={zoomOut} onFitWidth={fitWidth} />
               </>
+            )}
+            tools={
+              <ZoomControls disabled={!opened} onZoomIn={zoomIn} onZoomOut={zoomOut} onFitWidth={fitWidth} />
             }
             opened={opened}
             search={search}

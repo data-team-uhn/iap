@@ -69,8 +69,9 @@ const WRAPPING = { whiteSpace: "normal" };
 // The menu choosing whether and how changes are shown, and whether minor changes are included. Its label
 // counts the changes shown, once there are some. The menu stays open when minor changes are switched on or
 // off.
-function ChangesMenu(props: ChangesMenuProps) {
-  const { view, shownView, onViewChange, strict, onStrictChange, minor, count, narrow } = props;
+// PRETOTYPE: exported, and without its Off choice where the caller chooses whether to compare
+export function ChangesMenu(props: ChangesMenuProps & { withoutOff?: boolean }) {
+  const { view, shownView, onViewChange, strict, onStrictChange, minor, count, narrow, withoutOff = false } = props;
   const [menuAt, setMenuAt] = useState<HTMLElement | null>(null);
   const labelId = useId();
   const off = view === "off";
@@ -106,7 +107,7 @@ function ChangesMenu(props: ChangesMenuProps) {
         // A keyboard user can reach a choice there is no room for, and hear why it is disabled.
         slotProps={{ list: { disabledItemsFocusable: true, "aria-labelledby": labelId } }}
       >
-        {VIEWS.map(({ view: each, label }) => {
+        {VIEWS.filter(({ view: each }) => !withoutOff || each !== "off").map(({ view: each, label }) => {
           const unavailable = each === "split" && narrow;
           return (
             <MenuItem
