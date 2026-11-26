@@ -68,7 +68,7 @@ interface CategoryDialogProps {
 function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: CategoryDialogProps) {
   const [ label, setLabel ] = useState(node?.label ?? "");
   const [ description, setDescription ] = useState(node?.description ?? "");
-  const [ schemaVersion, setSchemaVersion ] = useState(node?.schemaVersion?.uuid ?? "");
+  const [ schemaVersion, setSchemaVersion ] = useState(node?.schemaVersion?.path ?? "");
   const [ parent, setParent ] = useState(parentPath);
   const { working: saving, failure: saveError, run } = useAsyncAction({
     onFailure: (error: unknown) => ({ lead: leadFor(error), detail: messageOf(error) }),

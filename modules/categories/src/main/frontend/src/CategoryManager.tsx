@@ -59,7 +59,7 @@ const attempt = async (step: SaveStep, write: () => Promise<unknown>): Promise<v
 function CategoryManager() {
   const {
     tree, loading, loadError, reload,
-    create, update, unbindSchemaVersion, move, reorder, setRetired, remove,
+    create, update, unbindSchemaVersion, move, retire, reopen, remove,
   } = useCategoryTree();
   const [ dialog, setDialog ] = useState<DialogState>();
   const [ deleteTarget, setDeleteTarget ] = useState<CategoryNode>();
@@ -85,14 +85,14 @@ function CategoryManager() {
     // category retired only through an ancestor.
     onToggleRetired: node => {
       if (node.retiredHere) {
-        run(`${node.label} could not be unretired`, () => setRetired(node.path, false));
+        run(`${node.label} could not be unretired`, () => reopen(node.path));
       } else {
         setRetireTarget(node);
       }
     },
     // The title names the direction, since the edit dialog also moves a category, to another parent
-    onReorder: (node, order, direction) => {
-      run(`${node.label} could not be moved ${direction}`, () => reorder(node.path, order));
+    onReorder: (node, before, direction) => {
+      run(`${node.label} could not be moved ${direction}`, () => move(node.path, { before }));
     },
   };
 
@@ -115,7 +115,7 @@ function CategoryManager() {
       const { path } = dialog.node;
       await attempt("update", () => update(path, fields));
       if (parentPath !== parentPathOf(path)) {
-        await attempt("move", () => move(path, parentPath));
+        await attempt("move", () => move(path, { parent: parentPath }));
       }
     }
   };
@@ -161,7 +161,7 @@ function CategoryManager() {
           <RetireCategoryDialog
             node={retireTarget}
             onClose={() => setRetireTarget(undefined)}
-            onRetire={node => setRetired(node.path, true)}
+            onRetire={node => retire(node.path)}
           />
         )}
       { deleteTarget
@@ -170,7 +170,7 @@ function CategoryManager() {
             node={deleteTarget}
             onClose={() => setDeleteTarget(undefined)}
             onDelete={node => remove(node.path)}
-            onRetire={node => setRetired(node.path, true)}
+            onRetire={node => retire(node.path)}
           />
         )}
     </AdminScreen>

@@ -25,8 +25,6 @@ export type JcrNode = Record<string, unknown>;
 // The schema version a category is bound to, as the default `dereference` JSON processor inlines it
 // in the category's JSON.
 export interface SchemaVersionRef {
-  // The `jcr:uuid` of the schema version, which the category's `schemaVersion` property stores.
-  uuid?: string;
   // The path of the schema version, such as `/Schemas/basic/v1`.
   path?: string;
   // The node name of the schema this version belongs to, taken from the path.
@@ -86,7 +84,6 @@ const parseSchemaVersion = (value: unknown): SchemaVersionRef | undefined => {
   // The schema's own name is the next-to-last path segment: /Schemas/<schema>/<version>
   const schemaName = path?.split("/").at(-2);
   return {
-    uuid: node["jcr:uuid"] as string | undefined,
     path,
     schemaName,
     version: node.version as string | undefined,

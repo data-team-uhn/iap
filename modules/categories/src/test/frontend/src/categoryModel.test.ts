@@ -41,7 +41,6 @@ const homepageJson = {
       "label": "Retrospective Data Studies",
       "schemaVersion": {
         "jcr:primaryType": "sch:SchemaVersion",
-        "jcr:uuid": "uuid-sv1",
         "version": "1.0",
         "@path": "/Schemas/basic/1.0",
       },
@@ -124,7 +123,6 @@ describe("parseCategoryTree", () => {
     const tree = parseCategoryTree(homepageJson);
 
     expect(tree[0].children[0].schemaVersion).toEqual({
-      uuid: "uuid-sv1",
       path: "/Schemas/basic/1.0",
       schemaName: "basic",
       version: "1.0",

@@ -26,10 +26,12 @@ import TagChip from "@iap/tags/TagChip";
 
 import type { JcrNode } from "./categoryModel";
 
+const SCHEMAS_ROOT = "/Schemas";
+
 // One selectable schema version.
 interface VersionOption {
-  // The `jcr:uuid`, which the category's `schemaVersion` stores
-  uuid: string;
+  // The path, by which the category's `schemaVersion` names it
+  path: string;
   // The version label, such as "1.0"
   version: string;
   // The names of the tags placed on it, its lifecycle state among them
@@ -45,9 +47,9 @@ interface SchemaGroup {
 }
 
 interface SchemaVersionSelectProps {
-  // The jcr:uuid of the currently selected schema version, or "" for none.
+  // The path of the currently selected schema version, or "" for none.
   value: string;
-  onChange: (uuid: string) => void;
+  onChange: (path: string) => void;
 }
 
 const isType = (value: unknown, primaryType: string): value is JcrNode =>
@@ -57,8 +59,8 @@ const isType = (value: unknown, primaryType: string): value is JcrNode =>
 const tagsOf = (node: JcrNode): string[] =>
   Array.isArray(node.tags) ? node.tags.filter((tag): tag is string => typeof tag === "string") : [];
 
-// Parses the JSON of /Schemas into one group per schema and one option per version. A version
-// without a `jcr:uuid` cannot be referenced and is skipped, and so is a schema left with no versions.
+// Parses the JSON of /Schemas into one group per schema and one option per version. A schema with no
+// versions is skipped.
 const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
   Object.entries(homepage)
     .filter(([, schema]) => isType(schema, "sch:Schema"))
@@ -68,16 +70,13 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
         name,
         title: (node.title as string | undefined) ?? name,
         tags: tagsOf(node),
-        versions: Object.values(node)
-          .filter(version => isType(version, "sch:SchemaVersion"))
-          .flatMap(version => {
-            const uuid = version["jcr:uuid"] as string | undefined;
-            return uuid ? [{
-              uuid,
-              version: (version.version as string | undefined) ?? "?",
-              tags: tagsOf(version),
-            }] : [];
-          }),
+        versions: Object.entries(node)
+          .filter((entry): entry is [ string, JcrNode ] => isType(entry[1], "sch:SchemaVersion"))
+          .map(([ versionName, version ]) => ({
+            path: `${SCHEMAS_ROOT}/${name}/${versionName}`,
+            version: (version.version as string | undefined) ?? "?",
+            tags: tagsOf(version),
+          })),
       };
     })
     .filter(group => group.versions.length > 0);
@@ -92,7 +91,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
 
   useEffect(() => {
     // `simple` cuts each version to its own properties
-    authenticatedFetch("/Schemas.deep.simple.json")
+    authenticatedFetch(`${SCHEMAS_ROOT}.deep.simple.json`)
       .then(response => response.ok
         ? readJson<JcrNode>(response)
         : Promise.reject(new Error(`Failed to load schemas: ${response.status}`)))
@@ -121,7 +120,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
     );
     group.versions.forEach(version => {
       items.push(
-        <MenuItem key={version.uuid} value={version.uuid}>
+        <MenuItem key={version.path} value={version.path}>
           <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
             <span>v{version.version}</span>
             <TagChip tags={version.tags} category="lifecycle" />
@@ -132,7 +131,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
   });
   // A bound version the list does not hold, such as one whose schema is no longer under /Schemas,
   // stays selectable, so that the Select keeps the value
-  if (value && !groups.some(group => group.versions.some(version => version.uuid === value))) {
+  if (value && !groups.some(group => group.versions.some(version => version.path === value))) {
     items.push(<MenuItem key="current" value={value}>Current binding</MenuItem>);
   }
 
