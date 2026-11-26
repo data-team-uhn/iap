@@ -765,6 +765,16 @@ describe("SubmissionView", () => {
     // The page checks again this long after each check while a document is read
     const RECHECK_MILLISECONDS = 3000;
 
+    // The step, offered both above the request and below it, in that order
+    const sendButtons = () => screen.findAllByRole("button", { name: SEND_LABEL });
+    const topSendButton = async () => (await sendButtons())[0];
+
+    // Whether each copy of the step is on, one for each copy
+    const sendButtonsEnabled = async () => (await sendButtons()).map(button => !(button as HTMLButtonElement).disabled);
+
+    // A note beside the step is said beside each copy of it
+    const noteShown = async (note: string) => expect(await screen.findAllByText(note)).toHaveLength(2);
+
     // A request that lacks its one answer until the save of that answer is answered
     function completedBy(save: Promise<void>) {
       let stored = false;
@@ -783,7 +793,7 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1");
 
-      expect(await screen.findByText("Answer everything this request asks for first.")).toBeInTheDocument();
+      await noteShown("Answer everything this request asks for first.");
     });
 
     it("holds the step back while the document is being read", async () => {
@@ -791,8 +801,8 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1");
 
-      expect(await screen.findByText("Wait until the document has been read.")).toBeInTheDocument();
-      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+      await noteShown("Wait until the document has been read.");
+      expect(await sendButtonsEnabled()).toEqual([ false, false ]);
     });
 
     // While a document is read, Stop is the one control left on
@@ -804,7 +814,7 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("button", { name: "Stop reading" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "View" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
-      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+      expect(await sendButtonsEnabled()).toEqual([ false, false ]);
     });
 
     it("keeps Stop off when nothing is being read", async () => {
@@ -812,7 +822,7 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1");
 
-      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeEnabled();
+      expect(await sendButtonsEnabled()).toEqual([ true, true ]);
       expect(screen.getByRole("button", { name: "Stop reading" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
     });
@@ -875,7 +885,7 @@ describe("SubmissionView", () => {
       await act(() => vi.advanceTimersByTimeAsync(RECHECK_MILLISECONDS));
 
       expect(await screen.findByLabelText(/Why\?/)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: SEND_LABEL })).toBeEnabled();
+      expect(await sendButtonsEnabled()).toEqual([ true, true ]);
     });
 
     // The whole submission, with its schema, is too heavy to read every few seconds
@@ -926,7 +936,7 @@ describe("SubmissionView", () => {
       const fetchMock = withATaskWaiting({ submission: () => INCOMPLETE });
 
       renderAt("/Submissions/demo-1");
-      await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+      await userEvent.click(await topSendButton());
 
       expect(await screen.findByText(`${SEND_LABEL} did not go through`)).toBeInTheDocument();
       expect(completed(fetchMock)).toHaveLength(0);
@@ -939,8 +949,8 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1.edit");
       await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
-      // Not leaving the field first: the click on Send is what finishes the answer
-      await userEvent.click(screen.getByRole("button", { name: SEND_LABEL }));
+      // Not leaving the field first: the click on Send, below the request, is what finishes the answer
+      await userEvent.click((await sendButtons())[1]);
       expect(completed(fetchMock)).toHaveLength(0);
       save.resolve(undefined);
 
@@ -955,7 +965,7 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1.edit");
       const field = await screen.findByLabelText(/Why\?/);
-      await userEvent.click(screen.getByRole("button", { name: SEND_LABEL }));
+      await userEvent.click(await topSendButton());
       await waitFor(() => expect(completed(fetchMock)).toHaveLength(1));
       await userEvent.type(field, "because");
       await userEvent.tab();
@@ -974,11 +984,11 @@ describe("SubmissionView", () => {
       completedBy(Promise.resolve());
 
       renderAt("/Submissions/demo-1.edit");
-      expect(await screen.findByText("Answer everything this request asks for first.")).toBeInTheDocument();
+      await noteShown("Answer everything this request asks for first.");
       await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
       await userEvent.tab();
 
-      await waitFor(() => expect(screen.queryByText("Answer everything this request asks for first.")).toBeNull());
+      await waitFor(() => expect(screen.queryAllByText("Answer everything this request asks for first.")).toEqual([]));
     });
 
     it("offers the waiting step while filling the request in, not only while reading it", async () => {
@@ -986,7 +996,20 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1.edit");
 
-      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeInTheDocument();
+      expect(await sendButtons()).toHaveLength(2);
+    });
+
+    // A long request is finished at its bottom, so the step is offered there too
+    it("offers the waiting step below the request as well as above it", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting({ form: ONE_QUESTION }));
+      await loadAnswerComponents();
+
+      renderAt("/Submissions/demo-1.edit");
+      const [ top, bottom ] = await sendButtons();
+      const question = await screen.findByLabelText(/Why\?/);
+
+      expect(top.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(bottom.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     });
 
     it("reads what the request is asked for again once the step is done", async () => {
@@ -994,7 +1017,7 @@ describe("SubmissionView", () => {
       const projections = () => fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".form.json"));
 
       renderAt("/Submissions/demo-1");
-      await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+      await userEvent.click(await topSendButton());
 
       await waitFor(() => expect(projections()).toHaveLength(2));
     });
@@ -1004,7 +1027,7 @@ describe("SubmissionView", () => {
       const user = userEvent.setup();
       renderAt("/Submissions/demo-1.edit");
 
-      await user.click(await screen.findByRole("button", { name: SEND_LABEL }));
+      await user.click(await topSendButton());
 
       // In the order it happens: the page changes mode at once, then reads the submission again
       expect(await screen.findByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
@@ -1025,7 +1048,7 @@ describe("SubmissionView", () => {
         </MemoryRouter>,
         { wrapper: NoticeProvider }
       );
-      await user.click(await screen.findByRole("button", { name: SEND_LABEL }));
+      await user.click(await topSendButton());
 
       await user.click(screen.getByRole("link", { name: "← Back to the dashboard" }));
       await act(async () => {

@@ -27,7 +27,7 @@ import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { areDocumentsSent, getStartingStep, getStep } from "./intake";
+import { UPLOAD_STEP, areDocumentsSent, getStartingStep, getStep } from "./intake";
 import IntakeSteps from "./IntakeSteps";
 import ProposalDialog from "./ProposalDialog";
 import {
@@ -43,7 +43,6 @@ import {
   type Requirement,
   type SubmissionForm,
   fetchForm,
-  isDocumentRequirement,
   isFormRequirement,
   reviewExtraction,
   saveAnswer,
@@ -91,19 +90,20 @@ function RequirementBody({ reading, ...props }: RequirementComponentProps & { re
 // `onChanged` hears that a save or an attachment went through, so that the page can read the
 // submission again. `reading` says a document is being read for answers; until the reading ends, the
 // questions are hidden and every requirement is turned off.
+// `finish`, such as the button that sends the request, is shown where filling it in ends: below the
+// last step, or below everything. It is offered with a document the platform wrote, too.
 //
 // `steps` are what the request's workflow waits for. When its first step asked for a form, that form
 // picks the way the request goes: it stays on show, and the step the workflow waits for is shown under
 // it. Changing its answer completes that step, and the workflow, which reads the answer again after each
-// step, takes the other way. `sendControls` are the request's send buttons, offered with a document the
-// platform wrote.
-function SubmissionEditor({ path, queueSave, reading = false, steps, sendControls, onChanged }: {
+// step, takes the other way.
+function SubmissionEditor({ path, queueSave, reading = false, steps, finish, onChanged }: {
   path: string;
   queueSave: Enqueue;
   reading?: boolean;
   steps?: SubmissionSteps;
-  sendControls?: ReactNode;
   onChanged?: () => void;
+  finish?: ReactNode;
 }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
@@ -234,7 +234,7 @@ function SubmissionEditor({ path, queueSave, reading = false, steps, sendControl
           path={path}
           requirement={requirement}
           disabled={locked || !form.editable || reading
-            || (inSteps && isDocumentRequirement(requirement) && areDocumentsSent(form))}
+            || (inSteps && getStep(requirement) === UPLOAD_STEP && areDocumentsSent(form))}
           reading={reading}
           states={states}
           onAnswered={onAnswer}
@@ -248,7 +248,7 @@ function SubmissionEditor({ path, queueSave, reading = false, steps, sendControl
   // `sendUploads` is the upload step's Next, when a workflow step waits for the uploads
   const renderReadingSteps = (requirements: Requirement[], sendUploads?: () => Promise<void>) => (
     <IntakeSteps path={path} form={form} step={shownStep} reading={reading} onStep={setStep} onChanged={changed}
-      sendUploads={sendUploads}>
+      sendUploads={sendUploads} finish={finish}>
       {requirements.filter(requirement => getStep(requirement) === shownStep)
         .map(requirement => renderPanel(requirement))}
     </IntakeSteps>
@@ -283,8 +283,10 @@ function SubmissionEditor({ path, queueSave, reading = false, steps, sendControl
       { !choice && (inSteps
         ? renderReadingSteps(form.requirements)
         : form.requirements.map(requirement => renderPanel(requirement))) }
+      {/* The reading steps show it on their last step */}
+      { !inSteps && finish && <Stack direction="row" sx={{ justifyContent: "flex-end" }}>{finish}</Stack> }
       { proposalShown && generated && (
-        <ProposalDialog document={generated} sendControls={sendControls} onClose={() => setProposalShown(false)} />
+        <ProposalDialog document={generated} sendControls={finish} onClose={() => setProposalShown(false)} />
       ) }
       { form.requirements.length === 0 && (
         <Typography variant="placeholder">This request asks nothing yet.</Typography>

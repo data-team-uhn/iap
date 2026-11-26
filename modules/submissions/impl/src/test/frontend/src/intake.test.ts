@@ -23,8 +23,11 @@ import {
   areDocumentsSent,
   describeWhyNotNext,
   getMissingDocuments,
+  getNextStep,
+  getPreviousStep,
   getStartingStep,
   getStep,
+  hasUploads,
   isCategoryConfirmed,
 } from "@iap/submissions/intake";
 import {
@@ -40,9 +43,11 @@ import {
   type SubmissionForm,
 } from "@iap/submissions/submissionForm";
 
-function document(name: string, label: string, required: boolean, attached = 0): DocumentRequirement {
+function document(
+  name: string, label: string, required: boolean, attached = 0, generated = false,
+): DocumentRequirement {
   return {
-    name, label, path: `/s/v1/${name}`, type: DOCUMENT_REQUIREMENT_TYPE, required, generated: false,
+    name, label, path: `/s/v1/${name}`, type: DOCUMENT_REQUIREMENT_TYPE, required, generated,
     acceptedFileTypes: [],
     attached: Array.from({ length: attached }, (_, i) => ({ title: `${name}-${i}` })),
   };
@@ -80,6 +85,10 @@ describe("getStep", () => {
     expect(getStep({ name: "review", label: "Review", path: "/s/v1/review", type: APPROVAL_REQUIREMENT_TYPE }))
       .toBe(COMPLETE_STEP);
   });
+
+  it("shows a generated document last, since it is filled in from the answers", () => {
+    expect(getStep(document("plan", "research plan", true, 0, true))).toBe(COMPLETE_STEP);
+  });
 });
 
 describe("getMissingDocuments", () => {
@@ -89,6 +98,35 @@ describe("getMissingDocuments", () => {
     const preamble = document("preamble", "preamble", false);
 
     expect(getMissingDocuments(form(undefined, proposal, consent, preamble))).toEqual([ proposal ]);
+  });
+
+  it("does not ask for a generated document", () => {
+    expect(getMissingDocuments(form(undefined, document("plan", "research plan", true, 0, true)))).toEqual([]);
+  });
+});
+
+describe("hasUploads", () => {
+  it("counts only what the submitter uploaded", () => {
+    expect(hasUploads(form(undefined, document("proposal", "research proposal", false)))).toBe(false);
+    expect(hasUploads(form(undefined, document("plan", "research plan", true, 1, true)))).toBe(false);
+    expect(hasUploads(form(undefined, document("proposal", "research proposal", false, 1)))).toBe(true);
+  });
+});
+
+describe("getNextStep and getPreviousStep", () => {
+  const leftOut = form(undefined, document("proposal", "research proposal", false), studyForm(question("title")));
+  const uploaded = form(undefined, document("proposal", "research proposal", false, 1));
+
+  it("skip the confirmation when nothing was uploaded to be read", () => {
+    expect(getNextStep(leftOut, UPLOAD_STEP)).toBe(COMPLETE_STEP);
+    expect(getPreviousStep(leftOut, COMPLETE_STEP)).toBe(UPLOAD_STEP);
+  });
+
+  it("go one step at a time once something was uploaded", () => {
+    expect(getNextStep(uploaded, UPLOAD_STEP)).toBe(CONFIRM_STEP);
+    expect(getNextStep(uploaded, CONFIRM_STEP)).toBe(COMPLETE_STEP);
+    expect(getPreviousStep({ ...uploaded, extraction: { status: "done" } }, COMPLETE_STEP)).toBe(CONFIRM_STEP);
+    expect(getPreviousStep(uploaded, CONFIRM_STEP)).toBe(UPLOAD_STEP);
   });
 });
 

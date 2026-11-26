@@ -144,6 +144,16 @@ describe("SubmissionEditor", () => {
     expect(screen.getByLabelText(/several days/)).toBeInTheDocument();
   });
 
+  it("shows how to finish the request below everything it asks", async () => {
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} finish={<button type="button">Send</button>} />);
+    const send = await screen.findByRole("button", { name: "Send" });
+
+    expect(send.compareDocumentPosition(screen.getByLabelText(/several days/)) & Node.DOCUMENT_POSITION_PRECEDING)
+      .toBeTruthy();
+  });
+
   it("saves an answer and shows what the server then asks", async () => {
     // The return-date question arrives with the next read of the form
     const withEndDate = form({
@@ -1014,6 +1024,58 @@ describe("SubmissionEditor in steps", () => {
 
     expect(await screen.findByText("The documents could not be sent")).toBeInTheDocument();
     expect(screen.getByText("Research proposal")).toBeInTheDocument();
+  });
+
+  it("goes straight to the rest when an optional document was left out, sending nothing to be read", async () => {
+    const optional = { ...proposal(0), required: false };
+    const fetchMock = serving(stepped({ requirements: [ optional, study() ] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("The study")).toBeInTheDocument();
+    expect(posts(fetchMock)).toEqual([]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+  });
+
+  it("shows how to finish the request only on the last step", async () => {
+    const optional = { ...proposal(0), required: false };
+    vi.stubGlobal("fetch", serving(stepped({ requirements: [ optional, study() ] })));
+
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} finish={<button type="button">Send</button>} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByRole("button", { name: "Send" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+  });
+
+  it("shows a generated document with the rest, not among the uploads", async () => {
+    const plan: DocumentRequirement = { ...proposal(0), name: "plan", path: "/Schemas/study/v1/plan",
+      label: "research plan", generated: true };
+    vi.stubGlobal("fetch", serving(stepped({ requirements: [ proposal(1), plan, study() ] })));
+
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+    expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+    expect(screen.queryByText("Research plan")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+  });
+
+  it("keeps a generated document open to preview once the uploads were sent", async () => {
+    const plan: DocumentRequirement = { ...proposal(0), name: "plan", path: "/Schemas/study/v1/plan",
+      label: "research plan", generated: true };
+    vi.stubGlobal("fetch", serving(stepped({ extraction: { status: "done" },
+      requirements: [ proposal(1), plan, study() ] })));
+
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByRole("button", { name: 'Preview "research plan"' })).toBeEnabled();
   });
 
   it("shows a request that can no longer be changed on one page", async () => {

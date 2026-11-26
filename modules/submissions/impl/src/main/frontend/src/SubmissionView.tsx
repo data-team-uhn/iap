@@ -63,7 +63,7 @@ import {
   toTitle,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
-import SubmissionTasks from "./SubmissionTasks";
+import SubmissionTasks, { useTaskCompletion } from "./SubmissionTasks";
 import { useSubmissionTasks } from "./useSubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
@@ -496,23 +496,28 @@ function SubmissionView() {
       .then(readAgain, (e: unknown) => setStopFailure(describeRequestFailure(e)));
   }, [fetchUtil, path, readAgain]);
 
-  const taskButtons = (
-    <SubmissionTasks
-      path={path}
-      readinessNote={whyNotReady(submission)}
-      blocked={reading}
-      reloads={reloads}
-      queue={queue}
-      checkReady={checkReady}
-      onCompleted={() => {
-        if (shownPath.current !== path) {
-          return;
-        }
-        // Back to the read-only page, read again
-        readAgain();
-        void navigate(path);
-      }}
-    />
+  const completion = useTaskCompletion(path, {
+    reloads,
+    queue,
+    checkReady,
+    onCompleted: () => {
+      if (shownPath.current !== path) {
+        return;
+      }
+      // Back to the read-only page, read again
+      readAgain();
+      void navigate(path);
+    },
+  });
+  // The steps the request is waiting for, shown both above the request and below it. The editor puts them
+  // where filling the request in ends.
+  const tasks = (
+    <SubmissionTasks completion={completion} readinessNote={whyNotReady(submission)} blocked={reading} />
+  );
+  const footer = (
+    <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
+      {tasks}
+    </Stack>
   );
 
   // The way back, Stop, the steps the request is waiting for, and the switch between the two modes. It is
@@ -525,7 +530,7 @@ function SubmissionView() {
         <Button variant="outlined" color="error" startIcon={<StopIcon />} disabled={!reading} onClick={stopReading}>
           Stop reading
         </Button>
-        {taskButtons}
+        {tasks}
         <ToggleButtonGroup
           exclusive
           disabled={reading}
@@ -570,7 +575,7 @@ function SubmissionView() {
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
         <SubmissionEditor key={path} path={path} queueSave={queue} reading={reading} steps={steps}
-          sendControls={taskButtons} onChanged={readAgain} />
+          finish={tasks} onChanged={readAgain} />
       </Stack>
     );
   }
@@ -629,6 +634,7 @@ function SubmissionView() {
           ? <Reviews reviews={reviews} />
           : <Typography variant="placeholder">No reviews yet</Typography>}
       </Panel>
+      {footer}
     </Stack>
   );
 }

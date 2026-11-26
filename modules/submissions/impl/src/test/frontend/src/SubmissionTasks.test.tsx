@@ -22,7 +22,7 @@ import userEvent from "@testing-library/user-event";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { jsonResponse, stubFetch, type FetchRoute } from "@iap/frontend-commons/fetch.fixture";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
-import SubmissionTasks from "@iap/submissions/SubmissionTasks";
+import SubmissionTasks, { useTaskCompletion } from "@iap/submissions/SubmissionTasks";
 
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
 import { aQueue, settle } from "./workQueue.fixture";
@@ -49,17 +49,25 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ readinessNote, queue = aQueue(), checkReady, blocked, onCompleted }: {
+interface TasksProps {
   readinessNote?: string;
-  queue?: Enqueue;
   checkReady?: () => Promise<void>;
   blocked?: boolean;
+  reloads?: number;
   onCompleted?: () => void;
-} = {}) => render(
-  <SubmissionTasks path={PATH} readinessNote={readinessNote} queue={queue} checkReady={checkReady} blocked={blocked}
-    onCompleted={onCompleted} />,
-  { wrapper: NoticeProvider },
-);
+}
+
+// The buttons, shown in as many places as `copies` says, all of them sharing one completion
+function Tasks({ readinessNote, queue, checkReady, blocked, reloads, onCompleted, copies = 1 }:
+  TasksProps & { queue: Enqueue; copies?: number }) {
+  const completion = useTaskCompletion(PATH, { reloads, queue, checkReady, onCompleted });
+  return Array.from({ length: copies }, (_, copy) => (
+    <SubmissionTasks key={copy} completion={completion} readinessNote={readinessNote} blocked={blocked} />
+  ));
+}
+
+const renderTasks = ({ queue = aQueue(), ...props }: TasksProps & { queue?: Enqueue; copies?: number } = {}) =>
+  render(<Tasks queue={queue} {...props} />, { wrapper: NoticeProvider });
 
 const posted = (fetchMock: ReturnType<typeof repository>) =>
   fetchMock.mock.calls.filter(call => call[1]?.method === "POST");
@@ -131,6 +139,22 @@ describe("SubmissionTasks", () => {
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
 
     await waitFor(() => expect(fetchMock.mock.calls.filter(call => call[1]?.method !== "POST")).toHaveLength(2));
+  });
+
+  it("turns every copy of the step off while one of them is completing it", async () => {
+    const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
+    const queue = aQueue();
+    const saving = Promise.withResolvers<undefined>();
+    void queue(() => saving.promise);
+
+    renderTasks({ queue, copies: 2 });
+    const [ top, bottom ] = await screen.findAllByRole("button", { name: SEND_LABEL });
+    await userEvent.click(bottom);
+
+    expect(top).toBeDisabled();
+    expect(bottom).toBeDisabled();
+    saving.resolve(undefined);
+    await waitFor(() => expect(posted(fetchMock)).toHaveLength(1));
   });
 
   it("checks and completes the step once the work queued before it has settled", async () => {
@@ -247,13 +271,12 @@ describe("SubmissionTasks", () => {
 
   it("reads what the request is waiting for again when the page reads the submission again", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
-    const queue = aQueue();
 
-    const { rerender } = render(<SubmissionTasks path={PATH} queue={queue} reloads={0} />,
-      { wrapper: NoticeProvider });
+    const queue = aQueue();
+    const { rerender } = render(<Tasks queue={queue} reloads={0} />, { wrapper: NoticeProvider });
     await screen.findByRole("button", { name: SEND_LABEL });
-    rerender(<SubmissionTasks path={PATH} queue={queue} reloads={0} />);
-    rerender(<SubmissionTasks path={PATH} queue={queue} reloads={1} />);
+    rerender(<Tasks queue={queue} reloads={0} />);
+    rerender(<Tasks queue={queue} reloads={1} />);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   });

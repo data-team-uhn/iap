@@ -31,27 +31,30 @@ import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 import { COMPLETE_EVENT, type SubmissionTask } from "./taskModel";
 import { useSubmissionTasks } from "./useSubmissionTasks";
 
-// The tasks a submission is waiting for, as buttons labelled with each task's label.
+export interface TaskCompletion {
+  offered: SubmissionTask[];
+  working: boolean;
+  complete: (task: SubmissionTask) => void;
+}
+
+// The tasks a submission is waiting for that the reader can complete with a click, and a way to
+// complete one.
 //
-// Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent,
-// not disabled. A task with outcome options is left out, since the button sends no outcome, and so is a
+// Only a task whose `@events` offers the reader `complete` is offered. Another person's task is absent,
+// not disabled. A task with outcome options is left out, since a click sends no outcome, and so is a
 // task naming a requirement, which the editor shows as a step of its own.
 //
 // Completing a task is one piece of work on `queue`, the queue that also holds the saves of the
 // submission. It starts once the saves before it have settled, and a save asked for meanwhile waits
 // for it. It first calls `checkReady`. When that rejects, nothing is completed, and the reader is told
-// why. `readinessNote`, when given, says what still stands between the submission and its next step.
-// `blocked` turns the step buttons off while something is still running, such as a document being read.
-// The tasks are read again whenever `reloads` changes, which is when the page reads the submission again.
-function SubmissionTasks({ path, readinessNote, blocked = false, reloads = 0, queue, checkReady, onCompleted }: {
-  path: string;
-  readinessNote?: string;
-  blocked?: boolean;
+// why. The tasks are read again whenever `reloads` changes, which is when the page reads the
+// submission again.
+export function useTaskCompletion(path: string, { reloads = 0, queue, checkReady, onCompleted }: {
   reloads?: number;
   queue: Enqueue;
   checkReady?: () => Promise<void>;
   onCompleted?: () => void;
-}) {
+}): TaskCompletion {
   const { tasks, reload } = useSubmissionTasks(path);
   const readFor = useRef(reloads);
   useEffect(() => {
@@ -78,6 +81,19 @@ function SubmissionTasks({ path, readinessNote, blocked = false, reloads = 0, qu
 
   const offered = tasks.filter(task => offers(task, COMPLETE_EVENT) && task.outcomeOptions.length === 0
     && task.requirement === undefined);
+  return { offered, working, complete };
+}
+
+// The tasks of `completion`, as buttons labelled with each task's label. The page may show them in
+// more than one place: each place shares the one completion, so a click on any of them turns all of
+// them off. `readinessNote`, when given, says what still stands between the submission and its next
+// step. `blocked` turns the buttons off while something is still running, such as a document being
+// read.
+function SubmissionTasks({ completion: { offered, working, complete }, readinessNote, blocked = false }: {
+  completion: TaskCompletion;
+  readinessNote?: string;
+  blocked?: boolean;
+}) {
   if (offered.length === 0) {
     return null;
   }

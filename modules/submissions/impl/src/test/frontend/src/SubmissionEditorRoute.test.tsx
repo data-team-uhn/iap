@@ -148,7 +148,7 @@ describe("SubmissionEditor on a request that first asks whether there is a proto
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={SUBMISSION} queueSave={aQueue()} steps={waitingOn(FILL)}
-        sendControls={<button type="button">Send for review</button>} />);
+        finish={<button type="button">Send for review</button>} />);
       await userEvent.click(await screen.findByRole("button", { name: "Next" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Your proposal" });

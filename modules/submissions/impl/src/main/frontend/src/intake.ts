@@ -36,9 +36,14 @@ export const UPLOAD_STEP = 0;
 export const CONFIRM_STEP = 1;
 export const COMPLETE_STEP = 2;
 
-// Which step shows a requirement
+// A document the submitter uploads, as opposed to one the platform fills in from the answers
+function isUploaded(requirement: Requirement): requirement is DocumentRequirement {
+  return isDocumentRequirement(requirement) && !requirement.generated;
+}
+
+// Which step shows a requirement. A generated document comes last, since it is filled in from the answers.
 export function getStep(requirement: Requirement): number {
-  if (isDocumentRequirement(requirement)) {
+  if (isUploaded(requirement)) {
     return UPLOAD_STEP;
   }
   return isFormRequirement(requirement) && requirement.confirmsCategory === true ? CONFIRM_STEP : COMPLETE_STEP;
@@ -46,8 +51,23 @@ export function getStep(requirement: Requirement): number {
 
 // The required documents nothing was uploaded for yet
 export function getMissingDocuments(form: SubmissionForm): DocumentRequirement[] {
-  return form.requirements.filter(isDocumentRequirement)
+  return form.requirements.filter(isUploaded)
     .filter(document => document.required && document.attached.length === 0);
+}
+
+// Whether anything was uploaded to be read. With only optional documents, there may be nothing.
+export function hasUploads(form: SubmissionForm): boolean {
+  return form.requirements.filter(isUploaded).some(document => document.attached.length > 0);
+}
+
+// The step Next leads to. With nothing uploaded there is nothing to read or confirm, so it goes straight to the rest.
+export function getNextStep(form: SubmissionForm, step: number): number {
+  return step === UPLOAD_STEP && !hasUploads(form) ? COMPLETE_STEP : step + 1;
+}
+
+// The step Back leads to: the uploads, past the confirmation, when nothing was sent to be read
+export function getPreviousStep(form: SubmissionForm, step: number): number {
+  return step === COMPLETE_STEP && form.extraction === undefined ? UPLOAD_STEP : step - 1;
 }
 
 function getQuestions(items: FormItem[]): FormQuestion[] {
