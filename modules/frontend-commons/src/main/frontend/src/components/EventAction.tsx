@@ -87,7 +87,10 @@ export function EventAction(props: EventActionProps) {
 // One action, as an icon button named by its tooltip, or as a named line in an ActionsMenu. `pressed` shows whether
 // an action that toggles is on. `onClick` is given the element that stands for the action: the button, or the element
 // that held the menu. `to` is the in-app path of an action that only goes somewhere, which is then a link there.
-export function ActionIcon({ label, icon, onClick, pressed, color = "default", disabled, loading, ref, to }: {
+// `size` and `edge` pass on to the button.
+export function ActionIcon({
+  label, icon, onClick, pressed, color = "default", disabled, loading, ref, to, size = "small", edge = false,
+}: {
   label: string;
   icon: ReactNode;
   onClick?: (trigger: HTMLElement) => void;
@@ -97,6 +100,8 @@ export function ActionIcon({ label, icon, onClick, pressed, color = "default", d
   loading?: boolean;
   ref?: Ref<HTMLButtonElement>;
   to?: string;
+  size?: "small" | "medium";
+  edge?: "start" | "end" | false;
 }) {
   const menu = use(ActionsMenuContext);
   const named = (
@@ -121,7 +126,9 @@ export function ActionIcon({ label, icon, onClick, pressed, color = "default", d
   if (to !== undefined) {
     return (
       <Tooltip title={label}>
-        <IconButton size="small" aria-label={label} component={RouterLink} to={to} sx={TOUCH_TARGET}>{icon}</IconButton>
+        <IconButton size={size} edge={edge} aria-label={label} component={RouterLink} to={to} sx={TOUCH_TARGET}>
+          {icon}
+        </IconButton>
       </Tooltip>
     );
   }
@@ -129,8 +136,9 @@ export function ActionIcon({ label, icon, onClick, pressed, color = "default", d
     <Tooltip title={label}>
       {/* A disabled button fires no events, so the tooltip listens on what holds it */}
       <Box component="span" sx={{ display: "inline-flex" }}>
-        <IconButton ref={ref} size="small" aria-label={label} aria-pressed={pressed} color={pressed ? "primary" : color}
-          disabled={disabled} loading={loading} onClick={event => onClick?.(event.currentTarget)} sx={TOUCH_TARGET}>
+        <IconButton ref={ref} size={size} edge={edge} aria-label={label} aria-pressed={pressed}
+          color={pressed ? "primary" : color} disabled={disabled} loading={loading}
+          onClick={event => onClick?.(event.currentTarget)} sx={TOUCH_TARGET}>
           {icon}
         </IconButton>
       </Box>

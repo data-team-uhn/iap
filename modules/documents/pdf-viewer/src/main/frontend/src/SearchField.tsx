@@ -22,7 +22,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import SearchIcon from "@mui/icons-material/Search";
-import { Box, CircularProgress, IconButton, InputAdornment, TextField, Typography } from "@mui/material";
+import { Box, CircularProgress, InputAdornment, TextField, Typography } from "@mui/material";
+
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 
 import { getFailedColour } from "./passageStyles";
 
@@ -115,18 +117,16 @@ export default function SearchField({ search, inputRef, disabled, onFind, onFind
           },
         }}
       />
-      <IconButton aria-label="Previous match" disabled={cannotStep} onClick={onFindPrevious}>
-        <KeyboardArrowUpIcon />
-      </IconButton>
-      <IconButton aria-label="Next match" disabled={cannotStep} onClick={onFindNext}>
-        <KeyboardArrowDownIcon />
-      </IconButton>
+      <ActionIcon
+        label="Previous match" icon={<KeyboardArrowUpIcon />} size="medium" disabled={cannotStep} onClick={onFindPrevious}
+      />
+      <ActionIcon
+        label="Next match" icon={<KeyboardArrowDownIcon />} size="medium" disabled={cannotStep} onClick={onFindNext}
+      />
       {onClose === undefined
         ? null
         : (
-          <IconButton aria-label="Close the search" edge="end" onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
+          <ActionIcon label="Close the search" icon={<CloseIcon />} size="medium" edge="end" onClick={onClose} />
         )}
     </Box>
   );

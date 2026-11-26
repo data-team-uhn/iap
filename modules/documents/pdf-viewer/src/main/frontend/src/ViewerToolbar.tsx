@@ -19,8 +19,9 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 
 import SearchIcon from "@mui/icons-material/Search";
-import { Box, IconButton } from "@mui/material";
+import { Box } from "@mui/material";
 
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 
 import PdfToolbar from "./PdfToolbar";
@@ -102,14 +103,14 @@ export default function ViewerToolbar({ ref, start, tools, opened, search, onFin
             tools={tools}
             search={compact
               ? (
-                <IconButton
+                <ActionIcon
                   ref={searchButtonRef}
-                  aria-label="Search the document"
+                  label="Search the document"
+                  icon={<SearchIcon />}
+                  size="medium"
                   disabled={!opened}
                   onClick={() => setSearchOpen(true)}
-                >
-                  <SearchIcon />
-                </IconButton>
+                />
               )
               : (
                 <SearchField

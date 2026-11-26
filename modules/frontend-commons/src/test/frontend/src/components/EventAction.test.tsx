@@ -115,6 +115,28 @@ describe("ActionIcon", () => {
     expect(onClick).toHaveBeenCalled();
   });
 
+  it("shows its tooltip while disabled, over what holds the button", async () => {
+    render(<ActionIcon label="Zoom in" icon={<span />} disabled />);
+    const button = screen.getByRole("button", { name: "Zoom in" });
+    expect(button).toBeDisabled();
+
+    // A disabled button gets no pointer events, so the pointer reaches the element holding it
+    fireEvent.mouseOver(button.closest("span") as HTMLElement);
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Zoom in");
+  });
+
+  it("is a small button unless asked otherwise, and sits on an edge when asked", () => {
+    const { rerender } = render(<ActionIcon label="Close" icon={<span />} />);
+    expect(screen.getByRole("button", { name: "Close" })).toHaveClass("MuiIconButton-sizeSmall");
+
+    rerender(<ActionIcon label="Close" icon={<span />} size="medium" edge="end" />);
+
+    const button = screen.getByRole("button", { name: "Close" });
+    expect(button).toHaveClass("MuiIconButton-sizeMedium");
+    expect(button).toHaveClass("MuiIconButton-edgeEnd");
+  });
+
   it("is a link when the action only goes somewhere", () => {
     render(<MemoryRouter><ActionIcon label="Edit" icon={<span />} to="/admin/workflows/review/v2" /></MemoryRouter>);
 
