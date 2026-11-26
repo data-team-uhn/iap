@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 // The zoom buttons: Zoom out, Fit to width and Zoom in.
-import FitWidthIcon from "@mui/icons-material/WidthFull";
+import ExpandIcon from "@mui/icons-material/Expand";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { IconButton } from "@mui/material";
@@ -34,7 +34,8 @@ export default function ZoomControls({ disabled, onZoomIn, onZoomOut, onFitWidth
         <ZoomOutIcon />
       </IconButton>
       <IconButton aria-label="Fit to width" disabled={disabled} onClick={onFitWidth}>
-        <FitWidthIcon />
+        {/* Expand points up and down; a quarter turn makes it point to the sides */}
+        <ExpandIcon sx={{ transform: "rotate(90deg)" }} />
       </IconButton>
       <IconButton aria-label="Zoom in" edge="end" disabled={disabled} onClick={onZoomIn}>
         <ZoomInIcon />
