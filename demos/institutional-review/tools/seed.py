@@ -187,6 +187,27 @@ def iso(when):
     return when.isoformat(timespec="milliseconds")
 
 
+def dated(when):
+    """When something the seed writes for a study's past happened, which the review screen reads before the date
+    the repository gives it as it is written. PRETOTYPE."""
+    return {"dated": iso(when), "dated@TypeHint": "Date"} if when else {}
+
+
+def sent_at(setting, now):
+    """When a study was sent for review, as its stage says."""
+    return now - datetime.timedelta(days=setting["age"], hours=3)
+
+
+def rounds(setting, now):
+    """When a study's AI pre-review was read, and, for one sent back, when the REB sent it back and when its team
+    answered: days apart, so the versions it went through are told apart by their day."""
+    sent = sent_at(setting, now)
+    sent_back = now - datetime.timedelta(days=setting["paused"]) if setting.get("paused") \
+        else sent + datetime.timedelta(days=max(1, setting["age"] // 4))
+    answered = min(sent + datetime.timedelta(days=max(2, setting["age"] * 3 // 5)), now - datetime.timedelta(days=1))
+    return {"read": sent + datetime.timedelta(hours=1), "sent_back": sent_back, "answered": answered}
+
+
 def pdf_from_html(body, title, out):
     page = f"""<!doctype html><html><head><meta charset="utf-8"><title>{html.escape(title)}</title><style>
       body {{ font: 11pt/1.4 "Liberation Sans", Arial, sans-serif; margin: 2cm; color: #111; }}
@@ -331,7 +352,7 @@ def distance(given, extracted):
     return round(max(len(a), len(b)) * (1 - ratio)), round((1 - ratio) * 100, 1)
 
 
-def add_extractions(admin, study, answers, documents):
+def add_extractions(admin, study, answers, documents, when=None):
     protocol = documents["protocol"][1]
     for index, extraction in enumerate(study.get("extractions", [])):
         answer = answers.get(extraction["question"])
@@ -344,15 +365,16 @@ def add_extractions(admin, study, answers, documents):
             "percentageDistance": str(percentage), "percentageDistance@TypeHint": "Double",
             "jcr:primaryType": "sub:Extraction", "sources": protocol, "sources@TypeHint": "Reference[]",
             "extractedAnswer": as_text(extraction["extractedAnswer"]), "reasoning": extraction["reasoning"],
-            "confidence": str(extraction["confidence"]), "confidence@TypeHint": "Double"})
+            "confidence": str(extraction["confidence"]), "confidence@TypeHint": "Double", **dated(when)})
         create(admin, f"{node}/context", context_fields(protocol, extraction["quote"], extraction["page"]))
 
 
-def add_comment(admin, node, comment, author, answers, documents, tags=None):
+def add_comment(admin, node, comment, author, answers, documents, tags=None, when=None):
     subjects = [answers[s][1] if s in answers else documents[s][0]
                 for s in comment.get("subjects", []) if s in answers or s in documents]
     fields = {"jcr:primaryType": "sub:Comment", "text": comment["text"], "author": author,
-              "kind": comment.get("kind", ""), "tags": tags or [comment["severity"]], "tags@TypeHint": "String[]"}
+              "kind": comment.get("kind", ""), "tags": tags or [comment["severity"]], "tags@TypeHint": "String[]",
+              **dated(when)}
     if comment.get("suggestion"):
         fields["suggestion"] = comment["suggestion"]
     if subjects:
@@ -362,7 +384,7 @@ def add_comment(admin, node, comment, author, answers, documents, tags=None):
         create(admin, f"{node}/context", context_fields(documents["protocol"][1], comment["quote"], comment.get("page")))
 
 
-def add_screening(admin, path, study, schema, answers, documents):
+def add_screening(admin, path, study, schema, answers, documents, when=None):
     screening = study["screening"]
     node = f"{path}/screening"
     create(admin, node, {"jcr:primaryType": "sub:Screening", "summary": screening["summary"]})
@@ -372,7 +394,7 @@ def add_screening(admin, path, study, schema, answers, documents):
         create(admin, here, {"jcr:primaryType": "sub:Assessment", "topic": topic, "topic@TypeHint": "Reference",
                              "summary": assessment["summary"]})
         for index, comment in enumerate(assessment["comments"]):
-            add_comment(admin, f"{here}/comment{index}", comment, ASSISTANT, answers, documents)
+            add_comment(admin, f"{here}/comment{index}", comment, ASSISTANT, answers, documents, when=when)
 
 
 # The reviewer group each reviewer reviews for, kept on their review so other reviewers can say whose issues they read
@@ -394,23 +416,43 @@ def letter(issues):
                       "Sincerely,", "", "Sam Okafor", "On behalf of the research ethics review"])
 
 
-def send_back(admin, path, answers, documents, issues, url):
+def send_back(admin, path, answers, documents, issues, url, when=None):
+    """The REB's issues, then its request for changes with its letter, through its reviewer's task; dated, when given,
+    as when it was sent back, the issues a little before."""
+    review = f"{path}/review-reb-reviewer"
     for index, issue in enumerate(issues):
-        add_comment(admin, f"{path}/review-reb-reviewer/issue{index}", issue, "reb-reviewer", answers, documents)
+        add_comment(admin, f"{review}/issue{index}", issue, "reb-reviewer", answers, documents,
+                    when=when and when - datetime.timedelta(hours=2))
     reviewer = Instance(url, "reb-reviewer")
     reviewer.post(open_task(admin, path, "rebTask") + ".json",
                   {"outcome": "changes-requested", "outcomeNote": letter(issues)})
+    if when:
+        # As an administrator, past the workflow, as the stage is set
+        admin.post(f"{review}.import", form({"decidedAt": iso(when), "decidedAt@TypeHint": "Date"}))
+        for name, node in children(admin, review, "sub/Comment").items():
+            if node.get("decision"):
+                admin.post(f"{review}/{name}.import", form(dated(when)))
 
 
-def resubmit(admin, researcher, path, content, nct, plan, answers, documents, url):
+def resubmit(admin, researcher, path, content, nct, plan, answers, documents, url, when=None):
     """The REB sends the study back, the workflow keeping a copy of it as it was, and its team answers: changes the
-    answers, uploads the revised protocol and sends it back into review."""
-    send_back(admin, path, answers, documents, plan["issues"], url)
+    answers, uploads the revised protocol and sends it back into review. Dated, when given, as the study's rounds
+    say."""
+    send_back(admin, path, answers, documents, plan["issues"], url, when and when["sent_back"])
     researcher.post(f"{path}.save.json", answer_payload(plan["answers"]))
     with open(content / "protocols" / nct / plan["protocol"], "rb") as protocol:
         researcher.post(f"{path}.attachDocument.json", {"requirement": "protocol"},
                         files={"file": (f"{nct} protocol.pdf", protocol, "application/pdf")})
     researcher.post(open_task(admin, path, "respond") + ".json", {})
+    if when:
+        admin.post(f"{path}.import", form({"resubmittedAt": iso(when["answered"]), "resubmittedAt@TypeHint": "Date"}))
+        # The protocol's versions, the first uploaded before the study was sent, the revised one as its team answered
+        for name in children(admin, path, "sub/Document"):
+            versions = sorted(children(admin, f"{path}/{name}", "sub/DocumentVersion").items(),
+                              key=lambda kv: kv[1]["jcr:created"])
+            if len(versions) > 1:
+                for (version, _), at in zip(versions, [when["read"] - datetime.timedelta(hours=2), when["answered"]]):
+                    admin.post(f"{path}/{name}/{version}.import", form(dated(at)))
 
 
 def find_submission(admin, title):
@@ -451,7 +493,7 @@ def admin_view(url):
 
 
 def stage(admin, path, study, setting, now):
-    sent = now - datetime.timedelta(days=setting["age"], hours=3)
+    sent = sent_at(setting, now)
     window = 5 if setting.get("fastTrack") else 15
     fields = {"submittedAt": iso(sent), "submittedAt@TypeHint": "Date",
               "reviewDue": iso(sent + datetime.timedelta(days=window)), "reviewDue@TypeHint": "Date"}
@@ -487,7 +529,8 @@ def main():
             study = json.loads((content / "content" / f"{nct}.json").read_text())
             path = find_submission(admin, study["title"])
             answers, documents = submission_parts(admin, path, schema)
-            resubmit(admin, researcher, path, content, nct, plan, answers, documents, args.url)
+            resubmit(admin, researcher, path, content, nct, plan, answers, documents, args.url,
+                     rounds(STAGES[nct], now))
             print(nct, path, "resubmitted")
         return 0
     # Oldest first, so identifiers follow the order studies were sent in
@@ -498,13 +541,14 @@ def main():
         path = file_study(researcher, admin, content, study)
         send(researcher, admin, path)
         answers, documents = submission_parts(admin, path, schema)
-        add_extractions(admin, study, answers, documents)
-        add_screening(admin, path, study, schema, answers, documents)
+        when = rounds(setting, now)
+        add_extractions(admin, study, answers, documents, when["read"])
+        add_screening(admin, path, study, schema, answers, documents, when["read"])
         open_review(admin, path, schema, "reb-reviewer", "reb")
         if nct in SENT_BACK:
-            send_back(admin, path, answers, documents, SENT_BACK[nct], args.url)
+            send_back(admin, path, answers, documents, SENT_BACK[nct], args.url, when["sent_back"])
         if nct in RESUBMITTED:
-            resubmit(admin, researcher, path, content, nct, RESUBMITTED[nct], answers, documents, args.url)
+            resubmit(admin, researcher, path, content, nct, RESUBMITTED[nct], answers, documents, args.url, when)
         add_activity(args.url, path, ACTIVITY.get(nct, {}))
         # Last: sending a study back pauses the clock now, and this dates everything as the stage says
         stage(admin, path, study, setting, now)
