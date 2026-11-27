@@ -83,7 +83,9 @@ export default function ViewerToolbar({ ref, start, tools, opened, search, onFin
   };
 
   return (
-    <Box ref={setRow}>
+    // A rule under it, which the document's frame begins at, with no gap between them: the row's gap below the
+    // toolbar is taken back
+    <Box ref={setRow} sx={{ pb: 0.5, borderBottom: 1, borderColor: "divider", mb: { xs: -0.5, sm: -1 } }}>
       {searchInPlace
         ? (
           <Box sx={{ display: "flex", alignItems: "center" }}>

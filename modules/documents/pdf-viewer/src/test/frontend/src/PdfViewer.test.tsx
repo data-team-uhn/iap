@@ -802,6 +802,13 @@ describe("PdfViewer", () => {
       expect(screen.queryByRole("button", { name: "Pop back in" })).not.toBeInTheDocument();
     });
 
+    it("fits the page to the frame with room on either side, where the frame shows around it", async () => {
+      show({ container: createPlace() });
+      await screen.findByText("Page 2 of 3");
+      expect(getViewer().currentScaleValue).toBe("page-width");
+      expect(getViewer().removePageBorders).toBe(false);
+    });
+
     it("waits for a container that is not there yet, without a dialog in the meantime", async () => {
       const place = createPlace();
       const { rerender } = show({ container: null });
