@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from collections.abc import Mapping
 from typing import Any
 
 import jinja2
@@ -61,7 +62,7 @@ def render(template: bytes, context: dict[str, Any]) -> bytes:
         raise TemplateError("the template is not a readable .docx file") from exc
 
     # A fresh environment per render: docxtpl sets autoescape on the one it is given
-    environment = SandboxedEnvironment(undefined=jinja2.StrictUndefined)
+    environment = _KeysFirstEnvironment(undefined=jinja2.StrictUndefined)
     try:
         document.render(context, jinja_env=environment, autoescape=True)
     except jinja2.TemplateError as exc:
@@ -73,6 +74,20 @@ def render(template: bytes, context: dict[str, Any]) -> bytes:
     rendered = io.BytesIO()
     document.save(rendered)
     return rendered.getvalue()
+
+
+class _KeysFirstEnvironment(SandboxedEnvironment):
+    """Reads ``a.b`` on a mapping as its ``b`` key before any attribute of that name.
+
+    The values are dicts keyed by the schema's names, and a question may be named ``items`` or
+    ``update``. Jinja would print the dict's method of that name instead of the answer. With no
+    such key, the attribute is still found, so ``a.items()`` keeps working.
+    """
+
+    def getattr(self, obj: Any, attribute: str) -> Any:
+        if isinstance(obj, Mapping) and attribute in obj:
+            return obj[attribute]
+        return super().getattr(obj, attribute)
 
 
 def _describe(error: jinja2.TemplateError) -> str:

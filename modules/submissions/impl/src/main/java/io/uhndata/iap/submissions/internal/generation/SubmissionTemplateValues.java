@@ -37,10 +37,12 @@ import io.uhndata.iap.submissions.models.Submission;
  * was {@code created}, and its {@code answers}.
  *
  * <p>The answers follow the schema's own tree, by node name, so the question at {@code details/day} is
- * {@code {{ submission.answers.details.day }}}. Question names only have to be unique among their siblings, and two
- * forms asking for a "name" is ordinary, so anything flatter would be ambiguous. Every question is there, answered or
- * not, so that an optional question left blank prints nothing rather than failing the template: a single answer is
- * its text, empty when unanswered, and a question taking several is a list. A question that does not currently
+ * {@code {{ submission.answers.details.day }}}. A name that starts with a digit or holds a {@code -} cannot follow a
+ * dot, and is written in brackets: {@code {{ submission.answers["details"]["2nd-day"] }}}. Question names only have
+ * to be unique among their siblings, and two forms asking for a "name" is ordinary, so anything flatter would be
+ * ambiguous. Every question is there, answered or not, so that an optional question left blank prints nothing rather
+ * than failing the template: a single answer is its text, empty when unanswered, and a question taking several is a
+ * list. A question that does not currently
  * apply, by its own condition or one around it, counts as unanswered, whatever was stored for it.</p>
  *
  * @version $Id$

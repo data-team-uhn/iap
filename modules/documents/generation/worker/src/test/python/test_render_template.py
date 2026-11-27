@@ -90,6 +90,27 @@ class TestRendering:
         rendered = render_template.render(template, {"reviewers": reviewers})
         assert text_of(rendered) == ["Reviewer", "Role", "X", "Chair", "Y", "Member"]
 
+    def test_reads_an_answer_named_as_a_dict_method(self):
+        rendered = render_template.render(
+            build_template("{{ answers.items }}, {{ answers.update }}"),
+            {"answers": {"items": "Two chairs", "update": "None"}},
+        )
+        assert "Two chairs, None" in text_of(rendered)
+
+    def test_still_lists_a_mapping_with_no_key_of_that_name(self):
+        template = build_template(
+            "{% for name, value in answers.items() %}{{ name }}={{ value }};{% endfor %}"
+        )
+        rendered = render_template.render(template, {"answers": {"a": "1", "b": "2"}})
+        assert "a=1;b=2;" in text_of(rendered)
+
+    def test_reads_a_name_that_is_not_an_identifier_with_brackets(self):
+        # Schema names may start with a digit or hold a -, which the dot form cannot spell
+        rendered = render_template.render(
+            build_template('{{ answers["2nd-reviewer"] }}'), {"answers": {"2nd-reviewer": "Dr. B"}}
+        )
+        assert "Dr. B" in text_of(rendered)
+
     def test_drops_a_conditional_paragraph(self):
         template = build_template("{%p if conditions %}", "Subject to conditions.", "{%p endif %}")
         rendered = render_template.render(template, {"conditions": False})

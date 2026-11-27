@@ -92,7 +92,8 @@ a letterhead with a logo say, edited in Word. It is a Jinja template (docxtpl), 
 - `{{ submission.title }}`, and `{{ submission.created }}`, an ISO date-time (`[:10]` keeps the date)
 - `{{ submission.answers.details.startDate }}`, `{{ submission.answers.details.endDate }}`: each answer,
   nested as the schema nests its questions. One the request was not asked, such as the last day of a
-  single-day request, is blank
+  single-day request, is blank. A name that starts with a digit or holds a `-` is written in brackets,
+  as in `{{ submission.answers["details"]["2nd-day"] }}`
 - `{{ submitter.name }}`, `{{ submitter.email }}`, `{{ submitter.id }}`
 
 A name the template uses that the request does not have fails the generation with that name, rather than
