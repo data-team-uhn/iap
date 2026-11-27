@@ -1158,7 +1158,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       {showDone ? "Showing notes resolved, dismissed or addressed by an issue. "
         : `${resolvedHere === 1 ? "1 resolved note" : `${resolvedHere} resolved notes`} hidden. `}
       <Link component="button" variant="caption" sx={{ verticalAlign: "baseline" }} onClick={() => setShowDone(!showDone)}>
-        {showDone ? "Hide them" : "Show them"}
+        {showDone ? "Hide" : "Show"}
       </Link>
     </Typography>
   );
