@@ -291,6 +291,17 @@ class SaveDataSelectionHandlerTest
     }
 
     @Test
+    void recordsAChoiceWhileTheRequestIsBackForChanges() throws Exception
+    {
+        this.fixture.select();
+        this.fixture.tagSubmission("changes-requested");
+
+        this.handler.execute(context(payload(DATA, new String[] {BIRTH_DATE})));
+
+        assertArrayEquals(new String[] {BIRTH_DATE}, onlySelection().getValueMap().get(FIELDS, String[].class));
+    }
+
+    @Test
     void refusesAChoiceOnceTheRequestHasBeenSent()
     {
         this.fixture.select();
