@@ -266,12 +266,13 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
         return draftCell(column.field);
       }
       const content = column.renderCell ? column.renderCell(params) : params.formattedValue as ReactNode;
-      // A cell that can be changed says so with a pencil, under the pointer, or always where there is none
+      // A cell that can be changed says so with a pencil over its corner under the pointer, so nothing rewraps,
+      // or always where there is no pointer, beside the content
       return column.editable ? (
-        <Stack direction="row" sx={{ width: "100%", alignItems: "flex-start", gap: 0.5 }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>{content}</Box>
-          <EditOutlined className="edit-hint" />
-        </Stack>
+        <Box className="editable" sx={{ position: "relative", width: "100%" }}>
+          {content}
+          <Box className="edit-hint"><EditOutlined /></Box>
+        </Box>
       ) : content;
     },
   }));
@@ -321,12 +322,17 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
           "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" },
           // A cell that changes on a click says so under the pointer, as a spreadsheet's does
           "& .MuiDataGrid-cell--editable": { cursor: "pointer" },
+          // The text being changed stays where it was read, at the top, however tall the row
+          "& .MuiDataGrid-cell--editing": { alignItems: "flex-start" },
           "& .MuiDataGrid-cell--editable[data-field='text']": { cursor: "text" },
           "& .MuiDataGrid-cell--editable:hover": { outline: "1px solid", outlineColor: "primary.light", outlineOffset: "-2px",
             borderRadius: 0.5 },
-          "& .edit-hint": { display: "none", flexShrink: 0, fontSize: "1rem", color: "text.secondary", mt: 0.25 },
-          "& .MuiDataGrid-cell--editable:hover .edit-hint": { display: "block" },
-          "@media (hover: none)": { "& .MuiDataGrid-cell--editable .edit-hint": { display: "block" } } }}
+          "& .edit-hint": { display: "none", position: "absolute", top: -2, right: -4, width: 24, height: 24,
+            borderRadius: "50%", bgcolor: "background.default", color: "text.secondary", boxShadow: 1, cursor: "pointer",
+            alignItems: "center", justifyContent: "center", "& svg": { fontSize: "0.95rem" } },
+          "& .MuiDataGrid-cell--editable:hover .edit-hint": { display: "flex" },
+          "@media (hover: none)": { "& .MuiDataGrid-cell--editable": { "& .editable": { pr: 3.5 },
+            "& .edit-hint": { display: "flex" } } } }}
       />
     </Drafting.Provider>
   );
@@ -353,7 +359,7 @@ function TextEdit({ id, field, value }: GridRenderEditCellParams<IssueRow, strin
         }
       }}
       inputProps={{ "aria-label": "The issue" }}
-      sx={{ px: 1.25, py: 0.75, alignSelf: "stretch", typography: "body2" }}
+      sx={{ px: 1.25, py: 0.75, alignSelf: "stretch", alignItems: "flex-start", typography: "body2" }}
     />
   );
 }

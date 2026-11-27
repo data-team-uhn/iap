@@ -126,7 +126,6 @@ interface ReviewProps {
   issueCount: number;
   others: OthersRaised[];
   about: (note: ReviewNote) => string;
-  waitingSince?: string;
   doing: ReviewDoing;
 }
 
@@ -218,7 +217,7 @@ export default function ReviewPanel(props: ReviewProps & {
             <SelfNotes notes={props.notes} doing={doing} />
           </PanelBody>
         )}
-      {!(letter && full) && <Decision waitingSince={props.waitingSince} decision={doing.decision} wide={wide} />}
+      {!(letter && full) && <Decision decision={doing.decision} wide={wide} />}
     </Box>
   );
 }
@@ -1021,9 +1020,8 @@ function Decided({ decision, wide }: { decision: DecisionActions; wide: boolean 
   );
 }
 
-// The decision, and since when it waits on the reviewer
-function Decision({ waitingSince, decision, wide = false }: {
-  waitingSince?: string;
+// The decision, with what was asked of the study team when it is back from them
+function Decision({ decision, wide = false }: {
   decision: ReviewDoing["decision"];
   wide?: boolean;
 }) {
@@ -1049,14 +1047,7 @@ function Decision({ waitingSince, decision, wide = false }: {
   return (
     <Stack direction={wide ? { xs: "column", sm: "row" } : "column"} spacing={1}
       sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: wide ? { sm: "center" } : undefined }}>
-      {/* The whole review says since when the decision has waited; the panel keeps to the decision */}
-      {/* Back from the study team, it says what was asked of them */}
-      {!wide && decision.decided && <Decided decision={decision} wide={false} />}
-      {wide && (decision.decided ? <Decided decision={decision} wide /> : (
-        <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
-          {waitingSince ? `Waiting on your decision since ${waitingSince}` : "Not waiting on your decision now"}
-        </Typography>
-      ))}
+      {decision.decided ? <Decided decision={decision} wide={wide} /> : wide && <Box sx={{ flex: 1 }} />}
       {wide && board}
       {held(
         <Button variant="outlined" size="small" fullWidth startIcon={<ForwardToInboxOutlined />}

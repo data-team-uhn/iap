@@ -923,9 +923,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     removeReply: reply => actions.write({ remove: reply }),
     showOthers: () => setShown(kinds => storeKinds(new Set([ ...kinds, "otherIssue" ]))),
   };
-  const taskCreated = text(myTaskNode()?.["jcr:created"]);
-  const waitingSince = taskCreated
-    ? new Date(taskCreated).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : undefined;
   const waiting = myTask() !== undefined;
   // A suggestion can go with an approval; anything more serious needs changes first
   // Resolved issues are asked no more: the letter, the escalation and what holds Approve back are the open ones
@@ -1175,7 +1172,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       <ReviewerTopics.Provider value={reviewerTopics}>
         <ReviewPanel
           risks={risks} unfiled={unfiled} issueCount={myIssues.length} notes={generalNotes}
-          others={othersRaised} about={about} waitingSince={waitingSince}
+          others={othersRaised} about={about}
           doing={{ ...doing, decision: reviewActions }}
           full={reviewFull} onFull={spreadReview}
           letter={writingLetter ? { draft: letter, close: () => setWritingLetter(false), send: async () => {
