@@ -1039,8 +1039,8 @@ function Decision({ decision, wide = false }: {
   const held = (button: ReactNode) => decision.blocked
     ? <Tooltip disableInteractive title={decision.blocked}><span>{button}</span></Tooltip> : button;
   const board = decision.board && held(
-    <Button variant="text" size="small" fullWidth startIcon={<GroupsOutlined />} disabled={Boolean(decision.blocked)}
-      onClick={decision.board}>
+    <Button variant="text" size="small" fullWidth={!wide} startIcon={<GroupsOutlined />}
+      disabled={Boolean(decision.blocked)} onClick={decision.board}>
       Send to the board
     </Button>,
   );
@@ -1050,14 +1050,14 @@ function Decision({ decision, wide = false }: {
       {decision.decided ? <Decided decision={decision} wide={wide} /> : wide && <Box sx={{ flex: 1 }} />}
       {wide && board}
       {held(
-        <Button variant="outlined" size="small" fullWidth startIcon={<ForwardToInboxOutlined />}
+        <Button variant="outlined" size="small" fullWidth={!wide} startIcon={<ForwardToInboxOutlined />}
           disabled={Boolean(decision.blocked)} onClick={decision.send}>
           Letter of Review
         </Button>,
       )}
       <Tooltip disableInteractive title={decision.blocked ?? decision.approveBlocked ?? ""}>
         <span>
-          <Button variant="contained" size="small" fullWidth startIcon={<TaskAltOutlined />}
+          <Button variant="contained" size="small" fullWidth={!wide} startIcon={<TaskAltOutlined />}
             disabled={Boolean(decision.blocked ?? decision.approveBlocked)} onClick={decision.approve}>
             Approve
           </Button>
