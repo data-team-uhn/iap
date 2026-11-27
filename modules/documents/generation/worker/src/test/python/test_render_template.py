@@ -135,6 +135,19 @@ class TestTemplateMistakes:
                 build_template("{{ name.__class__.__mro__ }}"), {"name": "Dr. A"}
             )
 
+    @pytest.mark.parametrize(
+        "tag, fragment",
+        [
+            ("{{ answers.days + 1 }}", "can only concatenate str"),
+            ("{{ 1 / 0 }}", "division by zero"),
+            ("{{ range(200000) | list }}", "Range too big"),
+            ("{% macro f() %}{{ f() }}{% endmacro %}{{ f() }}", "recursion"),
+        ],
+    )
+    def test_an_expression_that_fails_is_a_template_error(self, tag, fragment):
+        with pytest.raises(render_template.TemplateError, match=fragment):
+            render_template.render(build_template(tag), {"answers": {"days": "3"}})
+
     def test_bytes_that_are_not_a_docx_are_a_template_error(self):
         with pytest.raises(render_template.TemplateError, match="not a readable .docx"):
             render_template.render(b"not a zip at all", {})

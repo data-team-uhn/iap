@@ -116,6 +116,12 @@ class TestGenerate:
         assert "missing" in reply["error"]
         assert fake_soffice == [], "nothing is converted for a template that did not render"
 
+    def test_an_expression_that_fails_is_a_422_too(self, server, fake_soffice):
+        status, reply = post(server, generate_request(build_template("{{ 1 / 0 }}"), {}))
+
+        assert status == HTTPStatus.UNPROCESSABLE_ENTITY
+        assert "division by zero" in reply["error"]
+
     def test_a_zip_bomb_is_refused_before_it_is_opened(self, server, fake_soffice, monkeypatch):
         monkeypatch.setenv("IAP_MAX_EXPANDED_BYTES", "1000")
         archive = io.BytesIO()

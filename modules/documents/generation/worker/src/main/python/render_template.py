@@ -75,6 +75,10 @@ def render(template: bytes, context: dict[str, Any]) -> bytes:
         document.render(context, jinja_env=environment, autoescape=True)
     except jinja2.TemplateError as exc:
         raise TemplateError(_describe(exc)) from exc
+    except (TypeError, ValueError, ArithmeticError, LookupError, RecursionError) as exc:
+        # What the template's own expressions raise: adding a number to an answer, which is text,
+        # dividing by zero, a range past the sandbox's limit, a macro calling itself
+        raise TemplateError(f"the template could not be rendered: {exc}") from exc
     except etree.XMLSyntaxError as exc:
         # A {%p %} or {%tr %} tag placed where it cuts an element in half renders to broken XML
         raise TemplateError(f"the template renders to malformed document XML: {exc}") from exc
