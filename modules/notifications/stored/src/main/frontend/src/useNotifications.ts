@@ -16,11 +16,13 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
+import { backgroundFetch, useBackgroundPoll } from "@iap/frontend-commons/backgroundPoll";
 import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
 import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
+import { askToNotify, notificationsAllowed, notify } from "@iap/frontend-commons/systemNotifications";
 
 import {
   markReadUrl,
@@ -37,6 +39,9 @@ import {
 
 // How often the bell asks again, so that a page left open does not show a stale count
 const REFRESH_MILLIS = 60_000;
+
+/** The heading of the browser notification announcing a new notification. */
+const ANNOUNCEMENT_TITLE = "New notification";
 
 /** How many notifications to ask for. The dropdown shows fewer. */
 const LIMIT = 100;
@@ -97,8 +102,12 @@ export interface NotificationsFeed {
 }
 
 /**
- * The current user's notifications and unread count, asked for again every minute while the page
- * is open.
+ * The current user's notifications and unread count, asked for again every minute.
+ *
+ * The asking is a background poll, which does not keep the session alive. Once the user lets the
+ * browser show notifications, it goes on while the page is hidden, and announces each new unread
+ * notification there. Until then, it waits while the page is hidden. Opening the list asks for that
+ * permission, since a browser asks only in answer to a click.
  *
  * Opening the list marks as read the unread notifications it shows. `read` does both in one call,
  * so that the count and the list cannot disagree.
@@ -110,29 +119,35 @@ export function useNotifications(): NotificationsFeed {
   const [ notifications, setNotifications ] = useState<Notification[]>([]);
   const [ unreadCount, setUnreadCount ] = useState(0);
   const [ failed, setFailed ] = useState(false);
+  const [ announcing, setAnnouncing ] = useState(notificationsAllowed);
+  // The notifications already listed, which are not news; null before the first load
+  const known = useRef<Set<string> | null>(null);
 
-  const refresh = useCallback(async (): Promise<Notification[]> => {
-    const [ recent, unread ] = await Promise.all([ list(doFetch), countUnread(doFetch) ]);
+  const load = useCallback(async (fetchUtil: AuthenticatedFetch): Promise<Notification[]> => {
+    const [ recent, unread ] = await Promise.all([ list(fetchUtil), countUnread(fetchUtil) ]);
     setNotifications(recent);
     setUnreadCount(unread);
     setFailed(false);
+    known.current = new Set(recent.map(notification => notification.path));
     return recent;
-  }, [ doFetch ]);
+  }, []);
 
-  useEffect(() => {
-    // A count that cannot be loaded keeps its last value until the next try
-    const quietly = () => {
-      void refresh().catch(() => undefined);
-    };
-    quietly();
-    const timer = setInterval(quietly, REFRESH_MILLIS);
-    return () => clearInterval(timer);
-  }, [ refresh ]);
+  const poll = useCallback(async (): Promise<void> => {
+    const before = known.current;
+    const recent = await load(backgroundFetch);
+    if (announcing && before) {
+      recent.filter(notification => !notification.read && !before.has(notification.path))
+        .forEach(notification => notify(ANNOUNCEMENT_TITLE, notification.message, notification.path));
+    }
+  }, [ load, announcing ]);
+
+  useBackgroundPoll(poll, REFRESH_MILLIS, announcing);
 
   const read = useCallback(async (): Promise<void> => {
+    void askToNotify().then(setAnnouncing);
     let recent: Notification[];
     try {
-      recent = await refresh();
+      recent = await load(doFetch);
     } catch {
       // The dropdown says the list could not be loaded, instead of looking empty
       setFailed(true);
@@ -142,7 +157,7 @@ export function useNotifications(): NotificationsFeed {
     await markShownRead(doFetch, recent).catch(() => undefined);
     // A count that cannot be loaded keeps its last value until the next try
     await countUnread(doFetch).then(setUnreadCount, () => undefined);
-  }, [ doFetch, refresh ]);
+  }, [ doFetch, load ]);
 
   return { notifications, unreadCount, failed, read };
 }

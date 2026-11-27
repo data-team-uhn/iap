@@ -73,7 +73,11 @@ function servesNotifications(rows: Record<string, unknown>[], unread?: number) {
 describe("Notifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The bell's poll uses the plain fetch, and answers from the same server
+    vi.stubGlobal("fetch", doFetch);
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it("shows how many notifications are unread", async () => {
     servesNotifications([row("one", false), row("two", "true"), row("three", false)]);

@@ -388,6 +388,17 @@ the caller's own notifications by name. Access control does not apply to an
 administrator, whose bell would otherwise list, and mark read, everybody's
 notifications.
 
+**The bell's asking does not keep a session alive.** It is a background request, marked
+with the `X-IAP-Background` header, so a page left open lets the session end (see
+[keycloak-oidc.md](keycloak-oidc.md#session-length)). Once the session has ended, the
+bell stops asking until the page is next shown, rather than asking a user who may not be
+there to sign in.
+
+**Opening the bell asks to show the browser's own notifications**, since a browser asks
+only in answer to a click. A user who allows them is told of each new unread
+notification there, and the bell goes on asking while the page is hidden. Otherwise it
+asks only while the page is shown.
+
 ## Future work
 
 - **A channel that collects notifications instead of sending each at once.** Both
