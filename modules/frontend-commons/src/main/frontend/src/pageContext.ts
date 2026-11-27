@@ -25,6 +25,8 @@ export interface PageContext {
   title: string;
   short?: string;
   details?: string;
+  // PRETOTYPE: which version of it is shown, right after its short form, such as a choice of the submission's versions
+  version?: ReactNode;
   badges?: ReactNode;
   end?: ReactNode;
   // Tools for the page, such as its search, shown at the bar's far end on wide screens; the page shows them

@@ -113,6 +113,9 @@ interface ViewerBodyProps {
   leadEnd?: ReactNode;
   listContainer?: HTMLElement | null;
   describeUnfound?: (mark: Mark) => ReactNode;
+  // PRETOTYPE: in a plain viewer, the changes menu while the caller hides the changes, and turning them off from it
+  changesMenu?: ReactNode;
+  onChangesOff?: () => void;
   // Whether the document spans the full width of a phone screen, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
@@ -125,7 +128,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
   const plain = useContext(PlainViewer);
   const { changeIds, searchedOutside = false, annotateLabel, condensedMarks, listWidth, onListWidth } = props;
-  const { markHeading, markHeadingActions, lead, leadEnd, listContainer, describeUnfound } = props;
+  const { markHeading, markHeadingActions, lead, leadEnd, listContainer, describeUnfound, onChangesOff } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   // The document has opened once its pages are counted.
   const opened = pageCount !== undefined;
@@ -264,7 +267,10 @@ export default function ViewerBody(props: ViewerBodyProps) {
   // PRETOTYPE: in a plain viewer, how changes are shown is chosen beside what heads the document, the caller choosing
   // whether to compare at all; side by side, the changes are stepped through where the page controls were
   const controls = plain ? compared.controls : undefined;
-  const plainView = controls && <ChangesMenu {...controls} withoutOff />;
+  const plainView = controls ? (
+    <ChangesMenu {...controls} withoutOff={!onChangesOff}
+      onViewChange={chosen => (chosen === "off" && onChangesOff ? onChangesOff() : controls.onViewChange(chosen))} />
+  ) : props.changesMenu;
   // The changes shown, stepped through beside the menu in either view, the one selected also selected in the list
   const shownChanges = controls && comparison?.changes;
   const changeAt = shownChanges?.findIndex(change => change.id === selectedId) ?? -1;

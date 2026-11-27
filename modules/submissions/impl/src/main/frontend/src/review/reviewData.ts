@@ -43,9 +43,10 @@ export interface NoteKindInfo {
 export const NOTE_KINDS: NoteKindInfo[] = [
   // PRETOTYPE: on the review screen, what the AI read in the protocol for an answer shows as the passage linked to the
   // answer, when the submitter kept it, or as a contradiction, when the protocol clearly says otherwise; these are
-  // always shown
-  { kind: "evidence", label: "Linked answers", single: "Linked answer", choice: "Linked answer", mark: "evidence" },
-  { kind: "contradiction", label: "Contradictions", single: "Contradiction", choice: "Contradiction",
+  // always shown. What the AI made says so, by name and by its sparkle
+  { kind: "evidence", label: "AI linked answers", single: "AI linked answer", choice: "AI linked answer",
+    mark: "evidence" },
+  { kind: "contradiction", label: "AI-found mismatches", single: "AI-found mismatch", choice: "AI-found mismatch",
     mark: "warning" },
   { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", choice: "AI pre-review", mark: "assistant" },
   { kind: "issue", label: "Your issues", single: "Issue", choice: "Issue", mark: "issue" },
@@ -192,9 +193,13 @@ function answerValues(node: Node): string[] {
     .filter(value => value !== undefined && value !== null).map(value => text(value) || JSON.stringify(value));
 }
 
+// When a node was made: PRETOTYPE, as the seed dates what it writes for a study's past, the repository's own date
+// being set as it is written and not to be changed
+const createdAt = (node: Node): string => text(node.dated) || text(node["jcr:created"]);
+
 function childrenOf(node: Node, type: string): Node[] {
   return Object.values(node).filter((child): child is Node => isNode(child) && child["jcr:primaryType"] === type)
-    .sort((a, b) => Date.parse(text(a["jcr:created"])) - Date.parse(text(b["jcr:created"])));
+    .sort((a, b) => Date.parse(createdAt(a)) - Date.parse(createdAt(b)));
 }
 
 function relative(path: string, schema: string): string {
@@ -218,7 +223,7 @@ function passageOf(node: Node): Passage | undefined {
 function replies(node: Node, me: string): Message[] {
   return childrenOf(node, "sub:Reply").map(reply => ({
     path: text(reply["@path"]), text: text(reply.text), author: text(reply.author),
-    created: text(reply["jcr:created"]), replies: [], mine: reply.author === me,
+    created: createdAt(reply), replies: [], mine: reply.author === me,
   }));
 }
 
@@ -246,7 +251,7 @@ function comment(node: Node, kind: NoteKind, me: string, topic?: Node, topics?: 
     kind,
     text: text(node.text),
     author,
-    created: text(node["jcr:created"]),
+    created: createdAt(node),
     mine: author === me,
     subjects: Array.isArray(node.subjects) ? node.subjects.map(uuidOf).filter(Boolean) : [],
     passage: passageOf(node),
@@ -287,7 +292,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       if (extraction) {
         notes.push({
           id: text(extraction["@path"]), kind: "evidence", text: text(extraction.reasoning), author: "iap-assistant",
-          created: text(extraction["jcr:created"]), mine: false, subjects: [ uuid ], passage: passageOf(extraction),
+          created: createdAt(extraction), mine: false, subjects: [ uuid ], passage: passageOf(extraction),
           replies: [], question, extracted: text(extraction.extractedAnswer),
           reasoning: text(extraction.reasoning), confidence: typeof extraction.confidence === "number"
             ? extraction.confidence : undefined,
@@ -299,7 +304,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       const requirement = relative(pathOf(node.fulfills), schema);
       // PRETOTYPE: each version, a note quoting an older one being about the document all the same
       const versions = childrenOf(node, "sub:DocumentVersion").flatMap((one, index) => isNode(one.file) ? [ {
-        uuid: text(one["jcr:uuid"]), number: index + 1, created: text(one["jcr:created"]),
+        uuid: text(one["jcr:uuid"]), number: index + 1, created: createdAt(one),
         url: `${text(one.file["@path"])}/uploadedFile` } ] : []);
       const latest = versions.at(-1);
       if (latest) {
@@ -333,7 +338,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
           decided = { outcome, at };
         }
         letters.push(...childrenOf(node, "sub:Comment").filter(one => text(one.decision))
-          .map(one => ({ outcome: text(one.decision), at: text(one["jcr:created"]), text: text(one.text) })));
+          .map(one => ({ outcome: text(one.decision), at: createdAt(one), text: text(one.text) })));
       }
       comments.filter(one => one.author === me && text(one.from))
         .forEach(one => settled.set(text(one.from), text(one["@path"])));
@@ -555,6 +560,34 @@ export function comparisonFor(document: ReviewedDocument, copy: Node | undefined
     current: `Version of ${shortDate(latest.created)}` };
 }
 
+// PRETOTYPE. The versions of a submission kept as reviewer groups sent it back, oldest first: the copy, by the path of
+// its version, when it was sent back, and by which group
+export function keptVersions(submission: Node): { path: string; at: string; group: string }[] {
+  const reviews = childrenOf(submission, "sub:Review").filter(review => text(review.sentBackCopy));
+  const byPath = new Map(reviews.map(review => [ text(review.sentBackCopy),
+    { path: text(review.sentBackCopy), at: text(review.decidedAt), group: text(review.group) } ]));
+  return [ ...byPath.values() ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+// PRETOTYPE. The review data as of a version kept when the submission was sent back: its answers, the version each
+// document had then, and the notes and replies written by then; no changes to show, being the older of the two
+export function asOfVersion(data: ReviewData, copy: Node, schema: string, at: string): ReviewData {
+  const answers = answersIn(copy, schema);
+  const until = Date.parse(at);
+  const documents = new Map([ ...data.documents ].map(([ name, document ]) => {
+    const inCopy = childrenOf(copy, "sub:Document").find(one => text(one["jcr:uuid"]) === document.uuid);
+    const then = inCopy ? text(childrenOf(inCopy, "sub:DocumentVersion").at(-1)?.["jcr:uuid"]) : undefined;
+    const index = document.versions.findIndex(one => one.uuid === then);
+    return [ name, index < 0 ? document : { ...document, version: document.versions[index].uuid,
+      url: document.versions[index].url, versions: document.versions.slice(0, index + 1) } ];
+  }));
+  const byThen = <T extends { created: string }>(all: T[]) => all.filter(one => Date.parse(one.created) <= until);
+  return { ...data, documents, before: undefined, changesShown: false,
+    answers: new Map([ ...data.answers ].map(([ path, answer ]) => [ path,
+      { ...answer, values: answers.get(path) ?? [] } ])),
+    notes: byThen(data.notes).map(note => ({ ...note, replies: byThen(note.replies), answerChanged: false })) };
+}
+
 // PRETOTYPE. A day as versions and rounds are named: "Nov 22", with the year when it is not this one
 export function shortDate(iso: string): string {
   const date = new Date(iso);
@@ -568,6 +601,10 @@ export function shortDate(iso: string): string {
 // PRETOTYPE. When the study team last sent the submission back into review, answering a group that asked for
 // changes: the latest end of their tasks answering the reviewers
 export function resubmittedAt(submission: Node): string | undefined {
+  // PRETOTYPE: as the seed dates a study's past, its tasks having ended as they were done
+  if (text(submission.resubmittedAt)) {
+    return text(submission.resubmittedAt);
+  }
   const instances = isNode(submission["wf:instances"]) ? Object.values(submission["wf:instances"]).filter(isNode) : [];
   return instances.flatMap(instance => Object.values(instance).filter(isNode))
     .filter(task => task["jcr:primaryType"] === "wf:TaskInstance" && task.status === "completed"

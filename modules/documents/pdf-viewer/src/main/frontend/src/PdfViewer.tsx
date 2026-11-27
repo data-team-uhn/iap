@@ -20,6 +20,7 @@
 // to ViewerBody, which lays it out.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { ChangesMenu } from "./ComparisonControls";
 import { getMarkPage, getMarksKey, isUnmarkable, NO_MARKS } from "./marksModel";
 import { getFileName, PASSAGES, type DocumentSearch, type MarkName } from "./pdfViewerModel";
 import { PlainViewer } from "./plainViewer";
@@ -94,6 +95,9 @@ export interface PdfViewerProps {
   onChanges?: (changes: RevisionChange[]) => void;
   // PRETOTYPE: compare with the older version given, to tell the changes, without showing them or offering the menu
   hideChanges?: boolean;
+  // PRETOTYPE: told when the reader turns the changes off, or on again, in the menu of a plain viewer that compares;
+  // without it, the menu has no Off
+  onHideChanges?: (hidden: boolean) => void;
   // PRETOTYPE: what ends the line heading the document's own column, such as a button to write about the document
   leadEnd?: ReactNode;
   // PRETOTYPE: what heads the document's own column, beside the passages, such as the title of the page it is on
@@ -126,6 +130,9 @@ export default function PdfViewer(props: PdfViewerProps) {
   );
 }
 
+// PRETOTYPE: no changes, the same list each render, as told when nothing is compared
+const NO_CHANGES: RevisionChange[] = [];
+
 // Holds the open document and the reader's place in it above the placement, so both survive the viewer
 // moving between its container and the dialog.
 function PdfViewerSession(props: PdfViewerProps) {
@@ -140,11 +147,14 @@ function PdfViewerSession(props: PdfViewerProps) {
   const followedId = useRef<string | undefined>(undefined);
   const { pdf, openError, retry } = usePdfDocument(url);
   const comparing = useComparison(compareWith?.url, pdf);
-  // PRETOTYPE: the changes shown, told to the caller
+  // PRETOTYPE: the changes shown, told to the caller once the versions are compared, none when there is no comparison
   const { onChanges } = props;
-  const shownChanges = comparing?.changes;
+  const shownChanges = comparing === undefined ? NO_CHANGES
+    : comparing.state.status === "compared" ? comparing.changes : undefined;
   useEffect(() => {
-    onChanges?.(shownChanges ?? []);
+    if (shownChanges) {
+      onChanges?.(shownChanges);
+    }
   }, [ shownChanges, onChanges ]);
   // PRETOTYPE: a plain viewer's caller chooses whether to compare, so a comparison it is given is not left off
   const { plain } = props;
@@ -157,6 +167,20 @@ function PdfViewerSession(props: PdfViewerProps) {
   }, [ plain, comparedView, setComparedView ]);
   // PRETOTYPE: compared all the same, for what the caller says of passages that changed, but drawn as no comparison
   const drawn = props.hideChanges ? undefined : comparing;
+  // PRETOTYPE: hidden so, the menu stays, at Off, to show them again as the reader chooses
+  const { onHideChanges } = props;
+  const hiddenMenu = plain && props.hideChanges && comparing && onHideChanges ? (
+    <ChangesMenu
+      view="off" shownView="off" strict={comparing.strict} onStrictChange={comparing.setStrict}
+      minor={undefined} count={undefined} narrow={false}
+      onViewChange={chosen => {
+        if (chosen !== "off") {
+          comparing.setView(chosen);
+          onHideChanges(false);
+        }
+      }}
+    />
+  ) : undefined;
   const changes = drawn?.changes;
   const changeIds = useMemo(() => new Set(changes?.map(change => change.id)), [changes]);
   const markName = props.markName ?? PASSAGES;
@@ -310,6 +334,8 @@ function PdfViewerSession(props: PdfViewerProps) {
           leadEnd={props.leadEnd}
           listContainer={props.listContainer}
           describeUnfound={props.describeUnfound}
+          changesMenu={hiddenMenu}
+          onChangesOff={onHideChanges && (() => onHideChanges(true))}
           edgeToEdge={inDialog}
           onClose={onClose}
         />

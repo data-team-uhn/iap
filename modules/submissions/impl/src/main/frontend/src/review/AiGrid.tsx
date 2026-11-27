@@ -47,7 +47,7 @@ interface AiRow {
 }
 
 const KIND_NAMES: Record<Kind, string> = {
-  risk: "", contradiction: "Contradiction", concern: "Concern", dismissed: "Dismissed", adopted: "Made an issue",
+  risk: "", contradiction: "Mismatch", concern: "Concern", dismissed: "Dismissed", adopted: "Made an issue",
 };
 
 // PRETOTYPE. Everything the AI pre-review found, as a table: grouped by risk, each risk's row carrying the AI's read

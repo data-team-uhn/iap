@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
@@ -24,14 +24,18 @@ import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
+import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import SplitscreenOutlined from "@mui/icons-material/SplitscreenOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
+  Alert,
   Box,
+  Button,
   ButtonBase,
   DialogContentText,
   Divider,
+  FormControlLabel,
   IconButton,
   List,
   ListItemButton,
@@ -39,6 +43,7 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Switch,
   Tab,
   Tabs,
   Tooltip,
@@ -73,9 +78,9 @@ import {
   isFormRequirement,
   isQuestion,
 } from "../submissionForm";
-import ChangesToggle from "./ChangesToggle";
 import { ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
+import DocumentChangeCount from "./DocumentChangeCount";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
@@ -87,7 +92,7 @@ import { approvalLetter, draftLetter, letterText } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { answersIn, changedAnswers, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout,
   parseGroups, parseReview, parseTopics, raiseAsIssue, resubmittedAt, sentBackCopy, shortDate, withAnswerChanges,
-  withDone, withSent,
+  withDone, withSent, keptVersions, asOfVersion,
   type NoteKind, type ReviewData, type ReviewedDocument, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import RowSplit from "./RowSplit";
@@ -97,13 +102,20 @@ import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 import { withSources } from "./sources";
 import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser, useMyGroups } from "./useCurrentUser";
+import VersionMenu, { type SubmissionVersion } from "./VersionMenu";
 
 type Node = Record<string, unknown>;
 
 // Renamed when the default changed, so every reviewer starts from it once
-const KINDS_KEY = "iap.review.notesShown";
+const KINDS_KEY = "iap.review.notesShown2";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const FOCUSED_KEY = "iap.review.focused";
+
+// PRETOTYPE: a form's items with the answers the data has, as those of an older version
+function withValues(items: FormItem[], data: ReviewData): FormItem[] {
+  return items.map(item => isQuestion(item) ? { ...item, value: data.answers.get(item.path)?.values ?? [] }
+    : { ...item, items: withValues(item.items, data) });
+}
 
 // A form's items with only the questions kept, and the sections still holding any
 function prune(items: FormItem[], keep: (path: string) => boolean): FormItem[] {
@@ -150,8 +162,8 @@ function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => v
 // Every kind until the reviewer chooses, but the extracted answers, since those agreeing with the answer add little
 // and those that do not are said under the answer anyway; and other reviewers' issues, which are theirs to pursue
 const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind).filter(kind => kind !== "otherIssue");
-// The kinds always shown, which the reviewer cannot turn off
-const ALWAYS: NoteKind[] = [ "contradiction" ];
+// The kinds always shown, which the reviewer cannot turn off: none, every kind toggled as the reviewer chooses
+const ALWAYS: NoteKind[] = [];
 
 // What the filters' counts take in, not only the part being read, as their numbers alone may suggest
 const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
@@ -173,6 +185,14 @@ const ignore = () => undefined;
 const isShare = (value: unknown): value is number => typeof value === "number" && value > 0 && value < 1;
 
 const isFlag = (value: unknown): value is boolean => typeof value === "boolean";
+
+// PRETOTYPE: what changed in a part since the submission was sent back, as its contents entry says it, and for a
+// document, the versions to count its changes by
+interface PartChange {
+  shown: string;
+  said: string;
+  document?: { older: string; newer: string; uuid: string };
+}
 
 // Which tab the panel beside the page shows, the notes on what is read or the review
 type SideTab = "notes" | "review";
@@ -274,6 +294,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ showChanges, setShowChanges ] = useStoredSetting("iap.review.showChanges", true, isFlag);
   // A note done with that a link led to, shown all the same while it is the one selected
   const [ peek, setPeek ] = useState<string>();
+  // PRETOTYPE: an older version of the submission being read instead of the latest, by the path of its copy
+  const [ viewing, setViewing ] = useState<string>();
   // Going to a note by path, for the cards, set once what is shown is known
   const showNote = useRef<(id: string) => void>(undefined);
   // What is shown: the kinds the reviewer chose, and those always shown
@@ -320,6 +342,10 @@ export default function ReviewScreen({ path }: { path: string }) {
   // whether the reviewer is on the letter asking for changes there, leaving it as they leave the whole workspace
   const [ reviewFull, setReviewFull ] = useState(false);
   const [ writingLetter, setWritingLetter ] = useState(false);
+  // PRETOTYPE: how many changes the viewer showing a document counts, by the document, kept as it last said
+  const [ changeCounts, setChangeCounts ] = useState<Record<string, number>>({});
+  const countChanges = useCallback((uuid: string, count: number) =>
+    setChangeCounts(counts => (counts[uuid] === count ? counts : { ...counts, [uuid]: count })), []);
   const spreadReview = (spread: boolean) => {
     setReviewFull(spread);
     if (!spread) {
@@ -359,10 +385,15 @@ export default function ReviewScreen({ path }: { path: string }) {
   // compared with
   const sentBack = useMemo(() => loaded ? sentBackCopy(loaded.submission, myGroups) : undefined, [ loaded, myGroups ]);
   const kept = useMemo(() => sentBack && loaded?.copies.get(sentBack.path), [ sentBack, loaded ]);
+  // PRETOTYPE: the versions kept as reviewer groups sent the submission back, oldest first, and the one being read
+  // instead of the latest, if any, with its copy
+  const versions = useMemo(() => loaded ? keptVersions(loaded.submission) : [], [ loaded ]);
+  const viewed = versions.find(one => one.path === viewing);
+  const viewedCopy = viewed && loaded?.copies.get(viewed.path);
   // Compared with it always, a document with the version before its latest when there is no copy, so that notes say
   // how what they are about changed; the documents and forms show the changes only while the reviewer asks
   const copy = kept;
-  const comparing = (document: ReviewedDocument) => comparisonFor(document, kept);
+  const comparing = (document: ReviewedDocument) => viewed ? undefined : comparisonFor(document, kept);
   const sentBackAt = sentBack?.at;
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
   const data: ReviewData | undefined = useMemo(() => loaded && me
@@ -374,8 +405,12 @@ export default function ReviewScreen({ path }: { path: string }) {
   const changed = data ? changedAnswers(data) : new Set<string>();
   // What the pages and their notes show: what is done with only when the reviewer asks
   const peeking = peek !== undefined && (mark.id === peek || belowMark.id === peek) ? peek : undefined;
-  const viewData: ReviewData | undefined = useMemo(() => data && (showDone ? data
-    : { ...data, notes: data.notes.filter(note => !note.done || note.id === peeking) }), [ data, showDone, peeking ]);
+  // PRETOTYPE: what the pages, the contents and the notes show, the version being read, as it was then; the review
+  // stays the latest's
+  const seen = useMemo(() => data && viewed && viewedCopy ? asOfVersion(data, viewedCopy, schema, viewed.at) : data,
+    [ data, viewed, viewedCopy, schema ]);
+  const viewData: ReviewData | undefined = useMemo(() => seen && (showDone ? seen
+    : { ...seen, notes: seen.notes.filter(note => !note.done || note.id === peeking) }), [ seen, showDone, peeking ]);
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
   const groupLabels = useMemo(() => new Map((loaded?.approvals ?? []).map(approval =>
     [ text(approval.approverGroup), groupShortName(text(approval.label)) ] as const)), [ loaded ]);
@@ -419,9 +454,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   };
 
   // PRETOTYPE: what changed in a part since the submission was last sent back, as its contents entry says it: a document's
-  // new version, or how many of a form's answers changed
-  const changeOf = (requirement: Requirement): { shown: string; said: string } | undefined => {
-    if (!data || !showChanges) {
+  // new version, with the versions to count its changes by, or how many of a form's answers changed
+  const changeOf = (requirement: Requirement): PartChange | undefined => {
+    if (!data || !showChanges || viewed) {
       return undefined;
     }
     if (isFormRequirement(requirement)) {
@@ -431,26 +466,26 @@ export default function ReviewScreen({ path }: { path: string }) {
     }
     const document = data.documents.get(requirement.name);
     const compared = document && comparing(document);
-    return compared ? { shown: "New", said: `${compared.current}, newer than the one sent back` }
-      : undefined;
+    return compared ? { shown: "New", said: `${compared.current}, newer than the one sent back`,
+      document: { older: compared.url, newer: document.url, uuid: document.uuid } } : undefined;
   };
   // What each part has to read, counted in the contents: a note done with that a link shows meanwhile is not
   const notesOf = useCallback((requirement: Requirement, withDone = showDone): ReviewNote[] => {
-    if (!data) {
+    if (!seen) {
       return [];
     }
-    const counted = data.notes.filter(note => withDone || !note.done);
+    const counted = seen.notes.filter(note => withDone || !note.done);
     if (isFormRequirement(requirement)) {
       const uuids = questions(requirement.items)
-        .map(question => data.answers.get(question.path)?.uuid).filter((one): one is string => Boolean(one));
+        .map(question => seen.answers.get(question.path)?.uuid).filter((one): one is string => Boolean(one));
       return notesAbout(counted, uuids);
     }
-    const document = data.documents.get(requirement.name);
+    const document = seen.documents.get(requirement.name);
     return document
       ? notesAbout(counted, [ document.uuid, ...document.versions.map(one => one.uuid) ])
         .filter(note => note.passage !== undefined || note.subjects.includes(document.uuid))
       : [];
-  }, [ data, showDone ]);
+  }, [ seen, showDone ]);
   // What the filters count: the notes of the parts the contents list, each once though it is about two of them, as a
   // contradiction is about an answer and the protocol
   const listedNotes = [ ...new Map(listed.flatMap(one => notesOf(one, true)).map(note => [ note.id, note ])).values() ];
@@ -474,6 +509,10 @@ export default function ReviewScreen({ path }: { path: string }) {
     },
     show: id => showNote.current?.(id),
   }), [ doFetch, path, load, myGroup ]);
+  // PRETOTYPE: an older version is only read, nothing written in it
+  const pageActions = useMemo(() => viewed ? { ...actions, readOnly: true } : actions, [ actions, viewed ]);
+  // PRETOTYPE: a form's questions with their answers in the version being read
+  const answered = (items: FormItem[]): FormItem[] => seen && viewed ? withValues(items, seen) : items;
 
   const questionLabel = useCallback((question: string | undefined, extracted: string | undefined) => {
     const asked = requirements.filter(isFormRequirement).flatMap(one => questions(one.items))
@@ -684,24 +723,35 @@ export default function ReviewScreen({ path }: { path: string }) {
     />
   );
 
-  // PRETOTYPE: on a submission answered since it was sent back, which version is read, by the day it came back, and
-  // whether what changed since is shown, for the whole of it
+  // PRETOTYPE: on a submission answered since it was sent back, which version is read, by the day it came back
   const backAt = loaded && sentBack ? resubmittedAt(loaded.submission) : undefined;
   const version = backAt && sentBack && Date.parse(backAt) > Date.parse(sentBack.at)
     ? `Version of ${shortDate(backAt)}` : undefined;
-  const changesToggle = sentBack && kept && version ? (
-    <ChangesToggle since={shortDate(sentBack.at)} on={showChanges} onChange={setShowChanges} />
-  ) : undefined;
+  // PRETOTYPE: the versions the reviewer can read, newest first: the latest, then each kept as it was sent back
+  // named by their day, and by their time too where two share a day, as when sent back and answered the same day
+  const days = [ backAt, ...versions.map(one => one.at) ].filter(Boolean).map(at => shortDate(at ?? ""));
+  const versionName = (at: string) => `Version of ${shortDate(at)}${days.filter(day => day === shortDate(at)).length > 1
+    ? `, ${new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""}`;
+  const versionList: SubmissionVersion[] = version && backAt ? [ { label: versionName(backAt),
+    detail: "The latest, being reviewed" },
+  ...[ ...versions ].reverse().map(one => ({ id: one.path, label: versionName(one.at),
+    detail: `As ${groupLabels.get(one.group) ?? "a reviewer group"} sent it back` })) ] : [];
+  const versionMenu = versionList.length > 1
+    ? <VersionMenu versions={versionList} viewing={viewed?.path} onView={setViewing} /> : undefined;
+  // PRETOTYPE: whether what changed since is shown is chosen on each part, a document in its viewer's menu and a form
+  // by a switch beside its title, for the whole submission
+  const comparable = Boolean(sentBack && kept && version && !viewed);
   // search beside them on wide screens
   const header = loaded?.submission;
   usePublishedPageContext(header && {
     title: text(header.title),
     short: text(header.identifier),
     // The version before the person, whose name gives way first where the bar is short
-    details: version ? `${version} · ${text(header.pi)}` : text(header.pi),
+    details: text(header.pi),
+    version: versionMenu,
     badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
     end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} variant="caption" />,
-    tools: <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>{changesToggle}{search(true)}</Stack>,
+    tools: search(true),
     workspace: true,
   });
 
@@ -899,12 +949,36 @@ export default function ReviewScreen({ path }: { path: string }) {
         ? `Send a Letter of Review for your ${blocking.length === 1 ? "issue" : `${blocking.length} issues`} first`
         : undefined,
     board: myGroups.includes("reb-reviewers") ? () => setDialog("board") : undefined,
+    // PRETOTYPE: decided on the latest version only
+    blocked: viewed ? "Go back to the latest version to decide" : undefined,
   };
   // What is still open in the review, said before approving
   const unconsidered = risks.filter(risk => !risk.considered).length;
   const aiOpen = risks.reduce((sum, risk) => sum + risk.aiOpen.length, 0);
   const contradicted = new Set(risks.flatMap(risk => risk.mismatches.map(one => one.question))).size;
   // The title of the page being read, heading the form's or the document's own column, beside its notes
+  // PRETOTYPE: beside a form's title, whether what changed in its answers since the submission was sent back is shown,
+  // for every part, as a document's viewer menu also chooses; only on a form with answers that changed
+  const changesSwitch = (requirement: Requirement) => {
+    const many = comparable && isFormRequirement(requirement)
+      ? questions(requirement.items).filter(question => changed.has(question.path)).length : 0;
+    return many > 0 && (
+      <FormControlLabel
+        label={`Show ${many === 1 ? "1 change" : `${many} changes`}`}
+        control={<Switch size="small" checked={showChanges} onChange={event => setShowChanges(event.target.checked)} />}
+        sx={{ mr: 0, flexShrink: 0, "& .MuiFormControlLabel-label": { typography: "body2" } }}
+      />
+    );
+  };
+  const withChangesSwitch = (requirement: Requirement, heading: ReactNode) => {
+    const control = changesSwitch(requirement);
+    return control ? (
+      <Stack direction="row" sx={{ alignItems: "center", gap: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>{heading}</Box>
+        {control}
+      </Stack>
+    ) : heading;
+  };
   // How wide the notes are, as far as the panel has room for them beside a part
   const notesShown = workWidth === undefined ? notesWidth
     : Math.max(NOTES_LEAST, Math.min(notesWidth, workWidth - PAGE_LEAST));
@@ -917,7 +991,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     // Alone, a part is headed by its title; of two, each has a title bar, as a dialog has, with the button closing it
     // in its corner, the one whose notes are listed on their tint, its title in its colour and underlined, the other's
     // muted
-    const title = <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{requirement.label}</Typography>;
+    const title = withChangesSwitch(requirement,
+      <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{requirement.label}</Typography>);
     const bar = bottom && (
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, pl: 2, pr: 1, py: 0.5, flexShrink: 0,
         borderBottom: 1, borderColor: "divider", bgcolor: isActive ? "background.tinted" : "background.paper",
@@ -926,6 +1001,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           sx={{ flex: 1, minWidth: 0, ...isActive ? {} : { color: "text.disabled" } }}>
           {requirement.label}
         </Typography>
+        {changesSwitch(requirement)}
         <Tooltip title="Close" disableInteractive>
           <IconButton aria-label={`Close ${requirement.label}`} onClick={() => close(pane)}>
             <CloseOutlined />
@@ -934,7 +1010,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Stack>
     );
     const heading = bar ? undefined : title;
-    const document = isDocumentRequirement(requirement) ? data.documents.get(requirement.name) : undefined;
+    const document = isDocumentRequirement(requirement) ? seen?.documents.get(requirement.name) : undefined;
     return (
       <Box
         data-pane={pane} onPointerDownCapture={() => setActive(pane)} onFocusCapture={() => setActive(pane)}
@@ -946,8 +1022,8 @@ export default function ReviewScreen({ path }: { path: string }) {
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <SearchContext.Provider value={searchContext}>
               <FormReview
-                items={requirement.items} data={viewData ?? data} groups={focused ? othersGroups : groups}
-                myGroups={myGroups} shown={showing} onEvidence={openEvidence} actions={actions}
+                items={answered(requirement.items)} data={viewData ?? data} groups={focused ? othersGroups : groups}
+                myGroups={myGroups} shown={showing} onEvidence={openEvidence} actions={pageActions}
                 selected={paneMark.id} onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))}
                 heading={heading} notesSlot={isActive ? notesSlot : null} formLabel={requirement.label}
               />
@@ -960,8 +1036,10 @@ export default function ReviewScreen({ path }: { path: string }) {
               key={requirement.name}
               document={document} data={viewData ?? data} shown={showing} selected={paneMark.id}
               compareWith={comparing(document)} hideChanges={!showChanges}
+              onHideChanges={hidden => setShowChanges(!hidden)}
+              onChangeCount={count => countChanges(document.uuid, count)}
               onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
-              actions={actions} questionLabel={questionLabel}
+              actions={pageActions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
               onSearch={isActive ? setDocumentFound : ignore}
               notesWidth={notesWidth} onNotesWidth={setNotesWidth} heading={heading ?? <Box />}
@@ -974,13 +1052,16 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Box>
     );
   };
-  const title = current && <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{current.label}</Typography>;
-  const shownDocument = current ? data.documents.get(current.name) : undefined;
+  const title = current && withChangesSwitch(current,
+    <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{current.label}</Typography>);
+  const shownDocument = current ? seen?.documents.get(current.name) : undefined;
 
   // A contents entry: navigation, so it looks it, names in the link colour, a tint under the pointer, and the one
   // being read marked by a bar down its side, on the white of the page it is the tab of
   const entrySx = (dimmed: boolean) => (theme: Theme) => ({
-    borderRadius: 0, py: 0.75, mb: 0.25, alignItems: "flex-start",
+    borderRadius: 0, alignItems: "flex-start",
+    // Each entry set apart from the next by a rule under it
+    py: 1, mb: 0, boxShadow: `inset 0 -1px 0 ${(theme.vars ?? theme).palette.divider}`,
     borderInlineStart: "3px solid", borderColor: "transparent",
     "& .requirement-name": { color: "primary.main", fontWeight: "fontWeightMedium" },
     ...dimmed ? { opacity: 0.5 } : {},
@@ -1089,6 +1170,16 @@ export default function ReviewScreen({ path }: { path: string }) {
     </Tabs>
   );
 
+  // PRETOTYPE: what changed in a part since the submission was sent back, as its contents entry says it
+  const changeChip = (change: PartChange | undefined) => change && (
+    <Tooltip title={change.said} placement="right">
+      <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5,
+        lineHeight: 1.6, borderRadius: 1, bgcolor: "action.selected", color: "text.secondary" }}>
+        <DifferenceOutlined sx={{ fontSize: "0.9rem" }} />{change.shown}
+      </Box>
+    </Tooltip>
+  );
+
   const rail = narrow ? (
     <TextField
       select fullWidth size="small" label="Requirement" value={current?.name ?? ""}
@@ -1134,14 +1225,15 @@ export default function ReviewScreen({ path }: { path: string }) {
                       PRETOTYPE: led by what changed since the submission was last sent back */}
                   {!terms && (counted.length > 0 || changeOf(requirement)) && (
                     <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-                      {changeOf(requirement) && (
-                        <Tooltip title={changeOf(requirement)?.said} placement="right">
-                          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5,
-                            lineHeight: 1.6, borderRadius: 1, bgcolor: "action.selected", color: "text.secondary" }}>
-                            <DifferenceOutlined sx={{ fontSize: "0.9rem" }} />{changeOf(requirement)?.shown}
-                          </Box>
-                        </Tooltip>
-                      )}
+                      {/* A document's, how many changes once they are counted */}
+                      {changeOf(requirement)?.document ? (
+                        <DocumentChangeCount {...changeOf(requirement)?.document as { older: string; newer: string }}
+                          shown={changeCounts[changeOf(requirement)?.document?.uuid ?? ""]}>
+                          {count => count === undefined ? changeChip(changeOf(requirement))
+                            : changeChip({ shown: String(count),
+                              said: `${count === 1 ? "1 change" : `${count} changes`} since the version sent back` })}
+                        </DocumentChangeCount>
+                      ) : changeChip(changeOf(requirement))}
                       {counted.length > 0 && (
                         <Tooltip title={countText(counted)} placement="right">
                           <Box component="span" sx={{ display: "inline-flex", flexWrap: "wrap", gap: 0.5 }}>
@@ -1222,12 +1314,21 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Box>
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" }, display: { md: "none" } }}>
         <Box>{search(false)}</Box>
-        {changesToggle}
       </Stack>
       {/* On a wide screen, the workspace fills the window under the app bar, the panels side by side, each as tall as
           the others, scrolling on its own; on a narrow one, the page or the review, chosen above them, with which notes
           are shown along the page */}
       <Stack sx={{ gap: 1.5, height: { md: PANEL_HEIGHT } }}>
+        {/* PRETOTYPE: an older version read instead of the latest says so, and leads back to it */}
+        {viewed && (
+          <Alert severity="info" icon={<HistoryOutlined />} sx={{ py: 0, alignItems: "center", flexShrink: 0 }}
+            action={<Button color="inherit" size="small" onClick={() => setViewing(undefined)}>
+              Back to the latest version
+            </Button>}>
+            {`You're reading the ${versionName(viewed.at).replace("Version", "version")}, as ${groupLabels.get(viewed.group)
+              ?? "a reviewer group"} sent it back. Nothing can be written in it.`}
+          </Alert>
+        )}
         {narrow && sideTabs}
         {narrow && sideTab === "review" && <Paper sx={{ display: "flex", flexDirection: "column" }}>{reviewPanel}</Paper>}
         {narrow && sideTab === "notes" && noteFilters}
@@ -1300,9 +1401,10 @@ export default function ReviewScreen({ path }: { path: string }) {
                       <Box sx={{ flex: { md: 1 }, minHeight: { md: 0 } }}>
                         <SearchContext.Provider value={searchContext}>
                           <FormReview
-                            items={current.items} data={viewData ?? data} groups={focused ? othersGroups : groups}
+                            items={answered(current.items)} data={viewData ?? data}
+                            groups={focused ? othersGroups : groups}
                             myGroups={myGroups} shown={showing}
-                            onEvidence={openEvidence} actions={actions}
+                            onEvidence={openEvidence} actions={pageActions}
                             notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                             selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
                             heading={title}
@@ -1318,8 +1420,10 @@ export default function ReviewScreen({ path }: { path: string }) {
                           key={`${current.name} ${sideTab}`}
                           document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
                           compareWith={comparing(shownDocument)} hideChanges={!showChanges}
+                          onHideChanges={hidden => setShowChanges(!hidden)}
+                          onChangeCount={count => countChanges(shownDocument.uuid, count)}
                           onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
-                          actions={actions} questionLabel={questionLabel}
+                          actions={pageActions} questionLabel={questionLabel}
                           search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
                           notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                           heading={title}
@@ -1394,8 +1498,8 @@ export default function ReviewScreen({ path }: { path: string }) {
                           )}
                           {aiOpen > 0 && <li>{aiOpen === 1 ? "1 concern" : `${aiOpen} concerns`} the AI raised, not
                             made into issues or dismissed.</li>}
-                          {contradicted > 0 && <li>{contradicted === 1 ? "1 answer" : `${contradicted} answers`} the
-                            protocol contradicts.</li>}
+                          {contradicted > 0 && <li>{contradicted === 1 ? "1 AI-found mismatch"
+                            : `${contradicted} AI-found mismatches`} between the answers and the protocol.</li>}
                         </Box>
                       </>
                     )}

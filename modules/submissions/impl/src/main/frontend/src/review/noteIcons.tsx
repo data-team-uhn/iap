@@ -17,23 +17,25 @@
  */
 
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
-import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
+import AutoAwesome from "@mui/icons-material/AutoAwesome";
 import EditOutlined from "@mui/icons-material/EditOutlined";
-import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
+import FactCheckOutlined from "@mui/icons-material/FactCheckOutlined";
 import FlagOutlined from "@mui/icons-material/FlagOutlined";
 import ForumOutlined from "@mui/icons-material/ForumOutlined";
 import StickyNote2Outlined from "@mui/icons-material/StickyNote2Outlined";
-import { type SvgIconProps } from "@mui/material";
+import WarningAmberOutlined from "@mui/icons-material/WarningAmberOutlined";
+import { Box, type SvgIconProps } from "@mui/material";
 
 import type { NoteKind } from "./reviewData";
 
 // PRETOTYPE. Each kind of note's icon, as its heading and the editor's choices show it: a linked answer the page it is
-// on, a contradiction a warning, the AI pre-review its sparkle, an issue a flag, raised for the study team, the reviewers' discussion speech bubbles, a note to self a sticky note,
-// as reviewers keep on printouts, and a note being written a pencil
+// on, a mismatch a warning, the AI pre-review a checklist, an issue a flag, raised for the study team, the
+// reviewers' discussion speech bubbles, a note to self a sticky note, as reviewers keep on printouts, and a note being
+// written a pencil
 const ICONS = {
   evidence: ArticleOutlined,
-  contradiction: ErrorOutlineOutlined,
-  aiIssue: AutoAwesomeOutlined,
+  contradiction: WarningAmberOutlined,
+  aiIssue: FactCheckOutlined,
   issue: FlagOutlined,
   otherIssue: FlagOutlined,
   discussion: ForumOutlined,
@@ -41,7 +43,24 @@ const ICONS = {
   draft: EditOutlined,
 } as const;
 
-export default function NoteKindIcon({ kind, ...props }: { kind: NoteKind | "draft" } & SvgIconProps) {
+// What the AI made, which says so by a sparkle before its icon, the same for every such kind
+const BY_AI = new Set<NoteKind | "draft">([ "evidence", "contradiction", "aiIssue" ]);
+
+// The sizes MUI gives its icons by name, for the sparkle to keep to the icon it marks
+const SIZES = { small: "1.25rem", medium: "1.5rem", large: "2.1875rem" } as const;
+
+export default function NoteKindIcon({ kind, sx, fontSize, ...props }: { kind: NoteKind | "draft" } & SvgIconProps) {
   const Icon = ICONS[kind];
-  return <Icon {...props} />;
+  if (!BY_AI.has(kind)) {
+    return <Icon sx={sx} fontSize={fontSize} {...props} />;
+  }
+  // The sparkle and the icon, sized as the icon alone would be; what the caller styles, such as colour, on both
+  return (
+    <Box component="span"
+      sx={{ display: "inline-flex", alignItems: "center", flexShrink: 0, lineHeight: 0,
+        fontSize: fontSize === "inherit" ? "inherit" : SIZES[fontSize ?? "medium"], ...sx as object }}>
+      <AutoAwesome sx={{ fontSize: "0.8em", mr: "0.05em" }} />
+      <Icon fontSize="inherit" {...props} />
+    </Box>
+  );
 }

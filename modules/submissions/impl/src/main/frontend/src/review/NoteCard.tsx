@@ -182,7 +182,7 @@ export function NoteActions({ note, onEdit, onRemove }: {
 }
 
 // What an issue was made of, as it says
-const FROM: Partial<Record<ReviewNote["kind"], string>> = { contradiction: "a contradiction",
+const FROM: Partial<Record<ReviewNote["kind"], string>> = { contradiction: "an AI-found mismatch",
   aiIssue: "the AI pre-review", discussion: "a discussion message" };
 
 // What each kind of note the reviewer writes is called, where they are asked before removing one
@@ -307,21 +307,16 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           {!BY_THE_AI.has(note.kind) && <><PersonName user={note.author} /> · </>}{when(note.created)}
         </Typography>
       )}
-      {/* A linked answer says which answer it backs, and why the passage backs it, which is not always plain from the
-          words; a contradiction, what the form says and what the protocol does, and why the AI read it so. The
-          question leads to it in the form */}
-      {note.kind === "evidence" && (
+      {/* What the AI found says only what is not in view: beside a document, whose passage shows, the question,
+          leading to it in the form, and its answer; beside the form, which shows those, neither. Then what the
+          protocol suggests, where it differs from the answer or the AI found a mismatch, and why the AI read it so */}
+      {(note.kind === "evidence" || note.kind === "contradiction") && (
         <Stack sx={{ gap: 0.5 }}>
           {question && <Field label="Question"><TextLink text={question} onShow={onShowAnswer} /></Field>}
-          <Field label="Answer"><b>{answerLabel ?? note.extracted}</b></Field>
-          {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
-        </Stack>
-      )}
-      {note.kind === "contradiction" && (
-        <Stack sx={{ gap: 0.5 }}>
-          {question && <Field label="Question"><TextLink text={question} onShow={onShowAnswer} /></Field>}
-          {formAnswer && <Field label="Form says">{formAnswer}</Field>}
-          <Field label="Protocol says"><b>{answerLabel ?? note.extracted}</b></Field>
+          {question && formAnswer && <Field label="Answer">{formAnswer}</Field>}
+          {(note.kind === "contradiction" || !question || (answerLabel ?? note.extracted) !== formAnswer) && (
+            <Field label="Protocol suggests"><b>{answerLabel ?? note.extracted}</b></Field>
+          )}
           {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
         </Stack>
       )}

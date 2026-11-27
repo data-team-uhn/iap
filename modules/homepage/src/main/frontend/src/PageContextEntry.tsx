@@ -56,6 +56,7 @@ function PageContextEntry() {
                 {context.short}
               </Typography>
             )}
+            {context.version && <Box sx={{ flexShrink: 0, display: "flex" }}>{context.version}</Box>}
             {context.details && (
               <Typography
                 variant="caption"

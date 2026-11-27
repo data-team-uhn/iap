@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import { Box, IconButton, Tooltip, Typography } from "@mui/material";
@@ -29,11 +29,11 @@ import ValueChange from "@iap/frontend-commons/diff/ValueChange";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
+import { noteWrites, type ReviewActions } from "./FormReview";
 import NoteCard, { ChangeHeading, DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
-import { changesInPassage, kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument,
+import { changesInPassage, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewedDocument,
   type ReviewNote } from "./reviewData";
 
-import type { ReviewActions } from "./FormReview";
 
 const DRAFT = "draft";
 
@@ -44,12 +44,16 @@ const DRAFT = "draft";
 const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith, hideChanges }: {
+  search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith, hideChanges,
+  onHideChanges, onChangeCount }: {
   document: ReviewedDocument;
   // PRETOTYPE: an older version to show what changed since, and what each is called; whether the changes are left
   // unshown, only told to the notes whose passage they changed
   compareWith?: { url: string; label: string; current: string };
   hideChanges?: boolean;
+  onHideChanges?: (hidden: boolean) => void;
+  // PRETOTYPE: told how many changes the viewer shows, as they change
+  onChangeCount?: (count: number) => void;
   data: ReviewData;
   shown: Set<NoteKind>;
   selected?: string;
@@ -129,16 +133,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
           note={note} answerLabel={asked?.answer} question={asked?.text} formAnswer={asked?.given} headed
           onShowAnswer={asked ? () => onShowAnswer(note) : undefined}
           askedAs={asked && { question: asked.text, form: asked.form }}
-          onReply={text => actions.write({ replyTo: note.id, text })}
-          onEditReply={(reply, text) => actions.write({ edit: reply, text })}
-          onRemoveReply={reply => actions.write({ remove: reply })}
-          onEdit={(text, severity, topic) => actions.write({ edit: note.id, text, ...severity ? { severity } : {},
-            ...topic !== undefined ? { topic } : {} })}
-          onRemove={() => actions.write({ remove: note.id })}
-          onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
-          onDismiss={() => actions.write({ dismiss: note.id })}
-          write={actions.write}
-          onShowNote={actions.show}
+          {...noteWrites(note, actions)}
           adopting={adopting === note.id}
           onAdopting={on => setAdopting(on ? note.id : undefined)}
           editing={editing === note.id}
@@ -150,11 +145,12 @@ export default function DocumentReview({ document, data, shown, selected, onSele
 
   const condensed = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
-    // Only a source or a contradiction needs the words it was read from beside the document, which shows every passage
-    if (!note || note.kind === "evidence" || note.kind === "contradiction") {
+    if (!note) {
       return undefined;
     }
-    return BRIEF_KINDS.has(note.kind) ? { quote: 0, details: 4 } : { quote: 0 };
+    // Beside the document, which shows every passage, none is quoted; what the AI found shows what it read instead
+    return BRIEF_KINDS.has(note.kind) || note.kind === "evidence" || note.kind === "contradiction"
+      ? { quote: 0, details: 4 } : { quote: 0 };
   }, [ notes ]);
 
   // Each note headed by what it is, when and by whom; the draft as a new note, over the passage it is about
@@ -170,14 +166,20 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   }, [ notes ]);
   // PRETOTYPE: a note written on an older version whose passage the latest no longer has shows how it changed, as the
   // comparison found it, or else says that it did
-  const [ changes, setChanges ] = useState<RevisionChange[]>([]);
+  // Once the viewer has compared the versions
+  const [ changes, setChanges ] = useState<RevisionChange[]>();
+  useEffect(() => {
+    if (changes) {
+      onChangeCount?.(changes.length);
+    }
+  }, [ changes, onChangeCount ]);
   const describeUnfound = useCallback((mark: Mark) => {
     const passage = notes.find(one => one.id === mark.id)?.passage;
     const source = passage?.source;
     if (!passage || !source || source === document.version || !document.versions.some(one => one.uuid === source)) {
       return undefined;
     }
-    const found = changesInPassage(passage.quote, changes);
+    const found = changesInPassage(passage.quote, changes ?? []);
     if (found.length === 0) {
       return "its passage changed since it was sent back";
     }
@@ -200,7 +202,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   // At the end of the heading, changing or removing the reviewer's own note; changing it selects it, to open it whole
   const markHeadingActions = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
-    return note && editing !== note.id && (
+    return note && editing !== note.id && !actions.readOnly && (
       <NoteActions
         note={note}
         onEdit={() => {
@@ -224,7 +226,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         markName={{ one: "note", many: "notes" }}
         selectedMarkId={draft ? DRAFT : selected}
         onSelectMark={onSelect}
-        onAnnotate={anchor => {
+        onAnnotate={actions.readOnly ? undefined : anchor => {
           setDraft(anchor);
           onSelect(DRAFT);
         }}
@@ -239,7 +241,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         markHeading={markHeading}
         markHeadingActions={markHeadingActions}
         lead={heading}
-        leadEnd={draft !== "document" && (
+        leadEnd={draft !== "document" && !actions.readOnly && (
           // PRETOTYPE: as each question has, a button to write about the document as a whole, without a passage
           <Tooltip title="Write about this document">
             <IconButton size="small" aria-label={`Write about: ${document.title}`}
@@ -254,7 +256,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         listContainer={notesSlot}
         describeUnfound={describeUnfound}
         onChanges={setChanges}
-        hideChanges={hideChanges}
+        hideChanges={hideChanges} onHideChanges={onHideChanges}
         compareWith={compareWith && { url: toFileUrl(compareWith.url), label: compareWith.label }}
         label={compareWith?.current}
         plain

@@ -74,8 +74,11 @@ function children(node: Node, type: string): Node[] {
   return Object.values(node)
     .filter((child): child is Node => typeof child === "object" && child !== null && !Array.isArray(child)
       && (child as Node)["jcr:primaryType"] === type)
-    .sort((a, b) => Date.parse(text(a["jcr:created"])) - Date.parse(text(b["jcr:created"])));
+    .sort((a, b) => Date.parse(createdAt(a)) - Date.parse(createdAt(b)));
 }
+
+// When a node was made: PRETOTYPE, as the seed dates what it writes for a study's past
+const createdAt = (node: Node): string => text(node.dated) || text(node["jcr:created"]);
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -86,7 +89,7 @@ function message(node: Node): Message {
     path: text(node["@path"]),
     text: text(node.text),
     author: text(node.author),
-    created: text(node["jcr:created"]),
+    created: createdAt(node),
     replies: children(node, "sub:Reply").map(message),
   };
 }

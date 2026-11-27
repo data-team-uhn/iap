@@ -22,7 +22,6 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
-import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 import { createPortal } from "react-dom";
 
@@ -78,14 +77,16 @@ interface Listing {
 }
 const FormNotes = createContext<Listing | undefined>(undefined);
 
-// The notes shown for a question: a contradiction first, then whatever else is about it, where it is the first of the
-// questions a note is about. Its source is not a note here: the answer itself leads to it
+// The notes shown for a question, of the kinds shown, where it is the first of the questions a note is about: what the
+// AI found, a mismatch then the linked answer, first, as beside a document; then whatever else is about it
 function notesBeside(question: FormQuestion, data: ReviewData, shown: Set<NoteKind>,
   homeOf: Map<string, string>): ReviewNote[] {
   const answer = data.answers.get(question.path);
-  const notes = (answer ? notesAbout(data.notes, [ answer.uuid ]) : []).filter(note => note.kind !== "evidence"
-    && shown.has(note.kind) && (homeOf.get(note.id) ?? question.path) === question.path);
-  return [ ...notes.filter(note => note.kind === "contradiction"), ...notes.filter(note => note.kind !== "contradiction") ];
+  const notes = (answer ? notesAbout(data.notes, [ answer.uuid ]) : [])
+    .filter(note => shown.has(note.kind) && (homeOf.get(note.id) ?? question.path) === question.path);
+  const first: NoteKind[] = [ "contradiction", "evidence" ];
+  return [ ...first.flatMap(kind => notes.filter(note => note.kind === kind)),
+    ...notes.filter(note => !first.includes(note.kind)) ];
 }
 
 // The questions of a form, every one, section by section
@@ -103,6 +104,29 @@ export interface ReviewActions {
   write: (fields: Record<string, string | string[]>) => Promise<void>;
   // Going to a note, by path, wherever it is shown
   show?: (id: string) => void;
+  // PRETOTYPE: whether nothing can be written, as in an older version of the submission
+  readOnly?: boolean;
+}
+
+// What a note's card can do: reply, change, remove, raise as an issue, dismiss, and go to other notes; only the last
+// where nothing can be written
+export function noteWrites(note: ReviewNote, actions: ReviewActions) {
+  if (actions.readOnly) {
+    return { onShowNote: actions.show };
+  }
+  return {
+    onReply: (text: string) => actions.write({ replyTo: note.id, text }),
+    onEditReply: (reply: string, text: string) => actions.write({ edit: reply, text }),
+    onRemoveReply: (reply: string) => actions.write({ remove: reply }),
+    onEdit: (text: string, severity?: string, topic?: string) => actions.write({ edit: note.id, text,
+      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} }),
+    onRemove: () => actions.write({ remove: note.id }),
+    onMakeIssue: (text: string, severity?: string, topic?: string) =>
+      raiseAsIssue(actions.write, note, text, severity, topic),
+    onDismiss: () => actions.write({ dismiss: note.id }),
+    write: actions.write,
+    onShowNote: actions.show,
+  };
 }
 
 // An answer as the submitter sees its options: the labels, not the stored values
@@ -176,10 +200,6 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   const answer = data.answers.get(question.path);
   // PRETOTYPE: what it was when the submission was last sent back, a question then unanswered having no values
   const was = data.before && data.changesShown ? data.before.get(question.path) ?? [] : undefined;
-  const about = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
-  const source = about.find(note => note.kind === "evidence");
-  const contradiction = about.find(note => note.kind === "contradiction");
-  const extracted = extractedText(question, contradiction);
   const side = notesBeside(question, data, shown, homeOf);
   // Listed beside the form, its notes tint the answer, in the colour of the first, and the selected one outlines it;
   // a click on the answer selects its first note, then the next
@@ -229,29 +249,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                   <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
                 </Typography>
               )}
-            {/* An answer the protocol contradicts says so, always; one linked to a passage leads there, when linked answers
-                are shown */}
-            {contradiction ? (
-              <Link
-                component="button" variant="caption" underline="hover" onClick={() => onEvidence(contradiction)}
-                sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "warning.main", mt: 0.25,
-                  textAlign: "start" }}
-              >
-                <ErrorOutlineOutlined sx={{ fontSize: "1rem" }} />
-                The protocol says {extracted}{contradiction.passage?.page ? `, page ${contradiction.passage.page}` : ""}
-              </Link>
-            ) : source && shown.has("evidence") && (
-              <Link
-                component="button" variant="caption" underline="hover" onClick={() => onEvidence(source)}
-                sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "evidence.main", mt: 0.25,
-                  textAlign: "start" }}
-              >
-                <ArticleOutlined sx={{ fontSize: "1rem" }} />
-                In the protocol{source.passage?.page ? `, page ${source.passage.page}` : ""}
-              </Link>
-            )}
           </Box>
-          {!writing && (
+          {!writing && !actions.readOnly && (
             <Tooltip title="Write about this">
               <IconButton
                 size="small" onClick={() => setWriting(true)} sx={{ mt: -0.5 }}
@@ -268,24 +267,16 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           {side.map(note => (
             <SideCard key={note.id} note={note} kind={adopting === note.id ? "issue" : note.kind}
               onOpen={note.passage ? () => onEvidence(note) : undefined}
-              actions={editing !== note.id && (
+              actions={editing !== note.id && !actions.readOnly && (
                 <NoteActions
                   note={note} onEdit={() => setEditing(note.id)} onRemove={() => actions.write({ remove: note.id })}
                 />
               )}>
               <NoteCard
-                note={note} answerLabel={extracted} formAnswer={answerText(question, question.value)} headed
+                note={note} answerLabel={extractedText(question, note)} headed
+                formAnswer={answerText(question, question.value)}
                 askedAs={{ question: question.text, form: formLabel }}
-                onReply={text => actions.write({ replyTo: note.id, text })}
-                onEditReply={(reply, text) => actions.write({ edit: reply, text })}
-                onRemoveReply={reply => actions.write({ remove: reply })}
-                onEdit={(text, severity, topic) => actions.write({ edit: note.id, text, ...severity ? { severity } : {},
-                  ...topic !== undefined ? { topic } : {} })}
-                onRemove={() => actions.write({ remove: note.id })}
-                onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
-                onDismiss={() => actions.write({ dismiss: note.id })}
-                write={actions.write}
-                onShowNote={actions.show}
+                {...noteWrites(note, actions)}
                 adopting={adopting === note.id}
                 onAdopting={on => setAdopting(on ? note.id : undefined)}
                 editing={editing === note.id}
@@ -662,6 +653,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
           const mark = kindInfo(adopting === note.id ? "issue" : note.kind).mark;
           const isSelected = selected === note.id;
           const extracted = extractedText(question, note);
+          const byTheAi = note.kind === "evidence" || note.kind === "contradiction";
           return (
             <Box
               component="li" key={note.id} ref={place(note.id)}
@@ -669,7 +661,7 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 overflow: "hidden", outline: isSelected ? "2px solid" : "none",
                 outlineColor: getSelectedOutline(theme, mark), outlineOffset: "-2px" })}
             >
-              {editing !== note.id && (
+              {editing !== note.id && !actions.readOnly && (
                 <Box sx={{ position: "absolute", top: 4, right: 12, zIndex: 1 }}>
                   <NoteActions
                     note={note}
@@ -698,28 +690,29 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                   </Typography>
                 )}
               </ButtonBase>
+              {/* What the AI found leads to where it read it, as the passage is not on the form */}
+              {(note.kind === "evidence" || note.kind === "contradiction") && note.passage && (
+                <Link component="button" variant="caption" underline="hover" onClick={() => onEvidence(note)}
+                  sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 1.5, pb: isSelected ? 0 : 1, mt: -0.5,
+                    color: "text.secondary", textAlign: "start" }}>
+                  <ArticleOutlined sx={{ fontSize: "1rem" }} />
+                  In the protocol{note.passage.page ? `, page ${note.passage.page}` : ""}
+                </Link>
+              )}
               {isSelected ? (
                 <Box data-note={note.id} sx={{ px: 1.5, pt: 1, pb: 1 }}>
                   <NoteCard
                     note={note} answerLabel={extracted} formAnswer={answerText(question, question.value)} headed
                     askedAs={{ question: question.text, form: formLabel }}
-                    onReply={text => actions.write({ replyTo: note.id, text })}
-                    onEditReply={(reply, text) => actions.write({ edit: reply, text })}
-                    onRemoveReply={reply => actions.write({ remove: reply })}
-                    onEdit={(text, severity, topic) => actions.write({ edit: note.id, text,
-                      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} })}
-                    onRemove={() => actions.write({ remove: note.id })}
-                    onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
-                    onDismiss={() => actions.write({ dismiss: note.id })}
-                    write={actions.write}
-                    onShowNote={actions.show}
+                    {...noteWrites(note, actions)}
                     adopting={adopting === note.id}
                     onAdopting={on => setAdopting(on ? note.id : undefined)}
                     editing={editing === note.id}
                     onEditing={on => setEditing(on ? note.id : undefined)}
                   />
-                  {/* On a passage of the protocol, which the form does not show, it leads there */}
-                  {note.passage && (
+                  {/* On a passage of the protocol, which the form does not show, it leads there; what the AI found says
+                      so under its quote */}
+                  {note.passage && note.kind !== "evidence" && note.kind !== "contradiction" && (
                     <Link
                       component="button" variant="caption" underline="hover" onClick={() => onEvidence(note)}
                       sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}
@@ -731,8 +724,8 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 </Box>
               ) : (
                 <Box data-note={note.id}>
-                  <CutShort lines={note.kind === "contradiction" ? 3 : 4} onOpen={() => onSelect(note.id)}>
-                    {note.kind === "contradiction"
+                  <CutShort lines={byTheAi ? 3 : 4} onOpen={() => onSelect(note.id)}>
+                    {byTheAi
                       ? (
                         <Box sx={{ px: 1.5, pb: 1 }}>
                           <NoteCard

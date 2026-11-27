@@ -24,7 +24,6 @@ import CheckCircle from "@mui/icons-material/CheckCircle";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import CloseFullscreenOutlined from "@mui/icons-material/CloseFullscreenOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
-import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ForwardToInboxOutlined from "@mui/icons-material/ForwardToInboxOutlined";
@@ -49,6 +48,7 @@ import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import LetterPage from "./LetterPage";
 import NoteCard, { SentLock, Thread } from "./NoteCard";
+import NoteKindIcon from "./noteIcons";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PanelBody } from "./sidePanel";
@@ -114,6 +114,8 @@ export interface DecisionActions {
   approve: () => void;
   approveBlocked?: string;
   board?: () => void;
+  // PRETOTYPE: why no decision can be taken from here now, as while reading an older version
+  blocked?: string;
 }
 
 interface ReviewProps {
@@ -452,7 +454,7 @@ function Progress({ risks, more = false }: { risks: RiskReview[]; more?: boolean
       <Typography variant="caption" sx={{ display: "block" }}>
         {considered} of {plural(risks.length, "risk")} considered
         {more && concerns > 0 && ` · ${plural(concerns, "open AI concern")}`}
-        {more && contradictions > 0 && ` · ${plural(contradictions, "contradiction")}`}
+        {more && contradictions > 0 && ` · ${plural(contradictions, "AI-found mismatch", "AI-found mismatches")}`}
       </Typography>
       <LinearProgress
         variant="determinate" value={risks.length ? considered / risks.length * 100 : 0}
@@ -527,10 +529,10 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
     <AiBlock dense={dense}>
       {risk.assessment && <Typography variant={dense ? "caption" : "body2"}>{risk.assessment}</Typography>}
       {risk.mismatches.length > 0 && (
-        <Section title="Answers the protocol contradicts" dense={dense}>
+        <Section title="AI-found mismatches with the protocol" dense={dense}>
           {risk.mismatches.map(mismatch => (
             <Stack key={mismatch.evidence.id} direction="row" sx={{ gap: 0.75, alignItems: "flex-start" }}>
-              <ErrorOutlineOutlined sx={{ fontSize: "1rem", color: "warning.main", mt: 0.25 }} />
+              <NoteKindIcon kind="contradiction" sx={{ fontSize: "1rem", color: "warning.main", mt: 0.25 }} />
               <Typography variant={dense ? "caption" : "body2"}>
                 {mismatch.question} The form says {mismatch.answer}; the protocol says {mismatch.protocol}.{" "}
                 <Link component="button" variant="inherit" onClick={() => onShow(mismatch.evidence)}>Show where</Link>
@@ -1028,6 +1030,15 @@ function Decision({ waitingSince, decision, wide = false }: {
       </Box>
     );
   }
+  // PRETOTYPE: none of the decisions while one cannot be taken from here, saying why
+  const held = (button: ReactNode) => decision.blocked
+    ? <Tooltip disableInteractive title={decision.blocked}><span>{button}</span></Tooltip> : button;
+  const board = decision.board && held(
+    <Button variant="text" size="small" fullWidth startIcon={<GroupsOutlined />} disabled={Boolean(decision.blocked)}
+      onClick={decision.board}>
+      Send to the board
+    </Button>,
+  );
   return (
     <Stack direction={wide ? { xs: "column", sm: "row" } : "column"} spacing={1}
       sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: wide ? { sm: "center" } : undefined }}>
@@ -1039,27 +1050,22 @@ function Decision({ waitingSince, decision, wide = false }: {
           {waitingSince ? `Waiting on your decision since ${waitingSince}` : "Not waiting on your decision now"}
         </Typography>
       ))}
-      {wide && decision.board && (
-        <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
-          Send to the board
-        </Button>
+      {wide && board}
+      {held(
+        <Button variant="outlined" size="small" fullWidth startIcon={<ForwardToInboxOutlined />}
+          disabled={Boolean(decision.blocked)} onClick={decision.send}>
+          Letter of Review
+        </Button>,
       )}
-      <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={decision.send}>
-        Letter of Review
-      </Button>
-      <Tooltip disableInteractive title={decision.approveBlocked ?? ""}>
+      <Tooltip disableInteractive title={decision.blocked ?? decision.approveBlocked ?? ""}>
         <span>
           <Button variant="contained" size="small" fullWidth startIcon={<TaskAltOutlined />}
-            disabled={Boolean(decision.approveBlocked)} onClick={decision.approve}>
+            disabled={Boolean(decision.blocked ?? decision.approveBlocked)} onClick={decision.approve}>
             Approve
           </Button>
         </span>
       </Tooltip>
-      {!wide && decision.board && (
-        <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
-          Send to the board
-        </Button>
-      )}
+      {!wide && board}
     </Stack>
   );
 }
