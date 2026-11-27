@@ -121,7 +121,7 @@ public class SaveDataSelectionHandler implements ServiceTaskHandler
      * @param submission the submission being answered
      * @param actor the repository user id of the person who sent the event
      * @throws NotAuthorizedException when somebody other than the submission's creator is choosing
-     * @throws InvalidStateException when the submission is no longer a draft
+     * @throws InvalidStateException when the submission is neither a draft nor back with its team for changes
      */
     private void checkMaySave(final Submission submission, final String actor)
         throws NotAuthorizedException, InvalidStateException
@@ -131,7 +131,7 @@ public class SaveDataSelectionHandler implements ServiceTaskHandler
         if (!actor.equals(submission.getCreatedBy())) {
             throw new NotAuthorizedException("Only the person who raised a request may choose data for it");
         }
-        if (!submission.isDraft()) {
+        if (!submission.isOpenToChanges()) {
             throw new InvalidStateException("This request has been submitted and can no longer be changed");
         }
     }
