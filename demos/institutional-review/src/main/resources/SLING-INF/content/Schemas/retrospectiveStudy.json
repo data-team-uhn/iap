@@ -2967,7 +2967,7 @@
       "ai": {
         "jcr:primaryType": "sch:Topic",
         "letterSection": "Other Issues",
-        "text": "AI and the risks above",
+        "text": "Artificial Intelligence",
         "description": "Studies building AI tools, and studies using AI to carry out research, sharpen every risk above. TCPS 2 has not caught up, and guidance for REBs is thin.\n\nConsult the AI Hub and Digital.",
         "jcr:reference:sources": [
           "/Schemas/retrospectiveStudy/v1/digital/ai/used",

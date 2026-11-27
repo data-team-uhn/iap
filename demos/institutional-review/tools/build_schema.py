@@ -542,7 +542,7 @@ REB_TOPICS = [
      "Look at: whether the end date is far enough in the past; whether patients are still being seen.\n\n"
      "Policy: TCPS 2 Ch. 1, Ch. 3.",
      ["classification/cohort/startDate", "classification/cohort/endDate", "classification/cohort/dateRationale"]),
-    ("ai", "AI and the risks above",
+    ("ai", "Artificial Intelligence",
      "Studies building AI tools, and studies using AI to carry out research, sharpen every risk above. TCPS 2 has not "
      "caught up, and guidance for REBs is thin.\n\n"
      "Consult the AI Hub and Digital.",
