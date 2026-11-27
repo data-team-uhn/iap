@@ -963,8 +963,8 @@ describe("PdfViewer", () => {
 
       await waitFor(() => expect(getFrame().querySelector(".iap-mark-assistant.selected")).not.toBeNull());
       const selected = getFrame().querySelector(".iap-mark-assistant.selected");
-      // #8A6184, the shade the light scheme writes the assistant's colour in
-      expect(selected === null ? "" : getComputedStyle(selected).outlineColor).toBe("rgb(138, 97, 132)");
+      // #76506F, the shade the light scheme writes the assistant's colour in
+      expect(selected === null ? "" : getComputedStyle(selected).outlineColor).toBe("rgb(118, 80, 111)");
     });
 
     // A point on every mark the fake layout draws, whatever its page.
