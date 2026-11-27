@@ -30,7 +30,7 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/generateDocument">
   <bpmn:message id="generateDocumentMessage" name="generateDocument" />
   <bpmn:process id="generateDocument" name="Generate a document for a submission" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="everyone" name="Document requested">
+    <bpmn:startEvent id="requested" iap:performers="@creator" name="Document requested">
       <bpmn:outgoing>toParts</bpmn:outgoing>
       <bpmn:messageEventDefinition id="generateDocumentRequested" messageRef="generateDocumentMessage" />
     </bpmn:startEvent>

@@ -249,6 +249,19 @@ test.describe('a story: the time off process, over HTTP', () => {
       expect(forms).toHaveLength(1);
     });
 
+    test('offers a preview of its documents to its requester, and not to the approver who reads it', async ({
+      request,
+    }) => {
+      const offered = async (headers: Record<string, string>) => {
+        const response = await request.get(`${raised}.events.json`, { headers });
+        expect(response.ok()).toBeTruthy();
+        return ((await response.json()) as { '@events'?: string[] })['@events'] ?? [];
+      };
+
+      expect(await offered(requesterAuth)).toContain('generateDocument');
+      expect(await offered(approverAuth)).not.toContain('generateDocument');
+    });
+
     test('will not take any more answers once the request has been sent', async ({ request }) => {
       // The save handler refuses anything that is not a draft, and the request no longer is one
       const response = await request.post(raised, {

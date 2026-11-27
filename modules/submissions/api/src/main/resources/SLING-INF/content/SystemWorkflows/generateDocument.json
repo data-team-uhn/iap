@@ -12,7 +12,7 @@
       "elementId": "requested",
       "label": "Document requested",
       "messageName": "generateDocument",
-      "performers": ["everyone"],
+      "performers": ["@creator"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "toParts": {
         "jcr:primaryType": "wf:SequenceFlow",
@@ -37,6 +37,7 @@
       "elementId": "generate",
       "label": "Generate the document",
       "handler": "generateDocument",
+      "preview": true,
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toMark": {
         "jcr:primaryType": "wf:SequenceFlow",
