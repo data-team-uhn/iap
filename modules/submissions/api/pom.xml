@@ -154,6 +154,14 @@
           <type>test-jar</type>
           <scope>test</scope>
         </dependency>
+        <!-- SystemWorkflowDefinitions, which loads the shipped workflows and says which one takes an event -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-workflows</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
       </dependencies>
     </profile>
   </profiles>

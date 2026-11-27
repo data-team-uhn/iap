@@ -20,7 +20,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import type { CategoryNode } from "@iap/categories/categoryModel";
 import DeleteCategoryDialog from "@iap/categories/DeleteCategoryDialog";
-import { DeletionRefusedError } from "@iap/categories/useCategoryTree";
+import { RequestError } from "@iap/frontend-commons/requestFailure";
 
 const node: CategoryNode = {
   name: "Paper",
@@ -70,12 +70,12 @@ describe("DeleteCategoryDialog", () => {
   });
 
   it("states the server's reason and offers to retire instead when a deletion is refused", async () => {
-    const onDelete = vi.fn().mockRejectedValue(new DeletionRefusedError(REFUSAL));
+    const onDelete = vi.fn().mockRejectedValue(new RequestError(409, REFUSAL));
     const { onRetire, onClose } = renderDialog({ onDelete });
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    // The endpoint's own reason
+    // The engine's own reason
     expect(await screen.findByText(/referenced in 2 submissions \(S-1, S-2\)/)).toBeInTheDocument();
     // Retiring explained in the retirement dialog's words
     expect(screen.getByText(/Existing submissions stay in this category and keep working/))
@@ -88,6 +88,16 @@ describe("DeleteCategoryDialog", () => {
 
     await waitFor(() => { expect(onRetire).toHaveBeenCalledWith(node); });
     await waitFor(() => { expect(onClose).toHaveBeenCalled(); });
+  });
+
+  it("reports a deletion the user may not make as a failure, offering nothing else", async () => {
+    const onDelete = vi.fn().mockRejectedValue(new RequestError(403, "You may not delete this"));
+    renderDialog({ onDelete });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("You may not delete this")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retire instead" })).not.toBeInTheDocument();
   });
 
   it("reports a deletion that failed for some other reason, and stays open", async () => {
@@ -112,7 +122,7 @@ describe("DeleteCategoryDialog", () => {
   });
 
   it("reports a failed retirement too", async () => {
-    const onDelete = vi.fn().mockRejectedValue(new DeletionRefusedError(REFUSAL));
+    const onDelete = vi.fn().mockRejectedValue(new RequestError(409, REFUSAL));
     const onRetire = vi.fn().mockRejectedValue(new Error("HTTP 403"));
     renderDialog({ onDelete, onRetire });
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));

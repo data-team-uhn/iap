@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 
-import { DeletionRefusedError, useCategoryTree } from "@iap/categories/useCategoryTree";
+import { useCategoryTree } from "@iap/categories/useCategoryTree";
 import {
   jsonResponse,
   sentRequests,
@@ -197,16 +197,13 @@ describe("useCategoryTree", () => {
     expect(getCount()).toBe(1);
   });
 
-  it("deletes a category through the deletion endpoint and reloads the tree", async () => {
+  it("deletes a category with the delete event and reloads the tree", async () => {
     stubServer(treeJson);
     const result = await loadedHook();
 
     await act(() => result.current.remove("/Categories/Retrospective"));
 
-    const sent = sentRequests().filter(request => request.method === "DELETE");
-    expect(sent).toHaveLength(1);
-    expect(sent[0].url).toBe("/Categories/Retrospective");
-    expect(sentRequests().filter(request => request.method === "POST")).toHaveLength(0);
+    expect(lastPost()?.url).toBe("/Categories/Retrospective.delete.json");
     // The reload that follows it
     expect(getCount()).toBe(2);
   });
@@ -218,32 +215,12 @@ describe("useCategoryTree", () => {
     expect(result.current.loadError).toBe("Something went wrong: connection reset");
   });
 
-  it("passes on the reason the deletion endpoint refused", async () => {
-    stubServer(treeJson, 409, {
-      "status.code": 409,
-      "status": "referenced",
-      "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
-    });
+  it("passes on the reason a deletion was refused", async () => {
+    stubServer(treeJson, 409, { error: "This item is referenced in 2 submissions (S-1, S-2)." });
     const result = await loadedHook();
 
     await expect(result.current.remove("/Categories/Retrospective"))
       .rejects.toThrow("This item is referenced in 2 submissions (S-1, S-2).");
-  });
-
-  it("still reports a refusal when its reason cannot be read", async () => {
-    stubServer(treeJson, 409, null);
-    const result = await loadedHook();
-
-    await expect(result.current.remove("/Categories/Retrospective"))
-      .rejects.toBeInstanceOf(DeletionRefusedError);
-  });
-
-  it("reports any other deletion failure as a failure", async () => {
-    stubServer(treeJson, 403);
-    const result = await loadedHook();
-
-    await expect(result.current.remove("/Categories/Retrospective"))
-      .rejects.not.toBeInstanceOf(DeletionRefusedError);
   });
 
   // Sling answers a write made with an expired session with a 500. The recovery itself is tested

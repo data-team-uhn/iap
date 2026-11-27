@@ -29,7 +29,8 @@ import { ReLoginContext } from "@iap/frontend-commons/reLogin";
 
 const PATH = "/content/victim";
 
-const archived = { "status.code": 200, status: "archived", items: [ PATH ], removedLinks: [] };
+// The engine's answer to an event it carried out
+const completed = () => jsonResponse({ status: "completed" });
 
 const dryRun = (extra: Record<string, unknown> = {}) => jsonResponse({
   "status.code": 200,
@@ -81,9 +82,9 @@ describe("DeleteItem", () => {
 
     await openDialog(user);
 
-    // The preview is a dry run, so nothing has been deleted merely by opening the dialog
-    const url = new URL(fetchMock.mock.calls[0][0] as string);
-    expect(url.searchParams.get("dryRun")).toBe("true");
+    // The preview only reads, so nothing has been deleted merely by opening the dialog
+    expect(fetchMock.mock.calls[0][0]).toBe(`${PATH}.deletion.json`);
+    expect(fetchMock.mock.calls[0][1]?.method).toBeUndefined();
     expect(screen.getByText(/You are about to delete submission "My submission"/)).toBeInTheDocument();
     expect(screen.getByText(/moved to the archive/)).toBeInTheDocument();
   });
@@ -98,38 +99,32 @@ describe("DeleteItem", () => {
     expect(screen.getByText(/submission "victim"/)).toBeInTheDocument();
   });
 
-  it("deletes on confirmation and reports the outcome", async () => {
+  it("sends the delete event on confirmation, then says it is done", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse(archived));
+      .mockResolvedValueOnce(completed());
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
     await openDialog(user);
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(expect.objectContaining({ status: "archived" })));
-    const url = new URL(fetchMock.mock.calls[1][0] as string);
-    expect(url.searchParams.has("dryRun")).toBe(false);
-    expect(url.searchParams.has("recursive")).toBe(false);
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+    expect(fetchMock.mock.calls[1][0]).toBe(`${PATH}.delete.json`);
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("POST");
   });
 
-  it("warns about referring resources and offers to take them too", async () => {
+  it("states what refers to the resource and offers no deletion", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(dryRun({ executable: false, ...referenced, status: "dryRun" }))
-      .mockResolvedValueOnce(jsonResponse(archived));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(dryRun({ ...referenced, executable: false, status: "dryRun" }));
     renderButton();
 
     await user.click(screen.getByRole("button", { name: "Delete submission" }));
+
     expect(await screen.findByRole("alert")).toHaveTextContent("referenced by 2 submissions");
-
-    await user.click(screen.getByRole("button", { name: "Delete all of them" }));
-
-    // Deleting the referencing resources too is what `recursive` does
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("recursive")).toBe("true");
+    expect(screen.getByRole("heading", { name: "Cannot delete this submission" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Delete/ })).not.toBeInTheDocument();
   });
 
   it("states a veto and offers no way to override it", async () => {
@@ -149,7 +144,8 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse(referenced, 409));
+      .mockResolvedValueOnce(jsonResponse({ error: "This item is referenced by 2 submissions (S-1, S-2)." }, 409))
+      .mockResolvedValueOnce(dryRun({ ...referenced, executable: false, status: "dryRun" }));
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -162,29 +158,11 @@ describe("DeleteItem", () => {
     expect(onDeleted).not.toHaveBeenCalled();
   });
 
-  it("treats an already deleted resource as deleted", async () => {
-    const user = userEvent.setup();
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse({ "status.code": 404, status: "missing" }, 404));
-    const onDeleted = vi.fn();
-    renderButton({ onDeleted });
-
-    await openDialog(user);
-    await user.click(screen.getByRole("button", { name: "Delete" }));
-
-    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
-  });
-
   it("reports a refusal it cannot act on", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse({
-        "status.code": 403,
-        status: "denied",
-        "status.message": "You are not allowed to delete everything this deletion would impact"
-      }, 403));
+      .mockResolvedValueOnce(jsonResponse({ error: "You are not allowed to delete this submission" }, 403));
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -200,7 +178,7 @@ describe("DeleteItem", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(globalThis, "fetch")
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce(jsonResponse(archived));
+      .mockResolvedValueOnce(completed());
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
@@ -217,7 +195,7 @@ describe("DeleteItem", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(jsonResponse(archived));
+      .mockResolvedValueOnce(completed());
     const signIn = vi.fn().mockResolvedValue(true);
     const onDeleted = vi.fn();
     render(
@@ -231,9 +209,9 @@ describe("DeleteItem", () => {
     await openDialog(user);
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(expect.objectContaining({ status: "archived" })));
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
     expect(signIn).toHaveBeenCalled();
-    // The DELETE was re-sent, not merely retried by the user: three calls for two intended requests
+    // The event was re-sent, not merely retried by the user: three calls for two intended requests
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -256,7 +234,7 @@ describe("DeleteItem", () => {
     await openDialog(user);
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    expect(await screen.findByText(/no longer signed in/)).toBeInTheDocument();
+    expect(await screen.findByText(/could not be deleted\. Your session has expired/)).toBeInTheDocument();
     expect(screen.queryByText(/could not be reached/)).not.toBeInTheDocument();
   });
 
@@ -286,7 +264,8 @@ describe("DeleteItem", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockRejectedValueOnce(new Error("offline"));
+      // What fetch rejects with when the request never completes
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
     renderButton();
 
     await openDialog(user);
@@ -295,17 +274,17 @@ describe("DeleteItem", () => {
     expect(await screen.findByText(/could not be reached/)).toBeInTheDocument();
   });
 
-  it("says a permanent deletion cannot be undone, and counts what goes with it", async () => {
+  it("says the deletion can be undone, and counts what goes with it", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(dryRun({
       items: [ PATH, "/content/other" ],
       removedLinks: [ "/content/holder/link:links/link0" ]
     }));
-    renderButton({ permanent: true });
+    renderButton();
 
     await openDialog(user);
 
-    expect(screen.getByText("This cannot be undone.")).toBeInTheDocument();
+    expect(screen.getByText(/moved to the archive, and can be restored/)).toBeInTheDocument();
     expect(screen.getByText(/removes 2 items in total/)).toBeInTheDocument();
     expect(screen.getByText("1 link to it will be removed.")).toBeInTheDocument();
   });
@@ -365,8 +344,7 @@ describe("DeleteItem", () => {
     expect(screen.getByRole("button", { name: "Delete submission" })).toBeInTheDocument();
   });
 
-  // Those referrers are hidden by access control or archived, and a recursive deletion cannot take
-  // them either
+  // Those referrers are hidden by access control or archived, so they are only counted
   it("offers no deletion when some referring resources are out of the user's reach", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(dryRun({
@@ -382,7 +360,6 @@ describe("DeleteItem", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("1 other item you cannot see");
     expect(screen.getByRole("heading", { name: "Cannot delete this submission" })).toBeInTheDocument();
-    expect(screen.getByText(/cannot be deleted along with it/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Delete/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
@@ -403,16 +380,16 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(dryRun())
-      .mockResolvedValueOnce(jsonResponse({ "status.code": 400, status: "invalid" }, 400));
+      .mockResolvedValueOnce(new Response(null, { status: 400 }));
     renderButton();
 
     await openDialog(user);
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    expect(await screen.findByText("The submission could not be deleted.")).toBeInTheDocument();
+    expect(await screen.findByText(/^The submission could not be deleted\./)).toBeInTheDocument();
     // The shared ErrorDialog's close button is an unlabelled icon, so it is reached through the dialog
     await user.click(within(screen.getByRole("dialog", { name: "Error" })).getByRole("button"));
     await waitFor(() =>
-      expect(screen.queryByText("The submission could not be deleted.")).not.toBeInTheDocument());
+      expect(screen.queryByText(/^The submission could not be deleted\./)).not.toBeInTheDocument());
   });
 });

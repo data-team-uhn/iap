@@ -28,34 +28,6 @@ import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryMo
 // The repository path of the category tree's root.
 export const CATEGORIES_ROOT = "/Categories";
 
-// The deletion endpoint's refusal to remove a category, because something references it or a
-// deletion guard objected. The message is the endpoint's own sentence saying why.
-export class DeletionRefusedError extends Error {
-  constructor(reason: string) {
-    super(reason);
-    this.name = "DeletionRefusedError";
-  }
-}
-
-// The body of a refusal from the deletion endpoint. `status.message` says what blocks the deletion,
-// such as "This item is referenced in 3 submissions (S-1, S-2, S-3)."
-interface DeletionRefusal {
-  "status.message"?: string;
-}
-
-const DELETION_REFUSED = "Something still refers to this category, so it cannot be deleted.";
-
-// The endpoint's reason for refusing. An unreadable body gives the general sentence instead, since
-// the deletion was refused all the same.
-const refusalReason = async (response: Response): Promise<string> => {
-  try {
-    const refusal = await response.json() as DeletionRefusal | null;
-    return refusal?.["status.message"] ?? DELETION_REFUSED;
-  } catch {
-    return DELETION_REFUSED;
-  }
-};
-
 // The fields of a category that a save writes. `schemaVersion` is the path of the bound
 // sch:SchemaVersion: null removes the binding, and undefined leaves it as it is.
 export interface CategoryFields {
@@ -78,16 +50,12 @@ const checkOk = (response: Response): Response => {
   return response;
 };
 
-// Runs one exchange with the repository. A failure, such as an unreachable server, a refused write
-// or an unreadable response, becomes a sentence for the person using the UI. A DeletionRefusedError
-// passes through unchanged, so that a refusal stays apart from a failure.
+// Runs one exchange with the repository. A failure, such as an unreachable server, a refused read
+// or an unreadable response, becomes a sentence for the person using the UI.
 const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
   try {
     return await exchange();
   } catch (error: unknown) {
-    if (error instanceof DeletionRefusedError) {
-      throw error;
-    }
     throw new Error(describeRequestFailure(error));
   }
 };
@@ -163,19 +131,9 @@ export function useCategoryTree() {
   // Opens a category retired by itself to new submissions again.
   const reopen = useCallback((path: string): Promise<void> => send(path, "activate"), [send]);
 
-  // Deletes a category with a DELETE to the deletion endpoint, which moves it into the archive. A
-  // `:operation=delete` POST would skip the endpoint's check for references. A refusal rejects with
-  // a DeletionRefusedError.
-  const remove = useCallback(async (path: string): Promise<void> => {
-    await reporting(async () => {
-      const response = await authenticatedFetch(path, { method: "DELETE" });
-      if (response.status === 409) {
-        throw new DeletionRefusedError(await refusalReason(response));
-      }
-      return checkOk(response);
-    });
-    await reload();
-  }, [authenticatedFetch, reload]);
+  // Moves a category, with everything under it, to the archive. A refusal rejects with a RequestError
+  // holding the engine's reason.
+  const remove = useCallback((path: string): Promise<void> => send(path, "delete"), [send]);
 
   return {
     tree, loading, loadError, reload,

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { requestDeletion } from "@iap/deletion/deletionApi";
+import { examineDeletion } from "@iap/deletion/deletionApi";
 import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
@@ -25,53 +25,40 @@ import { UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
 const answering = (response: Response) =>
   vi.fn<AuthenticatedFetch>().mockResolvedValue(response);
 
-describe("requestDeletion", () => {
+describe("examineDeletion", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("sends a bare DELETE when no options are given", async () => {
-    const fetchMock = answering(jsonResponse({ "status.code": 200, status: "archived" }));
+  it("reads what deleting a resource would do, changing nothing", async () => {
+    const fetchMock = answering(jsonResponse({ "status.code": 200, status: "dryRun", executable: true }));
 
-    const outcome = await requestDeletion(fetchMock, "/content/victim");
+    const outcome = await examineDeletion(fetchMock, "/content/victim");
 
-    expect(outcome.status).toBe("archived");
+    expect(outcome.executable).toBe(true);
     const [ url, init ] = fetchMock.mock.calls[0];
-    expect(new URL(url).pathname).toBe("/content/victim");
-    expect(new URL(url).search).toBe("");
-    expect(init).toEqual(expect.objectContaining({ method: "DELETE" }));
+    expect(url).toBe("/content/victim.deletion.json");
+    expect(init).toBeUndefined();
   });
 
-  it("passes only the options that are turned on", async () => {
-    const fetchMock = answering(
-      jsonResponse({ "status.code": 200, status: "dryRun", executable: true }));
-
-    await requestDeletion(fetchMock, "/content/victim",
-      { dryRun: true, permanent: true, recursive: false });
-
-    const url = new URL(fetchMock.mock.calls[0][0]);
-    expect(url.searchParams.get("dryRun")).toBe("true");
-    expect(url.searchParams.get("permanent")).toBe("true");
-    expect(url.searchParams.has("recursive")).toBe(false);
-  });
-
-  it("returns a refusal as an outcome rather than throwing", async () => {
-    const outcome = await requestDeletion(answering(jsonResponse({
-      "status.code": 409,
-      status: "referenced",
+  it("returns what blocks the deletion as an outcome", async () => {
+    const outcome = await examineDeletion(answering(jsonResponse({
+      "status.code": 200,
+      status: "dryRun",
+      executable: false,
       "status.message": "This item is referenced by 2 submissions.",
       referrers: [ { type: "sub:Submission", label: "submission", count: 2, names: [ "S-1", "S-2" ] } ],
       inaccessibleReferrers: 0
-    }, 409)), "/content/victim");
+    })), "/content/victim");
 
-    expect(outcome.status).toBe("referenced");
+    expect(outcome.executable).toBe(false);
     expect(outcome.referrers?.[0].count).toBe(2);
   });
 
   it("reports an unreadable body as a failure instead of crashing, logging its status", async () => {
     const warned = vi.spyOn(console, "warn").mockImplementation(() => { /* kept out of the test output */ });
 
-    const outcome = await requestDeletion(
+    const outcome = await examineDeletion(
       answering(new Response("<html>Server Error</html>", { status: 500 })), "/content/victim");
 
     expect(outcome).toEqual({ "status.code": 500, status: "failed", "status.message": UNREADABLE_RESPONSE });
@@ -79,17 +66,15 @@ describe("requestDeletion", () => {
   });
 
   it("reports an unreadable 404 as a missing resource", async () => {
-    const outcome = await requestDeletion(
+    const outcome = await examineDeletion(
       answering(new Response("<html>Not Found</html>", { status: 404 })), "/content/gone");
 
     expect(outcome.status).toBe("missing");
   });
 
-  it("does not trust a success it cannot read", async () => {
-    // A 200 whose body is not the endpoint's own JSON means something answered in its place, so
-    // the deletion cannot be reported as done
-    const outcome = await requestDeletion(
-      answering(jsonResponse({ unexpected: true })), "/content/victim");
+  it("does not trust an answer it cannot read", async () => {
+    // A 200 whose body is not the endpoint's own JSON means something answered in its place
+    const outcome = await examineDeletion(answering(jsonResponse({ unexpected: true })), "/content/victim");
 
     expect(outcome.status).toBe("failed");
   });
@@ -100,6 +85,6 @@ describe("requestDeletion", () => {
     const failing = vi.fn<AuthenticatedFetch>()
       .mockRejectedValue(new Error("Not authenticated, and signing in was abandoned"));
 
-    await expect(requestDeletion(failing, "/content/victim")).rejects.toThrow("abandoned");
+    await expect(examineDeletion(failing, "/content/victim")).rejects.toThrow("abandoned");
   });
 });

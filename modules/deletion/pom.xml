@@ -73,6 +73,18 @@
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
     </dependency>
+    <!-- SuppressFBWarnings, for the one justified exception. Without JSR-305, whose javax.annotation would otherwise
+         decide the version of the javax.annotation-api import, which no bundle exports at that version -->
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>com.google.code.findbugs</groupId>
+          <artifactId>jsr305</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-content-api</artifactId>

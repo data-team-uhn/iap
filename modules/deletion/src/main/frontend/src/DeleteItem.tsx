@@ -36,28 +36,30 @@ import {
 import ErrorDialog from "@iap/frontend-commons/components/ErrorDialog";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { requestDeletion, type DeletionResponse } from "./deletionApi";
+import { examineDeletion, type DeletionResponse } from "./deletionApi";
 
 interface DeleteItemProps {
   path: string;
   name?: string;
   type?: string;
-  permanent?: boolean;
   variant?: "icon" | "text" | "extended";
   size?: "small" | "medium" | "large";
   label?: string;
   disabled?: boolean;
-  onDeleted?: (outcome: DeletionResponse) => void;
+  onDeleted?: () => void;
   onClose?: () => void;
 }
 
 // A delete button for any resource, with its confirmation dialog.
 //
 // Before the dialog asks for confirmation, it asks the deletion endpoint for a dry run. The dialog
-// then says what the deletion would do: how much goes, what references the resource, and which guard
-// refuses it.
+// then says what the deletion would do: how much goes, and what refers to the resource or which guard
+// refuses it, either of which blocks it. Confirming sends the resource's workflow a `delete` event,
+// which moves it to the archive.
 //
 // Required props:
 // path: the absolute path of the resource to delete
@@ -65,12 +67,10 @@ interface DeleteItemProps {
 // Optional props:
 // name: what to call the resource in the dialog. Defaults to the last segment of the path
 // type: the kind of thing being deleted, such as "submission", used in the wording
-// permanent: skip the archive and remove the resource for good. Off by default, and the dialog
-//   says the deletion can be undone
 // variant: "icon" (default), "text", or "extended" (icon and text)
 // size, disabled: passed to the button
 // label: the button's text, and the icon's tooltip. Defaults to "Delete <type>", or "Delete item"
-// onDeleted: called with the outcome once the resource is gone, including when it was gone already
+// onDeleted: called once the resource is gone
 // onClose: called whenever the dialog closes, deleted or not
 //
 // Sample usage:
@@ -82,7 +82,6 @@ const DeleteItem = (props: DeleteItemProps) => {
     path,
     name = lastSegmentOf(path),
     type,
-    permanent = false,
     variant = "icon",
     size = "large",
     label,
@@ -101,16 +100,12 @@ const DeleteItem = (props: DeleteItemProps) => {
   const subject = type ? `${type} "${name}"` : `"${name}"`;
   const buttonText = label ?? `Delete ${type ?? "item"}`;
 
-  // No option makes a vetoed deletion proceed, so the dialog offers none
+  // Nothing makes a refused deletion proceed, so the dialog offers nothing but closing
   const vetoes = impact?.vetoes ?? [];
   const vetoed = vetoes.length > 0;
-  // Referencing resources can be deleted too, with `recursive`, but only those the user can see and
-  // that are not archived. The others are only counted, and block even a recursive deletion.
-  const referrers = impact?.referrers ?? [];
-  const unreachableReferrers = (impact?.inaccessibleReferrers ?? 0) > 0;
-  const referenced = !vetoed && (referrers.length > 0 || unreachableReferrers);
-  const blocked = vetoed || unreachableReferrers;
-  const cascades = !blocked && referrers.length > 0;
+  const referenced = !vetoed
+    && ((impact?.referrers ?? []).length > 0 || (impact?.inaccessibleReferrers ?? 0) > 0);
+  const blocked = vetoed || referenced;
 
   const close = () => {
     setOpen(false);
@@ -126,9 +121,6 @@ const DeleteItem = (props: DeleteItemProps) => {
     setError(message);
   };
 
-  const failWith = (outcome: DeletionResponse) =>
-    fail(outcome["status.message"] ?? `The ${type ?? "item"} could not be deleted.`);
-
   // The session expired and the user did not sign back in. The server did answer, so this is not
   // reported as a network failure.
   const failNotAuthenticated = () =>
@@ -138,7 +130,7 @@ const DeleteItem = (props: DeleteItemProps) => {
     setOpen(true);
     setImpact(null);
     setBusy(true);
-    requestDeletion(authenticatedFetch, path, { permanent, dryRun: true })
+    examineDeletion(authenticatedFetch, path)
       .then(outcome => setImpact(outcome))
       .catch((err: unknown) => {
         console.error("Could not determine what deleting %s would do", path, err);
@@ -147,48 +139,30 @@ const DeleteItem = (props: DeleteItemProps) => {
           failNotAuthenticated();
           return;
         }
-        // Without a dry run, the dialog asks a plain confirmation. The deletion endpoint still
-        // refuses what it must.
+        // Without a dry run, the dialog asks a plain confirmation. The workflow still refuses what
+        // it must.
         setImpact(null);
       })
       .finally(() => setBusy(false));
   };
 
-  const confirm = (recursive: boolean) => {
+  const confirm = () => {
     setBusy(true);
-    requestDeletion(authenticatedFetch, path, { permanent, recursive })
-      .then(outcome => {
-        switch (outcome.status) {
-          // "missing" counts as deleted: the resource is gone either way
-          case "archived":
-          case "deleted":
-          case "missing":
-            close();
-            onDeleted?.(outcome);
-            break;
-          // Something changed since the dry run, so the dialog shows the new answer
-          case "referenced":
-          case "vetoed":
-            setImpact(outcome);
-            break;
-          // This call asks for no dry run, but if "dryRun" arrives, nothing was deleted
-          case "denied":
-          case "invalid":
-          case "failed":
-          case "dryRun":
-            failWith(outcome);
-            break;
-        }
+    sendEvent(authenticatedFetch, path, "delete")
+      .then(() => {
+        close();
+        onDeleted?.();
       })
       .catch((err: unknown) => {
         console.error("Could not delete %s", path, err);
-        if (isNotAuthenticated(err)) {
-          failNotAuthenticated();
+        if (err instanceof RequestError && err.status === 409) {
+          // Something changed since the dry run, so the dialog shows the new answer
+          examine();
           return;
         }
-        fail(`The ${type ?? "item"} could not be deleted. The server could not be reached.`);
-      })
-      .finally(() => setBusy(false));
+        setBusy(false);
+        fail(`The ${type ?? "item"} could not be deleted. ${messageOf(err)}`);
+      });
   };
 
   const trigger = variant === "icon"
@@ -241,20 +215,15 @@ const DeleteItem = (props: DeleteItemProps) => {
                   </List>
                 )}
                 {referenced && <Alert severity="warning">{impact?.["status.message"]}</Alert>}
-                {referenced && unreachableReferrers && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    Items you cannot see, and archived items, cannot be deleted along with it.
-                  </Typography>
-                )}
-                {!blocked && <ImpactSummary impact={impact} permanent={permanent} />}
+                {!blocked && <ImpactSummary impact={impact} />}
               </>
             )}
         </DialogContent>
         <DialogActions>
           <Button variant="outlined" onClick={close}>{blocked ? "Close" : "Cancel"}</Button>
           {!blocked && (
-            <Button variant="contained" color="error" disabled={busy} onClick={() => confirm(cascades)}>
-              {busy ? "Deleting…" : cascades ? "Delete all of them" : "Delete"}
+            <Button variant="contained" color="error" disabled={busy} onClick={confirm}>
+              {busy ? "Deleting…" : "Delete"}
             </Button>
           )}
         </DialogActions>
@@ -266,10 +235,9 @@ const DeleteItem = (props: DeleteItemProps) => {
   );
 };
 
-// What else goes with the resource, and whether the deletion can be undone. Says only the latter
-// when the deletion takes nothing else.
-const ImpactSummary = (props: { impact: DeletionResponse | null; permanent: boolean }) => {
-  const { impact, permanent } = props;
+// What else goes with the resource, and that the deletion can be undone. Says only the latter when
+// the deletion takes nothing else.
+const ImpactSummary = ({ impact }: { impact: DeletionResponse | null }) => {
   const items = impact?.items?.length ?? 0;
   const links = impact?.removedLinks?.length ?? 0;
 
@@ -286,9 +254,7 @@ const ImpactSummary = (props: { impact: DeletionResponse | null; permanent: bool
         </Typography>
       )}
       <Typography variant="body2" sx={{ mt: 1 }}>
-        {permanent
-          ? "This cannot be undone."
-          : "It will be moved to the archive, and can be restored from there."}
+        It will be moved to the archive, and can be restored from there.
       </Typography>
     </>
   );

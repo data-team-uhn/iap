@@ -30,12 +30,13 @@ import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.deletion.api.DeletionException;
-import io.uhndata.iap.deletion.api.DeletionImpact;
 import io.uhndata.iap.deletion.api.DeletionOptions;
 import io.uhndata.iap.deletion.api.DeletionResult;
 import io.uhndata.iap.deletion.api.DeletionService;
@@ -43,9 +44,9 @@ import io.uhndata.iap.deletion.api.Veto;
 
 /**
  * Deletes a content resource on {@code DELETE <path>}. By default it moves the resource into the archive, and refuses
- * if other resources reference it. Three boolean parameters change that. {@code recursive=true} deletes the
- * referencing resources too, and {@code permanent=true} skips the archive. {@code dryRun=true} only says what the
- * deletion would do.
+ * if other resources reference it. Two boolean parameters change that. {@code recursive=true} deletes the referencing
+ * resources too, and {@code permanent=true} skips the archive. Content is deleted by a workflow's {@code delete}
+ * event; this serves the test data and the integration tests, which clean up through it.
  *
  * <p>
  * It answers in JSON: 200 with the outcome, and 409 when references or a guard block the deletion. It answers 401
@@ -62,8 +63,20 @@ public class DeleteServlet extends SlingJakartaAllMethodsServlet
 {
     private static final long serialVersionUID = 1L;
 
-    @Reference
-    private transient DeletionService deletionService;
+    private final transient DeletionService deletionService;
+
+    /**
+     * Binds the deletion service it asks.
+     *
+     * @param deletionService carries out deletions
+     */
+    @Activate
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP2",
+        justification = "An OSGi service, shared by design; SpotBugs takes it for mutable state from its method names")
+    public DeleteServlet(@Reference final DeletionService deletionService)
+    {
+        this.deletionService = deletionService;
+    }
 
     @Override
     protected void doDelete(final SlingJakartaHttpServletRequest request,
@@ -78,10 +91,6 @@ public class DeleteServlet extends SlingJakartaAllMethodsServlet
             Boolean.parseBoolean(request.getParameter("recursive")),
             Boolean.parseBoolean(request.getParameter("permanent")));
         try {
-            if (Boolean.parseBoolean(request.getParameter("dryRun"))) {
-                this.sendDryRun(response, this.deletionService.analyze(request.getResource(), options));
-                return;
-            }
             this.sendOutcome(request, response,
                 this.deletionService.delete(request.getResource(), options));
         } catch (final IllegalArgumentException e) {
@@ -89,15 +98,6 @@ public class DeleteServlet extends SlingJakartaAllMethodsServlet
         } catch (final DeletionException e) {
             DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed", e.getMessage());
         }
-    }
-
-    private void sendDryRun(final SlingJakartaHttpServletResponse response, final DeletionImpact impact)
-        throws IOException
-    {
-        final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_OK, "dryRun");
-        body.add("executable", impact.isExecutable());
-        DeletionResponses.describeImpact(body, impact);
-        DeletionResponses.send(response, HttpServletResponse.SC_OK, body);
     }
 
     private void sendOutcome(final SlingJakartaHttpServletRequest request,

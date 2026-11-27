@@ -21,9 +21,9 @@ import { useState } from "react";
 import { Alert, DialogContentText } from "@mui/material";
 
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
+import { RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { RETIREMENT_EFFECT } from "./RetireCategoryDialog";
-import { DeletionRefusedError } from "./useCategoryTree";
 
 import type { CategoryNode } from "./categoryModel";
 
@@ -36,6 +36,11 @@ interface DeleteCategoryDialogProps {
   onRetire: (node: CategoryNode) => Promise<void>;
 }
 
+// The reason the engine gives for refusing a deletion that something blocks; undefined for any other
+// failure, such as a deletion the user may not make.
+const refusalOf = (error: unknown): string | undefined =>
+  error instanceof RequestError && error.status === 409 ? error.reason : undefined;
+
 // Asks before deleting a category. If the server refuses, because something references the
 // category or a deletion guard objected, the dialog shows the server's reason and offers to retire
 // the category instead.
@@ -45,11 +50,12 @@ function DeleteCategoryDialog({ node, onClose, onDelete, onRetire }: DeleteCateg
   // A refused deletion turns the dialog into the offer to retire, rather than being reported as a
   // failure.
   const takeRefusalAsAnOffer = (error: unknown): boolean => {
-    if (error instanceof DeletionRefusedError) {
-      setRefusal(error.message);
-      return true;
+    const reason = refusalOf(error);
+    if (reason === undefined) {
+      return false;
     }
-    return false;
+    setRefusal(reason);
+    return true;
   };
 
   return (

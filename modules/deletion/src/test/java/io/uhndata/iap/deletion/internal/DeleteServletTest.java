@@ -18,8 +18,6 @@
 package io.uhndata.iap.deletion.internal;
 
 import java.io.StringReader;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
@@ -47,13 +45,10 @@ import io.uhndata.iap.deletion.api.Veto;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -69,22 +64,17 @@ class DeleteServletTest
 
     private final SlingContext context = new SlingContext();
 
-    private DeleteServlet servlet;
+    private final DeletionService deletionService = mock(DeletionService.class);
 
-    private DeletionService deletionService;
+    private final DeleteServlet servlet = new DeleteServlet(this.deletionService);
 
     private MockSlingJakartaHttpServletRequest request;
 
     private MockSlingJakartaHttpServletResponse response;
 
     @BeforeEach
-    void setup() throws Exception
+    void setup()
     {
-        this.deletionService = mock(DeletionService.class);
-        this.servlet = new DeleteServlet();
-        final Field service = DeleteServlet.class.getDeclaredField("deletionService");
-        service.setAccessible(true);
-        service.set(this.servlet, this.deletionService);
         this.context.create().resource("/content/x");
         this.request = new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(),
             this.context.bundleContext());
@@ -202,23 +192,6 @@ class DeleteServletTest
     }
 
     @Test
-    void dryRunOnlyAnalyzes() throws Exception
-    {
-        this.adaptable();
-        this.request.setParameterMap(Map.of("dryRun", "true"));
-        when(this.deletionService.analyze(any(), any())).thenReturn(CLEAN_IMPACT);
-        this.servlet.doDelete(this.request, this.response);
-        assertEquals(200, this.response.getStatus());
-        final JsonObject body = this.body();
-        assertEquals("dryRun", body.getString("status"));
-        assertTrue(body.getBoolean("executable"));
-        assertFalse(body.containsKey("vetoes"));
-        assertFalse(body.containsKey("referrers"));
-        assertFalse(body.containsKey("status.message"));
-        verify(this.deletionService, never()).delete(any(), any());
-    }
-
-    @Test
     void invalidRequestsGet400() throws Exception
     {
         this.adaptable();
@@ -238,32 +211,5 @@ class DeleteServletTest
         this.servlet.doDelete(this.request, this.response);
         assertEquals(500, this.response.getStatus());
         assertEquals("failed", this.body().getString("status"));
-    }
-
-    @Test
-    void responsesUtilityIsNotInstantiatable() throws Exception
-    {
-        final Constructor<DeletionResponses> constructor = DeletionResponses.class.getDeclaredConstructor();
-        constructor.setAccessible(true);
-        assertNotNull(constructor.newInstance());
-    }
-
-    @Test
-    void dryRunReportsBlockers() throws Exception
-    {
-        this.adaptable();
-        this.request.setParameterMap(Map.of("dryRun", "true"));
-        final DeletionImpact impact = new DeletionImpact(List.of("/content/x"), List.of(),
-            List.of(new Veto("undeletable", "/content/x", "This resource is protected from deletion")),
-            List.of(), 3, "This item is referenced by 3 other items you cannot see.");
-        when(this.deletionService.analyze(any(), any())).thenReturn(impact);
-        this.servlet.doDelete(this.request, this.response);
-        assertEquals(200, this.response.getStatus());
-        final JsonObject body = this.body();
-        assertFalse(body.getBoolean("executable"));
-        assertEquals(1, body.getJsonArray("vetoes").size());
-        assertEquals(0, body.getJsonArray("referrers").size());
-        assertEquals(3, body.getInt("inaccessibleReferrers"));
-        assertTrue(body.getString("status.message").contains("you cannot see"));
     }
 }
