@@ -311,7 +311,7 @@ public final class WorkflowDefinitionUtils
         final ParseContext context = new ParseContext(workflowVersion, ParseScope.of(root, problems), author,
             Calendar.getInstance(), messageNames(process));
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes =
-            loadFlowNodeTypes(root.getChildNode(WORKFLOW_TYPES_ROOT_NAME), context.nodeTypesRoot());
+            loadFlowNodeTypes(root, context.nodeTypesRoot());
         final Map<String, Element> elementsById = new LinkedHashMap<>();
         final List<Element> sequenceFlows = new ArrayList<>();
         final List<Element> boundaryEvents = new ArrayList<>();
@@ -452,11 +452,12 @@ public final class WorkflowDefinitionUtils
      * and by entry name within one priority. {@code /WorkflowTypes} is not orderable, so without a tie-break two
      * equally specific entries would be tried in whatever order the repository happens to iterate its children.
      */
-    private static Map<String, List<FlowNodeTypeInfo>> loadFlowNodeTypes(final NodeState workflowTypesRoot,
+    private static Map<String, List<FlowNodeTypeInfo>> loadFlowNodeTypes(final NodeState root,
         final NodeState nodeTypesRoot)
     {
         final Map<String, List<FlowNodeTypeInfo>> result = new LinkedHashMap<>();
-        collectFlowNodeTypes(WORKFLOW_TYPES_ROOT_NAME, workflowTypesRoot, nodeTypesRoot, result);
+        collectFlowNodeTypes(WORKFLOW_TYPES_ROOT_NAME, root.getChildNode(WORKFLOW_TYPES_ROOT_NAME), root, nodeTypesRoot,
+            result);
         for (final List<FlowNodeTypeInfo> candidates : result.values()) {
             candidates.sort(Comparator.comparingLong(FlowNodeTypeInfo::priority).reversed()
                 .thenComparing(FlowNodeTypeInfo::name));
@@ -469,19 +470,19 @@ public final class WorkflowDefinitionUtils
      * {@code xmlElement}, which a parameter or any other unstructured child may carry too. Everything under an
      * entry is part of it, so the walk does not descend into one.
      */
-    private static void collectFlowNodeTypes(final String name, final NodeState node, final NodeState nodeTypesRoot,
-        final Map<String, List<FlowNodeTypeInfo>> result)
+    private static void collectFlowNodeTypes(final String name, final NodeState node, final NodeState root,
+        final NodeState nodeTypesRoot, final Map<String, List<FlowNodeTypeInfo>> result)
     {
         final String xmlElement = node.getString(XML_ELEMENT_PROPERTY);
         if (NodeTypeUtils.isOrExtends(node.getName(JCR_PRIMARY_TYPE), FLOW_NODE_TYPE_NODETYPE, nodeTypesRoot)) {
             if (xmlElement != null) {
                 result.computeIfAbsent(localName(xmlElement), k -> new ArrayList<>())
-                    .add(FlowNodeTypeInfo.from(name, node, nodeTypesRoot));
+                    .add(FlowNodeTypeInfo.from(name, node, root));
             }
             return;
         }
         for (final String child : node.getChildNodeNames()) {
-            collectFlowNodeTypes(child, node.getChildNode(child), nodeTypesRoot, result);
+            collectFlowNodeTypes(child, node.getChildNode(child), root, nodeTypesRoot, result);
         }
     }
 
@@ -1036,10 +1037,10 @@ public final class WorkflowDefinitionUtils
         } catch (final RuntimeException e) {
             // A malformed vocabulary entry must not take the parse, or the commit, down with it
             LOGGER.warn("FlowNodeType {} in {} declares jcrProperties that are not a JSON object, ignoring them",
-                flowNodeType.identifier(), context.path());
+                flowNodeType.name(), context.path());
             context.problems().reportDefect("FlowNodeType declares jcrProperties that are not a JSON object",
                 context.problems().context()
-                    .with("flowNodeType", flowNodeType.identifier()));
+                    .with(FLOW_NODE_TYPE_DETAIL, flowNodeType.name()));
             return;
         }
         properties.forEach((name, value) -> setJsonProperty(node, name, value, context));

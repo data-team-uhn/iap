@@ -21,7 +21,7 @@ import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { versionLabel } from "./workflowModel";
+import { labelOf } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
@@ -31,7 +31,7 @@ function WorkflowVersionTrialAction({ version, workflow, reload }: WorkflowVersi
   if (!offers(version, "startTrial")) {
     return null;
   }
-  const label = versionLabel(version);
+  const label = labelOf(version);
   return (
     <EventAction
       path={version.path}

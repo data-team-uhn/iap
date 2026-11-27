@@ -67,6 +67,8 @@ class NodeTypeUtilsTest
 
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
+    private static final Calendar NOW = Calendar.getInstance();
+
     /** A registry knowing a version that is an entity, and a mixin that is trackable. */
     private NodeState repository()
     {
@@ -111,35 +113,79 @@ class NodeTypeUtilsTest
     }
 
     @Test
-    void fillsInWhatTheTypesAutocreateThroughoutTheSubtree()
+    void fillsInASingleValuedDefault()
     {
-        final NodeState registry = autocreatingRegistry();
-        final Calendar now = Calendar.getInstance();
-        final NodeBuilder node = EmptyNodeState.EMPTY_NODE.builder()
-            .setProperty(PRIMARY_TYPE, THING, Type.NAME)
-            .setProperty("jcr:mixinTypes", List.of(MIXIN), Type.NAMES)
-            .setProperty("kept", "mine");
-        node.child("given").setProperty(PRIMARY_TYPE, PART, Type.NAME).setProperty(SOURCE, "tags");
-        node.child("untyped");
+        assertEquals("x/Thing", filled().getString("sling:resourceType"));
+    }
 
-        NodeTypeUtils.autoCreateItems(node, registry, "alice", now);
+    @Test
+    void fillsInAMultiValuedDefault()
+    {
+        assertEquals(List.of("a", "b"), filled().getProperty("labels").getValue(Type.STRINGS));
+    }
 
-        assertEquals("x/Thing", node.getString("sling:resourceType"));
-        assertEquals(List.of("a", "b"), node.getProperty("labels").getValue(Type.STRINGS));
-        assertEquals("mine", node.getString("kept"));
-        assertTrue(node.getBoolean("tracked"));
-        assertEquals(36, node.getString("jcr:uuid").length());
-        assertEquals(ISO8601.format(now), node.getProperty("jcr:created").getValue(Type.DATE));
+    @Test
+    void keepsAValueTheNodeAlreadyHas()
+    {
+        assertEquals("mine", filled().getString("kept"));
+    }
+
+    @Test
+    void fillsInWhatAMixinAutocreates()
+    {
+        assertTrue(filled().getBoolean("tracked"));
+    }
+
+    @Test
+    void givesTheNodeAnIdentifier()
+    {
+        assertEquals(36, filled().getString("jcr:uuid").length());
+    }
+
+    @Test
+    void recordsWhenAndByWhomTheNodeWasCreated()
+    {
+        final NodeBuilder node = filled();
+
+        assertEquals(ISO8601.format(NOW), node.getProperty("jcr:created").getValue(Type.DATE));
         assertEquals("alice", node.getString("jcr:createdBy"));
-        // Neither an empty default nor a missing one gives a value, and a definition that does not autocreate is
-        // not applied at all
+    }
+
+    @Test
+    void givesNoValueForAnEmptyOrMissingDefault()
+    {
+        final NodeBuilder node = filled();
+
         assertFalse(node.hasProperty("empty"));
         assertFalse(node.hasProperty("unset"));
-        assertFalse(node.hasProperty("optional"));
-        // The new child is filled in too, and so is the one that was already there
+    }
+
+    @Test
+    void appliesNoDefinitionThatDoesNotAutocreate()
+    {
+        assertFalse(filled().hasProperty("optional"));
+    }
+
+    @Test
+    void createsAChildTheTypeAutocreatesAndFillsItIn()
+    {
+        final NodeBuilder node = filled();
+
         assertEquals(PART, node.getChildNode(OPERAND).getName(PRIMARY_TYPE));
         assertEquals("literal", node.getChildNode(OPERAND).getString(SOURCE));
-        assertEquals("tags", node.getChildNode("given").getString(SOURCE));
+    }
+
+    @Test
+    void keepsAChildTheNodeAlreadyHas()
+    {
+        assertEquals("tags", filled().getChildNode("given").getString(SOURCE));
+    }
+
+    @Test
+    void createsNoChildThatDoesNotAutocreateOrHasNoName()
+    {
+        final NodeBuilder node = filled();
+
         assertFalse(node.hasChildNode("manual"));
         assertFalse(node.hasChildNode("anonymous"));
     }
@@ -165,6 +211,19 @@ class NodeTypeUtilsTest
         NodeTypeUtils.autoCreateItems(node, registry, "bob", Calendar.getInstance());
 
         assertEquals(once, node.getNodeState());
+    }
+
+    /** A node of a type autocreating one of everything, with a mixin, a value and a child of its own, filled in. */
+    private NodeBuilder filled()
+    {
+        final NodeBuilder node = EmptyNodeState.EMPTY_NODE.builder()
+            .setProperty(PRIMARY_TYPE, THING, Type.NAME)
+            .setProperty("jcr:mixinTypes", List.of(MIXIN), Type.NAMES)
+            .setProperty("kept", "mine");
+        node.child("given").setProperty(PRIMARY_TYPE, PART, Type.NAME).setProperty(SOURCE, "tags");
+        node.child("untyped");
+        NodeTypeUtils.autoCreateItems(node, autocreatingRegistry(), "alice", NOW);
+        return node;
     }
 
     /**

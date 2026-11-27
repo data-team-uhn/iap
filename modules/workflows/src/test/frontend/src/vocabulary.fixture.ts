@@ -17,7 +17,7 @@
  */
 
 // Vocabulary entries and IAP elements as the editor sees them, for tests that need a few without
-// parsing a documented vocabulary.
+// parsing a documented vocabulary, and entries as the server documents them, for tests that parse one.
 
 import { IAP_NS } from "@iap/workflows/moddle";
 import type { ModdleElement } from "@iap/workflows/moddle";
@@ -52,6 +52,28 @@ export const type = (name: string, overrides: Partial<FlowNodeType> = {}): FlowN
 // An entry drawn as one BPMN element, listed under the given category, at the lowest priority unless told otherwise.
 export const drawnEntry = (name: string, xmlElement: string, category: string[], extra: Partial<FlowNodeType> = {}) =>
   type(name, { label: name, xmlElement: `bpmn:${xmlElement}`, category, priority: 0, ...extra });
+
+// An entry as the server documents it: a service task that declares no parameters, unless told otherwise.
+export const documentedEntry = (name: string, overrides: Record<string, unknown> = {}) => ({
+  name,
+  label: name,
+  category: [ "Service Task" ],
+  xmlElement: "bpmn:serviceTask",
+  jcrNodeType: "wf:Activity",
+  ...overrides,
+});
+
+// A parameter as the server documents it: a single optional text one in the entry's own element, unless told
+// otherwise.
+export const documentedParameter = (name: string, overrides: Record<string, unknown> = {}) => ({
+  name,
+  label: name,
+  dataType: "text",
+  minValues: 0,
+  maxValues: 1,
+  xmlLocation: "extensionElement",
+  ...overrides,
+});
 
 
 // The entries a service task carrying a `setState` element could be read as.

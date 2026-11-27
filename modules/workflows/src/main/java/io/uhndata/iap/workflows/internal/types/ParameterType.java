@@ -42,16 +42,19 @@ public interface ParameterType
      *            node type autocreates
      * @param referenceType the declaration's {@code referenceType}, which only a reference reads, or {@code null}
      *            when it names none
+     * @param root the committed repository root, which only a reference looks its values up in
      * @return the parameter type
      */
     @NotNull
-    static ParameterType of(@Nullable final String dataType, @Nullable final String referenceType)
+    static ParameterType of(@Nullable final String dataType, @Nullable final String referenceType,
+        @NotNull final NodeState root)
     {
         return switch (dataType == null ? Parameter.TEXT_DATA_TYPE : dataType) {
             case Parameter.BOOLEAN_DATA_TYPE -> new BooleanParameterType();
             case Parameter.LONG_DATA_TYPE -> new LongParameterType();
-            case Parameter.REFERENCE_DATA_TYPE -> new ReferenceParameterType(referenceType);
-            case Parameter.PRINCIPAL_DATA_TYPE -> new PrincipalParameterType();
+            case Parameter.REFERENCE_DATA_TYPE -> new ReferenceParameterType(referenceType, root);
+            // Text, and a principal, stored as written: whether a name means anyone is decided when it is used,
+            // since the principals a deployment knows can change after the diagram is saved
             default -> new TextParameterType();
         };
     }
@@ -68,13 +71,11 @@ public interface ParameterType
      * and dropped. A value that can be stored but is suspect is reported and returned.
      *
      * @param raw one value as the diagram writes it, trimmed and never blank
-     * @param root the committed repository root ({@code /}), for a value that needs repository access to parse,
-     *            such as a reference to a node
      * @param report where a problem with the value is reported, as a sentence fragment such as {@code a parameter
      *            has a value that is not a whole number}
      * @return the value to store, of the Java class Oak keeps the {@link #storageType()} in, or {@code null} to drop
      *         the value
      */
     @Nullable
-    Object convert(@NotNull String raw, @NotNull NodeState root, @NotNull Consumer<String> report);
+    Object convert(@NotNull String raw, @NotNull Consumer<String> report);
 }

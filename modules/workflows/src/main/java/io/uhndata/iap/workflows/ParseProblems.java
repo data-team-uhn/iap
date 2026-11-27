@@ -20,6 +20,8 @@ package io.uhndata.iap.workflows;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -135,16 +137,13 @@ public final class ParseProblems
 
     private static String line(final String problem, final ErrorContext details)
     {
-        final List<String> parts = new ArrayList<>();
-        final String element = details.getDetails().get(WorkflowDefinitionUtils.ELEMENT_DETAIL);
-        if (element != null) {
-            parts.add(element);
-        }
-        for (final Map.Entry<String, String> detail : details.getDetails().entrySet()) {
-            if (!WorkflowDefinitionUtils.ELEMENT_DETAIL.equals(detail.getKey())) {
-                parts.add(detail.getKey() + "=" + detail.getValue());
-            }
-        }
+        final Map<String, String> named = details.getDetails();
+        final List<String> parts = Stream.concat(
+            Stream.ofNullable(named.get(WorkflowDefinitionUtils.ELEMENT_DETAIL)),
+            named.entrySet().stream()
+                .filter(detail -> !WorkflowDefinitionUtils.ELEMENT_DETAIL.equals(detail.getKey()))
+                .map(detail -> detail.getKey() + "=" + detail.getValue()))
+            .collect(Collectors.toList());
         return parts.isEmpty() ? problem : problem + " (" + String.join(", ", parts) + ")";
     }
 }

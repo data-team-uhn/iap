@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-import { keyOf, keyProblems } from "@iap/workflows/structureKeys";
+import type { StructureRecord } from "@iap/workflows/parameterValues";
+import { recordKeys } from "@iap/workflows/structureKeys";
+import type { Parameter } from "@iap/workflows/workflowTypes";
 
 import { parameter } from "./vocabulary.fixture";
 
@@ -31,36 +33,49 @@ const FIELDS = parameter("fields", {
 const record = (name: string, ...choices: string[]) =>
   ({ name: [ name ], choices: choices.map(value => ({ value: [ value ] })) });
 
-describe("keyProblems", () => {
+const keysOf = (structure: Parameter, records: StructureRecord[]) =>
+  recordKeys(structure, records).map(({ key }) => key);
+
+const problemsOf = (structure: Parameter, records: StructureRecord[]) =>
+  recordKeys(structure, records).map(({ problem }) => problem);
+
+describe("recordKeys", () => {
+  it("gives each record its key, trimmed", () => {
+    expect(keysOf(FIELDS, [ record(" a "), {} ])).toEqual([ "a", "" ]);
+  });
+
   it("flags a later record of a key, comparing keys trimmed, and a record with content but no key", () => {
     const records = [ record("a"), record(" a "), { name: [ " " ], choices: [ { value: [ "x" ] } ] }, record("b") ];
 
-    expect(keyProblems(FIELDS, records)).toEqual([ undefined, "repeated", "blank", undefined ]);
+    expect(problemsOf(FIELDS, records)).toEqual([ undefined, "repeated", "blank", undefined ]);
   });
 
   it("leaves a record with nothing in it alone, as a draft", () => {
-    expect(keyProblems(FIELDS, [ {}, { name: [ "" ] } ])).toEqual([ undefined, undefined ]);
+    expect(problemsOf(FIELDS, [ {}, { name: [ "" ] } ])).toEqual([ undefined, undefined ]);
+  });
+
+  it("gives no key in a structure with no key", () => {
+    expect(keysOf({ ...FIELDS, keyParameter: undefined }, [ record("a") ])).toEqual([ "" ]);
   });
 
   it("flags nothing in a structure with no key", () => {
-    expect(keyProblems({ ...FIELDS, keyParameter: undefined }, [ record("a"), record("a") ]))
+    expect(problemsOf({ ...FIELDS, keyParameter: undefined }, [ record("a"), record("a") ]))
       .toEqual([ undefined, undefined ]);
-    expect(keyOf({ ...FIELDS, keyParameter: undefined }, record("a"))).toBe("");
   });
 
   it("flags nothing in a structure whose key names no field it has", () => {
-    expect(keyProblems({ ...FIELDS, keyParameter: "missing" }, [ record("a"), record("a") ]))
+    expect(problemsOf({ ...FIELDS, keyParameter: "missing" }, [ record("a"), record("a") ]))
       .toEqual([ undefined, undefined ]);
   });
 
   it("flags nothing in a structure whose key names a field holding a list", () => {
     const listed = { ...FIELDS, parameters: [ parameter("name", { maxValues: 0 }), CHOICES ] };
 
-    expect(keyProblems(listed, [ record("a"), record("a") ])).toEqual([ undefined, undefined ]);
+    expect(problemsOf(listed, [ record("a"), record("a") ])).toEqual([ undefined, undefined ]);
   });
 
   it("flags nothing in a structure whose key names a structure", () => {
-    expect(keyProblems({ ...FIELDS, keyParameter: "choices" }, [ record("a", "x"), record("b", "x") ]))
+    expect(problemsOf({ ...FIELDS, keyParameter: "choices" }, [ record("a", "x"), record("b", "x") ]))
       .toEqual([ undefined, undefined ]);
   });
 });

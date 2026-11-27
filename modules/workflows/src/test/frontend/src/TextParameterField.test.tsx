@@ -18,6 +18,7 @@
 
 import { screen } from "@testing-library/react";
 
+import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
 import TextParameterField from "@iap/workflows/TextParameterField";
 
 import { renderField, STATES } from "./parameterField.fixture";
@@ -111,18 +112,16 @@ describe("a parameter with a choice of values", () => {
     const { onChange, user } = renderField(TextParameterField, { options: numberedChoices(9) });
 
     await user.type(screen.getByRole("combobox"), "Value 7");
-    expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([ "Value 7" ]);
+    expect(await listedOptions(screen.getByRole("combobox"))).toEqual([ "Value 7" ]);
     await user.click(screen.getByRole("option", { name: "Value 7" }));
 
     expect(onChange).toHaveBeenCalledWith([ "V7" ]);
   });
 
   it("keeps a list of eight choices a plain list, with a way back to none", async () => {
-    const { user } = renderField(TextParameterField, { options: numberedChoices(8) });
+    renderField(TextParameterField, { options: numberedChoices(8) });
 
-    await user.click(screen.getByRole("combobox"));
-
-    expect(screen.getAllByRole("option").map(option => option.textContent))
+    expect(await listedOptions(screen.getByRole("combobox")))
       .toEqual([ "None", ...numberedChoices(8).map(choice => choice.label) ]);
   });
 
@@ -137,12 +136,10 @@ describe("a parameter with a choice of values", () => {
 
   it("keeps showing a stored value the entry no longer offers", async () => {
     // Dropping it silently would lose it from the diagram on the next save of anything else
-    const { user } = renderField(TextParameterField, { options: STATES, minValues: 1 }, [ "RETIRED" ]);
+    renderField(TextParameterField, { options: STATES, minValues: 1 }, [ "RETIRED" ]);
     expect(screen.getByRole("combobox")).toHaveTextContent("RETIRED");
 
-    await user.click(screen.getByRole("combobox"));
-
-    expect(screen.getAllByRole("option").map(option => option.textContent))
+    expect(await listedOptions(screen.getByRole("combobox")))
       .toEqual([ "Draft", "Active", "RETIRED" ]);
   });
 });

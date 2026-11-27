@@ -22,7 +22,7 @@
 
 
 import type { Choice } from "@iap/frontend-commons/inputs/choices";
-import { isNode } from "@iap/frontend-commons/serializedNode";
+import { isNode, stringsOf } from "@iap/frontend-commons/serializedNode";
 import { capitalize } from "@iap/frontend-commons/words";
 
 import { bpmnChildren, elementName, iapExtensionNames, localName, text } from "./moddle";
@@ -235,8 +235,8 @@ export const matchFlowNodeType = (
 export function isReachable(entry: FlowNodeType, types: readonly FlowNodeType[]): boolean {
   const changed: DrawnElement = {
     name: localName(entry.xmlElement),
-    children: new Set(entry.xmlChildElement === undefined ? [] : [ localName(entry.xmlChildElement) ]),
-    extensions: new Set(entry.xmlExtensionElement === undefined ? [] : [ entry.xmlExtensionElement ]),
+    children: new Set(stringsOf(entry.xmlChildElement).map(localName)),
+    extensions: new Set(stringsOf(entry.xmlExtensionElement)),
   };
   return matchDrawn(changed, types)?.name === entry.name;
 }

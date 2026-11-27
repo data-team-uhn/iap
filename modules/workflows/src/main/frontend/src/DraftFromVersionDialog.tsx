@@ -22,7 +22,7 @@ import FormDialog from "@iap/frontend-commons/components/FormDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import useNewVersionLabel from "./useNewVersionLabel";
-import { versionLabel } from "./workflowModel";
+import { labelOf } from "./workflowModel";
 import { draftFromVersion } from "./workflowWrites";
 
 import type { WorkflowSummary, WorkflowVersionSummary } from "./workflowModel";
@@ -40,7 +40,7 @@ interface DraftFromVersionDialogProps {
 function DraftFromVersionDialog({ workflow, source, onClose, onCreated }: DraftFromVersionDialogProps) {
   const version = useNewVersionLabel(workflow);
   const fetchUtil = useAuthenticatedFetch();
-  const copied = versionLabel(source);
+  const copied = labelOf(source);
 
   return (
     <FormDialog

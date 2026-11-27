@@ -56,15 +56,15 @@ export function valueProblems(parameter: Parameter, values: readonly ParameterVa
   return [ ...refusals(parameter, values), ...missing ? [ REQUIRED_PROBLEM ] : [] ];
 }
 
-// What an input of the frontend commons is given of a parameter and of what is wrong with its values.
-export const inputProps = (props: ParameterFieldProps, problems: readonly string[] = []): ValueInputProps => ({
+// What an input of the frontend commons is given of a parameter, with the values the server would drop flagged.
+export const inputProps = (props: ParameterFieldProps): ValueInputProps => ({
   label: props.parameter.label,
   description: props.parameter.description,
   required: isRequired(props.parameter),
   values: props.values,
   onChange: props.onChange,
   onCommit: props.onCommit,
-  problems: [ ...refusals(props.parameter, props.values), ...problems ],
+  problems: refusals(props.parameter, props.values),
   readOnly: props.readOnly,
 });
 

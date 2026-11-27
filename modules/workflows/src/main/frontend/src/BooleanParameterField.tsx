@@ -30,7 +30,7 @@ const CHOICES = booleanChoices();
 
 // A parameter holding yes or no. A list of them is picked from yes and no as chips.
 export default function BooleanParameterField(props: ParameterFieldProps) {
-  const { parameter, values, readOnly = false } = props;
+  const { parameter, readOnly = false } = props;
 
   if (isMultiple(parameter) && !readOnly) {
     return (
@@ -42,5 +42,5 @@ export default function BooleanParameterField(props: ParameterFieldProps) {
       />
     );
   }
-  return <BooleanInput {...inputProps(props)} values={values} />;
+  return <BooleanInput {...inputProps(props)} />;
 }

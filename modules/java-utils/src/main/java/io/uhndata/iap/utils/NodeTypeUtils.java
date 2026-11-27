@@ -144,9 +144,7 @@ public final class NodeTypeUtils
                 autoCreateProperties(node, type, userId, now);
                 autoCreateChildren(node, type);
             });
-        for (final String child : node.getChildNodeNames()) {
-            autoCreateItems(node.getChildNode(child), registry, userId, now);
-        }
+        node.getChildNodeNames().forEach(child -> autoCreateItems(node.getChildNode(child), registry, userId, now));
     }
 
     /** Oak flattens a type's supertypes into its own definitions, so one type is all there is to read. */
@@ -208,11 +206,10 @@ public final class NodeTypeUtils
      */
     private static NodeState autoCreated(final NodeState definitions)
     {
-        for (final ChildNodeEntry definition : definitions.getChildNodeEntries()) {
-            if (definition.getNodeState().getBoolean("jcr:autoCreated")) {
-                return definition.getNodeState();
-            }
-        }
-        return null;
+        return StreamSupport.stream(definitions.getChildNodeEntries().spliterator(), false)
+            .map(ChildNodeEntry::getNodeState)
+            .filter(definition -> definition.getBoolean("jcr:autoCreated"))
+            .findFirst()
+            .orElse(null);
     }
 }

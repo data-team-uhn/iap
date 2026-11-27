@@ -17,6 +17,7 @@
  */
 
 import { isNode, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
+import { versionLabel } from "@iap/frontend-commons/versionNumbers";
 
 // What the workflow screens know about the repository: where workflows live, how a version's
 // lifecycle reads, and how one workflow's versions are listed. No React, no fetch.
@@ -63,8 +64,8 @@ export interface WorkflowVersionSummary {
   "@events": string[];
 }
 
-// What a version is called: its label, or its node name when it has none
-export const versionLabel = (version: WorkflowVersionSummary): string => version.version || version.name;
+// What a version is called: its label, or its node name when the label is blank
+export const labelOf = (version: WorkflowVersionSummary): string => versionLabel(version.version, version.name);
 
 // One workflow definition with the versions stored under it, as its own page displays it.
 export interface WorkflowSummary {

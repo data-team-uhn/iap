@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
 import ElementProperties from "@iap/workflows/ElementProperties";
 import { IAP_NS, businessObjectOf } from "@iap/workflows/moddle";
 import type { ModdleElement } from "@iap/workflows/moddle";
@@ -327,13 +328,10 @@ describe("ElementProperties", () => {
     });
 
     it("lists the element types of its own family, and none other", async () => {
-      const user = userEvent.setup();
       const { viewer } = createViewer();
       renderProperties(taskElement(), viewer, { types: ENTRIES });
 
-      await user.click(field("Element Type"));
-
-      expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([ "Service Task", "Task" ]);
+      expect(await listedOptions(field("Element Type"))).toEqual([ "Service Task", "Task" ]);
     });
 
     it("keeps the IAP markup of an element it redraws", async () => {
@@ -355,15 +353,12 @@ describe("ElementProperties", () => {
     });
 
     it("offers only the entries a change can make the element mean", async () => {
-      const user = userEvent.setup();
       const { viewer } = createViewer();
       const outranked = { ...SERVICE_TASK, name: "Generic", label: "Generic", priority: -1 };
       renderProperties(task("Promote", carrying(setState("ACTIVE", []))), viewer,
         { types: [ ...VOCABULARY, outranked ] });
 
-      await user.click(field("Service Task Type"));
-
-      expect(screen.getAllByRole("option").map(option => option.textContent))
+      expect(await listedOptions(field("Service Task Type")))
         .toEqual([ "Retire active versions", "Service task", "Set state" ]);
     });
 

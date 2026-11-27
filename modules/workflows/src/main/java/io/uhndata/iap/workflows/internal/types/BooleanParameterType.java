@@ -22,8 +22,6 @@ import java.util.function.Consumer;
 
 import javax.jcr.PropertyType;
 
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-
 /**
  * A yes-or-no value, written the way XML Schema writes one: {@code true} or {@code 1}, {@code false} or {@code 0},
  * in lower case. BPMN types its own boolean attributes that way, and an IAP parameter follows the same rule. Anything
@@ -45,7 +43,7 @@ public class BooleanParameterType implements ParameterType
     }
 
     @Override
-    public Object convert(final String raw, final NodeState root, final Consumer<String> report)
+    public Object convert(final String raw, final Consumer<String> report)
     {
         if (TRUE_VALUES.contains(raw)) {
             return Boolean.TRUE;

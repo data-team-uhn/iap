@@ -41,15 +41,19 @@ public class ReferenceParameterType implements ParameterType
 {
     private final String referenceType;
 
+    private final NodeState root;
+
     /**
      * The type of the values one reference parameter takes.
      *
      * @param referenceType the node type every value must name a node of, as the declaration's {@code referenceType}
      *            gives it, or {@code null} when any type will do
+     * @param root the committed repository root, which the values are looked up in
      */
-    public ReferenceParameterType(final String referenceType)
+    public ReferenceParameterType(final String referenceType, final NodeState root)
     {
         this.referenceType = referenceType;
+        this.root = root;
     }
 
     @Override
@@ -59,14 +63,14 @@ public class ReferenceParameterType implements ParameterType
     }
 
     @Override
-    public Object convert(final String raw, final NodeState root, final Consumer<String> report)
+    public Object convert(final String raw, final Consumer<String> report)
     {
         final NodeState target = PathUtils.isValid(raw) && PathUtils.isAbsolute(raw)
-            ? NodeStateUtils.getNode(root, raw) : null;
+            ? NodeStateUtils.getNode(this.root, raw) : null;
         if (target == null || !target.exists()) {
             report.accept("a reference parameter names a node that does not exist");
         } else if (this.referenceType != null
-            && !NodeTypeUtils.isOfType(target, this.referenceType, NodeTypeUtils.registry(root))) {
+            && !NodeTypeUtils.isOfType(target, this.referenceType, NodeTypeUtils.registry(this.root))) {
             report.accept("a reference parameter names a node of the wrong type");
         }
         return raw;

@@ -44,7 +44,7 @@ import LifecycleChip from "@iap/tags/LifecycleChip";
 
 import BpmnEditor, { type DiagramEditor } from "./BpmnEditor";
 import { useWorkflow } from "./useWorkflow";
-import { adminUrl, versionLabel, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
+import { adminUrl, labelOf, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
 import WorkflowVersionActions from "./WorkflowVersionActions";
 import { saveDiagram } from "./workflowWrites";
 
@@ -142,7 +142,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   // Editable where the server offers to save the diagram, which is on a draft. Anything else opens
   // read-only, with an explanation.
   const editable = requestedEdit && version !== undefined && offers(version, "save");
-  const label = version ? versionLabel(version) : lastSegmentOf(path);
+  const label = version ? labelOf(version) : lastSegmentOf(path);
 
   // The problems the server found in the process it was just sent. The save itself succeeded, so a failed read
   // counts as no problems.

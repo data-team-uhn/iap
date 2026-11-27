@@ -21,8 +21,6 @@ import java.util.function.Consumer;
 
 import javax.jcr.PropertyType;
 
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-
 /**
  * Free text, stored as written.
  *
@@ -38,7 +36,7 @@ public class TextParameterType implements ParameterType
     }
 
     @Override
-    public Object convert(final String raw, final NodeState root, final Consumer<String> report)
+    public Object convert(final String raw, final Consumer<String> report)
     {
         return raw;
     }

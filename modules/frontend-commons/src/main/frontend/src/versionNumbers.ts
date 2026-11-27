@@ -20,6 +20,10 @@
 // number a version's node name starts with, and labelled after that number unless its creator asks
 // for another label. The server numbers versions in java-utils' VersionNumbers, and the two must agree.
 
+// What a version is called: the label it was given, or the name of its node when the label is missing or blank.
+export const versionLabel = (label: unknown, nodeName: string): string =>
+  typeof label === "string" && label.trim() !== "" ? label : nodeName;
+
 // A leading whole number, after an optional v: v3, 3.0, 3
 const NUMBERED = /^[vV]?(\d{1,9})/;
 

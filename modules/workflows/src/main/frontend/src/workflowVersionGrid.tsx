@@ -23,7 +23,7 @@ import type { EntityRow } from "@iap/frontend-commons/entityGrid/pagination";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import { adminUrl, versionLabel, WORKFLOWS_ROOT, type WorkflowVersionSummary } from "./workflowModel";
+import { adminUrl, labelOf, WORKFLOWS_ROOT, type WorkflowVersionSummary } from "./workflowModel";
 
 export const WORKFLOW_VERSION_TYPE = "wf/WorkflowVersion";
 
@@ -40,7 +40,7 @@ const COLUMNS: EntityGridColumn[] = [
     field: "version",
     headerName: "Version",
     width: 120,
-    valueGetter: (_value, row) => versionLabel(versionOf(row)),
+    valueGetter: (_value, row) => labelOf(versionOf(row)),
     sortComparator: (one: string, other: string) => one.localeCompare(other, undefined, { numeric: true }),
   },
   {
@@ -66,7 +66,7 @@ function VersionCard({ version }: { version: WorkflowVersionSummary }) {
   return (
     <Stack spacing={0.5} sx={{ py: 1 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-        <Typography>{`Version ${versionLabel(version)}`}</Typography>
+        <Typography>{`Version ${labelOf(version)}`}</Typography>
         <LifecycleChip tags={version.tags} />
       </Stack>
       { version.description && <Typography variant="description">{version.description}</Typography> }

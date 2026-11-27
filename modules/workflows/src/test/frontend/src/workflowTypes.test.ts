@@ -37,70 +37,45 @@ import {
 } from "@iap/workflows/workflowTypes";
 import type { FlowNodeType } from "@iap/workflows/workflowTypes";
 
-import { bpmnElement, carrying, drawnEntry, iapElement, parameter } from "./vocabulary.fixture";
+import {
+  bpmnElement, carrying, documentedEntry, documentedParameter, drawnEntry, iapElement, parameter,
+} from "./vocabulary.fixture";
 
 // The vocabulary as the server documents it: one entry per kind of node, each listed under its element type.
-const SERVICE_TASK = {
-  name: "ServiceTask",
+const SERVICE_TASK = documentedEntry("ServiceTask", {
   label: "Service Task",
   description: "Anything the platform does on its own",
-  category: [ "Service Task" ],
   group: "General",
   priority: 0,
-  xmlElement: "bpmn:serviceTask",
-  jcrNodeType: "wf:Activity",
-  parameters: [
-    {
-      name: "handler", label: "Handler", dataType: "text", minValues: 0, maxValues: 1,
-      xmlLocation: "extensionElement",
-    },
-  ],
-};
+  parameters: [ documentedParameter("handler", { label: "Handler" }) ],
+});
 
-const SET_STATE = {
-  name: "SetState",
+const SET_STATE = documentedEntry("SetState", {
   label: "Set State",
-  category: [ "Service Task" ],
   group: "Workflow Authoring",
   priority: 10,
-  xmlElement: "bpmn:serviceTask",
   xmlExtensionElement: "setState",
-  jcrNodeType: "wf:Activity",
   jcrProperties: { handler: "setState" },
   parameters: [
-    {
-      name: "colour",
-      label: "Colour",
-      description: "The colour to draw the task in",
-      dataType: "text",
-      minValues: 0,
-      maxValues: 1,
-      xmlLocation: "attribute",
-    },
-    {
-      name: "toState",
-      label: "To state",
-      dataType: "text",
-      minValues: 1,
-      maxValues: 1,
-      xmlLocation: "extensionElement",
-      options: [ { value: "DRAFT", label: "Draft" }, { value: "ACTIVE", label: "Active" } ],
-    },
+    documentedParameter("colour", {
+      label: "Colour", description: "The colour to draw the task in", xmlLocation: "attribute",
+    }),
+    documentedParameter("toState", {
+      label: "To state", minValues: 1, options: [ { value: "DRAFT", label: "Draft" }, { value: "ACTIVE", label: "Active" } ],
+    }),
   ],
-};
+});
 
-const START_EVENT = {
-  name: "StartEvent",
+const START_EVENT = documentedEntry("StartEvent", {
   label: "Start Event",
   category: [ "Start Event" ],
   priority: 0,
   xmlElement: "bpmn:startEvent",
   jcrNodeType: "wf:StartEvent",
   elementTypeDefault: true,
-};
+});
 
-const MESSAGE_START_EVENT = {
-  name: "MessageStartEvent",
+const MESSAGE_START_EVENT = documentedEntry("MessageStartEvent", {
   label: "Message Start Event",
   category: [ "Start Event" ],
   priority: 10,
@@ -108,12 +83,9 @@ const MESSAGE_START_EVENT = {
   xmlChildElement: "bpmn:messageEventDefinition",
   jcrNodeType: "wf:StartEvent",
   parameters: [
-    {
-      name: "performers", label: "Performers", dataType: "principal", minValues: 0, maxValues: 0,
-      xmlLocation: "attribute",
-    },
+    documentedParameter("performers", { label: "Performers", dataType: "principal", maxValues: 0, xmlLocation: "attribute" }),
   ],
-};
+});
 
 const DOCUMENTED = {
   title: "Workflow node types",

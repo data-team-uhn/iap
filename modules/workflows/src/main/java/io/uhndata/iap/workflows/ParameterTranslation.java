@@ -72,8 +72,6 @@ final class ParameterTranslation
 
     private static final String VALUE_DETAIL = "value";
 
-    private static final String FLOW_NODE_TYPE_DETAIL = "flowNodeType";
-
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
     private static final String MISSING_VALUE_PROBLEM = "a required parameter has no value";
@@ -339,7 +337,7 @@ final class ParameterTranslation
         final Context context)
     {
         return values.stream()
-            .map(value -> parameter.type().convert(value, context.scope().root(),
+            .map(value -> parameter.type().convert(value,
                 problem -> report(problem, about(parameter, context).with(VALUE_DETAIL, value), context)))
             .filter(Objects::nonNull)
             .toList();
@@ -356,7 +354,7 @@ final class ParameterTranslation
         if (parameter.location().isBpmn()) {
             return bpmnValues(parameter, context);
         }
-        if (parameter.location() == XmlLocation.ATTRIBUTE || context.extension() == null) {
+        if (context.type().readsFromElement(parameter)) {
             if (parameter.location() != XmlLocation.ATTRIBUTE) {
                 reportDefect("a non-attribute parameter on an entry with no extension element",
                     about(parameter, context), context);
@@ -482,6 +480,7 @@ final class ParameterTranslation
     {
         reportDefect(problem, context.problems().context()
             .with(WorkflowDefinitionUtils.ELEMENT_DETAIL, context.element().getAttribute(ID_ATTRIBUTE))
-            .with(FLOW_NODE_TYPE_DETAIL, context.type().name()).with(PARAMETER_DETAIL, path), context);
+            .with(WorkflowDefinitionUtils.FLOW_NODE_TYPE_DETAIL, context.type().name()).with(PARAMETER_DETAIL, path),
+            context);
     }
 }

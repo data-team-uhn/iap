@@ -26,7 +26,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.Test;
 
-import io.uhndata.iap.utils.NodeTypeUtils;
 import io.uhndata.iap.workflows.ParseFixture.Parsed;
 import io.uhndata.iap.workflows.models.Parameter;
 
@@ -565,10 +564,7 @@ class ParameterTranslationTest
     @Test
     void asksForAnAdministratorOnlyWhenTheVocabularyIsAtFault() throws Exception
     {
-        final NodeBuilder broken = withGenericServiceTask();
-        broken.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK).child("note")
-            .setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME)
-            .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
+        final NodeBuilder broken = withResourceTypedNote();
         final NodeBuilder required = VocabularyFixture.repository();
         VocabularyFixture.parameter(VocabularyFixture.handler(required, "Escalate", "escalate"), "count",
             Parameter.LONG_DATA_TYPE, 1, 1);
@@ -586,10 +582,7 @@ class ParameterTranslationTest
     @Test
     void reportsAParameterDeclaredByItsResourceTypeAlone() throws Exception
     {
-        final NodeBuilder root = withGenericServiceTask();
-        root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK).child("note")
-            .setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME)
-            .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
+        final NodeBuilder root = withResourceTypedNote();
 
         try (RecordedProblems problems = new RecordedProblems()) {
             parse(root, SERVICE_TASK_OPEN + TASK + "\"/>\n");
@@ -937,9 +930,7 @@ class ParameterTranslationTest
     @Test
     void readsABooleanTheWayXmlSchemaWritesOne() throws Exception
     {
-        final NodeBuilder root = withGenericServiceTask();
-        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
-            Parameter.BOOLEAN_DATA_TYPE, 1);
+        final NodeBuilder root = withBooleanUrgent();
 
         final Parsed parsed = parsed(root, booleanTask("word", "true") + booleanTask("one", "1")
             + booleanTask("lower", "false") + booleanTask("zero", "0"));
@@ -956,9 +947,7 @@ class ParameterTranslationTest
     void dropsAndReportsABooleanItCannotRead() throws Exception
     {
         // Nothing is written, so the node type's own default stands
-        final NodeBuilder root = withGenericServiceTask();
-        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
-            Parameter.BOOLEAN_DATA_TYPE, 1);
+        final NodeBuilder root = withBooleanUrgent();
 
         final Parsed parsed = parsed(root, booleanTask(TASK, "yes"));
 
@@ -970,9 +959,7 @@ class ParameterTranslationTest
     @Test
     void readsABooleanInLowerCaseOnly() throws Exception
     {
-        final NodeBuilder root = withGenericServiceTask();
-        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
-            Parameter.BOOLEAN_DATA_TYPE, 1);
+        final NodeBuilder root = withBooleanUrgent();
 
         final Parsed parsed = parsed(root, booleanTask(TASK, "TRUE"));
 
@@ -1065,6 +1052,25 @@ class ParameterTranslationTest
         return root;
     }
 
+    /** The generic service task, also taking an optional boolean {@code urgent}. */
+    private NodeBuilder withBooleanUrgent()
+    {
+        final NodeBuilder root = withGenericServiceTask();
+        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK), URGENT,
+            Parameter.BOOLEAN_DATA_TYPE, 1);
+        return root;
+    }
+
+    /** The generic service task, declaring a {@code note} parameter by its resource type alone, which goes unread. */
+    private NodeBuilder withResourceTypedNote()
+    {
+        final NodeBuilder root = withGenericServiceTask();
+        root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK).child("note")
+            .setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME)
+            .setProperty("sling:resourceType", Parameter.RESOURCE_TYPE);
+        return root;
+    }
+
     /** An empty vocabulary plus a per-handler entry taking one required state and a required list of them. */
     private NodeBuilder withSetState()
     {
@@ -1122,7 +1128,7 @@ class ParameterTranslationTest
         offering.setProperty(CHILD_ORDER, List.of("z", "y"), Type.NAMES);
 
         final List<ParameterInfo> declared = FlowNodeTypeInfo.from("Ordered",
-            entry.getNodeState(), NodeTypeUtils.registry(root.getNodeState())).parameters().declared();
+            entry.getNodeState(), root.getNodeState()).parameters().declared();
 
         assertEquals(List.of("third", "second", "first"),
             declared.stream().map(ParameterInfo::name).toList());

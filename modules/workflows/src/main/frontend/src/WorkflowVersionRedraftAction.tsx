@@ -21,7 +21,7 @@ import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { versionLabel } from "./workflowModel";
+import { labelOf } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
@@ -31,7 +31,7 @@ function WorkflowVersionRedraftAction({ version, workflow, reload }: WorkflowVer
   if (!offers(version, "returnToDraft")) {
     return null;
   }
-  const label = versionLabel(version);
+  const label = labelOf(version);
   return (
     <EventAction
       path={version.path}

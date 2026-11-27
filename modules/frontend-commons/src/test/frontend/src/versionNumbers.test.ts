@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { nextVersionLabel } from "@iap/frontend-commons/versionNumbers";
+import { nextVersionLabel, versionLabel } from "@iap/frontend-commons/versionNumbers";
 
 describe("nextVersionLabel", () => {
   it("starts at 1.0", () => {
@@ -29,5 +29,19 @@ describe("nextVersionLabel", () => {
 
   it("reads no number into a name that does not start with one", () => {
     expect(nextVersionLabel([ "importedByHand", "v2" ])).toBe("3.0");
+  });
+});
+
+describe("versionLabel", () => {
+  it("is the label the version was given", () => {
+    expect(versionLabel("2.0", "2-0")).toBe("2.0");
+  });
+
+  it("is the node name when the version has no label", () => {
+    expect(versionLabel(undefined, "imported")).toBe("imported");
+  });
+
+  it("is the node name when the label is blank", () => {
+    expect(versionLabel("  ", "imported")).toBe("imported");
   });
 });

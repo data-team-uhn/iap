@@ -17,11 +17,12 @@
  */
 package io.uhndata.iap.workflows;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -131,46 +132,57 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
     }
 
     /**
+     * Whether one of this entry's parameters is read from the flow node's own IAP attributes rather than from its
+     * extension element. An entry naming no extension element reads every parameter written in IAP markup from the
+     * flow node itself.
+     *
+     * @param parameter one of this entry's parameters, written in IAP markup
+     * @return {@code true} if the flow node's own attributes hold it
+     */
+    boolean readsFromElement(final ParameterInfo parameter)
+    {
+        return parameter.location() == XmlLocation.ATTRIBUTE || this.xmlExtensionElement == null;
+    }
+
+    /**
      * Reads one vocabulary entry.
      *
      * @param name the entry's node name
      * @param node the {@code wf:FlowNodeType} node to read
-     * @param nodeTypesRoot the {@code /jcr:system/jcr:nodeTypes} node state, which recognizes a parameter or an
-     *            option by its node type, subtypes included, and says whether each parameter can be stored
+     * @param root the committed repository root: its node type registry recognizes a parameter or an option by its
+     *            node type, subtypes included, and says whether each parameter can be stored, and a reference
+     *            parameter's values are looked up in it
      * @return the entry as the parser sees it
      */
-    static FlowNodeTypeInfo from(final String name, final NodeState node, final NodeState nodeTypesRoot)
+    static FlowNodeTypeInfo from(final String name, final NodeState node, final NodeState root)
     {
         final String childElement = node.getString(XML_CHILD_ELEMENT_PROPERTY);
         final String extensionElement = node.getString(XML_EXTENSION_ELEMENT_PROPERTY);
         final String jcrNodeType = node.getString(JCR_NODE_TYPE_PROPERTY);
-        final Declarations declarations = new Declarations(nodeTypesRoot, new StorageRefusals(nodeTypesRoot),
-            new ArrayList<>(), new ArrayList<>());
+        final NodeState registry = NodeTypeUtils.registry(root);
+        final Declarations declarations = new Declarations(root, registry, new StorageRefusals(registry));
         final List<ParameterInfo> parameters = declarations.read(node, "", jcrNodeType);
         return new FlowNodeTypeInfo(name, node.getString(JCR_UUID_PROPERTY), jcrNodeType,
             childElement == null ? null : WorkflowDefinitionUtils.localName(childElement),
             extensionElement == null ? null : WorkflowDefinitionUtils.localName(extensionElement),
             node.getString(JCR_PROPERTIES_PROPERTY), node.getLong(PRIORITY_PROPERTY),
-            new Parameters(parameters, declarations.unread(), declarations.misplaced()));
+            new Parameters(parameters, declarations.unread(node, ""), declarations.misplaced(node, "")));
     }
 
     /**
-     * The walk over an entry's declarations: what it reads them against, and where it notes the nodes it cannot
-     * read, by path relative to the entry.
+     * The walks over an entry's declarations, and what they read them against.
      *
-     * @param nodeTypesRoot the node type registry, which recognizes a declaration by its node type
+     * @param root the committed repository root, which a reference parameter's values are looked up in
+     * @param registry the node type registry, which recognizes a declaration by its node type
      * @param refusals what decides whether the node holding each parameter can store it
-     * @param unread the nodes that say they are parameters by their resource type alone
-     * @param misplaced the parameters declared directly under another parameter
      * @since 0.1.0
      */
-    private record Declarations(NodeState nodeTypesRoot, StorageRefusals refusals, List<String> unread,
-        List<String> misplaced)
+    private record Declarations(NodeState root, NodeState registry, StorageRefusals refusals)
     {
         /**
          * The parameters declared as children of an entry or of a structure's fields node, in the order they are
-         * declared. A node that says it is a parameter by its resource type alone is noted as unread. Anything else
-         * is walked past: the residual child definitions let a vocabulary entry hold anything.
+         * declared. Anything else is walked past: the residual child definitions let a vocabulary entry hold
+         * anything.
          *
          * @param parent the entry or fields node
          * @param prefix the path of the parent relative to the entry, slash-terminated, or empty for the entry
@@ -178,16 +190,42 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
          */
         List<ParameterInfo> read(final NodeState parent, final String prefix, final String holderType)
         {
-            final List<ParameterInfo> result = new ArrayList<>();
-            for (final String name : OrderedChildren.names(parent)) {
-                final NodeState state = parent.getChildNode(name);
-                if (isParameter(state)) {
-                    result.add(parameter(name, prefix + name, state, holderType));
-                } else if (isUnreadParameter(state)) {
-                    this.unread.add(prefix + name);
-                }
-            }
-            return result;
+            return OrderedChildren.names(parent).stream()
+                .filter(declared -> isParameter(parent.getChildNode(declared)))
+                .map(declared -> parameter(declared, prefix + declared, parent.getChildNode(declared), holderType))
+                .collect(Collectors.toList());
+        }
+
+        /**
+         * The nodes among an entry's declarations, at any depth, that say they are parameters by their resource type
+         * alone, by path relative to the entry.
+         */
+        List<String> unread(final NodeState parent, final String prefix)
+        {
+            return OrderedChildren.names(parent).stream().flatMap(declared -> {
+                final NodeState child = parent.getChildNode(declared);
+                return isParameter(child) ? unread(fieldsOf(child), fieldsPath(prefix + declared)).stream()
+                    : isUnreadParameter(child) ? Stream.of(prefix + declared) : Stream.empty();
+            }).collect(Collectors.toList());
+        }
+
+        /**
+         * The parameters declared directly under another parameter rather than in its fields node, an easy mistake
+         * to make, at any depth, by path relative to the entry.
+         */
+        List<String> misplaced(final NodeState parent, final String prefix)
+        {
+            return OrderedChildren.names(parent).stream()
+                .filter(declared -> isParameter(parent.getChildNode(declared)))
+                .flatMap(declared -> {
+                    final NodeState declaration = parent.getChildNode(declared);
+                    return Stream.concat(
+                        OrderedChildren.names(declaration).stream()
+                            .filter(child -> isParameter(declaration.getChildNode(child))
+                                || isUnreadParameter(declaration.getChildNode(child)))
+                            .map(child -> prefix + declared + "/" + child),
+                        misplaced(fieldsOf(declaration), fieldsPath(prefix + declared)).stream());
+                }).collect(Collectors.toList());
         }
 
         /**
@@ -205,7 +243,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
             // NodeBuilder. An absent maximum must not read as 0, which means unbounded rather than one.
             final long maxValues = node.hasProperty(Parameter.MAX_VALUES_PROPERTY)
                 ? node.getLong(Parameter.MAX_VALUES_PROPERTY) : Parameter.DEFAULT_MAX_VALUES;
-            final Set<String> options = classifyChildren(node, path);
+            final Set<String> options = optionsOf(node);
             final String dataType = node.getString(Parameter.DATA_TYPE_PROPERTY);
             return Parameter.STRUCTURE_DATA_TYPE.equals(dataType)
                 ? structure(name, path, node, maxValues, holderType)
@@ -217,8 +255,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         {
             final String declared = node.getString(JCR_NODE_TYPE_PROPERTY);
             final String recordType = declared == null ? OrderedChildren.NT_UNSTRUCTURED_TYPE : declared;
-            final List<ParameterInfo> fields = read(node.getChildNode(Parameter.FIELDS_CHILD),
-                path + "/" + Parameter.FIELDS_CHILD + "/", recordType);
+            final List<ParameterInfo> fields = read(fieldsOf(node), fieldsPath(path), recordType);
             return new StructureParameter(name, node.getLong(Parameter.MIN_VALUES_PROPERTY), maxValues,
                 XmlLocation.of(node.getString(Parameter.XML_LOCATION_PROPERTY)),
                 node.getString(Parameter.KEY_PARAMETER_PROPERTY), recordType, fields,
@@ -229,7 +266,7 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
             final Set<String> options, final String holderType)
         {
             final ParameterType type = ParameterType.of(node.getString(Parameter.DATA_TYPE_PROPERTY),
-                node.getString(Parameter.REFERENCE_TYPE_PROPERTY));
+                node.getString(Parameter.REFERENCE_TYPE_PROPERTY), this.root);
             return new ValueParameter(name, type, node.getLong(Parameter.MIN_VALUES_PROPERTY), maxValues,
                 XmlLocation.of(node.getString(Parameter.XML_LOCATION_PROPERTY)),
                 xmlPath(node.getString(Parameter.XML_PATH_PROPERTY)), options,
@@ -237,32 +274,33 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         }
 
         /**
-         * Classifies a declaration's children in the order they are declared. An option is one of the values the
-         * parameter offers. A parameter is a field declared beside the fields node rather than inside it, an easy
-         * mistake to make, and is noted as misplaced.
-         *
-         * @return the offered values. A set: the parser only ever asks whether a value is one of them, and an
-         *         option repeated in the vocabulary is still one offer.
+         * The values a declaration offers, in the order they are declared. A set: the parser only ever asks whether
+         * a value is one of them, and an option repeated in the vocabulary is still one offer.
          */
-        private Set<String> classifyChildren(final NodeState node, final String path)
+        private Set<String> optionsOf(final NodeState node)
         {
-            final Set<String> result = new LinkedHashSet<>();
-            for (final String name : OrderedChildren.names(node)) {
-                final NodeState child = node.getChildNode(name);
-                if (isParameter(child) || isUnreadParameter(child)) {
-                    this.misplaced.add(path + "/" + name);
-                } else if (NodeTypeUtils.isOfType(child, Parameter.OPTION_NODE_TYPE, this.nodeTypesRoot)
-                    && child.hasProperty(Parameter.OPTION_VALUE_PROPERTY)) {
-                    result.add(child.getString(Parameter.OPTION_VALUE_PROPERTY));
-                }
-            }
-            return result;
+            return OrderedChildren.names(node).stream().map(node::getChildNode)
+                .filter(child -> NodeTypeUtils.isOfType(child, Parameter.OPTION_NODE_TYPE, this.registry)
+                    && child.hasProperty(Parameter.OPTION_VALUE_PROPERTY))
+                .map(child -> child.getString(Parameter.OPTION_VALUE_PROPERTY))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         }
 
         private boolean isParameter(final NodeState node)
         {
-            return NodeTypeUtils.isOfType(node, Parameter.NODE_TYPE, this.nodeTypesRoot);
+            return NodeTypeUtils.isOfType(node, Parameter.NODE_TYPE, this.registry);
         }
+    }
+
+    private static NodeState fieldsOf(final NodeState declaration)
+    {
+        return declaration.getChildNode(Parameter.FIELDS_CHILD);
+    }
+
+    /** The path of a structure's fields node relative to the entry, slash-terminated. */
+    private static String fieldsPath(final String declarationPath)
+    {
+        return declarationPath + "/" + Parameter.FIELDS_CHILD + "/";
     }
 
     private static boolean isUnreadParameter(final NodeState node)

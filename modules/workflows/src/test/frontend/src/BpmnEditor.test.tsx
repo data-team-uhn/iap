@@ -16,17 +16,18 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from "@mui/material/styles";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BpmnModdle } from "bpmn-moddle";
 
-import { appTheme } from "@iap/frontend-commons/appTheme";
 import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
 import type { DiagramEditor } from "@iap/workflows/BpmnEditor";
 import panelEditsModule from "@iap/workflows/panelEdits";
 import { EMPTY_BPMN } from "@iap/workflows/workflowModel";
 import { WORKFLOW_TYPES_PATH } from "@iap/workflows/workflowTypes";
+
+import { Themed } from "./parameterField.fixture";
+import { documentedEntry, documentedParameter } from "./vocabulary.fixture";
 
 import type { Element } from "bpmn-js/lib/model/Types";
 
@@ -106,15 +107,10 @@ const BOOLEAN_DIAGRAM = `<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/B
 const VOCABULARY = {
   items: {
     Tasks: [
-      {
-        name: "ServiceTask",
+      documentedEntry("ServiceTask", {
         label: "Service task",
-        xmlElement: "bpmn:serviceTask",
-        jcrNodeType: "wf:Activity",
-        parameters: [
-          { name: "handler", label: "Handler", dataType: "text", minValues: 0, maxValues: 1, xmlLocation: "attribute" },
-        ],
-      },
+        parameters: [ documentedParameter("handler", { label: "Handler", xmlLocation: "attribute" }) ],
+      }),
     ],
   },
 };
@@ -178,11 +174,8 @@ const latestEditor = (onReady: SerializerHandler): DiagramEditor => {
 
 const latestSerializer = (onReady: SerializerHandler): (() => Promise<string>) => latestEditor(onReady).serialize;
 
-const renderEditor = (props: Partial<Parameters<typeof BpmnEditor>[0]> = {}) => render(
-  <ThemeProvider theme={appTheme} defaultMode="light">
-    <BpmnEditor versionPath={VERSION_PATH} {...props} />
-  </ThemeProvider>
-);
+const renderEditor = (props: Partial<Parameters<typeof BpmnEditor>[0]> = {}) =>
+  render(<BpmnEditor versionPath={VERSION_PATH} {...props} />, { wrapper: Themed });
 
 beforeEach(() => {
   instances.length = 0;
@@ -309,11 +302,7 @@ describe("BpmnEditor", () => {
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
 
     stubDiagram(404);
-    rerender(
-      <ThemeProvider theme={appTheme} defaultMode="light">
-        <BpmnEditor versionPath="/Workflows/timeOff/2-0" />
-      </ThemeProvider>
-    );
+    rerender(<BpmnEditor versionPath="/Workflows/timeOff/2-0" />);
 
     await waitFor(() => expect(instances[0].importXML).toHaveBeenLastCalledWith(EMPTY_BPMN));
     // The same canvas throughout: what changed is the diagram in it, not the instance
@@ -451,11 +440,7 @@ describe("BpmnEditor", () => {
     const { rerender } = renderEditor();
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledTimes(1));
 
-    rerender(
-      <ThemeProvider theme={appTheme} defaultMode="light">
-        <BpmnEditor versionPath={VERSION_PATH} editable />
-      </ThemeProvider>
-    );
+    rerender(<BpmnEditor versionPath={VERSION_PATH} editable />);
 
     await waitFor(() => expect(instances[1].importXML).toHaveBeenCalledWith(DIAGRAM));
     expect(instances[0].destroy).toHaveBeenCalled();

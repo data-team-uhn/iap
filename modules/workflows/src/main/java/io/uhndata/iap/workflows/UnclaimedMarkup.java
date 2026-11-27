@@ -122,7 +122,7 @@ final class UnclaimedMarkup
         reportRepeatedExtension();
         reportUnreadIapAttributes();
         if (own != null) {
-            reportInside(own, parameterNames(parameter -> !readFromElement(parameter)), "");
+            reportInside(own, parameterNames(parameter -> !this.match.readsFromElement(parameter)), "");
         }
     }
 
@@ -239,7 +239,7 @@ final class UnclaimedMarkup
     /** Reports the IAP attributes of the element that no parameter read from the element names. */
     private void reportUnreadIapAttributes()
     {
-        final Set<String> names = parameterNames(this::readFromElement);
+        final Set<String> names = parameterNames(this.match::readsFromElement);
         attributes(this.element)
             .filter(attribute -> WorkflowDefinitionUtils.IAP_NS.equals(attribute.getNamespaceURI())
                 && !names.contains(attribute.getLocalName()))
@@ -265,16 +265,6 @@ final class UnclaimedMarkup
     {
         return this.match.parameters().declared().stream().filter(ValueParameter.class::isInstance)
             .map(ValueParameter.class::cast).filter(parameter -> parameter.location().isBpmn());
-    }
-
-    /**
-     * Whether a parameter is read from the element's own attributes rather than from its extension element. An
-     * entry naming no extension element reads every parameter of either kind from the element itself.
-     */
-    private boolean readFromElement(final ParameterInfo parameter)
-    {
-        return parameter.location() == FlowNodeTypeInfo.XmlLocation.ATTRIBUTE
-            || this.match.xmlExtensionElement() == null;
     }
 
     /** The names of the entry's parameters written in IAP markup that are read from where {@code readHere} says. */

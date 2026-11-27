@@ -18,6 +18,7 @@
 
 import { cleanup, screen } from "@testing-library/react";
 
+import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
 import BooleanParameterField from "@iap/workflows/BooleanParameterField";
 
 import { renderField } from "./parameterField.fixture";
@@ -115,8 +116,7 @@ describe("a parameter holding yes or no", () => {
     const { onCommit, user } = renderField(BooleanParameterField, { dataType: "boolean", maxValues: 0 }, [ "true" ]);
 
     expect(screen.getByRole("button", { name: "Yes" })).toBeInTheDocument();
-    await user.click(screen.getByRole("combobox"));
-    expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([ "Yes", "No" ]);
+    expect(await listedOptions(screen.getByRole("combobox"))).toEqual([ "Yes", "No" ]);
     await user.click(screen.getByRole("option", { name: "No" }));
 
     expect(onCommit).toHaveBeenCalledWith([ "true", "false" ]);

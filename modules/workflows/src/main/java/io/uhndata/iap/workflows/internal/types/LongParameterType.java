@@ -22,8 +22,6 @@ import java.util.regex.Pattern;
 
 import javax.jcr.PropertyType;
 
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-
 /**
  * A whole number, written in ASCII digits with an optional sign, as XML Schema writes one.
  *
@@ -42,7 +40,7 @@ public class LongParameterType implements ParameterType
     }
 
     @Override
-    public Object convert(final String raw, final NodeState root, final Consumer<String> report)
+    public Object convert(final String raw, final Consumer<String> report)
     {
         try {
             if (WHOLE_NUMBER.matcher(raw).matches()) {

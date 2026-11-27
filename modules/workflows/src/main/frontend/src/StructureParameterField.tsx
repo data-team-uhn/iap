@@ -37,11 +37,12 @@ import ValueText from "@iap/frontend-commons/inputs/ValueText";
 import ParameterField from "./ParameterField";
 import { settled, valuesOf } from "./parameterValues";
 import { countLimits, valueProblems } from "./parameterWidget";
-import { keyOf, keyProblems } from "./structureKeys";
+import { recordKeys } from "./structureKeys";
 import { fieldsOf, hasSingleValuedKey, isMultiple } from "./workflowTypes";
 
 import type { ParameterValue, StructureRecord } from "./parameterValues";
 import type { ParameterFieldProps } from "./parameterWidget";
+import type { RecordKey } from "./structureKeys";
 import type { Parameter } from "./workflowTypes";
 
 interface RecordProps {
@@ -89,15 +90,16 @@ function StructureRecordGroup(props: RecordProps) {
 // A stable identity for each record, so that a record moved or removed takes its fields' state and the focus
 // with it. A change made elsewhere, such as an undo, may change how many records there are: the records past
 // those already known are given new ones.
-function useRecordKeys(count: number) {
-  const [ keys, setKeys ] = useState<string[]>(() => Array.from({ length: count }, () => crypto.randomUUID()));
-  if (keys.length !== count) {
-    setKeys(held => [
+function useRecordIdentities(count: number) {
+  const [ identities, setIdentities ] =
+    useState<string[]>(() => Array.from({ length: count }, () => crypto.randomUUID()));
+  if (identities.length !== count) {
+    setIdentities(held => [
       ...held.slice(0, count),
       ...Array.from({ length: Math.max(0, count - held.length) }, () => crypto.randomUUID()),
     ]);
   }
-  return [ keys, setKeys ] as const;
+  return [ identities, setIdentities ] as const;
 }
 
 // The list with two of its items swapped.
@@ -115,7 +117,7 @@ export default function StructureParameterField(props: ParameterFieldProps<Struc
   const { parameter, values, onChange, onCommit, readOnly = false } = props;
   // Visited once focus leaves anything inside it, a field or a button
   const [ visited, visit ] = useVisited();
-  const [ keys, setKeys ] = useRecordKeys(values.length);
+  const [ identities, setIdentities ] = useRecordIdentities(values.length);
   const problemId = useId();
 
   // Reordering and removing are finished the moment they are made
@@ -154,21 +156,18 @@ export default function StructureParameterField(props: ParameterFieldProps<Struc
   const replaced = (index: number, record: StructureRecord) =>
     values.map((held, at) => at === index ? record : held);
   const move = (index: number, to: number) => {
-    setKeys(swapped(keys, index, to));
+    setIdentities(swapped(identities, index, to));
     pick(swapped(values, index, to));
   };
   const remove = (index: number) => {
-    setKeys(without(keys, index));
+    setIdentities(without(identities, index));
     pick(without(values, index));
   };
-  const titleOf = (record: StructureRecord) => {
-    const key = keyOf(parameter, record);
-    return key === "" ? `New ${parameter.label}` : key;
-  };
+  const keys = recordKeys(parameter, values);
+  const titleOf = ({ key }: RecordKey) => key === "" ? `New ${parameter.label}` : key;
   // A blank key stays with the key field's own "required"
-  const keyProblem = keyProblems(parameter, values);
-  const repeatedKey = (index: number) => !locked && keyProblem[index] === "repeated"
-    ? `The key "${keyOf(parameter, values[index])}" is already in use, so this ${parameter.label} will be ignored.`
+  const repeatedKey = ({ key, problem }: RecordKey) => !locked && problem === "repeated"
+    ? `The key "${key}" is already in use, so this ${parameter.label} will be ignored.`
     : undefined;
   const full = maxValues !== undefined && values.length >= maxValues;
 
@@ -189,14 +188,14 @@ export default function StructureParameterField(props: ParameterFieldProps<Struc
       { problem && <Typography id={problemId} color="error" variant="body2">{problem}</Typography> }
       {
         values.map((record, index) => {
-          const title = titleOf(record);
+          const title = titleOf(keys[index]);
           return (
             <StructureRecordGroup
-              key={keys[index]}
+              key={identities[index]}
               parameter={parameter}
               record={record}
               title={title}
-              problem={repeatedKey(index)}
+              problem={repeatedKey(keys[index])}
               readOnly={locked}
               onChange={changed => onChange(replaced(index, changed))}
               onCommit={changed => onCommit(replaced(index, changed))}

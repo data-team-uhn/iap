@@ -17,8 +17,11 @@
  */
 package io.uhndata.iap.workflows.models;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -28,7 +31,6 @@ import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObjectBuilder;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
@@ -297,18 +299,13 @@ public class Parameter extends EntityPart
     @NotNull
     public List<Option> getOptions()
     {
-        final List<Option> result = new ArrayList<>();
-        for (final Resource child : this.resource.getChildren()) {
-            if (isOfNodeType(child, OPTION_NODE_TYPE)) {
-                final ValueMap values = child.getValueMap();
-                final String value = values.get(OPTION_VALUE_PROPERTY, String.class);
-                // An option with nothing to store is not an offer, however it is labelled
-                if (value != null) {
-                    result.add(new Option(value, values.get(LABEL_PROPERTY, value)));
-                }
-            }
-        }
-        return result;
+        return StreamSupport.stream(this.resource.getChildren().spliterator(), false)
+            .filter(child -> isOfNodeType(child, OPTION_NODE_TYPE))
+            .map(Resource::getValueMap)
+            // An option with nothing to store is not an offer, however it is labelled
+            .flatMap(values -> Stream.ofNullable(values.get(OPTION_VALUE_PROPERTY, String.class))
+                .map(value -> new Option(value, values.get(LABEL_PROPERTY, value))))
+            .collect(Collectors.toList());
     }
 
     /**
@@ -321,16 +318,11 @@ public class Parameter extends EntityPart
     @NotNull
     static List<Parameter> declaredIn(@Nullable final Resource parent)
     {
-        final List<Parameter> result = new ArrayList<>();
-        if (parent != null) {
-            for (final Resource child : parent.getChildren()) {
-                final Parameter parameter = isOfNodeType(child, NODE_TYPE) ? child.adaptTo(Parameter.class) : null;
-                if (parameter != null) {
-                    result.add(parameter);
-                }
-            }
-        }
-        return result;
+        return parent == null ? List.of() : StreamSupport.stream(parent.getChildren().spliterator(), false)
+            .filter(child -> isOfNodeType(child, NODE_TYPE))
+            .map(child -> child.adaptTo(Parameter.class))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 
     /** Whether a resource is a node of the given type or a subtype of it. */

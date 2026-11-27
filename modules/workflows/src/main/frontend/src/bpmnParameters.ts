@@ -25,6 +25,8 @@
 // makes moddle-xml drop every unknown `iap:` element on import. The values ride along as generic
 // attributes and `createAny` elements instead, matched by namespace URI rather than by prefix.
 
+import { stringsOf } from "@iap/frontend-commons/serializedNode";
+
 import { bpmnChildren, extensionValues, IAP_NS, isIapElement, localName, text } from "./moddle";
 import {
   recordValues,
@@ -170,7 +172,7 @@ function readBpmn(businessObject: ModdleElement, parameter: Parameter): string[]
     const own = Object.prototype.hasOwnProperty.call(holder, parameter.name) ? holder[parameter.name] : undefined;
     const raw = scalar(own) ?? holder.$attrs?.[parameter.name]
       ?? scalar(descriptorProperty(holder, parameter.name)?.default);
-    return raw === undefined ? [] : [ raw ];
+    return stringsOf(raw);
   }
   return bpmnChildren(holder).filter(child => child.name === parameter.name)
     .map(child => scalar(child.value) ?? text((child.value as ModdleElement).body));
