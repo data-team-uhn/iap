@@ -17,7 +17,7 @@
  */
 // The document's frame, with the styles of the marks drawn on its text.
 
-import { memo, useContext, type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 import { Box, CircularProgress, LinearProgress } from "@mui/material";
 
@@ -31,7 +31,6 @@ import {
   START_CLASS,
 } from "./markLayer";
 import { MARK_KINDS } from "./marksModel";
-import { PlainViewer } from "./plainViewer";
 
 import type { Theme } from "@mui/material/styles";
 
@@ -127,7 +126,6 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, name, edgeToEdge, 
   edgeToEdge: boolean;
   outlineSelected: boolean;
 }) {
-  const plain = useContext(PlainViewer);
   return (
     <Box
       ref={setFrame}
