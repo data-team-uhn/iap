@@ -145,6 +145,12 @@ public class WorkerDocumentGenerator implements DocumentGenerator
 
     private String workerUrl;
 
+    /** Where requests go, once checked. */
+    private String endpoint;
+
+    /** Why the worker URL cannot be used, or {@code null} when it can. */
+    private String misconfiguration;
+
     private Duration responseTimeout;
 
     /** The {@code Authorization} header to send, or {@code null} when the worker needs none. */
@@ -161,8 +167,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
     @Modified
     protected void activate(final Configuration configuration)
     {
-        final String url = configuration.workerUrl() == null ? "" : configuration.workerUrl().trim();
-        this.workerUrl = (url.isEmpty() ? DEFAULT_WORKER_URL : url).replaceAll("/+$", "");
+        useWorkerUrl(configuration.workerUrl() == null ? "" : configuration.workerUrl().trim());
         this.responseTimeout = Duration.ofSeconds(configuration.responseTimeout() > 0
             ? configuration.responseTimeout() : DEFAULT_RESPONSE_TIMEOUT);
         final String configured = configuration.workerToken() == null ? "" : configuration.workerToken().trim();
@@ -170,6 +175,32 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         final String token = configured.isEmpty() && fromEnvironment != null ? fromEnvironment.trim() : configured;
         this.authorization = token.isEmpty() ? null : "Bearer " + token;
         this.maxTemplateBytes = maxTemplateBytes(environment(MAX_TEMPLATE_BYTES_VARIABLE));
+    }
+
+    /**
+     * Checks the worker URL once. The component stays active when it is wrong, so that each generation says so,
+     * rather than no generator being offered at all.
+     *
+     * @param configured the URL as configured, trimmed, or empty for the default
+     */
+    private void useWorkerUrl(final String configured)
+    {
+        this.workerUrl = (configured.isEmpty() ? DEFAULT_WORKER_URL : configured).replaceAll("/+$", "");
+        this.endpoint = this.workerUrl + "/generate";
+        this.misconfiguration = null;
+        try {
+            final String scheme = URI.create(this.endpoint).getScheme();
+            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)
+                || URI.create(this.endpoint).getHost() == null) {
+                this.misconfiguration = "The generation worker URL " + configured + " is not an http or https "
+                    + "address naming a host, such as " + DEFAULT_WORKER_URL;
+            }
+        } catch (final IllegalArgumentException e) {
+            this.misconfiguration = "The generation worker URL " + configured + " is not a URL: " + e.getMessage();
+        }
+        if (this.misconfiguration != null) {
+            LOGGER.error(this.misconfiguration);
+        }
     }
 
     @Override
@@ -251,6 +282,9 @@ public class WorkerDocumentGenerator implements DocumentGenerator
 
     private GenerationResult ask(final Resource template, final Resource target, final String body)
     {
+        if (this.misconfiguration != null) {
+            return failure(template, target, this.misconfiguration);
+        }
         final long startedAt = System.nanoTime();
         final HttpResponse<String> response;
         try {
@@ -308,7 +342,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
 
     private HttpRequest request(final String body)
     {
-        final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(this.workerUrl + "/generate"))
+        final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(this.endpoint))
             .timeout(this.responseTimeout)
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));

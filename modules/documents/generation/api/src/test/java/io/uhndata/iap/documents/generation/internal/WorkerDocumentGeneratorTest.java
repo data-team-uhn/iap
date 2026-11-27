@@ -215,6 +215,19 @@ class WorkerDocumentGeneratorTest
     }
 
     @Test
+    void aWorkerUrlThatCannotBeUsedNeedsAnAdministratorAndNothingIsSent()
+    {
+        for (final String url : List.of("generation:18766", "ftp://generation:18766", "http://",
+            "http://generation 18766")) {
+            final GenerationResult result = generator(null, null, url, 40).generate(this.template, this.target);
+
+            assertEquals(Status.FAILED, result.getStatus(), url);
+            assertTrue(result.getMessage().startsWith("The generation worker URL " + url), result.getMessage());
+        }
+        assertNull(this.received);
+    }
+
+    @Test
     void aRefusedTokenNeedsAnAdministrator()
     {
         workerAnswers(401, "{\"error\": \"missing or invalid IAP_GENERATION_TOKEN bearer token\"}");
