@@ -30,7 +30,7 @@ import {
   typeEdit,
 } from "@iap/workflows/bpmnParameters";
 import type { ParameterEdit } from "@iap/workflows/bpmnParameters";
-import { IAP_NS, iapExtensionNames } from "@iap/workflows/moddle";
+import { IAP_NS, extensionValues, iapExtensionNames } from "@iap/workflows/moddle";
 import type { Moddle, ModdleElement } from "@iap/workflows/moddle";
 import { parseWorkflowTypes } from "@iap/workflows/workflowTypes";
 
@@ -441,6 +441,19 @@ describe("changing what a node means", () => {
     expect(await serialize()).toContain('<iap:setState toState="TRIAL"');
     expect(iapExtensionNames(start)).toEqual(new Set([ "setState" ]));
     expect(readValues(start, definitions, documented, TO_STATE)).toEqual([ "TRIAL" ]);
+  });
+
+  it("carries the IAP markup onto an element redrawn as another, less what only the entry left reads", async () => {
+    // bpmn-js redraws a service task as a call activity with none of the markup BPMN does not declare
+    const { moddle, definitions, task } = await load();
+    task.set?.("iap:handler", "setState");
+    const redrawn = moddle.create("bpmn:CallActivity", { id: "promote" });
+    const called = type("Called", { xmlElement: "bpmn:callActivity", parameters: [ COLOUR ] });
+
+    apply(typeEdit(moddle, redrawn, definitions, SERVICE_TASK, called, task));
+
+    expect(redrawn.$attrs).toEqual({ "iap:colour": "promoted" });
+    expect(extensionValues(redrawn).map(value => value.$descriptor?.ns?.localName)).toEqual([ "node", "setState" ]);
   });
 
   it("adds the entry's element to a node that carried none", async () => {

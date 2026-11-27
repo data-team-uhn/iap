@@ -42,7 +42,7 @@ export default function ValueText({ label, values, choices = [], code = false }:
       <Typography variant="description">{label}</Typography>
       {
         shown.length === 0
-          ? <Typography sx={{ color: "text.disabled" }}>{NOTHING}</Typography>
+          ? <Typography variant="placeholder">{NOTHING}</Typography>
           : code
             ? <Stack direction="row" spacing={1}>{shown.map(value => <CodePill key={value} name={value} />)}</Stack>
             : <Typography>{shown.join(", ")}</Typography>

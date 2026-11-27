@@ -51,6 +51,12 @@ describe("useChoices", () => {
     await waitFor(() => expect(result.current).toEqual({ choices: FORMATS, loading: false, loadError: undefined }));
   });
 
+  it("offers nothing, and is not loading, without a source", () => {
+    const { result } = renderHook(() => useChoices(undefined));
+
+    expect(result.current).toEqual({ choices: [], loading: false, loadError: undefined });
+  });
+
   it("says why the choices could not be read", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { source, answers } = pending("failing");

@@ -20,7 +20,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import ElementProperties from "@iap/workflows/ElementProperties";
-import { IAP_NS } from "@iap/workflows/moddle";
+import { IAP_NS, businessObjectOf } from "@iap/workflows/moddle";
 import type { ModdleElement } from "@iap/workflows/moddle";
 import type { FlowNodeType } from "@iap/workflows/workflowTypes";
 
@@ -30,6 +30,7 @@ import {
   bpmnElement,
   carrying,
   COLOUR,
+  drawnEntry,
   iapElement,
   moddleElement,
   parameter,
@@ -41,6 +42,7 @@ import {
 
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
+import type { Mock } from "vitest";
 
 // Renaming and every parameter edit go through the canvas's `modeling` service, and are read back
 // through the document its `moddle` service builds elements with. What is still pending is written
@@ -55,8 +57,8 @@ const createViewer = () => {
       return moddleElement(name, { ...attributes, set: vi.fn() }, { prefix, uri });
     }),
   };
-  const bpmnReplace = { replaceElement: vi.fn() };
-  const canvas = createCanvas({ moddle, bpmnReplace }, definitions);
+  const canvas = createCanvas({ moddle }, definitions);
+  const bpmnReplace = canvas.viewer.get<{ replaceElement: Mock<(element: Element) => Element> }>("bpmnReplace");
   return { ...canvas, moddle, bpmnReplace, definitions, destroy: () => canvas.fire("diagram.destroy") };
 };
 
@@ -235,7 +237,7 @@ describe("ElementProperties", () => {
   it("lists the entries of an element type under their groups when there are several", async () => {
     const user = userEvent.setup();
     const { viewer } = createViewer();
-    const grouped = { ...SET_STATE, category: [ "Service Task", "Workflows" ] };
+    const grouped = { ...SET_STATE, group: "Workflows" };
     renderProperties(task("Promote", carrying(setState("ACTIVE", []))), viewer, { types: [ SERVICE_TASK, grouped ] });
 
     await user.click(field("Service Task Type"));
@@ -264,16 +266,26 @@ describe("ElementProperties", () => {
     expect(properties.extensionElements.values?.map(value => value.$type)).toEqual([ "iap:retireActiveVersions" ]);
   });
 
-  it("says an element matching none of the entries is not recognised, and that the server skips it", () => {
+  it("says an element no entry describes is not recognized, and keeps the process from being activated", () => {
     const { viewer } = createViewer();
 
     // Both candidates name an extension element, and the element carries neither
     renderProperties(task("Promote"), viewer, { types: [ SET_STATE, RETIRE_ACTIVE_VERSIONS ] });
 
-    expect(screen.getByText("Not recognised (serviceTask)")).toBeInTheDocument();
-    expect(screen.getByText("The server skips this element when it reads the diagram.")).toBeInTheDocument();
+    expect(screen.getByText("Not recognized (serviceTask)")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("The process cannot be activated while it holds this element.");
     expect(noField("Service Task Type")).not.toBeInTheDocument();
     expect(noField("To state")).not.toBeInTheDocument();
+  });
+
+  it("names an element the server passes over on purpose, with no warning", () => {
+    const { viewer } = createViewer();
+
+    renderProperties({ id: "note", businessObject: bpmnElement("TextAnnotation") } as unknown as Element, viewer,
+      { types: VOCABULARY });
+
+    expect(screen.getByText("textAnnotation")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("names the BPMN element while there is no vocabulary to say more", () => {
@@ -283,17 +295,15 @@ describe("ElementProperties", () => {
 
     expect(screen.getByText("Element Type")).toBeInTheDocument();
     expect(screen.getByText("serviceTask")).toBeInTheDocument();
-    expect(screen.queryByText(/Not recognised/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not recognized/)).not.toBeInTheDocument();
   });
 
   describe("changing the element type", () => {
-    const entry = (name: string, xmlElement: string, category: string[], extra: Partial<FlowNodeType> = {}) =>
-      type(name, { label: name, xmlElement: `bpmn:${xmlElement}`, category, priority: 0, ...extra });
-    const START = entry("StartEvent", "startEvent", [ "Start Event" ], { jcrNodeType: "wf:StartEvent" });
-    const TIMER = entry("TimerStart", "startEvent", [ "Start Event" ],
+    const START = drawnEntry("StartEvent", "startEvent", [ "Start Event" ], { jcrNodeType: "wf:StartEvent" });
+    const TIMER = drawnEntry("TimerStart", "startEvent", [ "Start Event" ],
       { jcrNodeType: "wf:StartEvent", xmlChildElement: "bpmn:timerEventDefinition", priority: 10 });
-    const TASK = entry("Task", "task", [ "Task" ]);
-    const BOUNDARY = entry("TimerBoundary", "boundaryEvent", [ "Boundary Event" ],
+    const TASK = drawnEntry("Task", "task", [ "Task" ]);
+    const BOUNDARY = drawnEntry("TimerBoundary", "boundaryEvent", [ "Boundary Event" ],
       { xmlChildElement: "bpmn:timerEventDefinition" });
     const ENTRIES = [ SERVICE_TASK, SET_STATE, START, TIMER, TASK, BOUNDARY ];
 
@@ -316,15 +326,45 @@ describe("ElementProperties", () => {
       expect(updateModdleProperties).toHaveBeenCalledWith(replaced, replaced.businessObject, expect.anything());
     });
 
-    it("lists the element types it can change to, and none it cannot", async () => {
+    it("lists the element types of its own family, and none other", async () => {
       const user = userEvent.setup();
       const { viewer } = createViewer();
       renderProperties(taskElement(), viewer, { types: ENTRIES });
 
       await user.click(field("Element Type"));
 
+      expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([ "Service Task", "Task" ]);
+    });
+
+    it("keeps the IAP markup of an element it redraws", async () => {
+      const user = userEvent.setup();
+      const { viewer, bpmnReplace, writeThrough } = createViewer();
+      writeThrough();
+      const guard = moddleElement("node", {}, { prefix: "sv", uri: "http://www.jcp.org/jcr/sv/1.0" });
+      const element = { id: "s", businessObject: bpmnElement("StartEvent", {
+        $attrs: { "iap:performers": "authors" }, ...carrying(guard),
+      }) } as unknown as Element;
+      renderProperties(element, viewer, { types: ENTRIES });
+
+      await user.click(field("Start Event Type"));
+      await user.click(screen.getByRole("option", { name: "TimerStart" }));
+
+      const replaced = businessObjectOf(bpmnReplace.replaceElement.mock.results[0].value as Element);
+      expect(replaced.$attrs).toEqual({ "iap:performers": "authors" });
+      expect(replaced.extensionElements?.values).toEqual([ guard ]);
+    });
+
+    it("offers only the entries a change can make the element mean", async () => {
+      const user = userEvent.setup();
+      const { viewer } = createViewer();
+      const outranked = { ...SERVICE_TASK, name: "Generic", label: "Generic", priority: -1 };
+      renderProperties(task("Promote", carrying(setState("ACTIVE", []))), viewer,
+        { types: [ ...VOCABULARY, outranked ] });
+
+      await user.click(field("Service Task Type"));
+
       expect(screen.getAllByRole("option").map(option => option.textContent))
-        .toEqual([ "Service Task", "Start Event", "Task" ]);
+        .toEqual([ "Retire active versions", "Service task", "Set state" ]);
     });
 
     it("redraws the element, with its event, when the entry chosen needs one", async () => {

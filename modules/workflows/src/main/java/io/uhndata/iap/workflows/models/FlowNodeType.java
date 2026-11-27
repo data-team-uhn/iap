@@ -18,7 +18,10 @@
 package io.uhndata.iap.workflows.models;
 
 import java.io.StringReader;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -181,7 +184,7 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
 
     /**
      * Whether an element changed to this entry's element type in the editor becomes this entry, e.g. Exclusive
-     * Gateway among the four gateways.
+     * Gateway among the gateways.
      *
      * @return {@code true} if this entry is its element type's default
      */
@@ -224,24 +227,45 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
-     * The element type the visual editor lists this entry under, then optionally a group within it, e.g.
-     * {@code Service Task} and {@code Content}. Falls back on the {@link #getDefaultCategory() kind of entry}, such
-     * as {@code Events}, when none is declared, so that a new entry always lands somewhere sensible.
+     * The element type the visual editor lists this entry under, e.g. {@code Service Task}: the first category the
+     * entry declares. An entry declaring none falls under the element type its {@code xmlElement} names, so
+     * {@code bpmn:serviceTask} gives {@code Service Task}, and an entry without one falls back on the
+     * {@link #getDefaultCategory() kind of entry}. The catalogue lists each entry once, under this.
      *
-     * @return a copy of the group names, never empty
+     * @return the element type, alone
      */
     @Override
     @NotNull
     public List<String> getDocumentationCategories()
     {
-        return this.category == null || this.category.length == 0
-            ? List.of(this.getDefaultCategory())
-            // A copy: Arrays.asList would be a live view of the model's own array, writable through by any caller
-            : List.of(this.category);
+        return List.of(this.category != null && this.category.length > 0 ? this.category[0]
+            : this.xmlElement != null ? elementTypeNamed(this.xmlElement) : this.getDefaultCategory());
     }
 
     /**
-     * The category entries of this kind fall under when they do not declare one of their own, e.g. {@code Events}.
+     * The group the visual editor lists this entry under within its element type, e.g. {@code Content}: the second
+     * category the entry declares.
+     *
+     * @return the group, or {@code null} for an entry that declares none
+     */
+    @Nullable
+    public String getGroup()
+    {
+        return this.category != null && this.category.length > 1 ? this.category[1] : null;
+    }
+
+    /** The words of a BPMN element's local name, capitalized: {@code bpmn:callActivity} gives {@code Call Activity}. */
+    private static String elementTypeNamed(final String xmlElement)
+    {
+        final String local = xmlElement.substring(xmlElement.indexOf(':') + 1);
+        return Arrays.stream(local.split("(?=\\p{Upper})"))
+            .map(word -> word.substring(0, 1).toUpperCase(Locale.ROOT) + word.substring(1))
+            .collect(Collectors.joining(" "));
+    }
+
+    /**
+     * The category of an entry of this kind that declares neither a category nor an {@code xmlElement}, e.g.
+     * {@code Events}.
      *
      * @return a category name
      */
@@ -254,8 +278,8 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
      * <p>On top of the common fields, this adds what the visual editor needs to recognize this entry's elements
      * and to offer a field for each of its parameters. That is the {@code priority} and the {@code xmlElement},
      * {@code xmlChildElement} and {@code xmlExtensionElement} it is written as. Then come the {@code jcrNodeType}
-     * it is stored as, and the {@code jcrProperties} and {@code parameters} when the entry declares any. Last is
-     * {@code elementTypeDefault}, present only when true.</p>
+     * it is stored as and its {@code jcrProperties}, the {@code group} it is listed under within its element type,
+     * {@code elementTypeDefault} when true, and its {@code parameters}.</p>
      *
      * <p>Every one of them is added only once there is something to add, the mandatory ones included: an entry
      * missing them is malformed, and the catalogue serving the rest of the vocabulary without it is a better
@@ -267,22 +291,15 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     {
         final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder()
             .add("priority", this.getPriority());
-        if (this.xmlElement != null) {
-            json.add("xmlElement", this.xmlElement);
-        }
-        if (this.jcrNodeType != null) {
-            json.add("jcrNodeType", this.jcrNodeType);
-        }
-        if (this.xmlChildElement != null) {
-            json.add("xmlChildElement", this.xmlChildElement);
-        }
-        if (this.xmlExtensionElement != null) {
-            json.add("xmlExtensionElement", this.xmlExtensionElement);
-        }
+        addIfPresent(json, "xmlElement", this.xmlElement);
+        addIfPresent(json, "jcrNodeType", this.jcrNodeType);
+        addIfPresent(json, "xmlChildElement", this.xmlChildElement);
+        addIfPresent(json, "xmlExtensionElement", this.xmlExtensionElement);
         final JsonObject fixedProperties = this.getJcrProperties();
         if (fixedProperties != null) {
             json.add("jcrProperties", fixedProperties);
         }
+        addIfPresent(json, "group", this.getGroup());
         if (this.elementTypeDefault) {
             json.add("elementTypeDefault", true);
         }
@@ -293,5 +310,12 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
             json.add("parameters", declared);
         }
         return json;
+    }
+
+    private static void addIfPresent(final JsonObjectBuilder json, final String name, final String value)
+    {
+        if (value != null) {
+            json.add(name, value);
+        }
     }
 }

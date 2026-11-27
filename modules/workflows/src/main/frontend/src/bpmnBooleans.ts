@@ -21,7 +21,7 @@
 // that way. So such a value is spelled out before the editor imports the diagram, and the editor then reads
 // it as the server does.
 
-import { capitalised } from "./moddle";
+import { capitalize } from "@iap/frontend-commons/words";
 
 import type { ModdleProperty } from "./moddle";
 
@@ -37,7 +37,7 @@ const SPELLED_OUT: ReadonlyMap<string, string> = new Map([ [ "1", "true" ], [ "0
 // The names of the boolean attributes a moddle package declares for an element, by the element's XML name.
 function booleanAttributes(moddle: ModdleTypes, element: Element): string[] {
   const prefix = element.namespaceURI === null ? undefined : moddle.getPackage(element.namespaceURI)?.prefix;
-  const type = `${prefix}:${capitalised(element.localName)}`;
+  const type = `${prefix}:${capitalize(element.localName)}`;
   if (prefix === undefined || moddle.getTypeDescriptor(type) === undefined) {
     return [];
   }

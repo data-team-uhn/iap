@@ -122,8 +122,8 @@ class ParameterTranslationTest
 
         assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
         assertEquals(List.of(
-            "an IAP extension element belongs to no matching FlowNodeType (task1, extensionElement=notify,"
-                + " flowNodeType=SetState)"), parsed.problems());
+            "an IAP extension element is not read, since the element matched another entry (task1,"
+                + " extensionElement=notify, flowNodeType=SetState)"), parsed.problems());
     }
 
     @Test
@@ -367,7 +367,7 @@ class ParameterTranslationTest
     @Test
     void reportsAHandlerAttributeBesideAHandlerElement() throws Exception
     {
-        // The element decides the handler, so an attribute naming another one is a disagreement nothing settles
+        // The element decides the handler, so the attribute is reported as one nothing reads
         final NodeBuilder root = withSetState();
 
         final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" iap:handler=\"notify\">\n"
@@ -380,25 +380,53 @@ class ParameterTranslationTest
     }
 
     @Test
-    void reportsValuesWrittenWhereTheirParameterDoesNotLive() throws Exception
+    void reportsAnAttributeOnTheElementThatTheExtensionElementReads() throws Exception
     {
-        // Each of these is a value the panel would have written in the other place, or a name it never offered
+        // A value the panel would have written on the extension element
+        final Parsed parsed = parsed(withSetState(), SERVICE_TASK_OPEN + TASK + "\" iap:toState=\"RETIRED\">\n"
+            + "      <bpmn:extensionElements><iap:setState toState=\"ACTIVE\">"
+            + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState></bpmn:extensionElements>\n"
+            + "    </bpmn:serviceTask>\n");
+
+        assertEquals(List.of("an IAP attribute is read by no parameter of its entry (task1, attribute=toState,"
+            + " flowNodeType=SetState)"), parsed.problems());
+    }
+
+    @Test
+    void reportsAnAttributeOnTheExtensionElementThatTheElementReads() throws Exception
+    {
+        // A value the panel would have written on the element itself
         final NodeBuilder root = withSetState();
         VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child("SetState"), COLOUR, TEXT, 1);
 
-        final Parsed parsed = parsed(root, SERVICE_TASK_OPEN + TASK + "\" iap:toState=\"RETIRED\">\n"
-            + "      <bpmn:extensionElements><iap:setState toState=\"ACTIVE\" colour=\"green\">"
-            + "<iap:fromStates>DRAFT</iap:fromStates><iap:fromState>TRIAL</iap:fromState>"
-            + "</iap:setState></bpmn:extensionElements>\n"
-            + "    </bpmn:serviceTask>\n");
+        final Parsed parsed = parsed(root, serviceTask("<iap:setState toState=\"ACTIVE\" colour=\"green\">"
+            + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>"));
 
-        assertEquals(List.of(
-            "an IAP attribute is read by no parameter of its entry (task1, attribute=toState,"
-                + " flowNodeType=SetState)",
-            "an IAP extension attribute is read by no parameter of its entry (task1, attribute=colour,"
-                + " flowNodeType=SetState)",
-            "an IAP extension child is read by no parameter of its entry (task1, child=fromState,"
-                + " flowNodeType=SetState)"), parsed.problems());
+        assertEquals(List.of("an IAP extension attribute is read by no parameter of its entry (task1, attribute=colour,"
+            + " flowNodeType=SetState)"), parsed.problems());
+    }
+
+    @Test
+    void reportsAnExtensionChildNoParameterIsNamedAfter() throws Exception
+    {
+        final Parsed parsed = parsed(withSetState(), serviceTask("<iap:setState toState=\"ACTIVE\">"
+            + "<iap:fromStates>DRAFT</iap:fromStates><iap:fromState>TRIAL</iap:fromState></iap:setState>"));
+
+        assertEquals(List.of("an IAP extension child is read by no parameter of its entry (task1, child=fromState,"
+            + " flowNodeType=SetState)"), parsed.problems());
+    }
+
+    @Test
+    void reportsAnExtensionAttributeWrittenWithAPrefix() throws Exception
+    {
+        // The parser reads an extension element's attributes unprefixed, so a prefixed one is dropped
+        final NodeBuilder root = withSetState();
+
+        final Parsed parsed = parsed(root, serviceTask("<iap:setState iap:toState=\"ACTIVE\"/>"));
+
+        assertFalse(parsed.version().getChildNode(TASK).hasProperty(TO_STATE));
+        assertEquals("an IAP extension attribute is written with a prefix, which is not read there (task1,"
+            + " attribute=toState, flowNodeType=SetState)", parsed.problems().get(0));
     }
 
     @Test
@@ -732,49 +760,120 @@ class ParameterTranslationTest
     }
 
     @Test
-    void reportsTheBpmnAnEntryDoesNotRead() throws Exception
+    void reportsABpmnChildOfTheElementNoParameterReads() throws Exception
     {
-        final NodeBuilder root = withTimerBoundaryEvent();
-
-        final Parsed parsed = parsed(root, "    <bpmn:userTask id=\"" + TASK + "\">\n"
+        final Parsed parsed = parsed(withTimerBoundaryEvent(), "    <bpmn:userTask id=\"" + TASK + "\">\n"
             + "      <bpmn:multiInstanceLoopCharacteristics/>\n"
-            + "    </bpmn:userTask>\n"
-            + "    <bpmn:boundaryEvent id=\"" + DEADLINE + "\" attachedToRef=\"" + TASK + "\""
-            + " parallelMultiple=\"true\">\n"
-            + "      <bpmn:timerEventDefinition unit=\"days\"><bpmn:timeCycle>R3/P1D</bpmn:timeCycle>"
-            + "</bpmn:timerEventDefinition>\n"
-            + "    </bpmn:boundaryEvent>\n");
+            + "    </bpmn:userTask>\n");
 
-        assertEquals(List.of(
-            "a BPMN element is read by no parameter of its entry (task1,"
-                + " child=multiInstanceLoopCharacteristics, flowNodeType=UserTask)",
-            "a BPMN attribute is read by no parameter of its entry (deadline, attribute=parallelMultiple,"
-                + " flowNodeType=TimerBoundaryEvent)",
-            "a BPMN attribute is read by no parameter of its entry (deadline,"
-                + " attribute=timerEventDefinition/unit, flowNodeType=TimerBoundaryEvent)",
-            "a BPMN element is read by no parameter of its entry (deadline,"
-                + " child=timerEventDefinition/timeCycle, flowNodeType=TimerBoundaryEvent)"), parsed.problems());
+        assertEquals(List.of("a BPMN element is read by no parameter of its entry (task1,"
+            + " child=multiInstanceLoopCharacteristics, flowNodeType=UserTask)"), parsed.problems());
     }
 
     @Test
-    void leavesTheBpmnTheGraphIsBuiltFromAlone() throws Exception
+    void reportsABpmnAttributeOfTheElementNoParameterReads() throws Exception
+    {
+        final Parsed parsed = parsed(withTimerBoundaryEvent(), boundaryEvent(" parallelMultiple=\"true\"", ""));
+
+        assertEquals(List.of("a BPMN attribute is read by no parameter of its entry (deadline,"
+            + " attribute=parallelMultiple, flowNodeType=TimerBoundaryEvent)"), parsed.problems());
+    }
+
+    @Test
+    void reportsABpmnAttributeAlongAParametersPathNoParameterReads() throws Exception
+    {
+        final Parsed parsed = parsed(withTimerBoundaryEvent(), boundaryEvent("", "")
+            .replace("<bpmn:timerEventDefinition>", "<bpmn:timerEventDefinition unit=\"days\">"));
+
+        assertEquals(List.of("a BPMN attribute is read by no parameter of its entry (deadline,"
+            + " attribute=timerEventDefinition/unit, flowNodeType=TimerBoundaryEvent)"), parsed.problems());
+    }
+
+    @Test
+    void reportsABpmnChildAlongAParametersPathNoParameterReads() throws Exception
+    {
+        final Parsed parsed = parsed(withTimerBoundaryEvent(),
+            boundaryEvent("", "<bpmn:timeCycle>R3/P1D</bpmn:timeCycle>"));
+
+        assertEquals(List.of("a BPMN element is read by no parameter of its entry (deadline,"
+            + " child=timerEventDefinition/timeCycle, flowNodeType=TimerBoundaryEvent)"), parsed.problems());
+    }
+
+    @Test
+    void reportsASecondBpmnElementAlongAParametersPath() throws Exception
+    {
+        // Only the first timer is read, so the second would never fire
+        final NodeBuilder root = withTimerBoundaryEvent();
+
+        final Parsed parsed = parsed(root, boundaryEvent("", "<bpmn:timeDuration>PT1H</bpmn:timeDuration>")
+            .replace("</bpmn:boundaryEvent>", "  <bpmn:timerEventDefinition><bpmn:timeDuration>PT24H"
+                + "</bpmn:timeDuration></bpmn:timerEventDefinition>\n    </bpmn:boundaryEvent>"));
+
+        assertEquals(List.of("a BPMN element is written more than once (deadline, child=timerEventDefinition,"
+            + " flowNodeType=TimerBoundaryEvent)"), parsed.problems());
+    }
+
+    @Test
+    void leavesAMessageDefinitionAloneWhateverEntryTheEventMatched() throws Exception
+    {
+        // The parse reads a message definition on every event, so a plain entry matching one reads it too
+        final NodeBuilder root = withTimerBoundaryEvent();
+        VocabularyFixture.entry(root, "StartEvent", "bpmn:startEvent", "wf:StartEvent", 0);
+
+        final Parsed parsed = parsed(root, "    <bpmn:startEvent id=\"start\">\n"
+            + "      <bpmn:messageEventDefinition id=\"def\" messageRef=\"go\"/>\n"
+            + "    </bpmn:startEvent>\n");
+
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void reportsWhatAMessageDefinitionCarriesBeyondTheMessageItNames() throws Exception
+    {
+        final NodeBuilder root = withTimerBoundaryEvent();
+        VocabularyFixture.entry(root, "StartEvent", "bpmn:startEvent", "wf:StartEvent", 0);
+
+        final Parsed parsed = parsed(root, "    <bpmn:startEvent id=\"start\">\n"
+            + "      <bpmn:messageEventDefinition messageRef=\"go\" correlation=\"x\"/>\n"
+            + "    </bpmn:startEvent>\n");
+
+        assertEquals(List.of("a BPMN attribute is read by no parameter of its entry (start,"
+            + " attribute=messageEventDefinition/correlation, flowNodeType=StartEvent)"), parsed.problems());
+    }
+
+    @Test
+    void leavesTheAttributesTheGraphIsBuiltFromAlone() throws Exception
+    {
+        final Parsed parsed = parsed(withTimerBoundaryEvent(), "    <bpmn:userTask id=\"start\" name=\"Start\"/>\n"
+            + "    <bpmn:userTask id=\"" + TASK + "\" default=\"flow\"/>\n"
+            + "    <bpmn:sequenceFlow id=\"flow\" name=\"Go\" sourceRef=\"start\" targetRef=\"" + TASK + "\"/>\n");
+
+        assertTrue(parsed.version().getChildNode("start").getChildNode("flow").exists());
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void leavesTheChildrenTheParseIgnoresOrReadsItselfAlone() throws Exception
+    {
+        final Parsed parsed = parsed(withTimerBoundaryEvent(), "    <bpmn:userTask id=\"" + TASK + "\">\n"
+            + "      <bpmn:documentation>Begins it</bpmn:documentation>\n"
+            + "      <bpmn:incoming>in</bpmn:incoming><bpmn:outgoing>out</bpmn:outgoing>\n"
+            + "    </bpmn:userTask>\n");
+
+        assertEquals(List.of(), parsed.problems());
+    }
+
+    @Test
+    void leavesTheChildElementItsEntryMatchesOnAlone() throws Exception
     {
         final NodeBuilder root = withTimerBoundaryEvent();
         VocabularyFixture.entry(root, "MessageStartEvent", "bpmn:startEvent", "wf:StartEvent", 10)
             .setProperty("xmlChildElement", "bpmn:messageEventDefinition");
 
-        final Parsed parsed = parsed(root, "    <bpmn:startEvent id=\"start\" name=\"Start\">\n"
-            + "      <bpmn:documentation>Begins it</bpmn:documentation>\n"
-            + "      <bpmn:outgoing>flow</bpmn:outgoing>\n"
+        final Parsed parsed = parsed(root, "    <bpmn:startEvent id=\"start\">\n"
             + "      <bpmn:messageEventDefinition id=\"def\" messageRef=\"go\"/>\n"
-            + "    </bpmn:startEvent>\n"
-            + "    <bpmn:userTask id=\"" + TASK + "\" default=\"flow\"><bpmn:incoming>flow</bpmn:incoming>"
-            + "</bpmn:userTask>\n"
-            + "    <bpmn:sequenceFlow id=\"flow\" name=\"Go\" sourceRef=\"start\" targetRef=\"" + TASK
-            + "\"/>\n");
-        final NodeState after = parsed.version();
+            + "    </bpmn:startEvent>\n");
 
-        assertTrue(after.getChildNode("start").getChildNode("flow").exists());
         assertEquals(List.of(), parsed.problems());
     }
 

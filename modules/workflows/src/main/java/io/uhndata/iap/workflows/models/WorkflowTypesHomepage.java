@@ -35,9 +35,9 @@ import io.uhndata.iap.entities.models.EntityHomepage;
  * A Sling Model wrapping a {@code wf:WorkflowTypesHomepage} node, the root container of the
  * {@code /WorkflowTypes} tree: the vocabulary of everything a workflow graph may be built out of.
  *
- * <p>It documents itself, and the JSON it serves is not just prose: it is what the visual BPMN editor reads to
- * build its toolbars, grouped by the {@link FlowNodeType#getDocumentationCategories() categories} declared here,
- * which is why the shape of that output is a contract and not an implementation detail.</p>
+ * <p>It documents itself, and the JSON it serves is a contract, not just prose: the visual BPMN editor reads it to
+ * know what each element means and which parameters it takes. Entries are listed under their
+ * {@link FlowNodeType#getDocumentationCategories() element type}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,7 +57,7 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
 
     /**
      * The whole vocabulary, each entry adapted to the model of its own specific kind, ordered by label so that the
-     * editor's toolbars and the documentation read the same way every time.
+     * editor and the documentation read the same way every time.
      *
      * <p>Entries of no {@link ModelDispatch#isConcrete kind at all} are left out, the same way the abstract flow
      * nodes are.</p>
@@ -88,7 +88,7 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
 
     /**
      * The heading of the served catalogue, falling back on the node name rather than failing: a heading nobody set
-     * must not take down the catalogue the editor's toolbars are built from.
+     * must not take down the catalogue the editor reads.
      *
      * @return the configured title, or the node name if none is set
      */

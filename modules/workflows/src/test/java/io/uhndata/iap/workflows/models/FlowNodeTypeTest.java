@@ -155,7 +155,16 @@ class FlowNodeTypeTest
     }
 
     @Test
-    void fallsBackOnTheCategoryImpliedByTheKindOfEntry()
+    void fallsBackOnTheElementTypeItsXmlElementNames()
+    {
+        assertEquals(List.of("Service Task"), this.createType("A", ActivityType.RESOURCE_TYPE,
+            Map.of("xmlElement", "bpmn:serviceTask")).getDocumentationCategories());
+        assertEquals(List.of("Start Event"), this.createType("B", CatchingEventType.RESOURCE_TYPE,
+            Map.of("xmlElement", "bpmn:startEvent", "category", new String[0])).getDocumentationCategories());
+    }
+
+    @Test
+    void fallsBackOnTheCategoryImpliedByTheKindOfEntryWhenItNamesNoXmlElement()
     {
         assertEquals(List.of("Events"),
             this.createType("A", CatchingEventType.RESOURCE_TYPE, Map.of()).getDocumentationCategories());
@@ -167,18 +176,27 @@ class FlowNodeTypeTest
             this.createType("D", GatewayType.RESOURCE_TYPE, Map.of()).getDocumentationCategories());
         assertEquals(List.of("Sequence Flows"),
             this.createType("F", SequenceFlowType.RESOURCE_TYPE, Map.of()).getDocumentationCategories());
-        // An entry that declares an empty list falls back too, rather than ending up in no toolbar group at all
-        assertEquals(List.of("Events"), this.createType("E", CatchingEventType.RESOURCE_TYPE,
-            Map.of("category", new String[0])).getDocumentationCategories());
     }
 
     @Test
-    void prefersTheDeclaredCategories()
+    void isListedUnderItsElementTypeAloneAndKeepsItsGroupApart()
+    {
+        final FlowNodeType type = this.createType("CreateContent", ActivityType.RESOURCE_TYPE,
+            Map.of("category", new String[] {"Service Task", "Content"}));
+
+        assertEquals(List.of("Service Task"), type.getDocumentationCategories());
+        assertEquals("Content", type.getGroup());
+        assertEquals("Content", type.toDocumentationJson().getString("group"));
+    }
+
+    @Test
+    void hasNoGroupWhenItDeclaresOnlyItsElementType()
     {
         final FlowNodeType type = this.createType("StartEvent", CatchingEventType.RESOURCE_TYPE,
-            Map.of("category", new String[] {"Start Events", "Favourites"}));
+            Map.of("category", new String[] {"Start Event"}));
 
-        assertEquals(List.of("Start Events", "Favourites"), type.getDocumentationCategories());
+        assertNull(type.getGroup());
+        assertFalse(type.toDocumentationJson().containsKey("group"));
     }
 
     @Test
@@ -187,7 +205,7 @@ class FlowNodeTypeTest
         final FlowNodeType type = this.createType("MessageStartEvent", CatchingEventType.RESOURCE_TYPE, Map.of(
             "label", "Message Start Event",
             "description", "Started by a named message.",
-            "category", new String[] {"Start Events"},
+            "category", new String[] {"Start Event"},
             "priority", 10L,
             "xmlElement", "bpmn:startEvent",
             "xmlChildElement", "bpmn:messageEventDefinition",
@@ -200,7 +218,7 @@ class FlowNodeTypeTest
         assertEquals("MessageStartEvent", json.getString("name"));
         assertEquals("Message Start Event", json.getString("label"));
         assertEquals("Started by a named message.", json.getString("description"));
-        assertEquals(List.of("Start Events"),
+        assertEquals(List.of("Start Event"),
             json.getJsonArray("category").getValuesAs(JsonString.class).stream()
                 .map(JsonString::getString).toList());
         assertEquals(10, json.getInt("priority"));
@@ -242,7 +260,7 @@ class FlowNodeTypeTest
         assertFalse(json.containsKey("xmlExtensionElement"));
         assertFalse(json.containsKey("parameters"));
         assertFalse(json.containsKey("elementTypeDefault"));
-        // The category is never left out: it falls back on the one the kind of entry implies
+        // The category is never left out: it falls back on the element type the xmlElement names
         assertEquals(1, json.getJsonArray("category").size());
     }
 

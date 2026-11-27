@@ -20,25 +20,18 @@ import { useMemo, useState } from "react";
 
 import { Alert, Stack } from "@mui/material";
 
-import ChoiceSearch from "@iap/frontend-commons/inputs/ChoiceSearch";
-import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
 import TextInput from "@iap/frontend-commons/inputs/TextInput";
 import { fromSingle, singleValue } from "@iap/frontend-commons/inputs/values";
 import ValueText from "@iap/frontend-commons/inputs/ValueText";
 
 import { commaSeparated } from "./bpmnParameters";
 import { entryEdits, finished, nameEdits, reconciled, snapshotOf, valueEdits } from "./elementEdits";
+import ElementTypeFields from "./ElementTypeFields";
 import { businessObjectOf, elementName } from "./moddle";
 import { PANEL_EDITS_COMMAND } from "./panelEdits";
 import ParameterField from "./ParameterField";
 import { usePendingWrites } from "./usePendingWrites";
-import {
-  elementTypeOf,
-  entriesOf,
-  matchFlowNodeType,
-  switchableTypes,
-  typeGroupOf,
-} from "./workflowTypes";
+import { isSkippedElement, matchFlowNodeType } from "./workflowTypes";
 
 import type { EditedElement } from "./elementEdits";
 import type { Moddle, ModdleElement } from "./moddle";
@@ -68,17 +61,23 @@ interface ElementPropertiesProps {
   onDraft?: () => void;
 }
 
-// What the element is when the vocabulary does not say. Without a vocabulary that is its BPMN element's
-// name. With one, the server skips the element, which the panel says.
-function ElementTypeUnknown({ name, described }: { name: string; described: boolean }) {
-  return described
-    ? (
-      <>
-        <ValueText label="Element Type" values={[ `Not recognised (${name})` ]} />
-        <Alert severity="warning">The server skips this element when it reads the diagram.</Alert>
-      </>
-    )
-    : <ValueText label="Element Type" values={[ name ]} />;
+// An element the vocabulary does not describe, and the server does not pass over. The server reports it, and
+// refuses to activate the process.
+function UnrecognizedElementType({ name }: { name: string }) {
+  return (
+    <>
+      <ValueText label="Element Type" values={[ `Not recognized (${name})` ]} />
+      <Alert severity="error">The process cannot be activated while it holds this element.</Alert>
+    </>
+  );
+}
+
+// What an element no entry matches is shown as. Without a vocabulary, and for an element the server passes over
+// on purpose, that is the name of its BPMN element.
+function UnmatchedElementType({ name, types }: { name: string; types: readonly FlowNodeType[] }) {
+  return types.length === 0 || isSkippedElement(name)
+    ? <ValueText label="Element Type" values={[ name ]} />
+    : <UnrecognizedElementType name={name} />;
 }
 
 // Display the properties associated with a provided BPMN node.
@@ -95,7 +94,7 @@ export default function ElementProperties(props: ElementPropertiesProps) {
 
   // Worked out once per change to the diagram rather than on every keystroke. bpmn-js edits these objects
   // in place, so the revision is what says they changed.
-  const { edited, switchable, type } = useMemo(() => {
+  const { edited, type } = useMemo(() => {
     const businessObject = businessObjectOf(element);
     const described: EditedElement = {
       element,
@@ -106,7 +105,6 @@ export default function ElementProperties(props: ElementPropertiesProps) {
     };
     return {
       edited: described,
-      switchable: switchableTypes(businessObject, types),
       type: matchFlowNodeType(businessObject, types),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,29 +180,6 @@ export default function ElementProperties(props: ElementPropertiesProps) {
 
   const switchTo = (chosen: FlowNodeType) => apply(entryEdits(edited, type, chosen));
 
-  const changeElementType = (name: string) => {
-    const chosen = switchable.get(name);
-    if (chosen) {
-      switchTo(chosen);
-    }
-  };
-
-  const elementType = type === undefined ? "" : elementTypeOf(type);
-  const kinds = type === undefined ? [] : entriesOf(types, elementType);
-  const changeType = (name: string) => {
-    const chosen = kinds.find(candidate => candidate.name === name);
-    if (chosen) {
-      switchTo(chosen);
-    }
-  };
-  const groupOf = (name: string) => {
-    const entry = kinds.find(candidate => candidate.name === name);
-    return entry ? typeGroupOf(entry) : "";
-  };
-  const grouped = new Set(kinds.map(typeGroupOf)).size > 1;
-
-  const changeable = !readOnly && switchable.size > 1;
-
   return (
     <Stack spacing={2} key={ element.id }>
       <ValueText label="Identifier" values={[ element.id ]} code />
@@ -219,31 +194,8 @@ export default function ElementProperties(props: ElementPropertiesProps) {
 
       {
         type === undefined
-          ? <ElementTypeUnknown name={elementName(edited.businessObject)} described={types.length > 0} />
-          : (
-            <ChoiceSelect
-              label="Element Type"
-              values={fromSingle(elementType)}
-              choices={[ ...new Set([ elementType, ...switchable.keys() ]) ].sort()
-                .map(name => ({ value: name, label: name }))}
-              allowNone={false}
-              readOnly={!changeable}
-              onChange={values => changeElementType(singleValue(values))}
-            />
-          )
-      }
-
-      {
-        type && kinds.length > 1 && (
-          <ChoiceSearch
-            label={`${elementType} Type`}
-            values={fromSingle(type.name)}
-            choices={kinds.map(candidate => ({ value: candidate.name, label: candidate.label }))}
-            groupOf={grouped ? groupOf : undefined}
-            readOnly={readOnly}
-            onChange={values => changeType(singleValue(values))}
-          />
-        )
+          ? <UnmatchedElementType name={elementName(edited.businessObject)} types={types} />
+          : <ElementTypeFields type={type} types={types} readOnly={readOnly} onSwitch={switchTo} />
       }
 
       { type && parameterFields(type) }

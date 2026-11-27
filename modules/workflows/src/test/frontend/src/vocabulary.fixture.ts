@@ -49,6 +49,11 @@ export const type = (name: string, overrides: Partial<FlowNodeType> = {}): FlowN
   ...overrides,
 });
 
+// An entry drawn as one BPMN element, listed under the given category, at the lowest priority unless told otherwise.
+export const drawnEntry = (name: string, xmlElement: string, category: string[], extra: Partial<FlowNodeType> = {}) =>
+  type(name, { label: name, xmlElement: `bpmn:${xmlElement}`, category, priority: 0, ...extra });
+
+
 // The entries a service task carrying a `setState` element could be read as.
 export const COLOUR = parameter("colour", { label: "Colour", xmlLocation: "attribute" });
 export const TO_STATE = parameter("toState", { label: "To state", minValues: 1 });

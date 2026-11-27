@@ -46,6 +46,10 @@ describe("a parameter shown as text", () => {
   });
 });
 
+// As many choices as asked for, valued `V0`, `V1`… and labelled `Value 0`, `Value 1`…
+const numberedChoices = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ value: `V${String(index)}`, label: `Value ${String(index)}` }));
+
 describe("a parameter taking one value", () => {
   it("is typed into, and reports what was typed", async () => {
     const { onChange, user } = renderField(TextParameterField, { description: "The state this move ends in" });
@@ -104,13 +108,22 @@ describe("a parameter with a choice of values", () => {
   });
 
   it("lets a long list of choices be searched", async () => {
-    const many = Array.from({ length: 9 }, (_, i) => ({ value: `V${i}`, label: `Value ${i}` }));
-    const { onChange, user } = renderField(TextParameterField, { options: many });
+    const { onChange, user } = renderField(TextParameterField, { options: numberedChoices(9) });
 
     await user.type(screen.getByRole("combobox"), "Value 7");
+    expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([ "Value 7" ]);
     await user.click(screen.getByRole("option", { name: "Value 7" }));
 
     expect(onChange).toHaveBeenCalledWith([ "V7" ]);
+  });
+
+  it("keeps a list of eight choices a plain list, with a way back to none", async () => {
+    const { user } = renderField(TextParameterField, { options: numberedChoices(8) });
+
+    await user.click(screen.getByRole("combobox"));
+
+    expect(screen.getAllByRole("option").map(option => option.textContent))
+      .toEqual([ "None", ...numberedChoices(8).map(choice => choice.label) ]);
   });
 
   it("offers no way back to none when a value has to be given", async () => {

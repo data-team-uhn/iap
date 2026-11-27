@@ -100,11 +100,12 @@ export const finished = (parameter: Parameter, values: ParameterValue[]): boolea
 
 // The edits that make the element mean another entry. An entry that needs another BPMN element, or another
 // event in it, redraws the element first. The extension element that names the entry is then written to the
-// redrawn one, in the same step.
+// redrawn one, in the same step, with the IAP markup the element held before.
 export function entryEdits(edited: EditedElement, from: FlowNodeType | undefined, chosen: FlowNodeType): PanelEdit[] {
   const { element, businessObject, definitions, moddle } = edited;
   const written = (target: Element): PanelEdit[] =>
-    typeEdit(moddle(), businessObjectOf(target), definitions, from, chosen).map(edit => ({ element: target, ...edit }));
+    typeEdit(moddle(), businessObjectOf(target), definitions, from, chosen, businessObject)
+      .map(edit => ({ element: target, ...edit }));
   const replaceWith = replacementFor(businessObject, chosen);
   return replaceWith ? [ { element, replaceWith, then: written } ] : written(element);
 }

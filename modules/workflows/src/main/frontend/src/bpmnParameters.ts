@@ -405,6 +405,17 @@ export function parameterEdit(
 const attributeNames = (type: FlowNodeType | undefined): Set<string> => new Set(type === undefined ? []
   : type.parameters.filter(parameter => locatedInAttribute(type, parameter)).map(parameter => parameter.name));
 
+// The attributes to write so that the element holds what it held before, less the ones dropped. On the same
+// element that removes the dropped ones. On a redrawn element, which bpmn-js builds with no attribute that
+// BPMN does not declare, that brings back the rest.
+const attributeEdits = (
+  previous: ModdleElement,
+  businessObject: ModdleElement,
+  dropped: ReadonlySet<string>
+): Record<string, string | undefined> => Object.fromEntries(Object.entries(previous.$attrs ?? {})
+  .map(([ key, value ]) => [ key, dropped.has(key) ? undefined : value ] as const)
+  .filter(([ key, value ]) => businessObject.$attrs?.[key] !== value));
+
 // The edit that makes a flow node mean a different vocabulary entry. The element naming the entry being
 // left goes. The one naming the entry taken over arrives empty, unless the node already carries it and
 // keeps what it holds. Anything else under `extensionElements`, such as another namespace's element or
@@ -412,28 +423,31 @@ const attributeNames = (type: FlowNodeType | undefined): Set<string> => new Set(
 // entry taken over reads it too. One only the entry being left read goes, or the parser would report it as
 // an attribute nothing reads.
 // BPMN's own markup always stays: it belongs to the element whatever entry reads it.
+// What stays is read from `previous`, the element as it was before the change. That is another object when the
+// change redrew the element, since bpmn-js copies none of the IAP markup onto the new one.
 export function typeEdit(
   moddle: Moddle,
   businessObject: ModdleElement,
   definitions: ModdleElement,
   from: FlowNodeType | undefined,
-  to: FlowNodeType
+  to: FlowNodeType,
+  previous: ModdleElement = businessObject
 ): ParameterEdit[] {
   const leaving = from?.xmlExtensionElement === to.xmlExtensionElement ? undefined : from?.xmlExtensionElement;
-  const kept = extensionValues(businessObject).filter(value => !isIapElement(value, leaving));
+  const kept = extensionValues(previous).filter(value => !isIapElement(value, leaving));
   const arriving = to.xmlExtensionElement !== undefined
     && !kept.some(value => isIapElement(value, to.xmlExtensionElement));
   const { prefix, binding } = arriving ? writePrefix(businessObject, definitions) : { prefix: "", binding: [] };
   const values = arriving ? [ ...kept, moddle.createAny(`${prefix}:${to.xmlExtensionElement}`, IAP_NS, {}) ] : kept;
   const staying = attributeNames(to);
-  const dropped = [ ...attributeNames(from) ].filter(name => !staying.has(name))
-    .flatMap(name => attributeKey(businessObject, definitions, name) ?? []);
+  const dropped = new Set([ ...attributeNames(from) ].filter(name => !staying.has(name))
+    .flatMap(name => attributeKey(previous, definitions, name) ?? []));
   return [ ...binding, {
     moddleElement: businessObject,
     properties: {
       // An empty container would serialize as an empty `bpmn:extensionElements` element
       extensionElements: values.length === 0 ? undefined : moddle.create("bpmn:ExtensionElements", { values }),
-      ...Object.fromEntries(dropped.map(key => [ key, undefined ])),
+      ...attributeEdits(previous, businessObject, dropped),
     },
   } ];
 }

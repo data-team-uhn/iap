@@ -75,9 +75,11 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
     if (!viewer) {
       return undefined;
     }
+    // A label stands for the element it labels
     const select = (chosen: Element | null) => {
-      selected.current = chosen;
-      setElement(chosen);
+      const labelled = (chosen?.labelTarget as Element | undefined) ?? chosen;
+      selected.current = labelled;
+      setElement(labelled);
     };
     // ElementProperties writes what is still being typed into the element being left before this runs
     const selectionChanged = (event: SelectionChangedEvent) => {

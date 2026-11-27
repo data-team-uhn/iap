@@ -92,6 +92,17 @@ describe("PropertiesPanel", () => {
     expect(screen.queryByText("Please select an element.")).not.toBeInTheDocument();
   });
 
+  it("shows the properties of the element a selected label belongs to", async () => {
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer);
+
+    await fire("selection.changed", { newSelection: [ { id: "StartEvent_1_label",
+      labelTarget: element("StartEvent_1", "Kick off") } as unknown as Element ] });
+
+    expect(screen.getByText("StartEvent_1")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("Kick off");
+  });
+
   it("refuses to edit more than one element at a time", async () => {
     const { viewer, fire } = createViewer();
     renderPanel(viewer);
@@ -188,7 +199,8 @@ describe("PropertiesPanel", () => {
 
   it("reads the selected element through the vocabulary it is handed", async () => {
     const { viewer, fire } = createViewer();
-    const userTask = type("UserTask", { label: "User task", priority: 0, xmlElement: "bpmn:userTask" });
+    const userTask = type("UserTask", { label: "User task", priority: 0, xmlElement: "bpmn:userTask",
+      category: [ "User Task" ] });
     render(<PropertiesPanel viewer={viewer} types={[ userTask ]} />, { wrapper: Themed });
 
     await fire("selection.changed", { newSelection: [ {
@@ -197,7 +209,7 @@ describe("PropertiesPanel", () => {
     } as unknown as Element ] });
 
     expect(screen.getByText("Element Type")).toBeInTheDocument();
-    expect(screen.getByText("Service Task")).toBeInTheDocument();
+    expect(screen.getByText("User Task")).toBeInTheDocument();
   });
 
   it("ignores changes when nothing is selected, or when nothing changed", async () => {

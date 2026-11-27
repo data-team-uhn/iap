@@ -19,7 +19,6 @@
 // The command that writes several of the properties panel's edits as one step to undo.
 
 import type { ModdleElement } from "./moddle";
-import type { ReplaceTarget } from "./workflowTypes";
 import type BpmnModeling from "bpmn-js/lib/features/modeling/Modeling";
 import type BpmnReplace from "bpmn-js/lib/features/replace/BpmnReplace";
 import type { TargetElement } from "bpmn-js/lib/features/replace/BpmnReplace";
@@ -28,13 +27,22 @@ import type CommandStack from "diagram-js/lib/command/CommandStack";
 
 export const PANEL_EDITS_COMMAND = "iap.properties.update";
 
+// What bpmn-js is asked to redraw an element as: the type of element, the event it carries if it is an event,
+// and whether that event interrupts the activity it belongs to.
+export interface ReplaceTarget {
+  type: string;
+  eventDefinitionType?: string;
+  cancelActivity?: boolean;
+  isInterrupting?: boolean;
+}
+
 // One edit the panel makes: a new name, new properties on one moddle object of the element, or the element
 // redrawn as another kind. A redrawn element is a new object under the same id, so what is written to it after is
 // given as a function of it.
 export type PanelEdit =
   | { element: Element; label: string }
   | { element: Element; moddleElement: ModdleElement; properties: Record<string, unknown> }
-  | { element: Element; replaceWith: ReplaceTarget; then?: (replaced: Element) => PanelEdit[] };
+  | { element: Element; replaceWith: ReplaceTarget; then: (replaced: Element) => PanelEdit[] };
 
 export interface PanelEditsContext {
   edits: PanelEdit[];
@@ -63,7 +71,7 @@ class PanelEditsHandler {
       this.modeling.updateLabel(edit.element, edit.label);
     } else if ("replaceWith" in edit) {
       const replaced = this.replace.replaceElement(edit.element, edit.replaceWith as TargetElement);
-      edit.then?.(replaced).forEach(next => this.run(next));
+      edit.then(replaced).forEach(next => this.run(next));
     } else {
       this.modeling.updateModdleProperties(edit.element, edit.moddleElement, edit.properties);
     }

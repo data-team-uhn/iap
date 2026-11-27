@@ -24,7 +24,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * A Sling Model wrapping a {@code wf:SequenceFlowType} node: a kind of arc between two workflow nodes. An entry
- * gives the arcs of its kind their node type, their place in the editor's toolbar, and the parameters they carry
+ * gives the arcs of its kind their node type, their element type in the editor, and the parameters they carry
  * beyond the nodes they join.
  *
  * @version $Id$
@@ -37,7 +37,7 @@ public class SequenceFlowType extends FlowNodeType
     /** The {@code sling:resourceType} of a {@code wf:SequenceFlowType} node. */
     public static final String RESOURCE_TYPE = "wf/SequenceFlowType";
 
-    /** The toolbar group used for sequence flow entries that do not declare one of their own. */
+    /** The category of an entry of this kind that declares neither a category nor an xmlElement. */
     private static final String DEFAULT_CATEGORY = "Sequence Flows";
 
     @Override

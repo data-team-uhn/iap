@@ -91,14 +91,16 @@ final class ParameterTranslation
      * @param element the BPMN element being translated
      * @param scope the repository, its node type registry, and where whatever is wrong is reported
      * @param level the flow node being written, or the structure inside it being read
+     * @param unclaimed where what the element holds that nothing reads is reported
      * @since 0.1.0
      */
-    private record Context(FlowNodeTypeInfo type, Element element, ParseScope scope, Level level)
+    private record Context(FlowNodeTypeInfo type, Element element, ParseScope scope, Level level,
+        UnclaimedMarkup unclaimed)
     {
         /** The same element, one structure further down. */
         Context into(final Level inner)
         {
-            return new Context(this.type, this.element, this.scope, inner);
+            return new Context(this.type, this.element, this.scope, inner, this.unclaimed);
         }
 
         ParseProblems problems()
@@ -165,8 +167,9 @@ final class ParameterTranslation
     {
         final Element extension = type.xmlExtensionElement() == null ? null
             : WorkflowDefinitionUtils.extensionElement(element, type.xmlExtensionElement());
-        final Context context = new Context(type, element, scope, new Level(extension, node, ""));
-        UnclaimedMarkup.report(element, type, scope.problems());
+        final UnclaimedMarkup unclaimed = new UnclaimedMarkup(element, type, scope.problems());
+        final Context context = new Context(type, element, scope, new Level(extension, node, ""), unclaimed);
+        unclaimed.report(extension);
         type.parameters().unread().forEach(path -> reportDeclaration(
             "a vocabulary entry holds a parameter of the wrong node type", path, context));
         // Nothing reads such a field, so a structure missing one would otherwise just look short of a field
@@ -311,8 +314,8 @@ final class ParameterTranslation
     /** Reports what one element of a structure holds that none of its fields reads. */
     private static void reportUnclaimed(final StructureParameter parameter, final Context inner)
     {
-        UnclaimedMarkup.reportInside(inner.extension(), parameter.fields().stream().map(ParameterInfo::name).toList(),
-            inner.prefix(), inner.element(), inner.type(), inner.problems());
+        inner.unclaimed().reportInside(inner.extension(), parameter.fields().stream().map(ParameterInfo::name).toList(),
+            inner.prefix());
     }
 
     /**

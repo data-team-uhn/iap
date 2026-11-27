@@ -121,6 +121,48 @@ public final class WorkflowDefinitionUtils
     /** BPMN's own namespace, which every element a diagram is drawn with belongs to. */
     static final String BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL";
 
+    static final String ID_ATTRIBUTE = "id";
+
+    static final String NAME_ATTRIBUTE = "name";
+
+    static final String SOURCE_REF_ATTRIBUTE = "sourceRef";
+
+    static final String TARGET_REF_PROPERTY = "targetRef";
+
+    static final String ATTACHED_TO_REF_ATTRIBUTE = "attachedToRef";
+
+    static final String DEFAULT_ATTRIBUTE = "default";
+
+    static final String EXTENSION_ELEMENTS = "extensionElements";
+
+    static final String CONDITION_EXPRESSION_ELEMENT = "conditionExpression";
+
+    static final String MESSAGE_EVENT_DEFINITION = "messageEventDefinition";
+
+    static final String MESSAGE_REF_ATTRIBUTE = "messageRef";
+
+    static final String FLOW_NODE_TYPE_DETAIL = "flowNodeType";
+
+    /** What any BPMN element may carry without a parameter reading it: its identity, and what the engine ignores. */
+    static final Set<String> COMMON_ATTRIBUTES = Set.of(ID_ATTRIBUTE);
+
+    static final Set<String> COMMON_CHILDREN = Set.of("documentation", EXTENSION_ELEMENTS);
+
+    /** The attributes of a flow node the parse reads itself, whatever entry it matched: label and graph position. */
+    static final Set<String> STRUCTURAL_ATTRIBUTES = Set.of(ID_ATTRIBUTE, NAME_ATTRIBUTE, SOURCE_REF_ATTRIBUTE,
+        TARGET_REF_PROPERTY, ATTACHED_TO_REF_ATTRIBUTE, DEFAULT_ATTRIBUTE);
+
+    /**
+     * The children of a flow node the parse reads itself, or that say nothing to the engine. A
+     * {@code conditionExpression} is refused on its own.
+     */
+    static final Set<String> STRUCTURAL_CHILDREN = Set.of("documentation", EXTENSION_ELEMENTS, "incoming", "outgoing",
+        CONDITION_EXPRESSION_ELEMENT, MESSAGE_EVENT_DEFINITION);
+
+    /** The elements below a flow node the parse reads itself, with the attributes it reads on each. */
+    static final Map<String, Set<String>> STRUCTURAL_BELOW =
+        Map.of(MESSAGE_EVENT_DEFINITION, Set.of(ID_ATTRIBUTE, MESSAGE_REF_ATTRIBUTE));
+
     /** The IAP attribute a generic service task names its handler in, and the detail naming that handler. */
     private static final String HANDLER_ATTRIBUTE = "handler";
 
@@ -149,22 +191,12 @@ public final class WorkflowDefinitionUtils
 
     private static final String FLOW_NODE_NODETYPE = "wf:FlowNode";
 
-    private static final String NAME_ATTRIBUTE = "name";
-
-    private static final String ATTACHED_TO_REF_ATTRIBUTE = "attachedToRef";
-
-    private static final String MESSAGE_EVENT_DEFINITION = "messageEventDefinition";
-
     private static final String MESSAGE_ELEMENT = "message";
-
-    private static final String MESSAGE_REF_ATTRIBUTE = "messageRef";
 
     private static final String MESSAGE_NAME_PROPERTY = "messageName";
 
     /** JCR's own System View namespace, used verbatim rather than reinvented. */
     private static final String SV_NS = "http://www.jcp.org/jcr/sv/1.0";
-
-    private static final String EXTENSION_ELEMENTS = "extensionElements";
 
     private static final String SV_NODE = "node";
 
@@ -180,12 +212,6 @@ public final class WorkflowDefinitionUtils
 
     private static final String LABEL_PROPERTY = "label";
 
-    private static final String TARGET_REF_PROPERTY = "targetRef";
-
-    private static final String CONDITION_EXPRESSION_ELEMENT = "conditionExpression";
-
-    private static final String ID_ATTRIBUTE = "id";
-
     private static final String XML_ELEMENT_PROPERTY = "xmlElement";
 
     private static final String ELEMENT_ID_PROPERTY = "elementId";
@@ -195,8 +221,6 @@ public final class WorkflowDefinitionUtils
     private static final String JCR_PRIMARY_TYPE = "jcr:primaryType";
 
     private static final String FLOW_NODE_TYPE_NODETYPE = "wf:FlowNodeType";
-
-    private static final String FLOW_NODE_TYPE_DETAIL = "flowNodeType";
 
     private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
 
@@ -1062,7 +1086,7 @@ public final class WorkflowDefinitionUtils
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes, final ParseContext context)
     {
         final String id = element.getAttribute(ID_ATTRIBUTE);
-        final String sourceRef = element.getAttribute("sourceRef");
+        final String sourceRef = element.getAttribute(SOURCE_REF_ATTRIBUTE);
         final String targetRef = element.getAttribute(TARGET_REF_PROPERTY);
         if (StringUtils.isBlank(sourceRef) || StringUtils.isBlank(targetRef)) {
             LOGGER.warn("SequenceFlow {} is missing sourceRef or targetRef, skipping", id);
@@ -1110,7 +1134,7 @@ public final class WorkflowDefinitionUtils
         refuseConditionExpression(element, id, context);
         applyExtensionNodes(element, flow, context);
         final Element sourceElement = elementsById.get(sourceRef);
-        if (sourceElement != null && id.equals(sourceElement.getAttribute("default"))) {
+        if (sourceElement != null && id.equals(sourceElement.getAttribute(DEFAULT_ATTRIBUTE))) {
             flow.setProperty("isDefault", true);
         }
     }

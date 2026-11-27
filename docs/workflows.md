@@ -195,7 +195,8 @@ dropped. That is:
   can complete;
 - a second copy of the entry's own element, of which only the first is read;
 - an IAP attribute of the element that no `attribute` parameter names;
-- an attribute or child of the extension element that no other parameter names.
+- an attribute or child of the extension element that no other parameter names, and an attribute written there
+  with the `iap:` prefix, which the parser reads only unprefixed.
 
 Between them these catch a value written in the wrong one of the two places IAP markup can live, and an
 `iap:handler` attribute beside a handler element, which the element overrules.
@@ -204,10 +205,12 @@ Between them these catch a value written in the wrong one of the two places IAP 
 drawn: a timer firing on a `timeCycle`, a task with a `multiInstanceLoopCharacteristics`, a signal event
 definition on a plain event. Every BPMN attribute and child of the element is checked, and so is every element
 on a parameter's `xmlPath` and the `xmlChildElement` the entry matched on. Whatever no parameter of the entry
-reads is reported, unless the parse needs it for the graph's structure: `id`, `name`, `sourceRef`,
-`targetRef`, `attachedToRef`, `default`, `incoming`, `outgoing`, `documentation` and `extensionElements`. A
-message event definition's `messageRef` is exempt too, since the parse resolves it to `messageName` itself. A
-`conditionExpression` has its own refusal (see [Known gaps](#known-gaps)).
+reads is reported, unless the parse reads it itself, for the label or the graph's structure, or it says nothing
+to the engine: `id`, `name`, `sourceRef`, `targetRef`, `attachedToRef`, `default`, `incoming`, `outgoing`,
+`documentation` and `extensionElements`. A message event definition and its `messageRef` are exempt too, on any
+event, since the parse resolves the message to `messageName` itself. A second element of one name along a path
+is reported, since only the first is read. A `conditionExpression` has its own refusal (see
+[Known gaps](#known-gaps)).
 Markup in any other namespace is left alone.
 
 `jcrProperties` sets fixed properties on the stored node, which is how a terminate end
@@ -230,6 +233,7 @@ the entry behind the `copyContent` handler:
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Copy Content",
+  "category": ["Service Task", "Content"],
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "copyContent",
@@ -444,18 +448,25 @@ its `parameters`, each with the `label`, `description`, `dataType`, cardinality 
 and the `xmlLocation` and `xmlPath` it is written at. A structure also carries its `keyParameter`, and its
 fields as `parameters` of its own. **The shape of that output is a contract** the editor depends on.
 
-An entry's `category` is `[element type, group]`. The element type is what the panel's **Element Type** field
-lists (Task, User Task, Service Task, Call Activity, Start Event, Intermediate Event, End Event, Boundary Event,
-Gateway, Sequence Flow). The **"{Element Type} Type"** field appears when the element type has more than one
-entry. It lists them under group headings when they fall in more than one group, and an entry with no group falls
-under its element type. Service tasks are grouped by domain, such as Content or Workflows. Events and gateways
-have no group: their label already names what tells them apart, such as Message or Timer. Changing Element Type
-replaces the BPMN element, in one undo step, with the entry of that type flagged `elementTypeDefault`. With none flagged, it is
-the first entry by label that needs neither an extension element nor an event definition. Two shipped entries
-carry the flag: Exclusive Gateway and Intermediate Throw Event, since their types have several such entries.
-A deployment that adds an element type with several plain entries flags one in its own content. A boundary
-event or sequence flow is never replaced, and an element no entry describes shows a "Not recognised" warning in
-place of both fields. The type field is a search, and so is a parameter with more than eight options.
+An entry's `category` is `[element type, group]`. The catalogue lists the entry once, under its element type,
+and serves the group as `group`. An entry declaring no category falls under the element type its `xmlElement`
+names, so `bpmn:serviceTask` gives Service Task. The element type is what the panel's **Element Type** field
+lists, and the field offers only element types of the same family: activities, start events, intermediate
+events, end events or gateways. The **"{Element Type} Type"** field appears when the element type has more than
+one entry the element can be made to match. It lists them under group headings when they fall in more than one
+group, and an entry with no group falls under its element type. Service tasks are grouped by domain, such as
+Content or Workflows. Events and gateways have no group: their label names what tells them apart, such as
+Message or Timer.
+
+Changing Element Type replaces the BPMN element, in one undo step, with the entry of that type flagged
+`elementTypeDefault`. With none flagged, it is the first entry by label that needs neither an extension element
+nor an event definition. A deployment that adds an element type with several plain entries flags one in its own
+content. Replacing an element keeps its IAP attributes and the extension elements of other namespaces, such as a
+start condition, and an event's `cancelActivity` or `isInterrupting`. A boundary event or a sequence flow keeps
+its element type, though a boundary event's type field can swap the event definition it carries. An element no
+entry describes says that the process cannot be activated with it; a note, group, data object or lane is named
+plainly, since the parse skips those. The type field is a search, and so is a parameter with more than eight
+options. [`/WorkflowTypes.doc.json`](#self-documentation) lists what the running system offers.
 
 ### Runtime
 
@@ -1409,7 +1420,6 @@ each completed on its own.
 - **No subprocesses or multi-instance markers.** "One review per assigned reviewer" is a
   multi-instance activity, the first of these likely to be wanted.
 - **Signal, escalation, conditional and link events** are unmapped; the vocabulary
-  covers timer, message, error and terminate. A timer reads only a `timeDuration`: one written with a
-  `timeCycle` or a `timeDate` is reported as BPMN its entry does not read.
+  covers timer, message, error and terminate.
 - **No `oak:index` definitions.** The console's listings and homepage discovery both
   query without one.

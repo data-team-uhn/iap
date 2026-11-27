@@ -30,17 +30,28 @@ import { useFieldProps, type ValueInputProps } from "./valueInput";
 import { changeAndCommit, fromSingle } from "./values";
 import ValueText from "./ValueText";
 
-interface ChoiceSearchProps extends ValueInputProps {
-  // Where the choices are fetched from. Give this or `choices`.
-  source?: ChoiceSource;
-  // A list already in hand, such as `[ { value: "pdf", label: "PDF" } ]`
-  choices?: Choice[];
-  // The heading a value is listed under, with a single value only. Values sharing one are shown together.
-  groupOf?: (value: string) => string;
-  multiple?: boolean;
-  // Whether a value's chip is marked in error, when `multiple` shows the values as chips
-  chipError?: (value: string) => boolean;
-}
+// Where the choices come from: fetched from a source, or a list already in hand, such as
+// `[ { value: "pdf", label: "PDF" } ]`.
+type ChoiceOrigin =
+  | { source: ChoiceSource; choices?: never }
+  | { choices: Choice[]; source?: never };
+
+// One value, which may be listed under a heading, or several, shown as chips.
+export type ChoiceCount =
+  | {
+    multiple?: false;
+    // The heading a value is listed under. Values sharing one are shown together.
+    groupOf?: (value: string) => string;
+    chipError?: never;
+  }
+  | {
+    multiple: true;
+    // Whether a value's chip is marked in error
+    chipError?: (value: string) => boolean;
+    groupOf?: never;
+  };
+
+export type ChoiceSearchProps = ValueInputProps & ChoiceOrigin & ChoiceCount;
 
 interface SingleChoiceProps extends ValueInputProps {
   choices: Choice[];
@@ -48,9 +59,9 @@ interface SingleChoiceProps extends ValueInputProps {
   groupOf?: (value: string) => string;
 }
 
-// A ChoiceSearch holding one value.
+// A ChoiceSearch holding one value. A required one cannot be cleared, only changed.
 function SingleChoiceSearch(props: SingleChoiceProps) {
-  const { values, choices, loading, groupOf, onChange, onCommit, disabled } = props;
+  const { values, choices, loading, groupOf, required = false, onChange, onCommit, disabled } = props;
   const { field, visit } = useFieldProps(props);
   const listed = useMemo(() => {
     const offered = choices.map(choice => choice.value);
@@ -68,7 +79,7 @@ function SingleChoiceSearch(props: SingleChoiceProps) {
   const options = current === undefined || labels.has(current) ? listed : [ ...listed, current ];
 
   return (
-    <Autocomplete<string>
+    <Autocomplete<string, false, boolean>
       options={options}
       groupBy={groupOf}
       getOptionLabel={value => labels.get(value) ?? value}
@@ -76,6 +87,7 @@ function SingleChoiceSearch(props: SingleChoiceProps) {
       value={current ?? null}
       loading={loading}
       disabled={disabled}
+      disableClearable={required}
       onChange={(event, picked, reason) => {
         // Erasing the text clears the value. Another search usually follows, so the clear is committed only
         // when the field is left
@@ -100,10 +112,11 @@ function SingleChoiceSearch(props: SingleChoiceProps) {
 
 // One value or several, picked from a list that narrows as it is typed.
 export default function ChoiceSearch(props: ChoiceSearchProps) {
-  const { label, values, source, multiple = false, chipError, problems = [], readOnly = false } = props;
+  const { source, choices: handed, multiple, groupOf, chipError, ...input } = props;
+  const { label, values, problems = [], readOnly = false } = input;
   const { choices: found, loading, loadError } = useChoices(source);
-  const choices = props.choices ?? found;
-  const shown = { ...props, problems: loadError ? [ ...problems, loadError ] : problems };
+  const choices = handed ?? found;
+  const shown = { ...input, problems: loadError ? [ ...problems, loadError ] : problems };
 
   if (readOnly) {
     return <ValueText label={label} values={values} choices={choices} />;
@@ -111,5 +124,5 @@ export default function ChoiceSearch(props: ChoiceSearchProps) {
   if (multiple) {
     return <MultiValueInput {...shown} choices={choices} free={false} loading={loading} chipError={chipError} />;
   }
-  return <SingleChoiceSearch {...shown} choices={choices} loading={loading} />;
+  return <SingleChoiceSearch {...shown} choices={choices} loading={loading} groupOf={groupOf} />;
 }

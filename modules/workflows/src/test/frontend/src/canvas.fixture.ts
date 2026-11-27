@@ -60,6 +60,13 @@ const UPDATE_HANDLER = {
   },
 };
 
+// What bpmn-js's replace hands back: a new object under the same id. It keeps the name, and none of the markup
+// BPMN does not declare.
+const redrawn = (element: Element, target: { type: string }) => ({
+  id: element.id,
+  businessObject: { $type: target.type, name: (element.businessObject as ModdleElement).name },
+}) as unknown as Element;
+
 // A canvas on diagram-js's own event bus and command stack, with the panel's command registered. Listener
 // priorities, grouped commands, undo and deselecting what is removed then behave as in the modeler. Modeling is stood in for by
 // recorded calls, which `writeThrough` turns into commands. Any other service is given as is.
@@ -71,7 +78,7 @@ export function createCanvas(services: Record<string, unknown> = {}, definitions
     eventBus: [ "type", EventBus ],
     commandStack: [ "type", CommandStack ],
     modeling: [ "value", { updateLabel, updateModdleProperties } ],
-    bpmnReplace: [ "value", { replaceElement: vi.fn() } ],
+    bpmnReplace: [ "value", { replaceElement: vi.fn(redrawn) } ],
     elementRegistry: [ "value", {
       get: (id: string) => registered.get(id),
       add: (element: Element) => registered.set(element.id, element),
