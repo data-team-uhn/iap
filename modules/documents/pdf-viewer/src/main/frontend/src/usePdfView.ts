@@ -178,7 +178,10 @@ export function usePdfView(
       eventBus,
       linkService,
       findController,
-      removePageBorders: true,
+      // With page borders, a page fitted to the width leaves room on either side of it, where the frame shows
+      // around it; their look is replaced in the frame's styles. A frame spanning a phone's width keeps all of
+      // it for the page.
+      removePageBorders: frame.dataset.edgeToEdge !== undefined,
       abortSignal: stop.signal,
       // The viewer edits nothing. PDF.js's editor would listen for files dropped anywhere on the page.
       annotationEditorMode: components.AnnotationEditorType.DISABLE,
