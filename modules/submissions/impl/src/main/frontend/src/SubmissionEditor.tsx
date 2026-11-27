@@ -120,13 +120,16 @@ function SubmissionEditor({ path, queueSave, onChanged }: {
   }, [ doFetch, path, reload, queueSave, onChanged ]);
 
   // Reads the form again after a requirement's component changed the submission, such as by
-  // attaching a file
+  // attaching a file. The read waits for the saves queued before it: holding the newest token, a read
+  // that landed before one of them committed would put back what that save replaced.
   const changed = useCallback(() => {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     onChanged?.();
-    reload(token).catch((e: unknown) => setError(messageOf(e)));
-  }, [ reload, onChanged ]);
+    queueSave(() => Promise.resolve())
+      .then(() => reload(token))
+      .catch((e: unknown) => setError(messageOf(e)));
+  }, [ queueSave, reload, onChanged ]);
 
   if (error) {
     return <Alert severity="error">{error}</Alert>;

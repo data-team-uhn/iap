@@ -250,11 +250,41 @@ describe("SubmissionEditor", () => {
       render(<SubmissionEditor path={PATH} queueSave={queueSave} onChanged={changed} />);
       await userEvent.click(await screen.findByRole("button", { name: PATH }));
 
-      expect(queued).toHaveLength(1);
+      // The component's save, then the editor's place in line for reading the form again
+      expect(queued).toHaveLength(2);
       await expect(queued[0]).resolves.toBe(A_RESULT);
       expect(changed).toHaveBeenCalledTimes(1);
       // The form is read again
       await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    });
+
+    it("reads the form after a component's change only once the saves queued before it have landed", async () => {
+      registerRequirementComponent(candidateFor("test/Thing", Thing));
+      const requirements = [ details([ duration() ]), contributed("test/Thing") ];
+      const saves: ((response: Response) => void)[] = [];
+      let reads = 0;
+      stubFetch(({ method }) => {
+        if (method === "POST") {
+          return new Promise<Response>(respond => {
+            saves.push(respond);
+          });
+        }
+        reads += 1;
+        return jsonResponse(form({ title: reads === 1 ? "Before" : "After the answer", requirements }));
+      });
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      await userEvent.type(await screen.findByLabelText(/several days/), "half day");
+      await userEvent.tab();
+      await waitFor(() => expect(saves).toHaveLength(1));
+      await userEvent.click(screen.getByRole("button", { name: PATH }));
+      await settle();
+
+      // The answer is still on its way, so a read now could miss it
+      expect(reads).toBe(1);
+      saves[0](jsonResponse({}));
+
+      expect(await screen.findByText("After the answer")).toBeInTheDocument();
     });
 
     it("shows a component that fails to draw as a part it cannot complete, and draws the rest", async () => {
