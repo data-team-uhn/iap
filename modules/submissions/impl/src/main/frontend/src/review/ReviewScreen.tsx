@@ -84,7 +84,7 @@ import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
 import { SentLetter } from "./LetterDialog";
-import NoteKindIcon from "./noteIcons";
+import NoteKindIcon, { KindCount } from "./noteIcons";
 import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter, letterText } from "./rebLetter";
@@ -1309,12 +1309,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                               const many = counted.filter(note => note.kind === kind).length;
                               return many > 0 && (
                               // Each on its kind's tint, as its notes are, to stand out on the contents' own
-                                <Box component="span" key={kind}
-                                  sx={theme => ({ ...getPassageCardStyle(theme, kindInfo(kind).mark, 0.5),
-                                    display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
-                                    color: `${kindInfo(kind).mark}.main` })}>
-                                  <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
-                                </Box>
+                                <KindCount key={kind} kind={kind} count={many} />
                               );
                             })}
                           </Box>

@@ -26,7 +26,9 @@ import StickyNote2Outlined from "@mui/icons-material/StickyNote2Outlined";
 import WarningAmberOutlined from "@mui/icons-material/WarningAmberOutlined";
 import { Box, type SvgIconProps } from "@mui/material";
 
-import type { NoteKind } from "./reviewData";
+import { getPassageCardStyle } from "@iap/documents-pdf-viewer/passageStyles";
+
+import { kindInfo, type NoteKind } from "./reviewData";
 
 // PRETOTYPE. Each kind of note's icon, as its heading and the editor's choices show it: a linked answer the page it is
 // on, a mismatch a warning, the AI pre-review a checklist, an issue a flag, raised for the study team, the
@@ -61,6 +63,18 @@ export default function NoteKindIcon({ kind, sx, fontSize, ...props }: { kind: N
         fontSize: fontSize === "inherit" ? "inherit" : SIZES[fontSize ?? "medium"], ...sx as object }}>
       <AutoAwesome sx={{ fontSize: "0.8em", mr: "0.05em" }} />
       <Icon fontSize="inherit" {...props} />
+    </Box>
+  );
+}
+
+// PRETOTYPE. How many notes of a kind something holds, on the kind's tint with its icon, as the contents and the
+// review's risks count them
+export function KindCount({ kind, count }: { kind: NoteKind; count: number }) {
+  const mark = kindInfo(kind).mark;
+  return (
+    <Box component="span" sx={theme => ({ ...getPassageCardStyle(theme, mark, 0.5), display: "inline-flex",
+      alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6, typography: "caption", color: `${mark}.main` })}>
+      <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{count}
     </Box>
   );
 }

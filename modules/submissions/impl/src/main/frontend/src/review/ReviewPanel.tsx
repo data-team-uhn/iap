@@ -48,9 +48,9 @@ import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import LetterPage from "./LetterPage";
 import NoteCard, { SentLock, Thread } from "./NoteCard";
-import NoteKindIcon from "./noteIcons";
+import NoteKindIcon, { KindCount } from "./noteIcons";
 import RemoveButton from "./RemoveButton";
-import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
+import { SEVERITIES, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
 import { PanelBody } from "./sidePanel";
 
 import type { DraftedLetter } from "./rebLetter";
@@ -137,14 +137,14 @@ const plural = (count: number, one: string, many = `${one}s`) => `${count} ${cou
 
 const anchored = (note: ReviewNote) => note.subjects.length > 0 || Boolean(note.passage);
 
-// "2 AI · 1 mismatch · 1 issue", what is under a risk
-function countsOf(risk: RiskReview): string {
-  return [
-    risk.aiOpen.length > 0 ? `${risk.aiOpen.length} AI` : "",
-    risk.mismatches.length > 0 ? plural(risk.mismatches.length, "mismatch", "mismatches") : "",
-    risk.issues.length > 0 ? plural(risk.issues.length, "issue") : "",
-  ].filter(Boolean).join(" · ");
+// What is under a risk, kind by kind, as the contents count what is in a part: the AI's open concerns, the answers the
+// protocol contradicts, the reviewer's issues; and the same said in words
+function countsOf(risk: RiskReview): { kind: NoteKind; count: number }[] {
+  return ([ [ "aiIssue", risk.aiOpen.length ], [ "contradiction", risk.mismatches.length ],
+    [ "issue", risk.issues.length ] ] as const).filter(([ , count ]) => count > 0).map(([ kind, count ]) => ({ kind, count }));
 }
+const COUNTED: Record<string, [ string, string ]> = { aiIssue: [ "open AI concern", "open AI concerns" ],
+  contradiction: [ "AI-found mismatch", "AI-found mismatches" ], issue: [ "issue", "issues" ] };
 
 // From how wide the review lays out its risks down the side, the one chosen beside them, rather than one under another
 const WIDE = 700;
@@ -503,7 +503,14 @@ function RiskHeading({ risk, doing, open, onClick }: {
             sx={{ color: risk.considered ? "text.secondary" : "primary.main", fontWeight: "fontWeightMedium" }}>
             {risk.topic.label}
           </Typography>
-          {counts && <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>{counts}</Typography>}
+          {counts.length > 0 && (
+            <Tooltip disableInteractive placement="right" title={counts.map(({ kind, count }) =>
+              plural(count, COUNTED[kind][0], COUNTED[kind][1])).join(", ")}>
+              <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+                {counts.map(({ kind, count }) => <KindCount key={kind} kind={kind} count={count} />)}
+              </Box>
+            </Tooltip>
+          )}
         </Box>
         {open !== undefined && (open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />)}
       </ButtonBase>
