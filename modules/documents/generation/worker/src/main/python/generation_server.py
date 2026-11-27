@@ -302,35 +302,42 @@ class GenerationHandler(BaseHTTPRequestHandler):
             return
         self.close_connection = keep_alive
 
+        # Refused unread too, as a body costs about twice its size once decoded: a burst of
+        # requests while the slots are busy must not take the memory the running ones need. The
+        # caller gets its 503, or, sending a large body, a reset, which IAP reads the same way.
+        if _STATE is None or _STATE.shutdown_requested:
+            self.close_connection = True
+            send_json_response(
+                self, HTTPStatus.SERVICE_UNAVAILABLE, {"error": "worker shutting down"}
+            )
+            return
+        if not _STATE.slots.acquire(blocking=False):
+            self.close_connection = True
+            send_json_response(
+                self,
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {"error": f"worker busy: all {_STATE.slot_count} conversion slots in use"},
+            )
+            return
+
         # Every reply is decided inside the try and written once after it, and the client
         # and must not be answered twice
         try:
             body = read_request_body(self, _get_max_request_bytes())
             template, context = _decode_request(body)
-            if _STATE is None or _STATE.shutdown_requested:
-                reply = (HTTPStatus.SERVICE_UNAVAILABLE, {"error": "worker shutting down"})
-            elif not _STATE.slots.acquire(blocking=False):
-                reply = (
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                    {"error": f"worker busy: all {_STATE.slot_count} conversion slots in use"},
-                )
-            else:
-                try:
-                    started = time.monotonic()
-                    docx, pdf = generate(template, context)
-                    _log_stderr(
-                        f"generate done ms={int((time.monotonic() - started) * 1000)} "
-                        f"docxBytes={len(docx)} pdfBytes={len(pdf)}"
-                    )
-                    reply = (
-                        HTTPStatus.OK,
-                        {
-                            "docx": base64.b64encode(docx).decode("ascii"),
-                            "pdf": base64.b64encode(pdf).decode("ascii"),
-                        },
-                    )
-                finally:
-                    _STATE.slots.release()
+            started = time.monotonic()
+            docx, pdf = generate(template, context)
+            _log_stderr(
+                f"generate done ms={int((time.monotonic() - started) * 1000)} "
+                f"docxBytes={len(docx)} pdfBytes={len(pdf)}"
+            )
+            reply = (
+                HTTPStatus.OK,
+                {
+                    "docx": base64.b64encode(docx).decode("ascii"),
+                    "pdf": base64.b64encode(pdf).decode("ascii"),
+                },
+            )
         except RequestBodyRefused as exc:
             reply = (exc.status, {"error": str(exc)})
         except BadRequest as exc:
@@ -352,6 +359,8 @@ class GenerationHandler(BaseHTTPRequestHandler):
                     "reference": reference,
                 },
             )
+        finally:
+            _STATE.slots.release()
         send_json_response(self, *reply)
 
 

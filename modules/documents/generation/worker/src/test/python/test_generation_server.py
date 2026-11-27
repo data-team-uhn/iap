@@ -192,6 +192,33 @@ class TestGenerate:
         assert "busy" in reply["error"]
         assert fake_soffice == []
 
+    def test_refuses_while_busy_without_reading_the_body(self, server, fake_soffice, monkeypatch):
+        read = []
+        monkeypatch.setattr(
+            generation_server, "read_request_body", lambda *args: read.append(args) or b""
+        )
+        state = generation_server._STATE
+        for _ in range(state.slot_count):
+            state.slots.acquire()
+        try:
+            status, _ = post(server, generate_request(build_template("x"), {}))
+        finally:
+            for _ in range(state.slot_count):
+                state.slots.release()
+
+        assert status == HTTPStatus.SERVICE_UNAVAILABLE
+        assert read == [], "a refused body must cost nothing to hold"
+
+    def test_a_refused_request_gives_its_slot_back(self, server, fake_soffice):
+        status, _ = post(server, b"not json")
+
+        assert status == HTTPStatus.BAD_REQUEST
+        state = generation_server._STATE
+        free = [state.slots.acquire(blocking=False) for _ in range(state.slot_count)]
+        for _ in filter(None, free):
+            state.slots.release()
+        assert all(free)
+
 
 class TestBadRequests:
     @pytest.mark.parametrize(
