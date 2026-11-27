@@ -108,6 +108,9 @@ type Node = Record<string, unknown>;
 // Renamed when the default changed, so every reviewer starts from it once
 const KINDS_KEY = "iap.review.notesShown2";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
+const SIDE_OPEN_KEY = "iap.review.sideOpen";
+// How big the round buttons folding the panels away are
+const FOLD_SIZE = 24;
 const FOCUSED_KEY = "iap.review.focused";
 
 // PRETOTYPE: a form's items with the answers the data has, as those of an older version
@@ -370,6 +373,10 @@ export default function ReviewScreen({ path }: { path: string }) {
   };
   const full = reviewFull && sideTab === "review";
   const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
+  // Whether the panel of notes and review beside the page is open, as the contents on the other side can be folded
+  const [ sideOpen = true, setSideOpen ] = useStoredFlag(SIDE_OPEN_KEY);
+  // Over the whole workspace, or on a narrow screen where it is a tab of its own, it cannot be folded away
+  const sideShown = sideOpen || full || narrow;
   // Whether the reviewer sees only what concerns them, as they start, or the whole submission
   const [ focused = true, setFocused ] = useStoredFlag(FOCUSED_KEY);
   const myName = usePersonName(me ?? "");
@@ -1182,6 +1189,24 @@ export default function ReviewScreen({ path }: { path: string }) {
   // The panel beside the page: the notes on what is read, saying how many, or the review. On a narrow
   // screen, where the notes go along the page, the choice is between the page and the review
   const tabCount = (count: string) => <Box component="span" sx={{ ml: 0.75, color: "text.secondary" }}>{count}</Box>;
+  // A round button on the edge between the page and a panel open beside it, centred on that edge, at the height of
+  // the panels' headings, folding the panel away, its chevron pointing that way; folded, the panel brings itself back
+  // from its own rail
+  const foldButton = (side: "left" | "right", onClick: () => void, label: string,
+    place: Record<string, number | string>) => (
+    <Tooltip title="Fold away" placement={side === "left" ? "right" : "left"} disableInteractive>
+      <ButtonBase aria-label={label} onClick={onClick}
+        sx={theme => ({ position: "absolute", top: 10, zIndex: 3, ...place, width: FOLD_SIZE, height: FOLD_SIZE,
+          borderRadius: "50%", bgcolor: "background.paper", color: "text.secondary", border: 1, borderColor: "divider",
+          boxShadow: 1, transition: theme.transitions.create([ "background-color", "color" ]),
+          "&:hover": { bgcolor: "primary.main", color: "primary.contrastText", borderColor: "primary.main" },
+          "&.Mui-focusVisible": { outline: `2px solid ${(theme.vars ?? theme).palette.primary.main}`,
+            outlineOffset: 2 } })}>
+        {side === "left" ? <ChevronLeftOutlined sx={{ fontSize: "1.1rem" }} />
+          : <ChevronRightOutlined sx={{ fontSize: "1.1rem" }} />}
+      </ButtonBase>
+    </Tooltip>
+  );
   // Halfway between the panel's tint and the page's grey, for the tab not shown
   const halfwayTint = (theme: Theme) => {
     const { background } = (theme.vars ?? theme).palette;
@@ -1386,15 +1411,10 @@ export default function ReviewScreen({ path }: { path: string }) {
               overflow: "hidden", bgcolor: { md: "background.tinted" }, boxShadow: { md: "none" },
               mr: { md: -1.5 }, borderTopRightRadius: { md: 0 }, borderBottomRightRadius: { md: 0 },
               borderRight: { md: "none" } }}>
-              <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
+              {/* As tall as when it held a button, its title level with the page's */}
+              <Stack direction="row" sx={{ alignItems: "center", minHeight: 34, pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5,
+                boxSizing: "content-box" }}>
                 <Typography variant="panelTitle" sx={{ flex: 1 }}>Submission contents</Typography>
-                {!narrow && (
-                  <Tooltip title="Fold away" disableInteractive>
-                    <IconButton size="small" aria-label="Fold the contents away" onClick={() => setRailOpen(false)}>
-                      <ChevronLeftOutlined />
-                    </IconButton>
-                  </Tooltip>
-                )}
               </Stack>
               <ToggleButtonGroup
                 exclusive fullWidth size="small" value={focused ? "focused" : "all"} aria-label="What to show"
@@ -1435,140 +1455,180 @@ export default function ReviewScreen({ path }: { path: string }) {
             its own */}
           <GroupLabels.Provider value={groupLabels}>
             <ReviewerTopics.Provider value={reviewerTopics}>
-              <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%",
-                ...narrow ? {} : { p: 0, height: "100%", display: "flex", flexDirection: "column",
-                  overflow: "hidden" },
-                ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
-                {narrow ? current && (
-                  <>
-                    {isFormRequirement(current) && (
-                      <Box sx={{ flex: { md: 1 }, minHeight: { md: 0 } }}>
-                        <SearchContext.Provider value={searchContext}>
-                          <FormReview
-                            items={answered(current.items)} data={viewData ?? data}
-                            groups={focused ? othersGroups : groups}
-                            myGroups={myGroups} shown={showing}
-                            onEvidence={openEvidence} actions={pageActions}
+              {/* The page, with tags on its edges folding the panels beside it away, or bringing them back */}
+              <Box sx={{ position: "relative", flex: 1, minWidth: 0, width: "100%", display: "flex" }}>
+                {!narrow && railOpen && foldButton("left", () => setRailOpen(false), "Fold the contents away",
+                  { left: -FOLD_SIZE / 2 })}
+                <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%",
+                  ...narrow ? {} : { p: 0, height: "100%", display: "flex", flexDirection: "column",
+                    overflow: "hidden" },
+                  ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
+                  {narrow ? current && (
+                    <>
+                      {isFormRequirement(current) && (
+                        <Box sx={{ flex: { md: 1 }, minHeight: { md: 0 } }}>
+                          <SearchContext.Provider value={searchContext}>
+                            <FormReview
+                              items={answered(current.items)} data={viewData ?? data}
+                              groups={focused ? othersGroups : groups}
+                              myGroups={myGroups} shown={showing}
+                              onEvidence={openEvidence} actions={pageActions}
+                              notesWidth={notesWidth} onNotesWidth={setNotesWidth}
+                              selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
+                              heading={title}
+                              formLabel={current.label}
+                            />
+                          </SearchContext.Provider>
+                        </Box>
+                      )}
+                      {isDocumentRequirement(current) && shownDocument && (
+                        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                          {/* Drawn again on coming back from the review, as it cannot lay out its pages while hidden */}
+                          <DocumentReview
+                            key={`${current.name} ${sideTab}`}
+                            document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
+                            compareWith={comparing(shownDocument)} hideChanges={!showChanges}
+                            onHideChanges={hidden => setShowChanges(!hidden)}
+                            onChangeCount={count => countChanges(shownDocument.uuid, count)}
+                            onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
+                            actions={pageActions} questionLabel={questionLabel}
+                            search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
                             notesWidth={notesWidth} onNotesWidth={setNotesWidth}
-                            selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
                             heading={title}
-                            formLabel={current.label}
+                            onShowAnswer={openAnswer}
+                            onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
                           />
-                        </SearchContext.Provider>
-                      </Box>
-                    )}
-                    {isDocumentRequirement(current) && shownDocument && (
-                      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                        {/* Drawn again on coming back from the review, as it cannot lay out its pages while hidden */}
-                        <DocumentReview
-                          key={`${current.name} ${sideTab}`}
-                          document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
-                          compareWith={comparing(shownDocument)} hideChanges={!showChanges}
-                          onHideChanges={hidden => setShowChanges(!hidden)}
-                          onChangeCount={count => countChanges(shownDocument.uuid, count)}
-                          onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
-                          actions={pageActions} questionLabel={questionLabel}
-                          search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
-                          notesWidth={notesWidth} onNotesWidth={setNotesWidth}
-                          heading={title}
-                          onShowAnswer={openAnswer}
-                          onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
-                        />
-                      </Box>
-                    )}
-                  </>
-                ) : (
+                        </Box>
+                      )}
+                    </>
+                  ) : (
                   // One part, or two one above the other, beside the notes of the one being worked in, listed down the
                   // right as tall as the panel
-                  <Box ref={setWorkArea} sx={{ display: "flex", height: "100%", minHeight: 0 }}>
-                    <Box ref={setPaneColumn} sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-                      {top && part("top", top)}
-                      {bottom && (
-                        <RowSplit at={splitAt} onAt={setSplitAt} container={() => paneColumn} label="Resize the parts" />
-                      )}
-                      {bottom && part("bottom", bottom)}
-                    </Box>
-                    <SplitHandle
-                      width={notesShown} onWidth={setNotesWidth} container={() => workArea} min={NOTES_LEAST}
-                      reserve={PAGE_LEAST} label="Resize the notes" onReset={() => setNotesWidth(NOTES_WIDTH)}
-                    />
-                    {/* Over the whole workspace, the review covers the contents and the page, which stay as they were
-                        under it, to come back to */}
-                    <Box sx={{ width: notesShown, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
-                      bgcolor: "background.tinted", ...full ? { position: "absolute", inset: 0, width: "auto",
-                        zIndex: 2, borderRadius: 1, border: 1, borderColor: "divider", overflow: "hidden" } : {} }}>
-                      {!full && sideTabs}
-                      {/* Kept while the review is shown, the notes listed into it by the page staying in step */}
-                      <Box sx={{ flex: 1, minHeight: 0, flexDirection: "column",
-                        display: sideTab === "notes" ? "flex" : "none" }}>
-                        {noteFilters}
-                        {/* Of two parts, which one's notes these are */}
-                        {bottom && current && (
-                          <Typography variant="body2" sx={{ px: 1.5, pt: 1.25, color: "text.secondary" }}>
-                            Notes on <Box component="b" sx={{ color: "primary.main" }}>{current.label}</Box>
-                          </Typography>
+                    <Box ref={setWorkArea} sx={{ display: "flex", height: "100%", minHeight: 0 }}>
+                      <Box ref={setPaneColumn} sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                        {top && part("top", top)}
+                        {bottom && (
+                          <RowSplit at={splitAt} onAt={setSplitAt} container={() => paneColumn} label="Resize the parts" />
                         )}
-                        <Box
-                          ref={setNotesSlot}
-                          sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
-                            "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
-                              typography: "body2", textAlign: "center", py: 2 } }}
-                        />
-                        {resolvedLine}
+                        {bottom && part("bottom", bottom)}
                       </Box>
-                      {sideTab === "review" && reviewPanel}
-                    </Box>
-                  </Box>
-                )}
-                {dialog === "sentLetter" && lastLetter && (
-                  <SentLetter letter={lastLetter} onClose={() => setDialog(undefined)} />
-                )}
-                {dialog === "approve" && (
-                  <ConfirmActionDialog
-                    title={`Approve ${text(submission.identifier)}?`} confirmLabel="Approve" workingLabel="Approving…"
-                    onConfirm={() => decide("approved", suggestions.length > 0
-                      ? approvalLetter({ ...letterInput, issues: suggestions }) : undefined)}
-                    onClose={() => setDialog(undefined)}
-                  >
-                    {unconsidered + aiOpen + contradicted === 0 ? (
-                      <DialogContentText sx={{ mb: 1 }}>
-                        Every risk is marked as considered, and nothing the AI raised is still open.
-                      </DialogContentText>
-                    ) : (
-                      <>
-                        <DialogContentText>Still open in your review</DialogContentText>
-                        <Box component="ul" sx={{ mt: 0.5, mb: 1, pl: 3, color: "text.secondary" }}>
-                          {unconsidered > 0 && (
-                            <li>{`${unconsidered} of your ${risks.length} risks aren't marked as considered.`}</li>
+                      {sideShown && (
+                        <SplitHandle
+                          width={notesShown} onWidth={setNotesWidth} container={() => workArea} min={NOTES_LEAST}
+                          reserve={PAGE_LEAST} label="Resize the notes" onReset={() => setNotesWidth(NOTES_WIDTH)}
+                        />
+                      )}
+                      {/* Over the whole workspace, the review covers the contents and the page, which stay as they were
+                        under it, to come back to */}
+                      {/* Folded away, it stays, hidden, the notes listed into it by the page staying in step */}
+                      <Box sx={{ width: notesShown, flexShrink: 0, height: "100%", display: sideShown ? "flex" : "none",
+                        flexDirection: "column", bgcolor: "background.tinted", position: "relative", ...full ? { position: "absolute",
+                          inset: 0, width: "auto", zIndex: 2, borderRadius: 1, border: 1, borderColor: "divider",
+                          overflow: "hidden" } : {} }}>
+                        {/* Its tabs, after the tag folding it away, on its inner edge */}
+                        {!full && (
+                          <Box sx={{ pl: 0.5, bgcolor: halfwayTint, flexShrink: 0 }}>{sideTabs}</Box>
+                        )}
+                        {/* On the line of the handle beside it, half the handle's width before the panel */}
+                        {!full && foldButton("right", () => setSideOpen(false), "Fold the notes and review away",
+                          { left: -8 - FOLD_SIZE / 2 })}
+                        {/* Kept while the review is shown, the notes listed into it by the page staying in step */}
+                        <Box sx={{ flex: 1, minHeight: 0, flexDirection: "column",
+                          display: sideTab === "notes" ? "flex" : "none" }}>
+                          {noteFilters}
+                          {/* Of two parts, which one's notes these are */}
+                          {bottom && current && (
+                            <Typography variant="body2" sx={{ px: 1.5, pt: 1.25, color: "text.secondary" }}>
+                              Notes on <Box component="b" sx={{ color: "primary.main" }}>{current.label}</Box>
+                            </Typography>
                           )}
-                          {aiOpen > 0 && <li>{aiOpen === 1 ? "1 concern" : `${aiOpen} concerns`} the AI raised, not
-                            made into issues or dismissed.</li>}
-                          {contradicted > 0 && <li>{contradicted === 1 ? "1 AI-found mismatch"
-                            : `${contradicted} AI-found mismatches`} between the answers and the protocol.</li>}
+                          <Box
+                            ref={setNotesSlot}
+                            sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
+                              "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
+                                typography: "body2", textAlign: "center", py: 2 } }}
+                          />
+                          {resolvedLine}
                         </Box>
-                      </>
-                    )}
-                    {suggestions.length > 0 && (
-                      <DialogContentText sx={{ mb: 1 }}>
-                        Your {suggestions.length === 1 ? "suggestion goes" : `${suggestions.length} suggestions go`} to
-                        the study team with the approval.
-                      </DialogContentText>
-                    )}
-                    <DialogContentText>An approval cannot be taken back.</DialogContentText>
-                  </ConfirmActionDialog>
-                )}
-                {dialog === "board" && (
-                  <EscalateDialog
-                    open title={text(submission.title)} identifier={text(submission.identifier)}
-                    pi={text(submission.pi)}
-                    summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
-                    parts={listed.map(one => ({ name: one.name, label: one.label }))}
-                    issues={openIssues} about={about}
-                    onClose={() => setDialog(undefined)}
-                  />
-                )}
+                        {sideTab === "review" && reviewPanel}
+                      </Box>
+                    </Box>
+                  )}
+                  {dialog === "sentLetter" && lastLetter && (
+                    <SentLetter letter={lastLetter} onClose={() => setDialog(undefined)} />
+                  )}
+                  {dialog === "approve" && (
+                    <ConfirmActionDialog
+                      title={`Approve ${text(submission.identifier)}?`} confirmLabel="Approve" workingLabel="Approving…"
+                      onConfirm={() => decide("approved", suggestions.length > 0
+                        ? approvalLetter({ ...letterInput, issues: suggestions }) : undefined)}
+                      onClose={() => setDialog(undefined)}
+                    >
+                      {unconsidered + aiOpen + contradicted === 0 ? (
+                        <DialogContentText sx={{ mb: 1 }}>
+                          Every risk is marked as considered, and nothing the AI raised is still open.
+                        </DialogContentText>
+                      ) : (
+                        <>
+                          <DialogContentText>Still open in your review</DialogContentText>
+                          <Box component="ul" sx={{ mt: 0.5, mb: 1, pl: 3, color: "text.secondary" }}>
+                            {unconsidered > 0 && (
+                              <li>{`${unconsidered} of your ${risks.length} risks aren't marked as considered.`}</li>
+                            )}
+                            {aiOpen > 0 && <li>{aiOpen === 1 ? "1 concern" : `${aiOpen} concerns`} the AI raised, not
+                              made into issues or dismissed.</li>}
+                            {contradicted > 0 && <li>{contradicted === 1 ? "1 AI-found mismatch"
+                              : `${contradicted} AI-found mismatches`} between the answers and the protocol.</li>}
+                          </Box>
+                        </>
+                      )}
+                      {suggestions.length > 0 && (
+                        <DialogContentText sx={{ mb: 1 }}>
+                          Your {suggestions.length === 1 ? "suggestion goes" : `${suggestions.length} suggestions go`} to
+                          the study team with the approval.
+                        </DialogContentText>
+                      )}
+                      <DialogContentText>An approval cannot be taken back.</DialogContentText>
+                    </ConfirmActionDialog>
+                  )}
+                  {dialog === "board" && (
+                    <EscalateDialog
+                      open title={text(submission.title)} identifier={text(submission.identifier)}
+                      pi={text(submission.pi)}
+                      summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
+                      parts={listed.map(one => ({ name: one.name, label: one.label }))}
+                      issues={openIssues} about={about}
+                      onClose={() => setDialog(undefined)}
+                    />
+                  )}
 
-              </Paper>
+                </Paper>
+              </Box>
+              {!sideShown && (
+                // Folded, it still says what it holds, mirroring the contents on the other side: a button bringing it
+                // back, and its tabs, read downwards, each opening it on that tab
+                <Paper sx={{ width: 48, py: 1, flexShrink: 0, display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 1 }}>
+                  <Tooltip title="Show the notes and the review" placement="left" disableInteractive>
+                    <IconButton size="small" aria-label="Show the notes and the review" onClick={() => setSideOpen(true)}>
+                      <ChevronLeftOutlined />
+                    </IconButton>
+                  </Tooltip>
+                  {([ [ "notes", "Notes" ], [ "review", "Review" ] ] as const).map(([ tab, name ]) => (
+                    <ButtonBase key={tab} aria-label={`Show the ${name.toLowerCase()}`}
+                      onClick={() => {
+                        setSideTab(tab);
+                        setSideOpen(true);
+                      }}
+                      sx={{ writingMode: "vertical-rl", typography: "caption", whiteSpace: "nowrap", py: 1, px: 0.5,
+                        borderRadius: 1, color: sideTab === tab ? "primary.main" : "text.secondary",
+                        fontWeight: sideTab === tab ? "fontWeightBold" : "fontWeightRegular",
+                        "&:hover": { bgcolor: "action.hover" } }}>
+                      {name}
+                    </ButtonBase>
+                  ))}
+                </Paper>
+              )}
             </ReviewerTopics.Provider>
           </GroupLabels.Provider>
         </Stack>
