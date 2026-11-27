@@ -90,13 +90,13 @@ describe("CategoryTree", () => {
   });
 
   it("shows the schema a category is bound to", () => {
-    renderTree([node("Bound", { schemaVersion: { uuid: "u1", schemaName: "basic", version: "1.0" } })]);
+    renderTree([node("Bound", { schemaVersion: { path: "/Schemas/basic/v1", schemaName: "basic", version: "1.0" } })]);
 
     expect(screen.getByText("Schema: basic v1.0")).toBeInTheDocument();
   });
 
   it("stands in for the parts of an incomplete schema binding", () => {
-    renderTree([node("Bound", { schemaVersion: { uuid: "u1" } })]);
+    renderTree([node("Bound", { schemaVersion: { path: "/Schemas/basic/v1" } })]);
 
     expect(screen.getByText("Schema: ? v?")).toBeInTheDocument();
   });
@@ -132,10 +132,19 @@ describe("CategoryTree", () => {
       const { actions } = renderTree([node("First"), node("Middle"), node("Last")]);
 
       fireEvent.click(screen.getByRole("button", { name: "Move Middle up" }));
-      expect(actions.onReorder).toHaveBeenCalledWith(node("Middle"), "before First", "up");
+      expect(actions.onReorder).toHaveBeenCalledWith(node("Middle"), "First", "up");
 
+      // Last among them, so before none
       fireEvent.click(screen.getByRole("button", { name: "Move Middle down" }));
-      expect(actions.onReorder).toHaveBeenCalledWith(node("Middle"), "after Last", "down");
+      expect(actions.onReorder).toHaveBeenCalledWith(node("Middle"), undefined, "down");
+    });
+
+    it("moves a category down before the sibling after its next one", () => {
+      const { actions } = renderTree([node("First"), node("Second"), node("Third")]);
+
+      fireEvent.click(screen.getByRole("button", { name: "Move First down" }));
+
+      expect(actions.onReorder).toHaveBeenCalledWith(node("First"), "Third", "down");
     });
 
     it("keeps the categories at each end from moving past it", () => {
@@ -155,7 +164,7 @@ describe("CategoryTree", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Move ChildB up" }));
 
-      expect(actions.onReorder).toHaveBeenCalledWith(node("ChildB"), "before ChildA", "up");
+      expect(actions.onReorder).toHaveBeenCalledWith(node("ChildB"), "ChildA", "up");
     });
   });
 

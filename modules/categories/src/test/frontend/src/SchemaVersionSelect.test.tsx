@@ -22,8 +22,7 @@ import SchemaVersionSelect from "@iap/categories/SchemaVersionSelect";
 import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 // The JSON of /Schemas: a titled schema, and one whose title falls back to its node name. The
-// picker skips the rest: nodes that are not schemas or versions, a version with no `jcr:uuid`, and
-// a schema with no versions.
+// picker skips the rest: nodes that are not schemas or versions, and a schema with no versions.
 const schemasJson = {
   "jcr:primaryType": "sch:SchemasHomepage",
   "notASchema": { "jcr:primaryType": "nt:unstructured" },
@@ -32,17 +31,16 @@ const schemasJson = {
     "title": "Basic study",
     "tags": ["retired"],
     "notAVersion": { "jcr:primaryType": "nt:unstructured" },
-    "v1": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-1", "version": "1.0", "tags": ["active"] },
-    "v2": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-2", "version": "2.0", "tags": ["retired"] },
+    "v1": { "jcr:primaryType": "sch:SchemaVersion", "version": "1.0", "tags": ["active"] },
+    "v2": { "jcr:primaryType": "sch:SchemaVersion", "version": "2.0", "tags": ["retired"] },
     "v4": {
-      "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-4", "version": "4.0",
+      "jcr:primaryType": "sch:SchemaVersion", "version": "4.0",
       "tags": ["active"], "inheritedTags": ["retired"],
     },
-    "unreferenceable": { "jcr:primaryType": "sch:SchemaVersion", "version": "3.0" },
   },
   "untitled": {
     "jcr:primaryType": "sch:Schema",
-    "v1": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-3" },
+    "v1": { "jcr:primaryType": "sch:SchemaVersion" },
   },
   "empty": { "jcr:primaryType": "sch:Schema" },
 };
@@ -126,12 +124,11 @@ describe("SchemaVersionSelect", () => {
 
     // "empty" has no versions at all, and basic's identifier-less v3.0 cannot be bound to
     expect(within(listbox).queryByText("empty")).not.toBeInTheDocument();
-    expect(within(listbox).queryByText("v3.0")).not.toBeInTheDocument();
   });
 
   it("offers leaving the category unbound", async () => {
     stubSchemas();
-    const { onChange } = renderSelect("uuid-1");
+    const { onChange } = renderSelect("/Schemas/basic/v1");
 
     const listbox = await openMenu();
     fireEvent.click(within(listbox).getByText(/None/));
@@ -146,12 +143,12 @@ describe("SchemaVersionSelect", () => {
     const listbox = await openMenu();
     fireEvent.click(within(listbox).getByText("v2.0"));
 
-    expect(onChange).toHaveBeenCalledWith("uuid-2");
+    expect(onChange).toHaveBeenCalledWith("/Schemas/basic/v2");
   });
 
   it("keeps a binding it cannot account for selectable", async () => {
     stubSchemas();
-    renderSelect("uuid-gone");
+    renderSelect("/Schemas/gone/v1");
 
     const listbox = await openMenu();
 

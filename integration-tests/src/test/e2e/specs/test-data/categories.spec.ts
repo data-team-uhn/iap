@@ -48,9 +48,8 @@ test.describe('the sample category taxonomy', () => {
   test('checks the loaded categories in', async ({ request }) => {
     // Categories are versionable, and content loaded into the repository by a bundle is checked out
     // unless the descriptor asks otherwise — leaving every sample category permanently without a base
-    // version. The `checkin:=true` directive on the initial content is what puts them in a committed
-    // state; edits from the administration UI check them out and back in again through the Sling POST
-    // servlet, which is configured to do so automatically.
+    // version. The `checkin:=true` directive on the initial content puts them in a committed state. The
+    // workflow steps behind the administration UI check a category out before changing it.
     const response = await request.get('/Categories/Retrospective.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
@@ -65,12 +64,9 @@ test.describe('the sample category taxonomy', () => {
     // reason retirement is a tag rather than a boolean - is invisible to the unit tests.
     const branch = '/Categories/Prospective/Observational';
     const leaf = `${branch}/SurveysEducation`;
-    const patch = (value: string) => request.post(branch, {
-      headers: adminAuth,
-      form: { 'tags@TypeHint': 'String[]', 'tags@Patch': 'true', tags: value },
-    });
+    const send = (event: string) => request.post(`${branch}.${event}.json`, { headers: adminAuth });
 
-    expect((await patch('+retired')).ok()).toBeTruthy();
+    expect((await send('retire')).ok()).toBeTruthy();
     try {
       const response = await request.get(`${leaf}.json`, { headers: adminAuth });
       expect(response.ok()).toBeTruthy();
@@ -80,7 +76,7 @@ test.describe('the sample category taxonomy', () => {
       expect(category.inheritedTags).toContain('retired');
       expect(category.tags ?? []).not.toContain('retired');
     } finally {
-      await patch('-retired');
+      await send('activate');
     }
 
     const restored = await request.get(`${leaf}.json`, { headers: adminAuth });

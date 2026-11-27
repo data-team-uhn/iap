@@ -27,20 +27,19 @@ import {
   sessionInfo,
   stubFailingFetch,
   stubFetch,
+  type StubbedRequest,
 } from "@iap/frontend-commons/fetch.fixture";
 import { ReLoginContext } from "@iap/frontend-commons/reLogin";
 
-// Answers the tree GET with `treeJson` and every other request with `postStatus`. `location` is the
-// Location header of those answers; null for none. Only the deletion endpoint's `refusal` is read.
+// Answers the tree GET with `treeJson`, and every write with `status` and `answer` as its JSON body;
+// null for no body.
 const stubServer = (
   treeJson: Record<string, unknown>,
-  postStatus = 200,
-  location: string | null = "/Categories/new-category",
-  refusal?: Record<string, unknown>,
+  status = 200,
+  answer: Record<string, unknown> | null = { status: "completed" },
 ) => stubFetch(request => request.method === "GET"
   ? jsonResponse(treeJson)
-  : new Response(refusal ? JSON.stringify(refusal) : null,
-    { status: postStatus, headers: location ? { Location: location } : {} }));
+  : new Response(answer ? JSON.stringify(answer) : null, { status }));
 
 const treeJson = {
   "jcr:primaryType": "cat:CategoriesHomepage",
@@ -57,6 +56,11 @@ const loadedHook = async () => {
 };
 
 const lastPost = () => sentRequests().filter(request => request.method === "POST").at(-1);
+
+// The changes an update event carries, as one JSON object in its `patch` parameter
+const patchOf = (request?: StubbedRequest): unknown => JSON.parse(request?.params.get("patch") ?? "null");
+
+const getCount = () => sentRequests().filter(request => request.method === "GET").length;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -100,33 +104,29 @@ describe("useCategoryTree", () => {
     expect(result.current.loadError).not.toContain("Failed to fetch");
   });
 
-  it("creates a category under its parent and reloads the tree", async () => {
+  it("asks for a category under its parent with its fields, then reloads the tree", async () => {
     stubServer(treeJson);
     const result = await loadedHook();
 
-    const newPath = await result.current.create("/Categories/Retrospective",
-      { label: "New one", description: "Something" });
+    await result.current.create("/Categories/Retrospective", { label: "New one", description: "Something" });
 
     const post = lastPost();
-    expect(post?.url).toBe("/Categories/Retrospective/");
-    expect(post?.params.get("jcr:primaryType")).toBe("cat:Category");
-    expect(post?.params.get(":nameHint")).toBe("New one");
-    expect(post?.params.get("label")).toBe("New one");
-    expect(post?.params.get("description")).toBe("Something");
-    expect(newPath).toBe("/Categories/new-category");
-    // The mount GET, then a re-fetch after the mutation
-    expect(sentRequests().filter(request => request.method === "GET").length).toBe(2);
+    expect(post?.url).toBe("/Categories/Retrospective.create.json");
+    expect(post?.params.get("type")).toBe("cat:Category");
+    expect(patchOf(post)).toEqual({ label: "New one", description: "Something" });
+    // The mount GET, then a re-fetch after the change
+    expect(getCount()).toBe(2);
   });
 
-  it("binds a schema version as a typed reference", async () => {
+  it("binds a schema version by its path", async () => {
     stubServer(treeJson);
     const result = await loadedHook();
 
-    await result.current.update("/Categories/Retrospective", { label: "Retro", schemaVersion: "uuid-sv1" });
+    await result.current.update("/Categories/Retrospective", { label: "Retro", schemaVersion: "/Schemas/basic/v1" });
 
     const post = lastPost();
-    expect(post?.params.get("schemaVersion")).toBe("uuid-sv1");
-    expect(post?.params.get("schemaVersion@TypeHint")).toBe("Reference");
+    expect(post?.url).toBe("/Categories/Retrospective.update.json");
+    expect(patchOf(post)).toEqual({ label: "Retro", schemaVersion: "/Schemas/basic/v1" });
   });
 
   it("removes a schema version binding explicitly", async () => {
@@ -135,9 +135,16 @@ describe("useCategoryTree", () => {
 
     await result.current.update("/Categories/Retrospective", { label: "Retro", schemaVersion: null });
 
-    const post = lastPost();
-    expect(post?.params.get("schemaVersion@Delete")).toBe("true");
-    expect(post?.params.has("schemaVersion")).toBe(false);
+    expect(patchOf(lastPost())).toEqual({ label: "Retro", schemaVersion: null });
+  });
+
+  it("leaves out the fields a save leaves as they are", async () => {
+    stubServer(treeJson);
+    const result = await loadedHook();
+
+    await result.current.update("/Categories/Retrospective", { label: "Retro" });
+
+    expect(patchOf(lastPost())).toEqual({ label: "Retro" });
   });
 
   it("unbinds a schema version on its own, leaving the other fields alone", async () => {
@@ -146,50 +153,48 @@ describe("useCategoryTree", () => {
 
     await result.current.unbindSchemaVersion("/Categories/Retrospective");
 
-    const post = lastPost();
-    expect(post?.params.get("schemaVersion@Delete")).toBe("true");
-    expect(post?.params.has("label")).toBe(false);
-    expect(post?.params.has("description")).toBe(false);
+    expect(patchOf(lastPost())).toEqual({ schemaVersion: null });
   });
 
-  it("moves a category with a trailing-slash destination, keeping its name", async () => {
+  it("moves a category under another parent", async () => {
     stubServer(treeJson);
     const result = await loadedHook();
 
-    await result.current.move("/Categories/Retrospective", "/Categories/Prospective");
+    await result.current.move("/Categories/Retrospective", { parent: "/Categories/Prospective" });
 
     const post = lastPost();
-    expect(post?.params.get(":operation")).toBe("move");
-    expect(post?.params.get(":dest")).toBe("/Categories/Prospective/");
+    expect(post?.url).toBe("/Categories/Retrospective.move.json");
+    expect([ ...post?.params ?? [] ]).toEqual([[ "parent", "/Categories/Prospective" ]]);
   });
 
-  it("reorders a category with Sling's :order syntax", async () => {
+  it("places a category before a sibling, or last when it names none", async () => {
     stubServer(treeJson);
     const result = await loadedHook();
 
-    await result.current.reorder("/Categories/Retrospective", "before Prospective");
+    await result.current.move("/Categories/Retrospective", { before: "Prospective" });
+    expect([ ...lastPost()?.params ?? [] ]).toEqual([[ "before", "Prospective" ]]);
 
-    expect(lastPost()?.params.get(":order")).toBe("before Prospective");
+    await result.current.move("/Categories/Retrospective", {});
+    expect([ ...lastPost()?.params ?? [] ]).toEqual([]);
   });
 
-  it("retires a category by placing the retired tag", async () => {
+  it("retires a category, and reopens it", async () => {
     stubServer(treeJson);
     const result = await loadedHook();
 
-    await result.current.setRetired("/Categories/Retrospective", true);
+    await result.current.retire("/Categories/Retrospective");
+    expect(lastPost()?.url).toBe("/Categories/Retrospective.retire.json");
 
-    const post = lastPost();
-    expect(post?.params.get("tags@Patch")).toBe("true");
-    expect(post?.params.get("tags")).toBe("+retired");
+    await result.current.reopen("/Categories/Retrospective");
+    expect(lastPost()?.url).toBe("/Categories/Retrospective.activate.json");
   });
 
-  it("unretires a category by removing the same tag", async () => {
-    stubServer(treeJson);
+  it("passes on the reason a change was refused, and reads nothing again", async () => {
+    stubServer(treeJson, 409, { error: "Retrospective is retired already" });
     const result = await loadedHook();
 
-    await result.current.setRetired("/Categories/Retrospective", false);
-
-    expect(lastPost()?.params.get("tags")).toBe("-retired");
+    await expect(result.current.retire("/Categories/Retrospective")).rejects.toThrow("Retrospective is retired already");
+    expect(getCount()).toBe(1);
   });
 
   it("deletes a category through the deletion endpoint and reloads the tree", async () => {
@@ -203,27 +208,7 @@ describe("useCategoryTree", () => {
     expect(sent[0].url).toBe("/Categories/Retrospective");
     expect(sentRequests().filter(request => request.method === "POST")).toHaveLength(0);
     // The reload that follows it
-    expect(sentRequests().filter(request => request.method === "GET")).toHaveLength(2);
-  });
-
-  it("takes the created category's path from the Location the server reports", async () => {
-    stubServer(treeJson, 200, "/Categories/Retrospective/New%20One.json");
-    const result = await loadedHook();
-
-    await act(async () => {
-      expect(await result.current.create("/Categories/Retrospective", { label: "New One" }))
-        .toBe("/Categories/Retrospective/New One");
-    });
-  });
-
-  it("falls back to the parent when the server reports no Location", async () => {
-    stubServer(treeJson, 200, null);
-    const result = await loadedHook();
-
-    await act(async () => {
-      expect(await result.current.create("/Categories/Retrospective", { label: "New One" }))
-        .toBe("/Categories/Retrospective");
-    });
+    expect(getCount()).toBe(2);
   });
 
   it("reports a load failure that was not an Error", async () => {
@@ -234,7 +219,7 @@ describe("useCategoryTree", () => {
   });
 
   it("passes on the reason the deletion endpoint refused", async () => {
-    stubServer(treeJson, 409, null, {
+    stubServer(treeJson, 409, {
       "status.code": 409,
       "status": "referenced",
       "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
@@ -246,7 +231,7 @@ describe("useCategoryTree", () => {
   });
 
   it("still reports a refusal when its reason cannot be read", async () => {
-    stubServer(treeJson, 409);
+    stubServer(treeJson, 409, null);
     const result = await loadedHook();
 
     await expect(result.current.remove("/Categories/Retrospective"))
@@ -272,9 +257,7 @@ describe("useCategoryTree", () => {
       }
       // The first write meets the expired session, and the re-sent one succeeds
       posts += 1;
-      return posts === 1
-        ? new Response(null, { status: 500 })
-        : new Response(null, { headers: { Location: "/Categories/Retrospective" } });
+      return posts === 1 ? new Response(null, { status: 500 }) : jsonResponse({ status: "completed" });
     });
     const signIn = vi.fn(() => Promise.resolve(true));
     const { result } = renderHook(() => useCategoryTree(), {
@@ -283,7 +266,7 @@ describe("useCategoryTree", () => {
     });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(() => result.current.setRetired("/Categories/Retrospective", true));
+    await act(() => result.current.retire("/Categories/Retrospective"));
 
     expect(signIn).toHaveBeenCalled();
     // Two POSTs for the one change: the write was sent again, not reported

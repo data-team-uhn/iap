@@ -17,25 +17,13 @@
  */
 package io.uhndata.iap.schemas.editing.internal;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.Reader;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.Stream;
 
-import jakarta.json.Json;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
-import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 import org.apache.sling.api.resource.Resource;
@@ -45,18 +33,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
-import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
-import io.uhndata.iap.conditions.internal.OwnPropertyOperandResolver;
-import io.uhndata.iap.conditions.internal.PropertyOperandResolver;
-import io.uhndata.iap.conditions.internal.TagsOperandResolver;
-import io.uhndata.iap.conditions.models.Condition;
-import io.uhndata.iap.conditions.models.ConditionGroup;
-import io.uhndata.iap.conditions.models.ConditionOperand;
-import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.schemas.editing.internal.handlers.CreateSchemaVersionHandler;
+import io.uhndata.iap.workflows.testing.SystemWorkflowDefinitions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -95,48 +74,27 @@ class SystemWorkflowDefinitionsTest
 
     private final SlingContext context = new SlingContext();
 
-    private ConditionEvaluator evaluator;
+    private SystemWorkflowDefinitions shipped;
 
-    private int targets;
+    private int versions;
 
     @BeforeEach
-    void setUp() throws IOException, URISyntaxException
+    void setUp() throws IOException
     {
-        this.context.addModelsForClasses(Content.class, SingleCondition.class, ConditionGroup.class,
-            ConditionOperand.class);
-        this.context.create().resource("/libs/cond/SingleCondition", "sling:resourceSuperType", "cond/Condition");
-        this.context.create().resource("/libs/cond/ConditionGroup", "sling:resourceSuperType", "cond/Condition");
         this.context.create().resource("/libs/sch/SchemaVersion", "sling:resourceSuperType", "data/Entity");
-        this.context.registerInjectActivateService(new LiteralOperandResolver());
-        this.context.registerInjectActivateService(new PropertyOperandResolver());
-        this.context.registerInjectActivateService(new TagsOperandResolver());
-        this.context.registerInjectActivateService(new OwnPropertyOperandResolver());
-        this.evaluator = this.context.registerInjectActivateService(new ConditionEvaluatorImpl());
-        for (final Path path : definitions()) {
-            final String json = withResourceTypes(read(path)).toString();
-            this.context.load().json(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)),
-                "/SystemWorkflows/" + path.getFileName().toString().replace(".json", ""));
-        }
+        this.shipped = SystemWorkflowDefinitions.loadIn(this.context, SystemWorkflowDefinitionsTest.class);
     }
 
     @Test
-    void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
+    void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException
     {
-        final List<Path> definitions = definitions();
-        assertEquals(24, definitions.size());
-        for (final Path path : definitions) {
-            final JsonObject version = read(path).getJsonObject("v1");
-            final String name = path.getFileName().toString();
+        final List<String> names = this.shipped.names();
+        assertEquals(24, names.size());
+        for (final String name : names) {
+            final JsonObject version = this.shipped.version(name);
             assertTrue(BOUND_TYPES.contains(version.getString("targetResourceType")), name);
-            final JsonObject start = version.getJsonObject("requested");
-            assertEquals(List.of("iap-administrators"),
-                start.getJsonArray("performers").getValuesAs(value -> ((JsonString) value).getString()),
-                name);
-            version.values().stream()
-                .filter(node -> node.getValueType() == JsonValue.ValueType.OBJECT)
-                .map(JsonValue::asJsonObject)
-                .filter(node -> "wf:Activity".equals(node.getString("jcr:primaryType")))
-                .forEach(activity -> assertTrue(HANDLERS.contains(activity.getString("handler")), name));
+            assertEquals(List.of("iap-administrators"), this.shipped.performers(name), name);
+            assertTrue(HANDLERS.containsAll(this.shipped.handlers(name)), name);
         }
     }
 
@@ -144,45 +102,45 @@ class SystemWorkflowDefinitionsTest
     void aDraftIsPublishedEditedOrDiscarded()
     {
         final String[] draft = { "draft" };
-        assertEquals(Set.of("activateSchemaVersion"), answering(VERSION, "activate", draft, NONE));
-        assertEquals(Set.of("updateDraftSchemaVersion"), answering(VERSION, "update", draft, NONE));
-        assertEquals(Set.of("discardSchemaVersion"), answering(VERSION, "discard", draft, NONE));
-        assertEquals(Set.of(), answering(VERSION, "retire", draft, NONE));
+        assertEquals(Set.of("activateSchemaVersion"), this.shipped.answering(VERSION, "activate", draft, NONE));
+        assertEquals(Set.of("updateDraftSchemaVersion"), this.shipped.answering(VERSION, "update", draft, NONE));
+        assertEquals(Set.of("discardSchemaVersion"), this.shipped.answering(VERSION, "discard", draft, NONE));
+        assertEquals(Set.of(), this.shipped.answering(VERSION, "retire", draft, NONE));
         // Not while its schema is retired
-        assertEquals(Set.of(), answering(VERSION, "activate", draft, RETIRED));
+        assertEquals(Set.of(), this.shipped.answering(VERSION, "activate", draft, RETIRED));
     }
 
     @Test
     void anActiveVersionIsRetiredOrReworded()
     {
         final String[] active = { "active" };
-        assertEquals(Set.of("retireSchemaVersion"), answering(VERSION, "retire", active, NONE));
-        assertEquals(Set.of("updatePublishedSchemaVersion"), answering(VERSION, "update", active, NONE));
-        assertEquals(Set.of(), answering(VERSION, "activate", active, NONE));
+        assertEquals(Set.of("retireSchemaVersion"), this.shipped.answering(VERSION, "retire", active, NONE));
+        assertEquals(Set.of("updatePublishedSchemaVersion"), this.shipped.answering(VERSION, "update", active, NONE));
+        assertEquals(Set.of(), this.shipped.answering(VERSION, "activate", active, NONE));
     }
 
     @Test
     void aRetiredVersionIsReactivatedWhileItsSchemaIsOpen()
     {
-        assertEquals(Set.of("reactivateSchemaVersion"), answering(VERSION, "activate", RETIRED, NONE));
-        assertEquals(Set.of(), answering(VERSION, "activate", RETIRED, RETIRED));
+        assertEquals(Set.of("reactivateSchemaVersion"), this.shipped.answering(VERSION, "activate", RETIRED, NONE));
+        assertEquals(Set.of(), this.shipped.answering(VERSION, "activate", RETIRED, RETIRED));
         // Retired only through its schema, which reopening the schema undoes
-        assertEquals(Set.of(), answering(VERSION, "activate", NONE, RETIRED));
-        assertEquals(Set.of(), answering(VERSION, "retire", RETIRED, NONE));
-        assertEquals(Set.of("updatePublishedSchemaVersion"), answering(VERSION, "update", RETIRED, NONE));
+        assertEquals(Set.of(), this.shipped.answering(VERSION, "activate", NONE, RETIRED));
+        assertEquals(Set.of(), this.shipped.answering(VERSION, "retire", RETIRED, NONE));
+        assertEquals(Set.of("updatePublishedSchemaVersion"), this.shipped.answering(VERSION, "update", RETIRED, NONE));
     }
 
     @Test
     void aSchemaIsRetiredAndReopened()
     {
-        assertEquals(Set.of("retireSchema"), answering(SCHEMA, "retire", NONE, NONE));
-        assertEquals(Set.of(), answering(SCHEMA, "activate", NONE, NONE));
-        assertEquals(Set.of("reopenSchema"), answering(SCHEMA, "activate", RETIRED, NONE));
-        assertEquals(Set.of(), answering(SCHEMA, "retire", RETIRED, NONE));
-        assertEquals(Set.of("updateSchema"), answering(SCHEMA, "update", RETIRED, NONE));
-        assertEquals(Set.of("discardSchema"), answering(SCHEMA, "discard", RETIRED, NONE));
-        assertEquals(Set.of("createSchemaVersion"), answering(SCHEMA, "createVersion", NONE, NONE));
-        assertEquals(Set.of(), answering(SCHEMA, "createVersion", RETIRED, NONE));
+        assertEquals(Set.of("retireSchema"), this.shipped.answering(SCHEMA, "retire", NONE, NONE));
+        assertEquals(Set.of(), this.shipped.answering(SCHEMA, "activate", NONE, NONE));
+        assertEquals(Set.of("reopenSchema"), this.shipped.answering(SCHEMA, "activate", RETIRED, NONE));
+        assertEquals(Set.of(), this.shipped.answering(SCHEMA, "retire", RETIRED, NONE));
+        assertEquals(Set.of("updateSchema"), this.shipped.answering(SCHEMA, "update", RETIRED, NONE));
+        assertEquals(Set.of("discardSchema"), this.shipped.answering(SCHEMA, "discard", RETIRED, NONE));
+        assertEquals(Set.of("createSchemaVersion"), this.shipped.answering(SCHEMA, "createVersion", NONE, NONE));
+        assertEquals(Set.of(), this.shipped.answering(SCHEMA, "createVersion", RETIRED, NONE));
     }
 
     @Test
@@ -200,13 +158,13 @@ class SystemWorkflowDefinitionsTest
     void partsAreAddedToAndRemovedFromDraftsOnly()
     {
         final String[] draft = { "draft" };
-        assertEquals(Set.of("createSchemaRequirement"), answering(VERSION, "create", draft, NONE));
+        assertEquals(Set.of("createSchemaRequirement"), this.shipped.answering(VERSION, "create", draft, NONE));
         assertEquals(Set.of("createSchemaPart"), answeringPart(PART, "create", draft));
         assertEquals(Set.of("discardSchemaPart"), answeringPart(PART, "discard", draft));
         assertEquals(Set.of("discardAnswerOption"), answeringPart(OPTION, "discard", draft));
         for (final String state : List.of("active", "retired")) {
             final String[] published = { state };
-            assertEquals(Set.of(), answering(VERSION, "create", published, NONE));
+            assertEquals(Set.of(), this.shipped.answering(VERSION, "create", published, NONE));
             assertEquals(Set.of(), answeringPart(PART, "create", published));
             assertEquals(Set.of(), answeringPart(PART, "discard", published));
             assertEquals(Set.of(), answeringPart(OPTION, "discard", published));
@@ -216,7 +174,7 @@ class SystemWorkflowDefinitionsTest
     @Test
     void aQuestionTakingItsOptionsFromElsewhereGainsNoneOfItsOwn()
     {
-        final String version = "/content/target" + this.targets++;
+        final String version = "/content/version" + this.versions++;
         this.context.create().resource(version, Map.of("sling:resourceType", VERSION, "tags",
             new String[] { "draft" }));
         final Content listing = this.context.create().resource(version + "/listing", "sling:resourceType", PART)
@@ -224,8 +182,8 @@ class SystemWorkflowDefinitionsTest
         final Content elsewhere = this.context.create().resource(version + "/elsewhere",
             Map.of("sling:resourceType", PART, "optionsFrom", "/Vocabularies/sites")).adaptTo(Content.class);
 
-        assertEquals(Set.of("createSchemaPart"), answering(listing, "create"));
-        assertEquals(Set.of(), answering(elsewhere, "create"));
+        assertEquals(Set.of("createSchemaPart"), this.shipped.answering(listing, "create"));
+        assertEquals(Set.of(), this.shipped.answering(elsewhere, "create"));
     }
 
     @Test
@@ -263,12 +221,12 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
-    void partsAreCreatedWithTheNamesTheyCanBeRenamedTo() throws IOException, URISyntaxException
+    void partsAreCreatedWithTheNamesTheyCanBeRenamedTo() throws IOException
     {
         final List<String> patterns = new ArrayList<>();
         final List<String> hints = new ArrayList<>();
-        for (final Path path : definitions()) {
-            read(path).getJsonObject("v1").values().stream()
+        for (final String name : this.shipped.names()) {
+            this.shipped.version(name).values().stream()
                 .filter(node -> node.getValueType() == JsonValue.ValueType.OBJECT)
                 .map(JsonValue::asJsonObject)
                 .filter(node -> Set.of("createContent", "renameContent").contains(node.getString("handler", "")))
@@ -287,33 +245,33 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
-    void anOptionTakesNoNameOfItsOwn() throws IOException, URISyntaxException
+    void anOptionTakesNoNameOfItsOwn() throws IOException
     {
-        final JsonObject types = read(definitions().get(0).resolveSibling("createSchemaPart.json"))
-            .getJsonObject("v1").getJsonObject("create").getJsonObject("types");
+        final JsonObject types = this.shipped.version("createSchemaPart").getJsonObject("create")
+            .getJsonObject("types");
         assertFalse(types.getJsonObject("option").getBoolean("named"));
         assertFalse(types.getJsonObject("question").containsKey("named"));
     }
 
     @Test
-    void anOptionMovesOnlyAmongTheOptionsOfItsQuestion() throws IOException, URISyntaxException
+    void anOptionMovesOnlyAmongTheOptionsOfItsQuestion() throws IOException
     {
         // In another question, it could repeat a value, or join a question that takes its options from elsewhere
-        final Path move = definitions().get(0).resolveSibling("moveAnswerOption.json");
-        assertEquals("sch/Question", read(move).getJsonObject("v1").getJsonObject("move").getString("within"));
-        assertEquals("sch/SchemaVersion", read(move.resolveSibling("moveSchemaPart.json")).getJsonObject("v1")
-            .getJsonObject("move").getString("within"));
+        assertEquals("sch/Question",
+            this.shipped.version("moveAnswerOption").getJsonObject("move").getString("within"));
+        assertEquals("sch/SchemaVersion",
+            this.shipped.version("moveSchemaPart").getJsonObject("move").getString("within"));
     }
 
     @Test
-    void theUpdatesOfAVersionSayWhatTheyAllow() throws IOException, URISyntaxException
+    void theUpdatesOfAVersionSayWhatTheyAllow() throws IOException
     {
         int updates = 0;
-        for (final Path path : definitions()) {
-            final JsonObject version = read(path).getJsonObject("v1");
+        for (final String name : this.shipped.names()) {
+            final JsonObject version = this.shipped.version(name);
             if (VERSION.equals(version.getString("targetResourceType"))
                 && UPDATE.equals(version.getJsonObject("requested").getString("messageName"))) {
-                assertFalse(version.getString("notice", "").isBlank(), path.getFileName().toString());
+                assertFalse(version.getString("notice", "").isBlank(), name);
                 updates++;
             }
         }
@@ -323,23 +281,7 @@ class SystemWorkflowDefinitionsTest
     @Test
     void aSchemaIsCreatedOnTheHomepage()
     {
-        assertEquals(Set.of("createSchema"), answering("sch/SchemasHomepage", "create", NONE, NONE));
-    }
-
-    /**
-     * The shipped workflows that would take an event aimed at content in a given state.
-     *
-     * @param type the content's resource type
-     * @param event the event
-     * @param tags the tags placed on the content itself
-     * @param inherited the tags it inherits
-     * @return the names of the definitions whose start event catches it and whose guard holds
-     */
-    private Set<String> answering(final String type, final String event, final String[] tags,
-        final String[] inherited)
-    {
-        return answering(this.context.create().resource("/content/target" + this.targets++, Map.of(
-            "sling:resourceType", type, "tags", tags, "inheritedTags", inherited)).adaptTo(Content.class), event);
+        assertEquals(Set.of("createSchema"), this.shipped.answering("sch/SchemasHomepage", "create", NONE, NONE));
     }
 
     /**
@@ -352,69 +294,9 @@ class SystemWorkflowDefinitionsTest
      */
     private Set<String> answeringPart(final String type, final String event, final String[] versionTags)
     {
-        final String version = "/content/target" + this.targets++;
+        final String version = "/content/version" + this.versions++;
         this.context.create().resource(version, Map.of("sling:resourceType", VERSION, "tags", versionTags));
-        return answering(this.context.create().resource(version + "/section/question", "sling:resourceType", type)
-            .adaptTo(Content.class), event);
-    }
-
-    /**
-     * The shipped workflows that would take an event aimed at some content.
-     *
-     * @param target the content
-     * @param event the event
-     * @return the names of the definitions whose start event catches it and whose guard holds
-     */
-    private Set<String> answering(final Content target, final String event)
-    {
-        final String type = target.getType();
-        final Set<String> answering = new TreeSet<>();
-        for (final Resource definition : this.context.resourceResolver().getResource("/SystemWorkflows")
-            .getChildren()) {
-            final Resource version = definition.getChild("v1");
-            final Resource start = version.getChild("requested");
-            if (type.equals(version.getValueMap().get("targetResourceType"))
-                && event.equals(start.getValueMap().get("messageName"))) {
-                final Resource guard = start.getChild("cond:condition");
-                if (guard == null || this.evaluator.isSatisfied(guard.adaptTo(Condition.class), target)) {
-                    answering.add(definition.getName());
-                }
-            }
-        }
-        return answering;
-    }
-
-    /**
-     * A definition as Oak would store it, where every node carries the resource type its node type autocreates. The
-     * mock repository has no node types to do that.
-     *
-     * @param node a node of the definition
-     * @return the same, with resource types
-     */
-    private static JsonObject withResourceTypes(final JsonObject node)
-    {
-        final JsonObjectBuilder builder = Json.createObjectBuilder();
-        node.forEach((key, value) -> builder.add(key,
-            value.getValueType() == JsonValue.ValueType.OBJECT ? withResourceTypes(value.asJsonObject()) : value));
-        if (node.containsKey("jcr:primaryType")) {
-            builder.add("sling:resourceType", node.getString("jcr:primaryType").replace(':', '/'));
-        }
-        return builder.build();
-    }
-
-    private static List<Path> definitions() throws IOException, URISyntaxException
-    {
-        final Path directory = Path.of(Objects.requireNonNull(
-            SystemWorkflowDefinitionsTest.class.getResource("/SLING-INF/content/SystemWorkflows")).toURI());
-        try (Stream<Path> files = Files.list(directory)) {
-            return files.filter(file -> file.toString().endsWith(".json")).sorted().toList();
-        }
-    }
-
-    private static JsonObject read(final Path path) throws IOException
-    {
-        try (Reader reader = Files.newBufferedReader(path)) {
-            return Json.createReader(reader).readObject();
-        }
+        final Resource part = this.context.create().resource(version + "/section/question", "sling:resourceType", type);
+        return this.shipped.answering(part.adaptTo(Content.class), event);
     }
 }

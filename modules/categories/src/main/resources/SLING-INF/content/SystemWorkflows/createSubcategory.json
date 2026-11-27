@@ -1,0 +1,81 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Add a subcategory",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "cat/Category",
+    "description": "Adds a category inside another one.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "create",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Add the category",
+      "handler": "createContent",
+      "nameFrom": ["label"],
+      "types": {
+        "jcr:primaryType": "nt:unstructured",
+        "category": {
+          "jcr:primaryType": "nt:unstructured",
+          "nodeType": "cat:Category",
+          "label": "Category"
+        }
+      },
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toUpdate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpdate",
+        "targetRef": "update"
+      }
+    },
+    "update": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "update",
+      "label": "Fill it in",
+      "handler": "updateContent",
+      "fields": {
+        "jcr:primaryType": "nt:unstructured",
+        "label": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Label"
+        },
+        "description": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Description",
+          "multiline": true
+        },
+        "schemaVersion": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Schema version",
+          "referenceType": "sch/SchemaVersion",
+          "referenceRoot": "/Schemas"
+        }
+      },
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Category added",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

@@ -36,7 +36,6 @@ const tree = parseCategoryTree({
       "label": "Retrospective Data Studies",
       "schemaVersion": {
         "jcr:primaryType": "sch:SchemaVersion",
-        "jcr:uuid": "uuid-sv1",
         "version": "1.0",
         "@path": "/Schemas/basic/1.0",
       },
@@ -57,7 +56,6 @@ const stubSchemasEndpoint = () =>
       "title": "Basic schema",
       "1.0": {
         "jcr:primaryType": "sch:SchemaVersion",
-        "jcr:uuid": "uuid-sv1",
         "version": "1.0",
         "tags": ["active"],
       },

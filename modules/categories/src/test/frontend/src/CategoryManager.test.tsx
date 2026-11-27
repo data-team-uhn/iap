@@ -35,7 +35,6 @@ const treeJson = {
       "label": "Retrospective Data Studies",
       "schemaVersion": {
         "jcr:primaryType": "sch:SchemaVersion",
-        "jcr:uuid": "uuid-sv1",
         "version": "1.0",
         "@path": "/Schemas/basic/1.0",
       },
@@ -48,10 +47,10 @@ const treeJson = {
   },
 };
 
-// A server that answers everything, except the writes `refusing` picks out by their payload, which
-// get a 403. A test singles out one step of a save that way.
-const stubServer = (refusing: (body: string) => boolean = () => false) => stubFetch(request =>
-  refusing(request.params.toString())
+// A server that answers everything, except the requests `refusing` picks out by their URL, which get
+// a 403. A test singles out one step of a save that way.
+const stubServer = (refusing: (url: string) => boolean = () => false) => stubFetch(request =>
+  refusing(request.url)
     ? new Response(null, { status: 403, statusText: "Forbidden" })
     : jsonResponse(request.url.startsWith("/Schemas") ? { "jcr:primaryType": "sch:SchemasHomepage" } : treeJson));
 
@@ -85,16 +84,17 @@ describe("CategoryManager", () => {
     expect(screen.getByLabelText(/Label/)).toBeInTheDocument();
   });
 
-  // The writes the manager sent, matched by payload: a reload follows every write, so the order of
-  // the calls says little.
-  const postsMatching = (predicate: (body: string) => boolean) =>
-    vi.mocked(fetch).mock.calls.filter(([, init]) => {
-      const body = init?.body;
-      return body instanceof URLSearchParams && predicate(body.toString());
-    });
+  // The workflow events the manager sent to a node: a reload follows every write, so the order of the
+  // calls says little.
+  const eventsSent = (path: string, event: string) =>
+    vi.mocked(fetch).mock.calls.filter(([url]) => url === `${path}.${event}.json`);
 
-  const postTo = (path: string) =>
-    vi.mocked(fetch).mock.calls.filter(([url, init]) => url === path && !!init?.method);
+  // What the first such event carried
+  const paramsOf = (path: string, event: string) =>
+    eventsSent(path, event)[0]?.[1]?.body as URLSearchParams | undefined;
+
+  // Every request that was not a read
+  const writes = () => vi.mocked(fetch).mock.calls.filter(([, init]) => !!init?.method);
 
   describe("saving a category", () => {
     it("creates one under the parent the tree row names, leaving an unbound parent's fields alone", async () => {
@@ -107,9 +107,9 @@ describe("CategoryManager", () => {
       expect(screen.queryByText(/will lose its schema version/)).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-      await waitFor(() => { expect(postTo("/Categories/Paper/")).toHaveLength(1); });
-      expect(postsMatching(body => body.includes("label=Posters"))).not.toHaveLength(0);
-      expect(postTo("/Categories/Paper")).toHaveLength(0);
+      await waitFor(() => { expect(eventsSent("/Categories/Paper", "create")).toHaveLength(1); });
+      expect(paramsOf("/Categories/Paper", "create")?.get("patch")).toContain('"label":"Posters"');
+      expect(eventsSent("/Categories/Paper", "update")).toHaveLength(0);
     });
 
     it("frees the parent's schema version before giving it a subcategory", async () => {
@@ -122,13 +122,12 @@ describe("CategoryManager", () => {
       fireEvent.change(screen.getByLabelText(/Label/), { target: { value: "Chart reviews" } });
       fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-      await waitFor(() => {
-        expect(postTo("/Categories/Retrospective/RetrospectiveData/")).toHaveLength(1);
-      });
+      const parent = "/Categories/Retrospective/RetrospectiveData";
+      await waitFor(() => { expect(eventsSent(parent, "create")).toHaveLength(1); });
+      expect(paramsOf(parent, "update")?.get("patch")).toBe('{"schemaVersion":null}');
       const sent = vi.mocked(fetch).mock.calls;
-      const unbound = sent.findIndex(([url, init]) => url === "/Categories/Retrospective/RetrospectiveData"
-        && init?.body instanceof URLSearchParams && init.body.has("schemaVersion@Delete"));
-      const created = sent.findIndex(([url]) => url === "/Categories/Retrospective/RetrospectiveData/");
+      const unbound = sent.findIndex(([url]) => url === `${parent}.update.json`);
+      const created = sent.findIndex(([url]) => url === `${parent}.create.json`);
       expect(unbound).toBeGreaterThanOrEqual(0);
       expect(unbound).toBeLessThan(created);
     });
@@ -142,9 +141,9 @@ describe("CategoryManager", () => {
       fireEvent.change(await screen.findByLabelText(/Label/), { target: { value: "Paper forms" } });
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-      await waitFor(() => { expect(postTo("/Categories/Paper")).not.toHaveLength(0); });
-      expect(postsMatching(body => body.includes("label=Paper+forms"))).not.toHaveLength(0);
-      expect(postsMatching(body => body.includes("operation=move"))).toHaveLength(0);
+      await waitFor(() => { expect(eventsSent("/Categories/Paper", "update")).toHaveLength(1); });
+      expect(paramsOf("/Categories/Paper", "update")?.get("patch")).toContain('"label":"Paper forms"');
+      expect(eventsSent("/Categories/Paper", "move")).toHaveLength(0);
     });
 
     it("moves one when a different parent is picked", async () => {
@@ -158,15 +157,12 @@ describe("CategoryManager", () => {
       fireEvent.click(await screen.findByRole("option", { name: "Retrospective studies" }));
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-      await waitFor(() => {
-        expect(postsMatching(body => body.includes("operation=move"))).not.toHaveLength(0);
-      });
-      const move = postsMatching(body => body.includes("operation=move"))[0];
-      expect((move[1]!.body as URLSearchParams).get(":dest")).toBe("/Categories/Retrospective/");
+      await waitFor(() => { expect(eventsSent("/Categories/Paper", "move")).toHaveLength(1); });
+      expect(paramsOf("/Categories/Paper", "move")?.get("parent")).toBe("/Categories/Retrospective");
     });
 
     it("says so when the fields were saved but the move was refused", async () => {
-      stubServer(body => body.includes("operation=move"));
+      stubServer(url => url.endsWith(".move.json"));
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
@@ -181,7 +177,7 @@ describe("CategoryManager", () => {
         "The changes were saved, but the category could not be moved to Retrospective studies"
       )).toBeInTheDocument();
       // The fields were saved
-      expect(postsMatching(body => body.includes("label=Paper+forms"))).not.toHaveLength(0);
+      expect(paramsOf("/Categories/Paper", "update")?.get("patch")).toContain('"label":"Paper forms"');
     });
 
     it("closes the dialog without saving anything when cancelled", async () => {
@@ -194,7 +190,7 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
       await waitFor(() => { expect(screen.queryByLabelText(/Label/)).not.toBeInTheDocument(); });
-      expect(postsMatching(() => true)).toHaveLength(0);
+      expect(writes()).toHaveLength(0);
     });
   });
 
@@ -209,13 +205,11 @@ describe("CategoryManager", () => {
       // The row action only asks
       expect(await screen.findByRole("heading", { name: "Retire Retrospective studies?" })).toBeInTheDocument();
       expect(screen.getByText(/no longer be available for new submissions/)).toBeInTheDocument();
-      expect(postsMatching(body => body.includes("tags=%2Bretired"))).toHaveLength(0);
+      expect(writes()).toHaveLength(0);
 
       fireEvent.click(screen.getByRole("button", { name: "Retire" }));
 
-      await waitFor(() => {
-        expect(postsMatching(body => body.includes("tags=%2Bretired"))).not.toHaveLength(0);
-      });
+      await waitFor(() => { expect(eventsSent("/Categories/Retrospective", "retire")).toHaveLength(1); });
     });
 
     it("abandons a retirement that is called off", async () => {
@@ -230,7 +224,7 @@ describe("CategoryManager", () => {
       await waitFor(() => {
         expect(screen.queryByRole("button", { name: "Retire" })).not.toBeInTheDocument();
       });
-      expect(postsMatching(body => body.includes("tags=%2Bretired"))).toHaveLength(0);
+      expect(writes()).toHaveLength(0);
     });
 
     it("unretires a retired category without asking", async () => {
@@ -241,7 +235,7 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("tags=-retired"))).not.toHaveLength(0);
+        expect(eventsSent("/Categories/Paper", "activate")).toHaveLength(1);
       });
     });
 
@@ -253,7 +247,7 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("order=before+Retrospective"))).not.toHaveLength(0);
+        expect(paramsOf("/Categories/Paper", "move")?.get("before")).toBe("Retrospective");
       });
     });
 
@@ -288,7 +282,7 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Retire instead" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("tags=%2Bretired"))).not.toHaveLength(0);
+        expect(eventsSent("/Categories/Paper", "retire")).toHaveLength(1);
       });
     });
 
@@ -304,13 +298,13 @@ describe("CategoryManager", () => {
       await waitFor(() => {
         expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
       });
-      expect(postsMatching(body => body.includes("operation=delete"))).toHaveLength(0);
+      expect(writes()).toHaveLength(0);
     });
   });
 
   describe("when something goes wrong", () => {
     it("names what did not happen when a row action is refused, and lets the report be dismissed", async () => {
-      stubServer(body => body.includes("order="));
+      stubServer(url => url.endsWith(".move.json"));
       renderManager();
       await screen.findByText("Paper submissions");
 
@@ -352,14 +346,14 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("tags=-retired"))).toHaveLength(2);
+        expect(eventsSent("/Categories/Paper", "activate")).toHaveLength(2);
       });
       expect(await screen.findByRole("alert")).toHaveTextContent("Paper submissions could not be unretired");
 
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("tags=-retired"))).toHaveLength(3);
+        expect(eventsSent("/Categories/Paper", "activate")).toHaveLength(3);
       });
       await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
     });
