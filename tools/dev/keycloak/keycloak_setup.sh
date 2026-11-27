@@ -135,6 +135,10 @@ else
     kc create realms -s "realm=${REALM}" -s enabled=true >/dev/null
     echo -e "${GREEN}created realm '${REALM}'${DEFAULT}"
 fi
+# The realm's sessions end when IAP's do: 30 idle minutes, and 8 hours at most. Otherwise an IAP
+# session that has ended resumes at Keycloak without asking for a password.
+kc update "realms/${REALM}" -s ssoSessionIdleTimeout=1800 -s ssoSessionMaxLifespan=28800 >/dev/null
+echo -e "${GREEN}set the realm's sessions to IAP's limits${DEFAULT}"
 
 # ---- realm roles ---------------------------------------------------------------
 for role in $ROLES; do
