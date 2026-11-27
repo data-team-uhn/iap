@@ -26,7 +26,6 @@ import java.net.InetSocketAddress;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -360,9 +359,34 @@ class WorkerDocumentGeneratorTest
 
         generator.activate(blank);
 
-        assertEquals(WorkerDocumentGenerator.DEFAULT_WORKER_URL, field(generator, "workerUrl"));
-        assertEquals(Duration.ofSeconds(WorkerDocumentGenerator.DEFAULT_RESPONSE_TIMEOUT),
-            field(generator, "responseTimeout"));
+        final WorkerDocumentGenerator.Settings settings =
+            (WorkerDocumentGenerator.Settings) field(generator, "settings");
+        assertEquals(WorkerDocumentGenerator.DEFAULT_WORKER_URL, settings.workerUrl());
+        assertEquals(WorkerDocumentGenerator.DEFAULT_RESPONSE_TIMEOUT, settings.responseTimeoutSeconds());
+    }
+
+    @Test
+    void aChangedConfigurationAppliesWholeToTheNextGeneration()
+    {
+        final WorkerDocumentGenerator generator = generator("old-token", null, "http://127.0.0.1:1", 40);
+
+        generator.activate(configuration(workerUrl(), "new-token", 40));
+        final GenerationResult result = generator.generate(this.template, this.target);
+
+        assertEquals(Status.GENERATED, result.getStatus(), result.toString());
+        assertEquals("Bearer new-token", this.receivedAuthorization);
+    }
+
+    @Test
+    void stoppingEndsTheClientSoNothingMoreIsSent()
+    {
+        final WorkerDocumentGenerator generator = generator(null, null);
+
+        generator.deactivate();
+        final GenerationResult result = generator.generate(this.template, this.target);
+
+        assertEquals(Status.UNAVAILABLE, result.getStatus(), result.toString());
+        assertNull(this.received);
     }
 
     @Test

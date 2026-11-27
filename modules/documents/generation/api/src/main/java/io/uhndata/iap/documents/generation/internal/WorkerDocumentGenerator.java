@@ -41,6 +41,7 @@ import jakarta.json.JsonReader;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.FieldOption;
 import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
@@ -92,7 +93,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WorkerDocumentGenerator.class);
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final int CONNECT_TIMEOUT_SECONDS = 10;
 
     /** How much of a reply that is not the worker's usual JSON is kept in the message. */
     private static final int ERROR_EXCERPT_LENGTH = 200;
@@ -141,22 +142,27 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         fieldOption = FieldOption.REPLACE)
     private volatile List<TemplateContextProvider> providers;
 
-    private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+    private final HttpClient client =
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS)).build();
 
-    private String workerUrl;
+    /** Replaced whole when the configuration changes, so a generation never mixes two of them. */
+    private volatile Settings settings;
 
-    /** Where requests go, once checked. */
-    private String endpoint;
-
-    /** Why the worker URL cannot be used, or {@code null} when it can. */
-    private String misconfiguration;
-
-    private Duration responseTimeout;
-
-    /** The {@code Authorization} header to send, or {@code null} when the worker needs none. */
-    private String authorization;
-
-    private volatile int maxTemplateBytes;
+    /**
+     * One configuration, as a generation uses it.
+     *
+     * @param workerUrl the worker's base URL, without a trailing slash
+     * @param endpoint where requests go
+     * @param misconfiguration why the URL cannot be used, or {@code null} when it can
+     * @param responseTimeoutSeconds how long to wait for both documents
+     * @param authorization the {@code Authorization} header to send, or {@code null} when the worker needs none
+     * @param maxTemplateBytes the largest template sent
+     * @since 0.1.0
+     */
+    record Settings(String workerUrl, String endpoint, String misconfiguration, int responseTimeoutSeconds,
+        String authorization, int maxTemplateBytes)
+    {
+    }
 
     /**
      * Read the configuration, falling back to the environment for the token, and the template size limit.
@@ -167,46 +173,67 @@ public class WorkerDocumentGenerator implements DocumentGenerator
     @Modified
     protected void activate(final Configuration configuration)
     {
-        useWorkerUrl(configuration.workerUrl() == null ? "" : configuration.workerUrl().trim());
-        this.responseTimeout = Duration.ofSeconds(configuration.responseTimeout() > 0
-            ? configuration.responseTimeout() : DEFAULT_RESPONSE_TIMEOUT);
-        final String configured = configuration.workerToken() == null ? "" : configuration.workerToken().trim();
-        final String fromEnvironment = environment(TOKEN_VARIABLE);
-        final String token = configured.isEmpty() && fromEnvironment != null ? fromEnvironment.trim() : configured;
-        this.authorization = token.isEmpty() ? null : "Bearer " + token;
-        this.maxTemplateBytes = maxTemplateBytes(environment(MAX_TEMPLATE_BYTES_VARIABLE));
+        final String url = configuration.workerUrl() == null ? "" : configuration.workerUrl().trim();
+        final String workerUrl = (url.isEmpty() ? DEFAULT_WORKER_URL : url).replaceAll("/+$", "");
+        final String endpoint = workerUrl + "/generate";
+        // The component stays active when the URL is wrong, so that each generation says so, rather than no
+        // generator being offered at all
+        final String misconfiguration = misconfiguration(endpoint, url);
+        if (misconfiguration != null) {
+            LOGGER.error(misconfiguration);
+        }
+        this.settings = new Settings(workerUrl, endpoint, misconfiguration,
+            configuration.responseTimeout() > 0 ? configuration.responseTimeout() : DEFAULT_RESPONSE_TIMEOUT,
+            authorization(configuration.workerToken()), maxTemplateBytes(environment(MAX_TEMPLATE_BYTES_VARIABLE)));
+    }
+
+    /** Lets the requests under way finish, then ends the client's threads, rather than leaving them to the GC. */
+    @Deactivate
+    protected void deactivate()
+    {
+        this.client.shutdown();
     }
 
     /**
-     * Checks the worker URL once. The component stays active when it is wrong, so that each generation says so,
-     * rather than no generator being offered at all.
+     * What is wrong with the worker URL.
      *
-     * @param configured the URL as configured, trimmed, or empty for the default
+     * @param endpoint where requests would go
+     * @param configured the URL as configured, which the message names
+     * @return why it cannot be used, or {@code null} when it is an http or https URL naming a host
      */
-    private void useWorkerUrl(final String configured)
+    private static String misconfiguration(final String endpoint, final String configured)
     {
-        this.workerUrl = (configured.isEmpty() ? DEFAULT_WORKER_URL : configured).replaceAll("/+$", "");
-        this.endpoint = this.workerUrl + "/generate";
-        this.misconfiguration = null;
         try {
-            final String scheme = URI.create(this.endpoint).getScheme();
+            final String scheme = URI.create(endpoint).getScheme();
             if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)
-                || URI.create(this.endpoint).getHost() == null) {
-                this.misconfiguration = "The generation worker URL " + configured + " is not an http or https "
-                    + "address naming a host, such as " + DEFAULT_WORKER_URL;
+                || URI.create(endpoint).getHost() == null) {
+                return "The generation worker URL " + configured + " is not an http or https address naming a "
+                    + "host, such as " + DEFAULT_WORKER_URL;
             }
+            return null;
         } catch (final IllegalArgumentException e) {
-            this.misconfiguration = "The generation worker URL " + configured + " is not a URL: " + e.getMessage();
+            return "The generation worker URL " + configured + " is not a URL: " + e.getMessage();
         }
-        if (this.misconfiguration != null) {
-            LOGGER.error(this.misconfiguration);
-        }
+    }
+
+    /**
+     * The header that carries the token, configured or else from the environment.
+     *
+     * @param configured the configured token, if any
+     * @return the header's value, or {@code null} when there is no token
+     */
+    private String authorization(final String configured)
+    {
+        final String token = configured == null ? "" : configured.trim();
+        final String fromEnvironment = environment(TOKEN_VARIABLE);
+        final String used = token.isEmpty() && fromEnvironment != null ? fromEnvironment.trim() : token;
+        return used.isEmpty() ? null : "Bearer " + used;
     }
 
     @Override
     public int getMaxTemplateBytes()
     {
-        return this.maxTemplateBytes;
+        return this.settings.maxTemplateBytes();
     }
 
     /**
@@ -236,14 +263,16 @@ public class WorkerDocumentGenerator implements DocumentGenerator
     @Override
     public GenerationResult generate(final Resource template, final Resource target)
     {
+        // Read once: a configuration change while this runs applies to the next generation
+        final Settings current = this.settings;
         final byte[] content;
         try {
-            content = read(template);
+            content = read(template, current.maxTemplateBytes());
         } catch (final IOException e) {
             return failure(template, target, "The template at " + template.getPath() + " could not be read: "
                 + describe(e));
         }
-        final String problem = problem(template, content);
+        final String problem = problem(template, content, current.maxTemplateBytes());
         if (problem != null) {
             return GenerationResult.failed(Status.TEMPLATE_ERROR, problem);
         }
@@ -255,7 +284,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         }
 
         // Ask the worker
-        return ask(template, target, Json.createObjectBuilder()
+        return ask(template, target, current, Json.createObjectBuilder()
             .add("template", Base64.getEncoder().encodeToString(content))
             .add("context", values)
             .build()
@@ -267,34 +296,36 @@ public class WorkerDocumentGenerator implements DocumentGenerator
      *
      * @param template the template resource, to name it
      * @param content what {@link #read} found
+     * @param limit the largest template sent
      * @return the problem, or {@code null} when there is none
      */
-    private String problem(final Resource template, final byte[] content)
+    private static String problem(final Resource template, final byte[] content, final int limit)
     {
         if (content == null) {
             return "The template at " + template.getPath() + " is not a file";
         }
-        if (content.length > this.maxTemplateBytes) {
-            return "The template at " + template.getPath() + " is over the " + this.maxTemplateBytes + "-byte limit";
+        if (content.length > limit) {
+            return "The template at " + template.getPath() + " is over the " + limit + "-byte limit";
         }
         return null;
     }
 
-    private GenerationResult ask(final Resource template, final Resource target, final String body)
+    private GenerationResult ask(final Resource template, final Resource target, final Settings current,
+        final String body)
     {
-        if (this.misconfiguration != null) {
-            return failure(template, target, this.misconfiguration);
+        if (current.misconfiguration() != null) {
+            return failure(template, target, current.misconfiguration());
         }
         final long startedAt = System.nanoTime();
         final HttpResponse<String> response;
         try {
-            response = send(request(body));
+            response = send(request(current, body));
         } catch (final HttpTimeoutException e) {
             return unavailable(template, "The generation worker did not answer within "
-                + this.responseTimeout.toSeconds() + " seconds");
+                + current.responseTimeoutSeconds() + " seconds");
         } catch (final IOException e) {
-            return unavailable(template, "The generation worker at " + this.workerUrl + " could not be reached: "
-                + describe(e));
+            return unavailable(template, "The generation worker at " + current.workerUrl() + " could not be "
+                + "reached: " + describe(e));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             return unavailable(template, "Interrupted while waiting for the generation worker");
@@ -340,14 +371,14 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         return System.getenv(name);
     }
 
-    private HttpRequest request(final String body)
+    private static HttpRequest request(final Settings current, final String body)
     {
-        final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(this.endpoint))
-            .timeout(this.responseTimeout)
+        final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(current.endpoint()))
+            .timeout(Duration.ofSeconds(current.responseTimeoutSeconds()))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
-        if (this.authorization != null) {
-            request.header("Authorization", this.authorization);
+        if (current.authorization() != null) {
+            request.header("Authorization", current.authorization());
         }
         return request.build();
     }
@@ -356,15 +387,15 @@ public class WorkerDocumentGenerator implements DocumentGenerator
      * The template's bytes, reading one more than the limit so that an oversized one can be told apart.
      *
      * @param template the template resource
+     * @param limit the largest template sent
      * @return the bytes read, or {@code null} when the resource has no file content
      * @throws IOException if the content cannot be read
      */
-    private byte[] read(final Resource template) throws IOException
+    private static byte[] read(final Resource template, final int limit) throws IOException
     {
         try (InputStream content = template.adaptTo(InputStream.class)) {
             // Long arithmetic: a limit of Integer.MAX_VALUE plus one would wrap negative
-            return content == null ? null : content.readNBytes((int) Math.min(this.maxTemplateBytes + 1L,
-                Integer.MAX_VALUE));
+            return content == null ? null : content.readNBytes((int) Math.min(limit + 1L, Integer.MAX_VALUE));
         }
     }
 
