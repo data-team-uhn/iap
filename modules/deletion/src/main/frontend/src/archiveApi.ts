@@ -169,7 +169,7 @@ export const fetchArchiveEntries = async (
  * the request gets no answer, or when the fetch rejects for an expired session.
  */
 export const restoreEntry = (doFetch: AuthenticatedFetch, path: string): Promise<ActionResponse> =>
-  act(doFetch, `${path}.restore.json`, "POST");
+  act(doFetch, `${path}.restore.json`);
 
 /**
  * Remove one entry and everything archived in it, for good.
@@ -177,10 +177,10 @@ export const restoreEntry = (doFetch: AuthenticatedFetch, path: string): Promise
  * Resolves for every answer, as {@link restoreEntry} does.
  */
 export const purgeEntry = (doFetch: AuthenticatedFetch, path: string): Promise<ActionResponse> =>
-  act(doFetch, path, "DELETE");
+  act(doFetch, `${path}.purge.json`);
 
-const act = async (doFetch: AuthenticatedFetch, url: string, method: string): Promise<ActionResponse> => {
-  const response = await doFetch(url, { method, headers: { Accept: "application/json" } });
+const act = async (doFetch: AuthenticatedFetch, url: string): Promise<ActionResponse> => {
+  const response = await doFetch(url, { method: "POST", headers: { Accept: "application/json" } });
   // An unreadable body is a failure, even with a 2xx status
   return await readOutcome<ActionResponse>(response) ?? { status: "failed", "status.message": UNREADABLE_RESPONSE };
 };

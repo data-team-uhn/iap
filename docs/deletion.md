@@ -85,7 +85,7 @@ access to the resource that holds it.
 | `DELETE <path>?recursive=true` | Also delete the referencing resources |
 | `DELETE <path>?permanent=true` | Skip the archive, remove for good |
 | `POST <entry>.restore.json` | Restore an archive entry |
-| `DELETE <entry>` | Purge an archive entry |
+| `POST <entry>.purge.json` | Purge an archive entry |
 | `GET /Archive.entries.json` | List entries, paged, filtered, sorted |
 | `GET /Archive.adminSummary.json` | Counts for the last day, the last week, and in total |
 | `GET <entry>.entry.json` | Describe one entry, and whether a restore and a purge would succeed |

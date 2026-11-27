@@ -18,7 +18,6 @@
 package io.uhndata.iap.deletion.internal;
 
 import java.io.StringReader;
-import java.lang.reflect.Field;
 import java.util.List;
 
 import jakarta.json.Json;
@@ -65,10 +64,7 @@ class PurgeServletTest
     void setup() throws Exception
     {
         this.deletionService = mock(DeletionService.class);
-        this.servlet = new PurgeServlet();
-        final Field service = PurgeServlet.class.getDeclaredField("deletionService");
-        service.setAccessible(true);
-        service.set(this.servlet, this.deletionService);
+        this.servlet = new PurgeServlet(this.deletionService);
         this.context.create().resource("/Archive/123");
         this.request = new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(),
             this.context.bundleContext());
@@ -88,7 +84,7 @@ class PurgeServletTest
     {
         when(this.deletionService.purge(any())).thenReturn(new DeletionResult(DeletionResult.Status.DELETED,
             null, new DeletionImpact(List.of("/Archive/123"), List.of(), List.of(), List.of(), 0, "")));
-        this.servlet.doDelete(this.request, this.response);
+        this.servlet.doPost(this.request, this.response);
         assertEquals(200, this.response.getStatus());
         assertEquals("deleted", this.body().getString("status"));
     }
@@ -100,7 +96,7 @@ class PurgeServletTest
             null, new DeletionImpact(List.of("/Archive/123"), List.of(),
                 List.of(new Veto("undeletable", "/Archive/123/0/x", "This resource is protected from deletion")),
                 List.of(), 0, "")));
-        this.servlet.doDelete(this.request, this.response);
+        this.servlet.doPost(this.request, this.response);
         assertEquals(409, this.response.getStatus());
         final JsonObject body = this.body();
         assertEquals("vetoed", body.getString("status"));
@@ -112,7 +108,7 @@ class PurgeServletTest
     {
         when(this.deletionService.purge(any()))
             .thenThrow(new IllegalArgumentException("Not an archive entry"));
-        this.servlet.doDelete(this.request, this.response);
+        this.servlet.doPost(this.request, this.response);
         assertEquals(400, this.response.getStatus());
     }
 
@@ -121,7 +117,7 @@ class PurgeServletTest
     {
         when(this.deletionService.purge(any()))
             .thenThrow(new DeletionException("Failed to purge", null));
-        this.servlet.doDelete(this.request, this.response);
+        this.servlet.doPost(this.request, this.response);
         assertEquals(500, this.response.getStatus());
     }
 }
