@@ -50,15 +50,15 @@ export function getPassageTint(theme: Theme, kind: MarkKind, strength: number): 
   return theme.alpha(getMarkColour(theme, kind, "light"), strength);
 }
 
-// The card a mark is shown on: a stripe of the mark's colour along its start edge, and a tint of that
-// colour over the paper. The paper under the tint makes the card look the same on any background. A
-// change's card is also outlined, since it has no tint to set it apart.
+// The card a mark is shown on: a tint of the mark's colour over the paper. It has no coloured edge, which
+// would read as the card being selected, as the outline of the one selected says. The paper under the tint
+// makes the card look the same on any background. A change's card is also outlined, since it has no tint to
+// set it apart.
 export function getPassageCardStyle(theme: Theme, kind: MarkKind, strength = 0.25) {
   const tint = getPassageTint(theme, kind, strength);
   return {
     borderRadius: 1,
     ...isChangeKind(kind) ? { border: "1px solid" } : {},
-    borderInlineStart: `${theme.spacing(0.5)} solid`,
     borderColor: getMarkColour(theme, kind),
     bgcolor: "background.paper",
     backgroundImage: `linear-gradient(${tint}, ${tint})`,
