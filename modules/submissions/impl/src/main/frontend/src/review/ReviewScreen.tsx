@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
@@ -27,16 +27,15 @@ import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import SplitscreenOutlined from "@mui/icons-material/SplitscreenOutlined";
-import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
   Alert,
   Box,
   Button,
   ButtonBase,
   DialogContentText,
-  Divider,
   FormControlLabel,
   IconButton,
+  Link,
   List,
   ListItemButton,
   ListItemText,
@@ -167,8 +166,16 @@ const ALWAYS: NoteKind[] = [];
 
 // What the filters' counts take in, not only the part being read, as their numbers alone may suggest
 const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
-// The filters' names where a kind's own is long, to keep their rows few; the tooltip gives the full one
-const SHORT_LABELS: Partial<Record<NoteKind, string>> = { discussion: "Discussion" };
+// The filters, by what they show: what the AI found, the issues that go to the study team, and the comments that
+// stay among reviewers or with the reader. Each group named once, so its kinds can go by shorter names; the tooltip
+// gives each kind's full one
+const FILTER_GROUPS: { label: string; kinds: NoteKind[] }[] = [
+  { label: "AI findings", kinds: [ "evidence", "contradiction", "aiIssue" ] },
+  { label: "Issues", kinds: [ "issue", "otherIssue" ] },
+  { label: "Comments", kinds: [ "discussion", "note" ] },
+];
+const SHORT_LABELS: Partial<Record<NoteKind, string>> = { evidence: "Linked answers", contradiction: "Mismatches",
+  aiIssue: "Pre-review", issue: "Yours", otherIssue: "Others'", discussion: "Discussion" };
 
 // Which of two parts shown one above the other
 type Pane = "top" | "bottom";
@@ -500,7 +507,6 @@ export default function ReviewScreen({ path }: { path: string }) {
   const listedNotes = [ ...new Map(listed.flatMap(one => notesOf(one, true)).map(note => [ note.id, note ])).values() ];
   const kindCount = (kind: NoteKind) => listedNotes.filter(note => note.kind === kind && (showDone || !note.done))
     .length;
-  const doneCount = listedNotes.filter(note => note.done && showing.has(note.kind)).length;
 
 
   // The reviewer group the reviewer reviews this submission for
@@ -1111,41 +1117,50 @@ export default function ReviewScreen({ path }: { path: string }) {
   // what is done with is shown too, the same way, on a neutral tint, having no kind's.
   const toggleSx = (on: boolean, mark?: MarkKind) => (theme: Theme) => ({ display: "inline-flex", alignItems: "center",
     gap: 0.5, px: 0.75, py: 0.25, borderRadius: 1, typography: "caption", lineHeight: 1.6,
-    ...!on ? { color: "text.secondary" } : mark ? { ...getPassageCardStyle(theme, mark, 0.5), borderInlineStart: "none",
+    ...!on ? { color: "text.secondary" } : mark ? { ...getPassageCardStyle(theme, mark, 0.5),
       color: `${mark}.main`, fontWeight: "fontWeightMedium" }
       : { bgcolor: "action.selected", color: "text.primary", fontWeight: "fontWeightMedium" },
     "&:hover": on && mark ? { backgroundImage: getPassageCardStyle(theme, mark, 0.8).backgroundImage }
       : { bgcolor: on ? "action.focus" : "action.hover" },
     "&.Mui-focusVisible": { outline: 2, outlineColor: "primary.main" } });
   const noteFilters = (
-    <Stack direction="row" role="group" aria-label="Which notes to show, in the whole submission"
-      sx={{ flexWrap: "wrap", alignItems: "center", gap: 0.5, flexShrink: 0,
+    <Box role="group" aria-label="Which notes to show, in the whole submission"
+      sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: 1, rowGap: 0.75,
+        alignItems: "baseline", flexShrink: 0,
         ...narrow ? {} : { px: 1.5, pt: 1.25, pb: 1, borderBottom: 1, borderColor: "divider" } }}>
-      <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
-      {NOTE_KINDS.filter(info => !ALWAYS.includes(info.kind)).map(info => {
-        const on = shown.has(info.kind);
-        return (
-          <Tooltip key={info.kind} describeChild disableInteractive
-            title={SHORT_LABELS[info.kind] ? `${info.label}. ${COUNTED_ACROSS}` : COUNTED_ACROSS}>
-            <ButtonBase aria-pressed={on} onClick={() => toggleKind(info.kind)} sx={toggleSx(on, info.mark)}>
-              <NoteKindIcon kind={info.kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
-              {SHORT_LABELS[info.kind] ?? info.label} ({kindCount(info.kind)})
-            </ButtonBase>
-          </Tooltip>
-        );
-      })}
-      {/* Set apart from the kinds by a rule, which wraps with it */}
-      <Stack direction="row" sx={{ alignItems: "stretch", gap: 0.5 }}>
-        <Divider orientation="vertical" flexItem sx={{ borderColor: "text.disabled" }} />
-        <Tooltip title={`Also show notes dismissed, resolved, or addressed by an issue. ${COUNTED_ACROSS}`} describeChild
-          disableInteractive>
-          <ButtonBase aria-pressed={showDone} onClick={() => setShowDone(!showDone)} sx={toggleSx(showDone)}>
-            <TaskAltOutlined sx={{ fontSize: "0.9rem", ...showDone ? {} : { opacity: 0.6 } }} />
-            Resolved ({doneCount})
-          </ButtonBase>
-        </Tooltip>
-      </Stack>
-    </Stack>
+      {FILTER_GROUPS.map(group => (
+        <Fragment key={group.label}>
+          <Typography variant="caption" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>{group.label}</Typography>
+          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.5 }}>
+            {group.kinds.filter(kind => !ALWAYS.includes(kind)).map(kind => {
+              const info = kindInfo(kind);
+              const on = shown.has(kind);
+              return (
+                <Tooltip key={kind} describeChild disableInteractive title={`${info.label}. ${COUNTED_ACROSS}`}>
+                  <ButtonBase aria-pressed={on} onClick={() => toggleKind(kind)} sx={toggleSx(on, info.mark)}>
+                    <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
+                    {SHORT_LABELS[kind] ?? info.label} ({kindCount(kind)})
+                  </ButtonBase>
+                </Tooltip>
+              );
+            })}
+          </Stack>
+        </Fragment>
+      ))}
+    </Box>
+  );
+  // The notes done with on the part worked in, hidden unless the reviewer asks: said at the foot of its notes, where
+  // they would be, and shown or hidden from there
+  const resolvedHere = current ? notesOf(current, true).filter(note => note.done && showing.has(note.kind)).length : 0;
+  const resolvedLine = (resolvedHere > 0 || showDone) && (
+    <Typography variant="caption" sx={{ display: "block", color: "text.secondary", flexShrink: 0,
+      ...narrow ? {} : { px: 1.5, py: 1, borderTop: 1, borderColor: "divider" } }}>
+      {showDone ? "Showing notes resolved, dismissed or addressed by an issue. "
+        : `${resolvedHere === 1 ? "1 resolved note" : `${resolvedHere} resolved notes`} hidden. `}
+      <Link component="button" variant="caption" sx={{ verticalAlign: "baseline" }} onClick={() => setShowDone(!showDone)}>
+        {showDone ? "Hide them" : "Show them"}
+      </Link>
+    </Typography>
   );
 
   const reviewPanel = (
@@ -1167,17 +1182,29 @@ export default function ReviewScreen({ path }: { path: string }) {
   // The panel beside the page: the notes on what is read, saying how many, or the review. On a narrow
   // screen, where the notes go along the page, the choice is between the page and the review
   const tabCount = (count: string) => <Box component="span" sx={{ ml: 0.75, color: "text.secondary" }}>{count}</Box>;
+  // Halfway between the panel's tint and the page's grey, for the tab not shown
+  const halfwayTint = (theme: Theme) => {
+    const { background } = (theme.vars ?? theme).palette;
+    return `color-mix(in srgb, ${background.tinted}, ${background.default})`;
+  };
   const sideTabs = (
     <Tabs
       value={sideTab} onChange={(_event, value: SideTab) => setSideTab(value)} variant="fullWidth"
       aria-label="What to show beside the page"
-      // The tab shown is white, as the page it heads, its name bold, over a thick bar; the other stays on the tint
-      sx={{ minHeight: 40, flexShrink: 0, borderBottom: 1, borderColor: "divider",
-        "& .MuiTabs-indicator": { height: 3 },
+      // As folder tabs: the one shown on the tint of what it heads, running into it, its name bold under a bar along
+      // its top; the other halfway between that tint and the page's grey, set back, ruled off from what is under it
+      sx={{ minHeight: 40, flexShrink: 0, bgcolor: halfwayTint,
+        "& .MuiTabs-indicator": { top: 0, bottom: "auto", height: 3 },
         "& .MuiTab-root": { minHeight: 40, py: 0.5, textTransform: "none", typography: "subtitle2",
-          color: "text.secondary" },
-        "& .MuiTab-root.Mui-selected": { bgcolor: "background.paper", color: "primary.main",
-          fontWeight: "fontWeightBold" } }}
+          color: "text.secondary", borderBottom: 1, borderColor: "divider" },
+        // Set back: shaded where the panel and the tab shown meet it, as if they lay over it
+        "& .MuiTab-root:not(.Mui-selected)": { "--tab-shade": theme => theme.alpha(theme.palette.common.black, 0.16) },
+        "& .MuiTab-root:not(.Mui-selected):first-of-type": {
+          boxShadow: "inset 0 -5px 5px -5px var(--tab-shade), inset -5px 0 5px -5px var(--tab-shade)" },
+        "& .MuiTab-root:not(.Mui-selected):last-of-type": {
+          boxShadow: "inset 0 -5px 5px -5px var(--tab-shade), inset 5px 0 5px -5px var(--tab-shade)" },
+        "& .MuiTab-root.Mui-selected": { bgcolor: narrow ? "background.paper" : "background.tinted",
+          color: "primary.main", fontWeight: "fontWeightBold", borderBottomColor: "transparent" } }}
     >
       <Tab value="notes" label={narrow ? "Submission" : <span>
         Notes{current && tabCount(String(notesOf(current).filter(note => showing.has(note.kind)).length))}
@@ -1258,7 +1285,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                               return many > 0 && (
                               // Each on its kind's tint, as its notes are, to stand out on the contents' own
                                 <Box component="span" key={kind}
-                                  sx={theme => ({ ...getPassageCardStyle(theme, kindInfo(kind).mark, 0.5), borderInlineStart: "none",
+                                  sx={theme => ({ ...getPassageCardStyle(theme, kindInfo(kind).mark, 0.5),
                                     display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
                                     color: `${kindInfo(kind).mark}.main` })}>
                                   <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
@@ -1348,6 +1375,7 @@ export default function ReviewScreen({ path }: { path: string }) {
         {narrow && sideTabs}
         {narrow && sideTab === "review" && <Paper sx={{ display: "flex", flexDirection: "column" }}>{reviewPanel}</Paper>}
         {narrow && sideTab === "notes" && noteFilters}
+        {narrow && sideTab === "notes" && resolvedLine}
         <Stack direction={{ xs: "column", md: "row" }}
           sx={{ gap: 1.5, alignItems: { xs: "flex-start", md: "stretch" }, flex: { md: 1 }, minHeight: { md: 0 },
             position: "relative", ...narrow && sideTab === "review" ? { display: "none" } : {} }}>
@@ -1486,6 +1514,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                             "&:empty::before": { content: "\"No notes here yet\"", color: "text.secondary",
                               typography: "body2", textAlign: "center", py: 2 } }}
                         />
+                        {resolvedLine}
                       </Box>
                       {sideTab === "review" && reviewPanel}
                     </Box>
