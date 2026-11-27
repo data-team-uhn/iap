@@ -80,18 +80,21 @@ access to the resource that holds it.
 
 | Request | Meaning |
 |---|---|
-| `DELETE <path>` | Archive it, refusing if anything other than a removable link references it |
+| `GET <path>.deletion.json` | What the `delete` event would do, changing nothing |
+| `DELETE <path>` | Archive it, refusing if anything other than a removable link references it; for cleaning up test data |
 | `DELETE <path>?recursive=true` | Also delete the referencing resources |
 | `DELETE <path>?permanent=true` | Skip the archive, remove for good |
-| `DELETE <path>?dryRun=true` | Report what would happen, change nothing |
 | `POST <entry>.restore.json` | Restore an archive entry |
-| `DELETE <entry>` | Purge an archive entry |
+| `POST <entry>.purge.json` | Purge an archive entry |
 | `GET /Archive.entries.json` | List entries, paged, filtered, sorted |
 | `GET /Archive.adminSummary.json` | Counts for the last day, the last week, and in total |
 | `GET <entry>.entry.json` | Describe one entry, and whether a restore and a purge would succeed |
 
 The deletion endpoint is bound to `data/Content`, so it serves every content
-resource. The listing and the counts are bound to `del/Archive`, and the other archive
+resource. `.deletion.json` describes what the `delete` event does (see below): an
+archiving deletion that refuses while anything other than a removable link refers to
+the resource. Content is deleted by that event; the `DELETE` requests serve the test
+data and the integration tests. The listing and the counts are bound to `del/Archive`, and the other archive
 endpoints to `del/ArchiveEntry`. A user who cannot read the archive gets a 404 from
 Sling's resource resolution, with no permission check of its own.
 
@@ -100,18 +103,30 @@ on, and `status.message` when there is something to explain:
 
 | Code | Statuses |
 |---|---|
-| 200 | `archived` (with `archiveEntry`, `items`, `removedLinks`), `deleted`, `dryRun` (the full impact, and `executable`), `restored` (the restored paths) |
-| 409 | `referenced` (`referrers` by type, the `inaccessibleReferrers` count, the sentence), `vetoed` (each veto's path, reason and guard name), `conflict` (each `originalPath` with `PARENT_MISSING`, `OCCUPIED` or `NO_RIGHTS`) |
+| 200 | `dryRun` (`items`, `removedLinks`, `referrers` by type, the `inaccessibleReferrers` count, each veto's path, reason and guard name, the sentence, and `executable`), `archived` (with `archiveEntry`, `items`, `removedLinks`), `deleted`, `restored` (the restored paths) |
+| 409 | `referenced` (the same referrer fields), `vetoed` (each veto), `conflict` (each `originalPath` with `PARENT_MISSING`, `OCCUPIED` or `NO_RIGHTS`) |
 | 401/403 | `denied`: the requesting user may not delete everything the deletion affects |
 | 400 | `invalid`: the target cannot be deleted at all, such as content inside `/Archive`, which is purged rather than deleted |
 | 404 | `missing`: the resource has no JCR node |
 | 500 | `failed`, with the exception's message |
 
-A confirmation dialog sends `dryRun=true` first and shows the impact. Or it sends the
-plain `DELETE`, and on a 409 lists the consequences and retries with
-`recursive=true`.
+`DeleteItem` asks `.deletion.json` before it asks for confirmation, shows the impact,
+and offers nothing while something blocks the deletion. Confirming sends the `delete`
+event. A 409 then means something changed since, and the dialog asks again.
 
 ## From a workflow
+
+Content is deleted only by a workflow: the `delete` event, sent as
+`POST <path>.delete.json`. `deleteSubmission` (for a submission's creator and for
+administrators) and `deleteCategory` (for administrators) ship that way. A schema
+draft is thrown away with `discard` instead, a different act with its own workflows.
+
+Nothing else deletes content. `DirectDeletionFilter` answers 405 to an HTTP `DELETE`,
+and to a `POST` asking the Sling POST servlet for its `delete` operation, whatever it
+names with `:applyTo`. The framework property `iap.deletion.direct=allowed` lets them
+through. The test-data feature sets it for the sample data, and so does the platform
+integration-test instance, whose stories remove what they create. Nothing a real
+instance runs sets it, so leaving it out refuses.
 
 A workflow deletes its target with the `delete` service task, which goes through the
 same service. It archives unless the activity sets `permanent`, and it refuses
@@ -161,7 +176,9 @@ asked. **A guard must not write through either session.**
 > identity provider roles alike.
 
 Three guards ship with the module. Other modules add their own, such as the schemas
-module's `ConditionDependencyVeto` (see [schemas.md](schemas.md)).
+module's `ConditionDependencyVeto` (see [schemas.md](schemas.md)), and the submissions
+module's `ApprovedSubmissionVeto`: a submission that carries its own `approved` tag
+cannot be deleted, by anybody, in any mode.
 
 **`UndeletableVeto`**: the `del:Undeletable` mixin marks a resource that must never
 be deleted: not archived, not deleted for good, and not purged if it is in the

@@ -15,6 +15,10 @@
 // limitations under the License.
 
 {
+  // The sample data is created and removed with direct deletions, which a real instance refuses
+  "framework-properties":{
+    "iap.deletion.direct":"allowed"
+  },
   "bundles":[
     {
       // Sample content can only be loaded once the modules owning its node types and its parent

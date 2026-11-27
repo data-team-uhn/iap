@@ -28,33 +28,48 @@ import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.uhndata.iap.deletion.api.DeletionException;
 import io.uhndata.iap.deletion.api.DeletionResult;
 import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.Veto;
 
 /**
- * Purges an archive entry: {@code DELETE <entry>} removes the entry and everything archived in it for good. The
- * guards are asked again, and a veto answers 409. Only a user who can read the entry reaches this servlet, and Sling
- * answers 404 to anyone else.
+ * Purges an archive entry: {@code POST <entry>.purge.json} removes the entry and everything archived in it for good.
+ * The guards are asked again, and a veto answers 409. Only a user who can read the entry reaches this servlet, and
+ * Sling answers 404 to anyone else.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-@SlingServletResourceTypes(resourceTypes = { RestoreServlet.ENTRY_RESOURCE_TYPE }, methods = { "DELETE" })
+@SlingServletResourceTypes(resourceTypes = { RestoreServlet.ENTRY_RESOURCE_TYPE }, methods = { "POST" },
+    selectors = { "purge" }, extensions = { "json" })
 public class PurgeServlet extends SlingJakartaAllMethodsServlet
 {
     private static final long serialVersionUID = 1L;
 
-    @Reference
-    private transient DeletionService deletionService;
+    private final transient DeletionService deletionService;
+
+    /**
+     * Binds the deletion service it asks.
+     *
+     * @param deletionService purges archive entries
+     */
+    @Activate
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP2",
+        justification = "An OSGi service, shared by design; SpotBugs takes it for mutable state from its method names")
+    public PurgeServlet(@Reference final DeletionService deletionService)
+    {
+        this.deletionService = deletionService;
+    }
 
     @Override
-    protected void doDelete(final SlingJakartaHttpServletRequest request,
+    protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         try {

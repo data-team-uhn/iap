@@ -110,11 +110,11 @@ describe("restoreEntry", () => {
 });
 
 describe("purgeEntry", () => {
-  it("deletes the entry itself", async () => {
+  it("posts to the entry's purge endpoint", async () => {
     const doFetch = vi.fn().mockResolvedValue(jsonResponse({ status: "deleted" }));
     const answer = await purgeEntry(doFetch, "/Archive/ab/one");
-    expect(doFetch.mock.calls[0][0]).toBe("/Archive/ab/one");
-    expect(doFetch.mock.calls[0][1]).toMatchObject({ method: "DELETE" });
+    expect(doFetch.mock.calls[0][0]).toBe("/Archive/ab/one.purge.json");
+    expect(doFetch.mock.calls[0][1]).toMatchObject({ method: "POST" });
     expect(answer.status).toBe("deleted");
   });
 

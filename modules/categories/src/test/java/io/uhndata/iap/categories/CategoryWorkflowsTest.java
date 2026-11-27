@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Checks the shipped category workflows. Each admits administrators only and uses the generic content steps. Their
  * guards make up the category lifecycle: an open category is edited, moved, given subcategories or retired, and a
- * retired one is reopened while its parent is open.
+ * retired one is reopened while its parent is open. Either may be deleted.
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,7 +54,7 @@ class CategoryWorkflowsTest
     private static final String[] RETIRED = { "retired" };
 
     private static final Set<String> HANDLERS =
-        Set.of("createContent", "updateContent", "moveContent", "addTag", "removeTag");
+        Set.of("createContent", "updateContent", "moveContent", "addTag", "removeTag", "delete");
 
     private final SlingContext context = new SlingContext();
 
@@ -69,8 +69,8 @@ class CategoryWorkflowsTest
     @Test
     void everyDefinitionIsAdministrativeAndUsesGenericSteps() throws IOException
     {
-        assertEquals(List.of("createCategory", "createSubcategory", "moveCategory", "reopenCategory",
-            "retireCategory", "updateCategory"), this.shipped.names());
+        assertEquals(List.of("createCategory", "createSubcategory", "deleteCategory", "moveCategory",
+            "reopenCategory", "retireCategory", "updateCategory"), this.shipped.names());
         for (final String name : this.shipped.names()) {
             final String target = this.shipped.version(name).getString("targetResourceType");
             assertTrue(Set.of(HOMEPAGE, CATEGORY).contains(target), name);
@@ -112,6 +112,14 @@ class CategoryWorkflowsTest
         assertEquals(Set.of(), this.shipped.answering(CATEGORY, "activate", RETIRED, RETIRED));
         // Retired only through its parent, which reopening the parent undoes
         assertEquals(Set.of(), this.shipped.answering(CATEGORY, "activate", NONE, RETIRED));
+    }
+
+    @Test
+    void aCategoryIsDeletedOpenOrRetired()
+    {
+        assertEquals(Set.of("deleteCategory"), this.shipped.answering(CATEGORY, "delete", NONE, NONE));
+        assertEquals(Set.of("deleteCategory"), this.shipped.answering(CATEGORY, "delete", RETIRED, NONE));
+        assertEquals(Set.of(), this.shipped.answering(HOMEPAGE, "delete", NONE, NONE));
     }
 
     @Test

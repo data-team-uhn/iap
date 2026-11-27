@@ -259,10 +259,7 @@ describe("CategoryManager", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
-      await waitFor(() => {
-        expect(vi.mocked(fetch).mock.calls.filter(([url, init]) =>
-          url === "/Categories/Paper" && init?.method === "DELETE")).toHaveLength(1);
-      });
+      await waitFor(() => { expect(eventsSent("/Categories/Paper", "delete")).toHaveLength(1); });
     });
 
     it("retires a category that could not be deleted, having said why", async () => {
@@ -271,11 +268,8 @@ describe("CategoryManager", () => {
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
-      // The deletion endpoint refuses, naming what refers to the category
-      fetchMock.mockResolvedValueOnce(jsonResponse({
-        "status": "referenced",
-        "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
-      }, 409));
+      // The engine refuses, naming what refers to the category
+      fetchMock.mockResolvedValueOnce(jsonResponse({ error: "This item is referenced in 2 submissions (S-1, S-2)." }, 409));
       fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
       expect(await screen.findByText(/referenced in 2 submissions/)).toBeInTheDocument();

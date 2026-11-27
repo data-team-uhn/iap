@@ -188,7 +188,7 @@ describe("ArchiveEntryView", () => {
 
     expect(await screen.findByText("the archive listing")).toBeInTheDocument();
     // The purge goes to the stored path the endpoint reported. The read went through the short address.
-    expect(calls).toContain(STORED);
+    expect(calls).toContain(`${STORED}.purge.json`);
   });
 
   it("re-reads the preflight when an action is refused after all", async () => {

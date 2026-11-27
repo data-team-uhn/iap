@@ -166,6 +166,8 @@
                 <frameworkProperties>
                   <org.osgi.service.http.port>${platform.http.port}</org.osgi.service.http.port>
                   <iap.startup.gate.retireWhenQuiet>true</iap.startup.gate.retireWhenQuiet>
+                  <!-- The platform stories remove what they create with direct deletions -->
+                  <iap.deletion.direct>allowed</iap.deletion.direct>
                 </frameworkProperties>
               </launcherArguments>
               <environmentVariables>

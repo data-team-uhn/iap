@@ -258,7 +258,7 @@ describe("ArchiveBrowser", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Purge" }));
 
     expect(await screen.findByText(/permanently removed/)).toBeInTheDocument();
-    expect(calls).toContain("/Archive/ab/cd/ef/one");
+    expect(calls).toContain("/Archive/ab/cd/ef/one.purge.json");
   });
 
   it("reports a guard's refusal to purge", async () => {

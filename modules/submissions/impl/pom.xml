@@ -72,6 +72,12 @@
       <artifactId>iap-workflows</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The deletion veto SPI, for refusing to delete an approved submission -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-deletion</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>

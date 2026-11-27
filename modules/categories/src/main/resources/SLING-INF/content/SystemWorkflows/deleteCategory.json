@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Delete a category",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "cat/Category",
+    "description": "Moves a category, with everything under it, to the archive, unless something refers to it.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "delete",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toDelete": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDelete",
+        "targetRef": "delete"
+      }
+    },
+    "delete": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "delete",
+      "label": "Move it to the archive",
+      "handler": "delete",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Category deleted",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

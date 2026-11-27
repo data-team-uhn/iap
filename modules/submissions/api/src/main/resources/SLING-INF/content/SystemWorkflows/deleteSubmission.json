@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Delete a submission",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Moves a submission to the archive. An approved submission cannot be deleted.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "delete",
+      "performers": ["@creator", "iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toDelete": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDelete",
+        "targetRef": "delete"
+      }
+    },
+    "delete": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "delete",
+      "label": "Move it to the archive",
+      "handler": "delete",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Submission deleted",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
