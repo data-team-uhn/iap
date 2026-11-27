@@ -153,25 +153,15 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
       initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" } ] },
         pinnedColumns: { right: [ "actions" ] } }}
       localeText={{ noRowsLabel: "The AI found nothing to raise", noResultsOverlayLabel: "Nothing found matches" }}
-      // All of it in the AI's tint, as its frame is elsewhere; a risk's own row a shade deeper
+      // Plain, as the issues are: the heading and the column say it is the AI's. A risk's row is shaded solid, so its
+      // pinned cell still hides what scrolls under it
       sx={theme => {
-        // Solid, mixed into the scheme's own paper, so pinned cells still hide what scrolls under them
-        const paper = theme.vars?.palette.background.paper ?? theme.palette.background.paper;
-        const tint = (share: number) => `color-mix(in srgb, ${theme.palette.assistant.light} ${share}%, ${paper})`;
-        // The grid sets the colours of its pinned cells and its headers on themselves, so they are set there, its own
-        // hover and selection shades following
-        return { bgcolor: tint(10), "--DataGrid-containerBackground": tint(16),
-          "& .MuiDataGrid-main": { "--DataGrid-t-color-background-base": tint(10),
-            "--DataGrid-t-cell-background-pinned": tint(10) },
-          "& .MuiDataGrid-cell--pinnedRight, & .MuiDataGrid-filler--pinnedRight": {
-            "--DataGrid-t-cell-background-pinned": tint(10), bgcolor: tint(10) },
-          "& .MuiDataGrid-columnHeader, & .MuiDataGrid-columnHeaders": {
-            "--DataGrid-t-header-background-base": tint(16), bgcolor: tint(16) },
-          "& .MuiDataGrid-filler": { bgcolor: tint(10) },
-          "& .MuiDataGrid-toolbar": { bgcolor: tint(16) },
+        const { background } = (theme.vars ?? theme).palette;
+        const shade = `color-mix(in srgb, ${background.default}, ${background.paper})`;
+        return { bgcolor: "background.paper",
           "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" },
-          "& .ai-risk": { bgcolor: tint(22) },
-          "& .ai-risk .MuiDataGrid-cell--pinnedRight": { "--DataGrid-t-cell-background-pinned": tint(22) },
+          "& .ai-risk": { bgcolor: shade },
+          "& .ai-risk .MuiDataGrid-cell--pinnedRight": { "--DataGrid-t-cell-background-pinned": shade },
           "& .ai-settled": { color: "text.secondary", opacity: 0.75 },
           [`& [data-field="${GRID_TREE_DATA_GROUPING_FIELD}"]`]: { fontWeight: "fontWeightMedium" } };
       }}

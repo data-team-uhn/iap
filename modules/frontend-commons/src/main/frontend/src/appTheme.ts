@@ -243,7 +243,7 @@ function accent(fill: string, text: string): { light: PaletteColorOptions; dark:
   };
 }
 const EVIDENCE = accent(LAVENDER, "#5A4A9E");
-const ISSUE = accent(CORAL, "#A8402F");
+const ISSUE = accent(CORAL, "#9E3B2B");
 // Another reviewer's issue: the issue's coral, greyed, so it reads as an issue but not the reviewer's own
 const DUSTY_CORAL = "#D2ADA6";
 const OTHER_ISSUE = accent(DUSTY_CORAL, "#7A524B");

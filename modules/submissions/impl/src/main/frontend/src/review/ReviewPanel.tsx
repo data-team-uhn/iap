@@ -353,13 +353,13 @@ function WideReview(props: ReviewProps & {
         overflowY: "auto", maxHeight: row ? undefined : 240, scrollbarWidth: "none", maskImage: fadeEdges(sideEdges) }}>
         <ButtonBase onClick={() => setChosen(AI_TAB)} sx={{ ...entrySx(AI_TAB), borderTop: "none" }}>
           <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
-          <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
+          <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
             AI pre-review ({openFindings})
           </Typography>
         </ButtonBase>
         <ButtonBase onClick={() => setChosen(ALL_ISSUES)} sx={entrySx(ALL_ISSUES)}>
           <RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />
-          <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
+          <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
             Your issues ({props.issueCount})
           </Typography>
         </ButtonBase>
@@ -395,7 +395,7 @@ function WideReview(props: ReviewProps & {
           <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
             <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
               <AutoAwesomeOutlined sx={{ color: "assistant.main" }} />
-              <Typography variant="h6" component="h3" sx={{ flex: 1 }}>AI pre-review</Typography>
+              <Typography variant="h6" component="h3" sx={{ flex: 1, color: "assistant.main" }}>AI pre-review</Typography>
               <FormControlLabel label="Group by risk"
                 control={<Switch checked={grouped} onChange={event => setGrouped(event.target.checked)} />} />
               <FormControlLabel label="Show settled"
@@ -419,7 +419,7 @@ function WideReview(props: ReviewProps & {
             about={props.about} doing={doing} onShow={onShow}
             heading={<>
               <RateReviewOutlined sx={{ color: "issue.main" }} />
-              <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Your issues</Typography>
+              <Typography variant="h6" component="h3" sx={{ flex: 1, color: "issue.main" }}>Your issues</Typography>
             </>}
           />
         )}
