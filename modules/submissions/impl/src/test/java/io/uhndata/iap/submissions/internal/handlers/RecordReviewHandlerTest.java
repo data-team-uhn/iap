@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +48,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Comment;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.utils.testing.Referenceables;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -91,6 +93,10 @@ class RecordReviewHandlerTest
 
     private static final String APPROVED = "approved";
 
+    private static final String CHANGES_REQUESTED = "changes-requested";
+
+    private static final String IN_PROGRESS = "in-progress";
+
     private static final Map<String, String> RESOURCE_TYPES = Map.of(
         "sub:Review", Review.RESOURCE_TYPE, "sub:Comment", Comment.RESOURCE_TYPE);
 
@@ -100,6 +106,8 @@ class RecordReviewHandlerTest
     private final RecordReviewHandler handler = new RecordReviewHandler();
 
     private Resource target;
+
+    private Referenceables references;
 
     // What the request reads as when adapted to a node: jcr-mock answers nothing about versioning
     private Node node;
@@ -112,7 +120,13 @@ class RecordReviewHandlerTest
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, ApprovalRequirement.class, Review.class, Comment.class,
             Submission.class);
-        PropertyTagging.installIn(this.context);
+        // The states a review can be in, with the categories their definitions give them
+        PropertyTagging.builder()
+            .inCategories(IN_PROGRESS, "review")
+            .inCategories(CHANGES_REQUESTED, "lifecycle", "review")
+            .inCategories(APPROVED, "lifecycle", "review")
+            .inCategories(Review.REJECTED_TAG, "lifecycle", "review")
+            .installIn(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
@@ -124,12 +138,12 @@ class RecordReviewHandlerTest
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
         this.context.create().resource(APPROVAL_PATH, Map.of(
             TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval"));
-        final Referenceables references = new Referenceables(this.context.resourceResolver());
-        references.identify(VERSION_PATH + "/budget", APPROVAL_PATH);
+        this.references = new Referenceables(this.context.resourceResolver());
+        this.references.identify(VERSION_PATH + "/budget", APPROVAL_PATH);
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", "sam",
             "tags", new String[] {"submitted"}));
-        references.setReference(SUBMISSION_PATH, "schemaVersion", VERSION_PATH);
+        this.references.setReference(SUBMISSION_PATH, "schemaVersion", VERSION_PATH);
     }
 
     @Test
@@ -192,6 +206,80 @@ class RecordReviewHandlerTest
         assertEquals(1, comments.size());
         assertEquals("Take the week after instead", comments.get(0).getText());
         assertEquals(APPROVER, comments.get(0).getAuthor());
+    }
+
+    @Test
+    void decidesTheReviewTheDeciderHasOpen() throws Exception
+    {
+        final String open = this.openReview("theirs", APPROVER, APPROVAL_PATH);
+
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
+
+        final Review review = onlyReview();
+        assertEquals(open, review.getPath());
+        assertTrue(review.isApproved());
+        assertFalse(present(review.as(Taggable.class)).hasOwnTag(IN_PROGRESS));
+    }
+
+    @Test
+    void decidesAgainAReviewItAskedForChangesIn() throws Exception
+    {
+        this.handler.execute(approverCompleting(APPROVAL,
+            Map.of(OUTCOME, CHANGES_REQUESTED, NOTE, "Say who covers for you")));
+        typeWhatTheHandlerWrote();
+
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED, NOTE, "Thanks")));
+
+        final Review review = onlyReview();
+        assertTrue(review.isApproved());
+        assertFalse(present(review.as(Taggable.class)).hasOwnTag(CHANGES_REQUESTED));
+        assertEquals(List.of(CHANGES_REQUESTED, APPROVED), review.getComments().stream()
+            .map(comment -> this.property(comment.getPath(), "decision")).toList());
+    }
+
+    @Test
+    void writesANewReviewOnceTheirsIsDecided() throws Exception
+    {
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
+        typeWhatTheHandlerWrote();
+
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, Review.REJECTED_TAG)));
+
+        typeWhatTheHandlerWrote();
+        assertEquals(2, reviews().size());
+    }
+
+    @Test
+    void leavesAnotherReviewersOpenReviewAlone() throws Exception
+    {
+        final String others = this.openReview("others", "someone-else", APPROVAL_PATH);
+
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
+
+        typeWhatTheHandlerWrote();
+        assertEquals(2, reviews().size());
+        assertFalse(present(present(this.context.resourceResolver().getResource(others)).adaptTo(Review.class))
+            .isDecided());
+    }
+
+    @Test
+    void leavesTheirOpenReviewOfAnotherRequirementAlone() throws Exception
+    {
+        this.openReview("budget", APPROVER, VERSION_PATH + "/budget");
+
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
+
+        typeWhatTheHandlerWrote();
+        assertEquals(2, reviews().size());
+    }
+
+    @Test
+    void recordsWhenItWasDecided() throws Exception
+    {
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
+
+        assertNotNull(present(this.context.resourceResolver().getResource(onlyReview().getPath()))
+            .getValueMap().get("decidedAt", Calendar.class));
     }
 
     @Test
@@ -292,6 +380,21 @@ class RecordReviewHandlerTest
             .forEvent("complete", Map.of(OUTCOME, APPROVED)).performing(recordingActivity(APPROVAL)).build();
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(completing));
+    }
+
+    // A review the reviewer has open for a requirement, being written
+    private String openReview(final String name, final String reviewer, final String requirement)
+    {
+        final String path = SUBMISSION_PATH + "/" + name;
+        this.context.create().resource(path, Map.of("jcr:primaryType", "sub:Review", TYPE, Review.RESOURCE_TYPE,
+            "reviewer", reviewer, "tags", new String[] {IN_PROGRESS}));
+        this.references.setReference(path, REQUIREMENT_KEY, requirement);
+        return path;
+    }
+
+    private Object property(final String path, final String name)
+    {
+        return present(this.context.resourceResolver().getResource(path)).getValueMap().get(name);
     }
 
     private Review onlyReview()

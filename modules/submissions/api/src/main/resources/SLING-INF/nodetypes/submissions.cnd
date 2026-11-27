@@ -370,6 +370,10 @@
   // `approved` or `rejected`. A review that is neither approved nor rejected
   // is still open.
 
+  // When its reviewer last decided it. A review asked for changes is decided
+  // again once the changes come back.
+  - decidedAt (DATE)
+
 //-----------------------------------------------------------------------------
 // The AI's feedback: a first look at what the submission says, for the
 // submitter while the request is being written and for the reviewers beside
@@ -454,6 +458,10 @@
 
   // Whether the submitter has addressed this comment
   - resolved (BOOLEAN) = false
+
+  // The decision this comment explains, when a reviewer wrote it on deciding
+  // their review, such as `approved` or `changes-requested`
+  - decision (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

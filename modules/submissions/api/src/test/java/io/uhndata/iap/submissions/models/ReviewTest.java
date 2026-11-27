@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 
@@ -283,6 +284,33 @@ class ReviewTest
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
 
         assertFalse(resource.adaptTo(Review.class).isAbout(this.requirement(REB_PATH)));
+    }
+
+    @Test
+    void isDecidedWhenItsDecisionWasRecorded()
+    {
+        final Calendar decided = day(10);
+        final Review review = this.context.create().resource(REVIEW_PATH, Map.of(SLING_RESOURCE_TYPE,
+            Review.RESOURCE_TYPE, "jcr:created", day(5), "decidedAt", decided)).adaptTo(Review.class);
+
+        assertEquals(decided, review.getDecidedAt());
+    }
+
+    @Test
+    void countsAReviewWithNoDecisionTimeAsDecidedWhenItWasWritten()
+    {
+        final Calendar written = day(5);
+        final Review review = this.context.create().resource(REVIEW_PATH, Map.of(SLING_RESOURCE_TYPE,
+            Review.RESOURCE_TYPE, "jcr:created", written)).adaptTo(Review.class);
+
+        assertEquals(written, review.getDecidedAt());
+    }
+
+    private static Calendar day(final int day)
+    {
+        final Calendar time = Calendar.getInstance();
+        time.set(2026, Calendar.APRIL, day, 9, 0, 0);
+        return time;
     }
 
     private Review taggedReview(final String... tags)

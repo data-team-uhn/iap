@@ -159,8 +159,8 @@ public class Submission extends Entity
      * The latest decision on one requirement, which is where that requirement now stands: the most recent review of
      * it that approved or rejected it. Reviews still open are left out.
      *
-     * <p>The most recent is the one created last, since the children of a submission have no order of their own. A
-     * review with no creation date counts as the oldest.</p>
+     * <p>The most recent is the one decided last, since the children of a submission have no order of their own, and
+     * a review asked for changes is decided again later. A review with no date counts as the oldest.</p>
      *
      * @param requirement the requirement to look up
      * @return the latest review deciding it; {@code null} while nobody has
@@ -171,7 +171,25 @@ public class Submission extends Entity
         return this.getReviews().stream()
             .filter(review -> review.isAbout(requirement))
             .filter(Review::isDecided)
-            .max(Comparator.comparing(Review::getCreated, Comparator.nullsFirst(Comparator.naturalOrder())))
+            .max(Comparator.comparing(Review::getDecidedAt, Comparator.nullsFirst(Comparator.naturalOrder())))
+            .orElse(null);
+    }
+
+    /**
+     * The review a reviewer has open for a requirement: one they are writing, or one they asked for changes in. Their
+     * next decision on the requirement goes there, so each reviewer keeps one review of it.
+     *
+     * @param reviewer the reviewer's user id
+     * @param requirement the requirement reviewed
+     * @return the review; {@code null} if they have none open
+     */
+    @Nullable
+    public Review getOpenReview(@NotNull final String reviewer, @NotNull final Requirement requirement)
+    {
+        return this.getReviews().stream()
+            .filter(review -> reviewer.equals(review.getReviewer()) && review.isAbout(requirement)
+                && !review.isDecided())
+            .findFirst()
             .orElse(null);
     }
 
