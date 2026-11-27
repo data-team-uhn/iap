@@ -172,7 +172,7 @@ const SOFT_YELLOW = "#F6D96B";
 const COBALT = "#255CAA";
 
 // The darker shades that write each accent on a light surface.
-const ASSISTANT_INK = "#8A6184";
+const ASSISTANT_INK = "#76506F";
 const ANNOTATION_INK = "#866A00";
 
 const ASSISTANT_LIGHT: PaletteColorOptions = { main: ASSISTANT_INK, light: LILAC, dark: "#6C4C68", contrastText: "#fff" };
