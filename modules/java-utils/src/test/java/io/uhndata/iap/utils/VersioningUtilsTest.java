@@ -55,6 +55,8 @@ class VersioningUtilsTest
 {
     private static final String VERSIONABLE = "mix:versionable";
 
+    private static final String RECORD = "/record";
+
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private Session session;
@@ -78,7 +80,7 @@ class VersioningUtilsTest
         final Node detail = this.record.getNode("part/detail");
         assertFalse(detail.isCheckedOut(), "the record's check-in makes everything under it read-only");
 
-        assertEquals("/record", VersioningUtils.checkOut(detail));
+        assertEquals(RECORD, VersioningUtils.checkOut(detail));
 
         assertTrue(this.record.isCheckedOut());
         detail.setProperty("written", true);
@@ -88,7 +90,7 @@ class VersioningUtilsTest
     @Test
     void checksOutAVersionableNodeItself() throws RepositoryException
     {
-        assertEquals("/record", VersioningUtils.checkOut(this.record));
+        assertEquals(RECORD, VersioningUtils.checkOut(this.record));
 
         assertTrue(this.record.isCheckedOut());
     }
@@ -96,7 +98,7 @@ class VersioningUtilsTest
     @Test
     void leavesWritableContentAlone() throws RepositoryException
     {
-        this.session.getWorkspace().getVersionManager().checkout("/record");
+        this.session.getWorkspace().getVersionManager().checkout(RECORD);
         final Node unversioned = this.session.getRootNode().addNode("loose", "nt:unstructured");
 
         assertNull(VersioningUtils.checkOut(this.record.getNode("part")));
@@ -124,7 +126,7 @@ class VersioningUtilsTest
     {
         final Resource part = this.context.resourceResolver().getResource("/record/part");
 
-        assertEquals("/record", VersioningUtils.checkOut(part));
+        assertEquals(RECORD, VersioningUtils.checkOut(part));
 
         assertTrue(this.record.isCheckedOut());
     }
@@ -143,21 +145,21 @@ class VersioningUtilsTest
         final RepositoryException gone = new RepositoryException("gone");
         Mockito.when(node.isCheckedOut()).thenThrow(gone);
         Mockito.when(resource.adaptTo(Node.class)).thenReturn(node);
-        Mockito.when(resource.getPath()).thenReturn("/record");
+        Mockito.when(resource.getPath()).thenReturn(RECORD);
 
         final PersistenceException refusal =
             assertThrows(PersistenceException.class, () -> VersioningUtils.checkOut(resource));
 
-        assertTrue(refusal.getMessage().contains("/record"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains(RECORD), refusal.getMessage());
         assertInstanceOf(RepositoryException.class, refusal.getCause());
     }
 
     @Test
     void checksInACheckedOutNode() throws PersistenceException, RepositoryException
     {
-        this.session.getWorkspace().getVersionManager().checkout("/record");
+        this.session.getWorkspace().getVersionManager().checkout(RECORD);
 
-        VersioningUtils.checkIn(this.context.resourceResolver(), "/record");
+        VersioningUtils.checkIn(this.context.resourceResolver(), RECORD);
 
         assertFalse(this.record.isCheckedOut());
     }
@@ -174,7 +176,7 @@ class VersioningUtilsTest
         // Checking in a checked-in node changes nothing in Oak, so only a mock shows it is not asked to
         final VersionManager versions = Mockito.mock(VersionManager.class);
 
-        VersioningUtils.checkIn(resolverWith(versions), "/record");
+        VersioningUtils.checkIn(resolverWith(versions), RECORD);
 
         Mockito.verify(versions, Mockito.never()).checkin(Mockito.anyString());
     }
@@ -182,21 +184,64 @@ class VersioningUtilsTest
     @Test
     void checksInNothingWithoutAJcrSession()
     {
-        assertDoesNotThrow(() -> VersioningUtils.checkIn(Mockito.mock(ResourceResolver.class), "/record"));
+        assertDoesNotThrow(() -> VersioningUtils.checkIn(Mockito.mock(ResourceResolver.class), RECORD));
     }
 
     @Test
     void reportsANodeThatCannotBeCheckedInAsAFailedWrite() throws RepositoryException
     {
         final VersionManager versions = Mockito.mock(VersionManager.class);
-        Mockito.when(versions.isCheckedOut("/record")).thenThrow(new RepositoryException("gone"));
+        Mockito.when(versions.isCheckedOut(RECORD)).thenThrow(new RepositoryException("gone"));
         final ResourceResolver resolver = resolverWith(versions);
 
         final PersistenceException refusal =
-            assertThrows(PersistenceException.class, () -> VersioningUtils.checkIn(resolver, "/record"));
+            assertThrows(PersistenceException.class, () -> VersioningUtils.checkIn(resolver, RECORD));
 
-        assertTrue(refusal.getMessage().contains("/record"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains(RECORD), refusal.getMessage());
         assertInstanceOf(RepositoryException.class, refusal.getCause());
+    }
+
+    @Test
+    void recordsAVersionHoldingWhatWasSavedAndLeavesTheNodeWritable() throws PersistenceException, RepositoryException
+    {
+        this.session.getWorkspace().getVersionManager().checkout(RECORD);
+        this.record.setProperty("title", "As sent back");
+        this.session.save();
+
+        final String version = VersioningUtils.recordVersion(this.context.resourceResolver(), RECORD);
+
+        assertTrue(this.record.isCheckedOut());
+        assertEquals("As sent back",
+            this.session.getNode(version).getNode("jcr:frozenNode").getProperty("title").getString());
+    }
+
+    @Test
+    void recordsTheCurrentVersionOfACheckedInNodeAndChecksItOut() throws PersistenceException, RepositoryException
+    {
+        final String current = this.session.getWorkspace().getVersionManager().getBaseVersion(RECORD).getPath();
+
+        assertEquals(current, VersioningUtils.recordVersion(this.context.resourceResolver(), RECORD));
+        assertTrue(this.record.isCheckedOut());
+    }
+
+    @Test
+    void recordsNothingForARemovedNodeOrWithoutAJcrSession() throws PersistenceException
+    {
+        assertNull(VersioningUtils.recordVersion(this.context.resourceResolver(), "/gone"));
+        assertNull(VersioningUtils.recordVersion(Mockito.mock(ResourceResolver.class), RECORD));
+    }
+
+    @Test
+    void reportsAVersionThatCannotBeRecordedAsAFailedWrite() throws RepositoryException
+    {
+        final VersionManager versions = Mockito.mock(VersionManager.class);
+        Mockito.when(versions.checkin(RECORD)).thenThrow(new RepositoryException("locked"));
+        final ResourceResolver resolver = resolverWith(versions);
+
+        final PersistenceException refusal =
+            assertThrows(PersistenceException.class, () -> VersioningUtils.recordVersion(resolver, RECORD));
+
+        assertTrue(refusal.getMessage().contains(RECORD), refusal.getMessage());
     }
 
     /**
@@ -212,7 +257,7 @@ class VersioningUtilsTest
         final Workspace workspace = Mockito.mock(Workspace.class);
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
         Mockito.when(session.getWorkspace()).thenReturn(workspace);
-        Mockito.when(session.nodeExists("/record")).thenReturn(true);
+        Mockito.when(session.nodeExists(RECORD)).thenReturn(true);
         Mockito.when(workspace.getVersionManager()).thenReturn(versions);
         return resolver;
     }

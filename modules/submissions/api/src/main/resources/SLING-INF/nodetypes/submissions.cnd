@@ -374,6 +374,10 @@
   // again once the changes come back.
   - decidedAt (DATE)
 
+  // The version of the submission as this review sent it back for changes,
+  // by its path, for comparing the resubmission with it
+  - sentBackCopy (STRING)
+
 //-----------------------------------------------------------------------------
 // The AI's feedback: a first look at what the submission says, for the
 // submitter while the request is being written and for the reviewers beside
