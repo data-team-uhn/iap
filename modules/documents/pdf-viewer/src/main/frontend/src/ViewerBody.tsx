@@ -311,12 +311,12 @@ export default function ViewerBody(props: ViewerBodyProps) {
       {spoken}
       <Box sx={{ display: "flex", gap: listBeside && onListWidth ? 0 : 2, flex: "1 1 auto", minHeight: 0 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0,
-          ...lead === undefined ? {} : { pl: 2, pt: 1.5 } }}>
+          ...lead === undefined ? {} : { px: 2, pt: 1.5 } }}>
           {plainView || leadEnd
             ? (
               <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 3 }}>
                 {lead}{plainView}{plainSteps}
-                {leadEnd && <Box sx={{ ml: "auto", pr: 1 }}>{leadEnd}</Box>}
+                {leadEnd && <Box sx={{ ml: "auto" }}>{leadEnd}</Box>}
               </Box>
             )
             : lead}

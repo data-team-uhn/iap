@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { createPortal } from "react-dom";
 
 import type { Mark, TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
 import PdfViewer from "@iap/documents-pdf-viewer/PdfViewer";
@@ -45,7 +46,7 @@ const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discu
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
   search, onSearch, notesWidth, onNotesWidth, heading, onShowAnswer, notesSlot, onClose, compareWith, hideChanges,
-  onHideChanges, onChangeCount }: {
+  onHideChanges, onChangeCount, writeSlot }: {
   document: ReviewedDocument;
   // PRETOTYPE: an older version to show what changed since, and what each is called; whether the changes are left
   // unshown, only told to the notes whose passage they changed
@@ -79,6 +80,9 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   onShowAnswer: (note: ReviewNote) => void;
   // A column of the screen's own to list the notes in; null while another page's are listed there
   notesSlot?: HTMLElement | null;
+  // PRETOTYPE: where the button writing about the document as a whole goes, as a title bar of the page's own, instead
+  // of at the end of the line heading the document
+  writeSlot?: HTMLElement | null;
   onClose: () => void;
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
@@ -142,6 +146,19 @@ export default function DocumentReview({ document, data, shown, selected, onSele
       </Box>
     );
   }, [ notes, draft, actions, document, questionLabel, adopting, editing, data.partOf, onShowAnswer ]);
+
+  // PRETOTYPE: as each question has, a button to write about the document as a whole, without a passage
+  const writeButton = draft !== "document" && !actions.readOnly && (
+    <Tooltip title="Write about this document">
+      <IconButton size="small" aria-label={`Write about: ${document.title}`}
+        onClick={() => {
+          setDraft("document");
+          onSelect(DRAFT);
+        }}>
+        <AddCommentOutlined fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  );
 
   const condensed = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
@@ -216,6 +233,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
 
   return (
     <>
+      {writeSlot && writeButton && createPortal(writeButton, writeSlot)}
       {/* On a wide screen, the rest of the page's height, which matches the window's */}
       <Box ref={setPlace} sx={{ height: { xs: "75vh", md: "auto" }, flex: { md: 1 }, minHeight: { xs: 420, md: 0 } }} />
       <PdfViewer
@@ -241,18 +259,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         markHeading={markHeading}
         markHeadingActions={markHeadingActions}
         lead={heading}
-        leadEnd={draft !== "document" && !actions.readOnly && (
-          // PRETOTYPE: as each question has, a button to write about the document as a whole, without a passage
-          <Tooltip title="Write about this document">
-            <IconButton size="small" aria-label={`Write about: ${document.title}`}
-              onClick={() => {
-                setDraft("document");
-                onSelect(DRAFT);
-              }}>
-              <AddCommentOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
+        leadEnd={writeSlot === undefined && writeButton}
         listContainer={notesSlot}
         describeUnfound={describeUnfound}
         onChanges={setChanges}

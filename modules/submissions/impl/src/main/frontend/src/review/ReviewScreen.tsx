@@ -173,7 +173,8 @@ const SHORT_LABELS: Partial<Record<NoteKind, string>> = { discussion: "Discussio
 // Which of two parts shown one above the other
 type Pane = "top" | "bottom";
 
-// How narrow the notes may be dragged, and how much a part keeps beside them
+// How wide the notes start, how narrow they may be dragged, and how much a part keeps beside them
+const NOTES_WIDTH = 400;
 const NOTES_LEAST = 240;
 const PAGE_LEAST = 376;
 
@@ -309,6 +310,14 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ splitAt, setSplitAt ] = useStoredSetting("iap.review.splitAt", 0.5, isShare);
   // The column the notes of the part being worked in are listed in, the parts beside it, and its width
   const [ notesSlot, setNotesSlot ] = useState<HTMLElement | null>(null);
+  // PRETOTYPE: of two parts, where each one's title bar takes a document's button writing about it
+  const [ writeSlots, setWriteSlots ] = useState<Record<Pane, HTMLElement | null>>({ top: null, bottom: null });
+  // One callback for each, kept from one render to the next, as React calls a new one with the slot again each time
+  const writeSlotRefs = useMemo(() => {
+    const keep = (pane: Pane) => (slot: HTMLElement | null) =>
+      setWriteSlots(slots => (slots[pane] === slot ? slots : { ...slots, [pane]: slot }));
+    return { top: keep("top"), bottom: keep("bottom") };
+  }, []);
   const [ workArea, setWorkArea ] = useState<HTMLElement | null>(null);
   const [ paneColumn, setPaneColumn ] = useState<HTMLElement | null>(null);
   const [ workWidth, setWorkWidth ] = useState<number>();
@@ -321,7 +330,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     return () => observer.disconnect();
   }, [ workArea ]);
   // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
-  const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 400, isWidth);
+  const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", NOTES_WIDTH, isWidth);
   // The contents entry being read, and, when it has scrolled out of the list, the edge it left by, where a copy of it
   // stays pinned
   const [ readEntry, setReadEntry ] = useState<HTMLElement | null>(null);
@@ -989,19 +998,20 @@ export default function ReviewScreen({ path }: { path: string }) {
     const paneMark = pane === "top" ? mark : belowMark;
     const setPaneMark = pane === "top" ? setMark : setBelowMark;
     // Alone, a part is headed by its title; of two, each has a title bar, as a dialog has, with the button closing it
-    // in its corner, the one whose notes are listed on their tint, its title in its colour and underlined, the other's
-    // muted
+    // in its corner. The one whose notes are listed is ringed, its bar on their tint and its title bold in its colour;
+    // the other's title stays as readable, only not bold
     const title = withChangesSwitch(requirement,
       <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{requirement.label}</Typography>);
     const bar = bottom && (
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, pl: 2, pr: 1, py: 0.5, flexShrink: 0,
-        borderBottom: 1, borderColor: "divider", bgcolor: isActive ? "background.tinted" : "background.paper",
-        ...isActive ? { boxShadow: theme => `inset 0 -2px 0 ${(theme.vars ?? theme).palette.primary.main}` } : {} }}>
+        borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
         <Typography variant="h6" component="h2"
-          sx={{ flex: 1, minWidth: 0, ...isActive ? {} : { color: "text.disabled" } }}>
+          sx={{ flex: 1, minWidth: 0, ...isActive ? { color: "primary.main" } : { fontWeight: "fontWeightRegular" } }}>
           {requirement.label}
         </Typography>
         {changesSwitch(requirement)}
+        {/* A document's button writing about it as a whole, which it puts here */}
+        <Box ref={writeSlotRefs[pane]} sx={{ display: "flex" }} />
         <Tooltip title="Close" disableInteractive>
           <IconButton aria-label={`Close ${requirement.label}`} onClick={() => close(pane)}>
             <CloseOutlined />
@@ -1015,7 +1025,12 @@ export default function ReviewScreen({ path }: { path: string }) {
       <Box
         data-pane={pane} onPointerDownCapture={() => setActive(pane)} onFocusCapture={() => setActive(pane)}
         sx={{ flex: bottom ? `${pane === "top" ? splitAt : 1 - splitAt} 1 0` : "1 1 0", minHeight: 0,
-          display: "flex", flexDirection: "column", position: "relative" }}
+          display: "flex", flexDirection: "column", position: "relative",
+          // Of two, the one worked in ringed, drawn over what it holds, its scrollbars too
+          ...bottom && isActive ? { "&::after": { content: "\"\"", position: "absolute", inset: 2, zIndex: 2,
+            pointerEvents: "none", border: 2, borderColor: "primary.main", borderRadius: 1.5,
+            // The room left outside it painted as the page, so nothing the part holds shows past it
+            boxShadow: theme => `0 0 0 2px ${(theme.vars ?? theme).palette.background.paper}` } } : {} }}
       >
         {bar}
         {isFormRequirement(requirement) && (
@@ -1045,6 +1060,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               notesWidth={notesWidth} onNotesWidth={setNotesWidth} heading={heading ?? <Box />}
               onShowAnswer={openAnswer}
               notesSlot={isActive ? notesSlot : null}
+              writeSlot={bottom ? writeSlots[pane] : undefined}
               onClose={() => close(pane)}
             />
           </Box>
@@ -1446,7 +1462,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                     </Box>
                     <SplitHandle
                       width={notesShown} onWidth={setNotesWidth} container={() => workArea} min={NOTES_LEAST}
-                      reserve={PAGE_LEAST} label="Resize the notes"
+                      reserve={PAGE_LEAST} label="Resize the notes" onReset={() => setNotesWidth(NOTES_WIDTH)}
                     />
                     {/* Over the whole workspace, the review covers the contents and the page, which stay as they were
                         under it, to come back to */}
