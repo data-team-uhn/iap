@@ -27,9 +27,10 @@ import type { GridColDef, GridSortDirection } from "@mui/x-data-grid-pro";
 // - "actions" ends the title's line. It holds what can be done with the entity as one compact
 //   control, such as a menu, because a click on the card itself opens the entity.
 // - "caption" goes on the muted line under the title. Several captions join into one " • " line.
+// - "body" is text the card reads in full, the width of the card and with no label, such as a comment's.
 // - "row" is a labeled row, and the default.
 // - "omit" leaves the column off the card.
-export type EntityGridCardSlot = "title" | "badge" | "caption" | "row" | "actions" | "omit";
+export type EntityGridCardSlot = "title" | "badge" | "caption" | "body" | "row" | "actions" | "omit";
 
 // A column of an entity grid: an MUI DataGrid column definition, and where it goes on the
 // narrow-screen card. A column computed from data the server cannot order by sets

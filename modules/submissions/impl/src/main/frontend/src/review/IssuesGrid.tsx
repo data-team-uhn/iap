@@ -22,14 +22,19 @@ import {
 
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
-import { Box, Button, InputBase, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, IconButton, InputBase, Link, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import {
   DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, GridEditSingleSelectCell, type GridCellModesModel,
-  type GridCellParams, type GridColDef, type GridRenderCellParams, type GridRenderEditCellParams, type GridRowId,
+  type GridCellParams, type GridColDef, type GridColumnVisibilityModel, type GridRenderCellParams,
+  type GridRenderEditCellParams, type GridRowId, type GridSortModel, type GridValidRowModel,
   gridColumnPositionsSelector, gridVisibleColumnDefinitionsSelector, useGridApiContext, useGridSelector,
 } from "@mui/x-data-grid-pro";
 
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
+import EntityListItem from "@iap/frontend-commons/entityGrid/EntityListItem";
+import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
+import useColumnVisibility from "@iap/frontend-commons/entityGrid/useColumnVisibility";
+import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
@@ -37,6 +42,7 @@ import { SentLock, Thread } from "./NoteCard";
 import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
+
 
 interface IssueRow {
   id: string;
@@ -50,6 +56,19 @@ interface IssueRow {
   // When it was raised
   created: Date | undefined;
   issue: ReviewNote;
+}
+
+// A column, and where it goes on the card a row becomes when the grid is too narrow for its columns
+export type CardColumn<Row extends GridValidRowModel> = GridColDef<Row> & Pick<EntityGridColumn, "cardSlot"> & {
+  cardValue?: (row: Row) => ReactNode;
+};
+
+// Below this width, which the columns need, a grid lists its rows as cards
+export const CARDS_BELOW = 720;
+
+// A row's card, made by the entity grids' own from the columns shown
+export function cardOf<Row extends GridValidRowModel>(row: Row, columns: CardColumn<Row>[]) {
+  return <EntityListItem row={row} columns={columns as unknown as EntityGridColumn[]} />;
 }
 
 const SEVERITY_NAMES: Record<string, string> = {
@@ -133,10 +152,71 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     />
   ), [ writingTo, onReply, onEditReply, onRemoveReply ]);
   const riskLabel = (path: string) => risks.find(risk => risk.path === path)?.label ?? "No risk";
+  // Where the grid is too narrow for its columns, each issue is a card, changed on the card as the new one is written
+  const [ element, setElement ] = useState<HTMLDivElement | null>(null);
+  const cards = useNarrowerThan(element, CARDS_BELOW);
+  const [ onCard, setOnCard ] = useState<{ id: string; draft: Draft }>();
+  const [ savingCard, setSavingCard ] = useState(false);
+  const canChange = (row: IssueRow) => !row.ai && row.id !== DRAFT && !row.issue.sent;
+  const changeOnCard = (row: IssueRow) =>
+    setOnCard({ id: row.id, draft: { severity: row.severity, risk: row.risk, text: row.text } });
+  // The columns the reviewer chose, in this browser; the thread's toggle is never one, nor, under one risk, the risk
+  const [ chosenColumns, chooseColumns ] = useColumnVisibility("review/issues");
+  const forced: GridColumnVisibilityModel = { [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false,
+    ...compact && !keepRisk ? { risk: false } : {} };
+  const visibility = { ...chosenColumns, ...forced };
+  const choose = (model: GridColumnVisibilityModel) =>
+    chooseColumns(Object.fromEntries(Object.entries(model).filter(([ field ]) => !(field in forced))));
+  const [ sortModel, setSortModel ] = useState<GridSortModel>(
+    [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ]);
+  // Under an issue's text, its replies, unfolding under the issue, and, while they are folded, a way to add one
+  const replyLinks = (row: IssueRow) => !row.ai && (onReply !== undefined || row.replies > 0) && (
+    <Stack direction="row" sx={{ gap: 1.5, mt: 0.25 }}>
+      {row.replies > 0 && (
+        <Link component="button" variant="caption" aria-expanded={expanded.has(row.id)}
+          onClick={() => toggleThread(row.id)}>
+          {`${expanded.has(row.id) ? "Hide" : "Show"} ${row.replies === 1 ? "1 reply" : `${row.replies} replies`}`}
+        </Link>
+      )}
+      {/* Unfolded, the thread has its own, under the last reply */}
+      {onReply && !expanded.has(row.id) && (
+        <Link component="button" variant="caption" onClick={() => toggleThread(row.id, true)}>Reply</Link>
+      )}
+    </Stack>
+  );
+  // What can be done with an issue: removing it, or nothing once sent; with an AI concern, making it an issue or
+  // dismissing it. On a card, also changing it, which the grid does in its cells
+  const actions = (row: IssueRow, onCard: boolean) => (
+    <Stack direction={onCard ? "row" : "column"} sx={{ alignItems: onCard ? "center" : "flex-end", gap: onCard ? 1 : 0,
+      width: onCard ? undefined : "100%" }}>
+      {onCard && canChange(row) && (
+        <Tooltip disableInteractive title="Change the issue">
+          <IconButton size="small" aria-label="Change the issue" onClick={() => changeOnCard(row)}>
+            <EditOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {!row.ai && (
+        <Stack direction="row">
+          {row.issue.sent ? <SentLock sent={row.issue.sent} />
+            : onRemove && <RemoveButton what="issue" text={row.text} onRemove={() => onRemove(row.issue)} />}
+        </Stack>
+      )}
+      {row.ai && onMakeIssue && (
+        <Link component="button" variant="body2" onClick={() => void onMakeIssue(row.issue)}>Make it an issue</Link>
+      )}
+      {row.ai && onDismiss && (
+        <Link component="button" variant="body2" onClick={() => void onDismiss(row.issue)}>Dismiss</Link>
+      )}
+    </Stack>
+  );
+  const day = (date: Date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
-  const columns: GridColDef<IssueRow>[] = [
+  const columns: CardColumn<IssueRow>[] = [
     {
       field: "severity", headerName: "Severity", width: 130, editable: true, type: "singleSelect",
+      // How serious leads the card
+      cardSlot: "title", cardValue: row => <TagChip tags={[ row.severity ]} category="severity" />,
       valueOptions: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
       renderEditCell: params => <ChoiceEdit {...params} />,
       // By how serious, not by name
@@ -146,24 +226,23 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     },
     {
       field: "risk", headerName: "Risk", width: 160, editable: true, type: "singleSelect",
+      cardSlot: "caption", cardValue: row => riskLabel(row.risk),
       valueOptions: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ],
       valueFormatter: (value: string) => riskLabel(value),
       renderEditCell: params => <ChoiceEdit {...params} />,
     },
     {
       field: "created", headerName: "Raised", type: "date", width: 90,
-      valueFormatter: (value: Date | undefined) =>
-        value ? value.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+      valueFormatter: (value: Date | undefined) => (value ? day(value) : ""),
+      cardSlot: "caption", cardValue: row => row.created && `Raised ${day(row.created)}`,
     },
     ...concerns.length > 0 ? [ {
       field: "ai", headerName: "Raised by", width: 100, type: "singleSelect" as const,
       valueOptions: [ { value: false, label: "You" }, { value: true, label: "AI" } ],
       valueFormatter: (value: boolean) => (value ? "AI" : "You"),
-      renderCell: ({ row }: { row: IssueRow }) => (row.ai ? (
-        <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "assistant.main" }}>
-          <AutoAwesomeOutlined sx={{ fontSize: "1rem" }} />AI
-        </Stack>
-      ) : "You"),
+      renderCell: ({ row }: { row: IssueRow }) => (row.ai ? <AiMark /> : "You"),
+      // On a card, only the AI's say who raised them
+      cardSlot: "badge" as const, cardValue: (row: IssueRow) => row.ai && <AiMark />,
     } ] : [],
     {
       // What an issue is about leads to it, so it reads as a way there, not as something to change
@@ -171,50 +250,43 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       renderCell: ({ row }) => onShow && (row.issue.subjects.length > 0 || row.issue.passage)
         ? <WhereLink text={row.about} onClick={() => onShow(row.issue)} />
         : row.about,
+      cardSlot: "caption",
+      cardValue: row => onShow && (row.issue.subjects.length > 0 || row.issue.passage)
+        ? <WhereLink text={row.about} variant="inherit" onClick={() => onShow(row.issue)} />
+        : row.about,
     },
     {
       field: "text", headerName: "Issue", flex: 1, minWidth: 220, editable: true,
-      // Under the text, its replies, unfolding under the issue, and, while they are folded, a way to add one
       renderCell: ({ row, value }) => (
         <>
           <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>
-          {!row.ai && (onReply !== undefined || row.replies > 0) && (
-            <Stack direction="row" sx={{ gap: 1.5, mt: 0.25 }}>
-              {row.replies > 0 && (
-                <Link component="button" variant="caption" aria-expanded={expanded.has(row.id)}
-                  onClick={() => toggleThread(row.id)}>
-                  {`${expanded.has(row.id) ? "Hide" : "Show"} ${row.replies === 1 ? "1 reply" : `${row.replies} replies`}`}
-                </Link>
-              )}
-              {/* Unfolded, the thread has its own, under the last reply */}
-              {onReply && !expanded.has(row.id) && (
-                <Link component="button" variant="caption" onClick={() => toggleThread(row.id, true)}>Reply</Link>
-              )}
-            </Stack>
-          )}
+          {replyLinks(row)}
         </>
       ),
       renderEditCell: params => <TextEdit {...params} />,
+      // On a card, the thread unfolds in the card, under the text
+      cardSlot: "body",
+      cardValue: row => (
+        <>
+          <Box sx={{ whiteSpace: "pre-wrap" }}>{row.text}</Box>
+          {replyLinks(row)}
+          {expanded.has(row.id) && (
+            <Box sx={{ mt: 1 }}>
+              <ThreadBody
+                issue={row.issue} writing={writingTo === row.id} onWrite={() => setWritingTo(row.id)}
+                onStop={() => setWritingTo(undefined)} onReply={onReply} onEditReply={onEditReply}
+                onRemoveReply={onRemoveReply}
+              />
+            </Box>
+          )}
+        </>
+      ),
     },
     {
       field: "where", headerName: "", width: concerns.length > 0 ? 150 : 64, sortable: false, filterable: false,
       // Right-aligned, so remove lines up with that of the replies unfolded under it
-      renderCell: ({ row }) => (
-        <Stack sx={{ alignItems: "flex-end", width: "100%" }}>
-          {!row.ai && (
-            <Stack direction="row">
-              {row.issue.sent ? <SentLock sent={row.issue.sent} />
-                : onRemove && <RemoveButton what="issue" text={row.text} onRemove={() => onRemove(row.issue)} />}
-            </Stack>
-          )}
-          {row.ai && onMakeIssue && (
-            <Link component="button" variant="body2" onClick={() => void onMakeIssue(row.issue)}>Make it an issue</Link>
-          )}
-          {row.ai && onDismiss && (
-            <Link component="button" variant="body2" onClick={() => void onDismiss(row.issue)}>Dismiss</Link>
-          )}
-        </Stack>
-      ),
+      renderCell: ({ row }) => actions(row, false),
+      cardSlot: "actions", cardValue: row => actions(row, true),
     },
   ];
 
@@ -258,6 +330,32 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     severities: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
     risks: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ] };
   const draftCell = (field: string) => <DraftCell field={field} />;
+  const saveCard = async () => {
+    const row = onCard && rows.find(one => one.id === onCard.id);
+    if (!onCard || !row || !onCard.draft.text.trim()) {
+      return;
+    }
+    setSavingCard(true);
+    try {
+      const { text, severity, risk } = onCard.draft;
+      if (text.trim() !== row.text || severity !== row.severity || risk !== row.risk) {
+        await onChange(row.issue, text.trim(), severity, risk);
+        changed.current = row.id;
+      }
+      setOnCard(undefined);
+    } finally {
+      setSavingCard(false);
+    }
+  };
+  // A column absent from the model is shown; the model's index type hides the undefined
+  const shownColumns = columns.filter(column => (visibility[column.field] as boolean | undefined) !== false);
+  const withRisk = shownColumns.some(column => column.field === "risk");
+  const card = (row: IssueRow) => (onCard?.id === row.id ? (
+    <CardEditor
+      draft={onCard.draft} onChange={draft => setOnCard({ id: row.id, draft })} onSave={saveCard}
+      onCancel={() => setOnCard(undefined)} saving={savingCard} withRisk={withRisk} label="The issue"
+    />
+  ) : cardOf(row, shownColumns));
   // Every column draws the new issue's row with its editors, the others as they would
   const shown = columns.map(column => ({
     ...column,
@@ -287,53 +385,69 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   }
   return (
     <Drafting.Provider value={drafting}>
-      <DataGridPro
-        rows={rows} columns={shown} density="compact" disableRowSelectionOnClick hideFooter
-        pinnedRows={{ top: adding ? [ draftRow ] : [] }}
-        showToolbar={!compact} slots={{ toolbar: EntityGridToolbar }}
-        slotProps={{ toolbar: { searchLabel: "Search your issues" } }} autoHeight={compact}
-        getRowHeight={() => "auto"}
-        // The AI's concerns are greyed, and are not changed in place: they become issues first
-        // The new issue's row has its own editors, which the grid's must not take over
-        isCellEditable={({ row }: { row: IssueRow }) => !row.ai && row.id !== DRAFT && !row.issue.sent}
-        getDetailPanelContent={thread} getDetailPanelHeight={() => "auto"}
-        detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
-        // The replies count unfolds a thread, so the grid's own toggle column is left out
-        columnVisibilityModel={{ [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false,
-          ...compact && !keepRisk ? { risk: false } : {} }}
-        cellModesModel={cellModes} onCellModesModelChange={setCellModes} onCellClick={startEditing}
-        getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
-        initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },
-          pinnedColumns: { right: [ "where" ] } }}
-        processRowUpdate={async (next: IssueRow, before: IssueRow) => {
-          if (!next.text.trim()) {
-            return before;
-          }
-          if (next.text !== before.text || next.severity !== before.severity || next.risk !== before.risk) {
-            await onChange(next.issue, next.text.trim(), next.severity, next.risk);
-            // Saved, it may have moved with the sorting: it pulses where it lands
-            changed.current = next.id;
-          }
-          return next;
-        }}
-        onProcessRowUpdateError={() => undefined}
-        localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
-        sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper",
-          "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" },
-          // A cell that changes on a click says so under the pointer, as a spreadsheet's does
-          "& .MuiDataGrid-cell--editable": { cursor: "pointer" },
-          // The text being changed stays where it was read, at the top, however tall the row
-          "& .MuiDataGrid-cell--editing": { alignItems: "flex-start" },
-          "& .MuiDataGrid-cell--editable[data-field='text']": { cursor: "text" },
-          "& .MuiDataGrid-cell--editable:hover": { outline: "1px solid", outlineColor: "primary.light", outlineOffset: "-2px",
-            borderRadius: 0.5 },
-          "& .edit-hint": { display: "none", position: "absolute", top: -2, right: -4, width: 24, height: 24,
-            borderRadius: "50%", bgcolor: "background.default", color: "text.secondary", boxShadow: 1, cursor: "pointer",
-            alignItems: "center", justifyContent: "center", "& svg": { fontSize: "0.95rem" } },
-          "& .MuiDataGrid-cell--editable:hover .edit-hint": { display: "flex" },
-          "@media (hover: none)": { "& .MuiDataGrid-cell--editable": { "& .editable": { pr: 3.5 },
-            "& .edit-hint": { display: "flex" } } } }}
-      />
+      <Stack ref={setElement} sx={{ width: "100%", height: compact ? undefined : "100%" }}>
+        {/* On cards, the new issue is written on one of its own, over the others */}
+        {cards && adding && (
+          <Box sx={{ mb: 1, px: 1.5, border: 2, borderColor: "primary.main", borderRadius: 1,
+            bgcolor: "background.paper" }}>
+            <CardEditor
+              draft={draft} onChange={setDraft} onSave={save} onCancel={stopAdding} saving={saving} withRisk={withRisk}
+              label="The new issue"
+            />
+          </Box>
+        )}
+        {!(cards && rows.length === 0) && (
+          <DataGridPro
+            rows={rows} columns={shown} density="compact" disableRowSelectionOnClick hideFooter
+            listView={cards} listViewColumn={{ field: "__card__", renderCell: ({ row }) => card(row) }}
+            pinnedRows={{ top: adding && !cards ? [ draftRow ] : [] }}
+            showToolbar={!compact} slots={{ toolbar: EntityGridToolbar }}
+            // Cards have no headers to sort by, so the toolbar has a sort menu instead
+            slotProps={{ toolbar: { searchLabel: "Search your issues", showSortMenu: cards, sortModel,
+              onSortModelChange: setSortModel, sortableColumns: shownColumns.filter(column => column.sortable !== false)
+                .map(column => ({ field: column.field, headerName: column.headerName })) } }}
+            autoHeight={compact} getRowHeight={() => "auto"}
+            // The AI's concerns are greyed, and are not changed in place: they become issues first
+            // The new issue's row has its own editors, which the grid's must not take over
+            isCellEditable={({ row }: { row: IssueRow }) => canChange(row)}
+            getDetailPanelContent={cards ? undefined : thread} getDetailPanelHeight={() => "auto"}
+            detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
+            columnVisibilityModel={visibility} onColumnVisibilityModelChange={choose}
+            sortModel={sortModel} onSortModelChange={setSortModel}
+            cellModesModel={cellModes} onCellModesModelChange={setCellModes} onCellClick={startEditing}
+            getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
+            initialState={{ pinnedColumns: { right: [ "where" ] } }}
+            processRowUpdate={async (next: IssueRow, before: IssueRow) => {
+              if (!next.text.trim()) {
+                return before;
+              }
+              if (next.text !== before.text || next.severity !== before.severity || next.risk !== before.risk) {
+                await onChange(next.issue, next.text.trim(), next.severity, next.risk);
+                // Saved, it may have moved with the sorting: it pulses where it lands
+                changed.current = next.id;
+              }
+              return next;
+            }}
+            onProcessRowUpdateError={() => undefined}
+            localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
+            sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper",
+              "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" },
+              // A cell that changes on a click says so under the pointer, as a spreadsheet's does
+              "& .MuiDataGrid-cell--editable": { cursor: "pointer" },
+              // The text being changed stays where it was read, at the top, however tall the row
+              "& .MuiDataGrid-cell--editing": { alignItems: "flex-start" },
+              "& .MuiDataGrid-cell--editable[data-field='text']": { cursor: "text" },
+              "& .MuiDataGrid-cell--editable:hover": { outline: "1px solid", outlineColor: "primary.light", outlineOffset: "-2px",
+                borderRadius: 0.5 },
+              "& .edit-hint": { display: "none", position: "absolute", top: -2, right: -4, width: 24, height: 24,
+                borderRadius: "50%", bgcolor: "background.default", color: "text.secondary", boxShadow: 1, cursor: "pointer",
+                alignItems: "center", justifyContent: "center", "& svg": { fontSize: "0.95rem" } },
+              "& .MuiDataGrid-cell--editable:hover .edit-hint": { display: "flex" },
+              "@media (hover: none)": { "& .MuiDataGrid-cell--editable": { "& .editable": { pr: 3.5 },
+                "& .edit-hint": { display: "flex" } } }, flex: compact ? undefined : 1, minHeight: 0 }}
+          />
+        )}
+      </Stack>
     </Drafting.Provider>
   );
 }
@@ -382,6 +496,24 @@ function ThreadPanel({ issue, writing, onWrite, onStop, onReply, onEditReply, on
   return (
     // The cell's own padding, less the thread's line and its gap, so the replies' words start where the issue's do
     <Box sx={{ pr: 2, pb: 1.5, bgcolor: "background.muted", pl: `${left + 10 - 12}px` }}>
+      <ThreadBody issue={issue} writing={writing} onWrite={onWrite} onStop={onStop} onReply={onReply}
+        onEditReply={onEditReply} onRemoveReply={onRemoveReply} />
+    </Box>
+  );
+}
+
+// An issue's replies, and a reply being written or a way to write one
+function ThreadBody({ issue, writing, onWrite, onStop, onReply, onEditReply, onRemoveReply }: {
+  issue: ReviewNote;
+  writing: boolean;
+  onWrite: () => void;
+  onStop: () => void;
+  onReply?: (issue: ReviewNote, text: string) => Promise<void>;
+  onEditReply?: (reply: string, text: string) => Promise<void>;
+  onRemoveReply?: (reply: string) => Promise<void>;
+}) {
+  return (
+    <>
       <Thread replies={issue.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
       {writing && onReply ? (
         <Box sx={{ mt: 1, maxWidth: 720 }}>
@@ -396,14 +528,18 @@ function ThreadPanel({ issue, writing, onWrite, onStop, onReply, onEditReply, on
       ) : onReply && (
         <Link component="button" variant="caption" sx={{ mt: 0.5, ml: "14px" }} onClick={onWrite}>Reply</Link>
       )}
-    </Box>
+    </>
   );
 }
 
 // A way to where something was raised, in the words saying what it is about
-export function WhereLink({ text, onClick }: { text: string; onClick: () => void }) {
+export function WhereLink({ text, variant = "body2", onClick }: {
+  text: string;
+  variant?: "body2" | "inherit";
+  onClick: () => void;
+}) {
   return (
-    <Link component="button" variant="body2" onClick={onClick} sx={{ textAlign: "start", whiteSpace: "normal" }}>
+    <Link component="button" variant={variant} onClick={onClick} sx={{ textAlign: "start", whiteSpace: "normal" }}>
       {text}
     </Link>
   );
@@ -433,8 +569,9 @@ function DraftSelect({ label, value, options, onChange }: {
 
 // The new issue's text, written in its cell as a changed one is: Enter keeps it, Shift and Enter starts a new line,
 // Escape gives it up
-function DraftText({ value, onChange, onSave, onCancel }: {
+function DraftText({ value, label = "The new issue", onChange, onSave, onCancel }: {
   value: string;
+  label?: string;
   onChange: (value: string) => void;
   onSave: () => Promise<void>;
   onCancel: () => void;
@@ -456,7 +593,7 @@ function DraftText({ value, onChange, onSave, onCancel }: {
           onCancel();
         }
       }}
-      inputProps={{ "aria-label": "The new issue" }}
+      inputProps={{ "aria-label": label }}
       sx={{ typography: "body2", py: 0.25 }}
     />
   );
@@ -510,6 +647,58 @@ function DraftCell({ field }: { field: string }) {
     default:
       return null;
   }
+}
+
+// An issue changed or written on its card, as the grid's cells and its new issue's row do: how serious, under which
+// risk where the grid shows risks, what it says, and saving it or giving up
+function CardEditor({ draft, onChange, onSave, onCancel, saving, withRisk, label }: {
+  draft: Draft;
+  onChange: (draft: Draft) => void;
+  onSave: () => Promise<void>;
+  onCancel: () => void;
+  saving: boolean;
+  withRisk: boolean;
+  label: string;
+}) {
+  const drafting = useContext(Drafting);
+  if (!drafting) {
+    return null;
+  }
+  return (
+    <Stack spacing={1} sx={{ py: 1, width: "100%" }}>
+      <Stack direction="row" sx={{ gap: 1.5 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <DraftSelect label="Severity" value={draft.severity} options={drafting.severities}
+            onChange={severity => onChange({ ...draft, severity })} />
+        </Box>
+        {withRisk && (
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <DraftSelect label="Risk" value={draft.risk} options={drafting.risks}
+              onChange={risk => onChange({ ...draft, risk })} />
+          </Box>
+        )}
+      </Stack>
+      <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, px: 1, py: 0.5 }}>
+        <DraftText value={draft.text} label={label} onChange={text => onChange({ ...draft, text })} onSave={onSave}
+          onCancel={onCancel} />
+      </Box>
+      <Stack direction="row" sx={{ gap: 1, justifyContent: "flex-end" }}>
+        <Button size="small" onClick={onCancel}>Cancel</Button>
+        <Button size="small" variant="contained" disabled={saving || !draft.text.trim()} onClick={() => void onSave()}>
+          Save
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+// Raised by the AI, in its colour
+function AiMark() {
+  return (
+    <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "assistant.main" }}>
+      <AutoAwesomeOutlined sx={{ fontSize: "1rem" }} />AI
+    </Stack>
+  );
 }
 
 // A list in a cell, kept as soon as a choice is made in it rather than when the cell is left
