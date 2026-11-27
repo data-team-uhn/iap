@@ -20,6 +20,8 @@ package io.uhndata.iap.documents.generation.api;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * How a {@link DocumentGenerator#generate generation} ended. Each status says whose problem a failure is, which
  * decides what the caller does with it: show it to whoever fixes the template, retry later, or tell an
@@ -46,7 +48,11 @@ public final class GenerationResult
         TEMPLATE_ERROR,
         /** The worker could not take the request: it is busy, down, or did not answer in time. Retrying may help. */
         UNAVAILABLE,
-        /** Anything else, such as a misconfigured token or a value no template can hold. An administrator is needed. */
+        /**
+         * Anything else, such as a misconfigured token or a value no template can hold. An administrator is needed.
+         * The generator only logs it: the caller reports it where administrators look, with its
+         * {@link GenerationResult#getCause() cause}, once.
+         */
         FAILED
     }
 
@@ -56,11 +62,15 @@ public final class GenerationResult
 
     private final String message;
 
-    private GenerationResult(final Status status, final GeneratedDocument document, final String message)
+    private final Throwable cause;
+
+    private GenerationResult(final Status status, final GeneratedDocument document, final String message,
+        final Throwable cause)
     {
         this.status = status;
         this.document = document;
         this.message = message;
+        this.cause = cause;
     }
 
     /**
@@ -72,7 +82,7 @@ public final class GenerationResult
     @NotNull
     public static GenerationResult generated(@NotNull final GeneratedDocument document)
     {
-        return new GenerationResult(Status.GENERATED, document, "");
+        return new GenerationResult(Status.GENERATED, document, "", null);
     }
 
     /**
@@ -85,10 +95,26 @@ public final class GenerationResult
     @NotNull
     public static GenerationResult failed(@NotNull final Status status, @NotNull final String message)
     {
+        return failed(status, message, null);
+    }
+
+    /**
+     * Record a generation that did not work because something was thrown. The cause travels with the result, so
+     * that whoever reports the failure keeps its stack.
+     *
+     * @param status why, anything but {@link Status#GENERATED}
+     * @param message what went wrong, in terms its reader can act on
+     * @param cause what was thrown, or {@code null}
+     * @return a result with no document
+     */
+    @NotNull
+    public static GenerationResult failed(@NotNull final Status status, @NotNull final String message,
+        @Nullable final Throwable cause)
+    {
         if (status == Status.GENERATED) {
             throw new IllegalArgumentException("A generated result needs its document");
         }
-        return new GenerationResult(status, null, message);
+        return new GenerationResult(status, null, message, cause);
     }
 
     /**
@@ -122,6 +148,19 @@ public final class GenerationResult
     public String getMessage()
     {
         return this.message;
+    }
+
+    /**
+     * What was thrown, for a failure that began as an exception.
+     *
+     * @return the cause, or {@code null} when nothing was thrown
+     */
+    @Nullable
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP",
+        justification = "Handed on as the cause of the caller's own exception, as Throwable.getCause() does")
+    public Throwable getCause()
+    {
+        return this.cause;
     }
 
     @Override

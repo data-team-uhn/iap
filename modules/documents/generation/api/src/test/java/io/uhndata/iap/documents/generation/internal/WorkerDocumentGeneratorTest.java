@@ -55,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -328,12 +329,14 @@ class WorkerDocumentGeneratorTest
     {
         final TemplateContextProvider broken = Mockito.mock(TemplateContextProvider.class);
         Mockito.when(broken.getName()).thenReturn("submission");
-        Mockito.when(broken.getValue(Mockito.any())).thenThrow(new IllegalStateException("no answers node"));
+        final IllegalStateException thrown = new IllegalStateException("no answers node");
+        Mockito.when(broken.getValue(Mockito.any())).thenThrow(thrown);
 
         final GenerationResult result = generator(null, null, broken).generate(this.template, this.target);
 
         assertEquals(Status.FAILED, result.getStatus());
         assertTrue(result.getMessage().contains("submission") && result.getMessage().contains("no answers node"));
+        assertSame(thrown, result.getCause(), "whoever reports it keeps the stack");
         assertNull(this.received);
     }
 

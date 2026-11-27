@@ -70,6 +70,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -275,6 +276,18 @@ class GenerateDocumentHandlerTest
 
         assertTrue(failure.getMessage().contains("Try again in a moment"), failure.getMessage());
         assertTrue(documents().isEmpty(), "nothing may look like the requirement's document");
+    }
+
+    @Test
+    void aGenerationThatFailedOnSomethingThrownKeepsItForWhoeverReportsIt()
+    {
+        final IOException thrown = new IOException("the template's binary is gone");
+        generatorAnswers(GenerationResult.failed(Status.FAILED, "The template could not be read", thrown));
+
+        final WorkflowFailedException failure = assertThrows(WorkflowFailedException.class,
+            () -> this.handler.execute(context(LETTER)));
+
+        assertSame(thrown, failure.getCause());
     }
 
     @Test

@@ -128,8 +128,10 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
                 + "document service is busy or unreachable. Try again in a moment.");
         }
         if (generated == null) {
-            throw new WorkflowFailedException(requirement.getLabel() + " could not be generated: "
-                + result.getMessage());
+            // Recorded once, by whoever reports the step's failure, with what was thrown in the generator if anything
+            final String reason = requirement.getLabel() + " could not be generated: " + result.getMessage();
+            final Throwable cause = result.getCause();
+            throw cause == null ? new WorkflowFailedException(reason) : new WorkflowFailedException(reason, cause);
         }
 
         // Store it as the requirement's document

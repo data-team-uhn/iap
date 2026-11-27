@@ -257,6 +257,9 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         }
         LOGGER.warn("{}={} is not a positive number of bytes; using {}", MAX_TEMPLATE_BYTES_VARIABLE, configured,
             DEFAULT_MAX_TEMPLATE_BYTES);
+        ErrorLogger.logProblem("template size limit is not a positive number of bytes",
+            ErrorContext.of(WorkerDocumentGenerator.class, "activate")
+                .with(MAX_TEMPLATE_BYTES_VARIABLE, configured));
         return DEFAULT_MAX_TEMPLATE_BYTES;
     }
 
@@ -270,7 +273,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
             content = read(template, current.maxTemplateBytes());
         } catch (final IOException e) {
             return failure(template, target, "The template at " + template.getPath() + " could not be read: "
-                + describe(e));
+                + describe(e), e);
         }
         final String problem = problem(template, content, current.maxTemplateBytes());
         if (problem != null) {
@@ -280,7 +283,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         try {
             values = values(target);
         } catch (final ValuesException e) {
-            return failure(template, target, e.getMessage());
+            return failure(template, target, e.getMessage(), e.getCause());
         }
 
         // Ask the worker
@@ -421,6 +424,11 @@ public class WorkerDocumentGenerator implements DocumentGenerator
             if (!names.add(name)) {
                 LOGGER.warn("Ignoring {}: another template value provider already supplies \"{}\"",
                     provider.getClass().getName(), name);
+                ErrorLogger.logProblem("two template value providers supply the same name",
+                    ErrorContext.of(WorkerDocumentGenerator.class, "generate")
+                        .about(target)
+                        .with("name", name)
+                        .with("ignored", provider.getClass().getName()));
                 continue;
             }
             try {
@@ -453,7 +461,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
             document = new GeneratedDocument(Base64.getDecoder().decode(docx), decodedPdf);
         } catch (final JsonException | ClassCastException | IllegalArgumentException e) {
             // Not JSON, or a document that is not base64
-            return failure(template, target, "The generation worker's answer could not be read: " + describe(e));
+            return failure(template, target, "The generation worker's answer could not be read: " + describe(e), e);
         }
         LOGGER.info("Generated a document for {} from {}: pdfBytes={} inMs={}", target.getPath(),
             template.getPath(), pdfBytes, (System.nanoTime() - startedAt) / 1_000_000L);
@@ -466,14 +474,20 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         return GenerationResult.failed(Status.UNAVAILABLE, message);
     }
 
-    /** Record a failure an administrator has to look at, and return it. */
     private static GenerationResult failure(final Resource template, final Resource target, final String message)
     {
-        LOGGER.error("Generation from {} for {} failed: {}", template.getPath(), target.getPath(), message);
-        ErrorLogger.logProblem(message, ErrorContext.of(WorkerDocumentGenerator.class, "generate")
-            .about(target)
-            .with("template", template.getPath()));
-        return GenerationResult.failed(Status.FAILED, message);
+        return failure(template, target, message, null);
+    }
+
+    /**
+     * Log a failure an administrator has to look at, and return it. It is recorded where administrators look by
+     * whoever reports it, the workflow step that asked, along with its cause.
+     */
+    private static GenerationResult failure(final Resource template, final Resource target, final String message,
+        final Throwable cause)
+    {
+        LOGGER.error("Generation from {} for {} failed: {}", template.getPath(), target.getPath(), message, cause);
+        return GenerationResult.failed(Status.FAILED, message, cause);
     }
 
     /**
