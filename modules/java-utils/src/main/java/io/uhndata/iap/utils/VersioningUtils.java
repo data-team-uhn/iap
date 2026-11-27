@@ -20,6 +20,7 @@ package io.uhndata.iap.utils;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.version.Version;
 import javax.jcr.version.VersionException;
 import javax.jcr.version.VersionManager;
 
@@ -118,6 +119,35 @@ public final class VersioningUtils
             }
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot check in " + path, e);
+        }
+    }
+
+    /**
+     * Records a version of a versionable node: checks it in, which saves a copy of it in its version history, then
+     * checks it out again, so it stays writable. A check-in refuses pending changes and commits by itself, so it comes
+     * after the changes the version should hold are saved. A node that is checked in already is checked out again,
+     * and its current version is the one recorded.
+     *
+     * @param resolver the resolver whose JCR session records the version
+     * @param path the absolute path of the versionable node
+     * @return the path of the version; {@code null} if the resolver has no JCR session, or the node no longer exists
+     * @throws PersistenceException when the version cannot be recorded
+     */
+    @Nullable
+    public static String recordVersion(@NotNull final ResourceResolver resolver, @NotNull final String path)
+        throws PersistenceException
+    {
+        final Session session = resolver.adaptTo(Session.class);
+        try {
+            if (session == null || !session.nodeExists(path)) {
+                return null;
+            }
+            final VersionManager versions = session.getWorkspace().getVersionManager();
+            final Version version = versions.checkin(path);
+            versions.checkout(path);
+            return version.getPath();
+        } catch (final RepositoryException e) {
+            throw new PersistenceException("Cannot record a version of " + path, e);
         }
     }
 }
