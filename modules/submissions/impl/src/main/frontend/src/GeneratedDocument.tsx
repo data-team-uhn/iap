@@ -23,14 +23,13 @@ import { Alert, Button, Link, Stack, Typography } from "@mui/material";
 
 import { NO_MARKS } from "@iap/documents-pdf-viewer/marksModel";
 import PdfViewer from "@iap/documents-pdf-viewer/PdfViewer";
-import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { CHECK_TIMEOUT_MS, FileButton } from "./DocumentUpload";
+import { FileButton } from "./DocumentUpload";
 import { type AttachedDocument, type DocumentRequirement, attachDocument, toFileUrl } from "./submissionForm";
+import { checkUpload, useQueuedWork } from "./useQueuedWork";
 
 export interface GeneratedDocumentProps {
   path: string;
@@ -85,8 +84,7 @@ function Version({ document, onView }: { document: AttachedDocument; onView: (do
 // A document the platform fills in from the answers when the request is sent. Until then the submitter can
 // preview it, or upload a version of their own (e.g. an edited copy of a preview), which is sent instead.
 function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated }: GeneratedDocumentProps) {
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<string | undefined>(undefined);
+  const { busy, failure, dismiss, run } = useQueuedWork(queueSave);
   const [viewing, setViewing] = useState<Viewing | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
   const versions = requirement.attached;
@@ -99,36 +97,9 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
     shown = generated;
   }
 
-  // Either way, the form is read again on success, since what is attached has changed. An upload is checked in
-  // the browser first, as any other is, and only a file that passes waits in the queue.
-  const send = (start: () => Promise<unknown>, { check = Promise.resolve(undefined), onSent }: {
-    check?: Promise<string | undefined>;
-    onSent?: () => void;
-  } = {}) => {
-    setBusy(true);
-    setFailure(undefined);
-    check.then(problem => {
-      if (problem !== undefined) {
-        throw new Error(problem);
-      }
-      return queueSave(start);
-    }).then(
-      () => {
-        setBusy(false);
-        onSent?.();
-        onGenerated();
-      },
-      (error: unknown) => {
-        setBusy(false);
-        // Why the browser check refused the file, or the engine's own reason, such as a busy document service
-        setFailure(messageOf(error));
-      }
-    );
-  };
-
   return (
     <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
-      {failure ? <Alert severity="error" onClose={() => setFailure(undefined)}>{failure}</Alert> : null}
+      {failure ? <Alert severity="error" onClose={dismiss}>{failure}</Alert> : null}
       {versions.length > 0
         ? (
           <Typography variant="body2">
@@ -154,9 +125,14 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
           startIcon={<GenerateIcon />}
           disabled={disabled || busy}
           aria-label={`Preview "${name}"`}
-          onClick={() => send(
+          onClick={() => run(
             () => sendEvent(doFetch, path, "generateDocument", { requirement: requirement.name }),
-            { onSent: () => setViewing({ replacing: generated?.path }) },
+            {
+              onDone: () => {
+                setViewing({ replacing: generated?.path });
+                onGenerated();
+              },
+            },
           )}
         >
           {versions.length > 0 ? "Preview again" : "Preview from my answers"}
@@ -166,8 +142,9 @@ function GeneratedDocument({ path, requirement, disabled, queueSave, onGenerated
           ariaLabel={`Upload your own version of "${name}"`}
           accepted={requirement.acceptedFileTypes}
           disabled={disabled || busy}
-          onPick={file => send(() => attachDocument(doFetch, path, requirement.name, file), {
-            check: validateUpload(file, { accepted: requirement.acceptedFileTypes, timeoutMs: CHECK_TIMEOUT_MS }),
+          onPick={file => run(() => attachDocument(doFetch, path, requirement.name, file), {
+            check: checkUpload(file, requirement.acceptedFileTypes),
+            onDone: onGenerated,
           })}
         />
       </Stack>

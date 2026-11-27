@@ -668,6 +668,31 @@ describe("SubmissionEditor", () => {
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
     });
 
+    it("has the browser warn before a page with the submitter's own version on its way is left", async () => {
+      let land: () => void = () => undefined;
+      stubFetch(({ method }) =>
+        method === "POST"
+          ? new Promise<Response>(resolve => {
+            land = () => resolve(jsonResponse({}));
+          })
+          : jsonResponse(asked()));
+      const leave = () => {
+        const event = new Event("beforeunload", { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      const input = await screen.findByLabelText(/Upload your own version/);
+      expect(leave()).toBe(false);
+
+      await userEvent.upload(input, new File([ "PK" ], "letter-edited.docx", { type: DOCX }));
+      expect(leave()).toBe(true);
+
+      land();
+      await waitFor(() => expect(leave()).toBe(false));
+    });
+
     it("asks for a preview as an event on the submission, then reads the form again", async () => {
       const fetchMock = serving(asked(), asked({ attached: [ LETTER_FILE ] }));
       vi.stubGlobal("fetch", fetchMock);
