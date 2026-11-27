@@ -85,6 +85,7 @@ import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
 import { SentLetter } from "./LetterDialog";
+import LetterPage from "./LetterPage";
 import NoteKindIcon, { KindCount } from "./noteIcons";
 import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
@@ -364,12 +365,10 @@ export default function ReviewScreen({ path }: { path: string }) {
     observer.observe(readEntry);
     return () => observer.disconnect();
   }, [ readEntry ]);
-  const [ dialog, setDialog ] = useState<"board" | "approve" | "sentLetter">();
+  const [ dialog, setDialog ] = useState<"board" | "approve" | "sentLetter" | "changes">();
   const [ chosenTab, setSideTab ] = useStoredSetting<SideTab>("iap.review.sideTab", "notes", isSideTab);
-  // Whether the review is shown over the whole workspace, its contents and page, rather than beside the page; and
-  // whether the reviewer is on the letter asking for changes there, leaving it as they leave the whole workspace
+  // Whether the review is shown over the whole workspace, its contents and page, rather than beside the page
   const [ reviewFull, setReviewFull ] = useState(fullInAddress);
-  const [ writingLetter, setWritingLetter ] = useState(false);
   // Over the whole workspace, it is the review shown, whichever tab was chosen before, as on a reload
   const sideTab: SideTab = reviewFull ? "review" : chosenTab;
   // PRETOTYPE: how many changes the viewer showing a document counts, by the document, kept as it last said
@@ -378,7 +377,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     setChangeCounts(counts => (counts[uuid] === count ? counts : { ...counts, [uuid]: count })), []);
   const leaveFull = useCallback(() => {
     setReviewFull(false);
-    setWritingLetter(false);
   }, []);
   // Whether the step in the history that spread the review was taken on this page, rather than before a reload, so
   // that going back to it does not load the page again
@@ -999,7 +997,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const letterInput = { title: text(submission.title), identifier: text(submission.identifier),
     pi: text(submission.pi), about, issues: openIssues,
     risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
-    reviewer: myName, group: myGroupLabel.toLowerCase(),
+    // The letter says "the … review", which some groups' names already end with
+    reviewer: myName, group: myGroupLabel.toLowerCase().replace(/ review$/, ""),
     template: text(loaded.approvals.find(one => myGroups.includes(text(one.approverGroup)))?.letterTemplate)
       || undefined,
     sectionOf: (issue: ReviewNote) => [ ...loaded.letterSections ]
@@ -1024,15 +1023,13 @@ export default function ReviewScreen({ path }: { path: string }) {
     decided: !waiting || data.decided?.outcome === "changes-requested" ? decided : undefined,
     outcome: data.decided?.outcome,
     readLetter: lastLetter ? () => setDialog("sentLetter") : undefined,
-    send: () => {
-      setSideTab("review");
-      setReviewFull(true);
-      setWritingLetter(true);
-    },
+    // Asking for changes shows what the study team will read before it is sent: the REB's Letter of Review, or the
+    // other groups' issues as a letter of their own
+    send: () => setDialog("changes"),
     approve: () => setDialog("approve"),
     approveBlocked: !waiting ? "Your review is not waiting on a decision now"
       : blocking.length > 0
-        ? `Send a Letter of Review for your ${blocking.length === 1 ? "issue" : `${blocking.length} issues`} first`
+        ? `Request changes for your ${blocking.length === 1 ? "issue" : `${blocking.length} issues`} first`
         : undefined,
     board: myGroups.includes("reb-reviewers") ? () => setDialog("board") : undefined,
     // PRETOTYPE: decided on the latest version only
@@ -1242,10 +1239,9 @@ export default function ReviewScreen({ path }: { path: string }) {
           others={othersRaised} about={about}
           doing={{ ...doing, decision: reviewActions }}
           full={reviewFull} onFull={spreadReview} headed={reviewFull || narrow}
-          letter={writingLetter ? { draft: letter, close: () => setWritingLetter(false), send: async () => {
-            await sendLetter(letterText(letter));
-            spreadReview(false);
-          } } : undefined}
+          letter={letterInput.template ? { draft: letter, send: () => setDialog("changes"),
+            sendBlocked: reviewActions.blocked ?? (waiting ? undefined : "Your review is not waiting on a decision now") }
+            : undefined}
         />
       </ReviewerTopics.Provider>
     </GroupLabels.Provider>
@@ -1655,6 +1651,19 @@ export default function ReviewScreen({ path }: { path: string }) {
                   )}
                   {dialog === "sentLetter" && lastLetter && (
                     <SentLetter letter={lastLetter} onClose={() => setDialog(undefined)} />
+                  )}
+                  {dialog === "changes" && (
+                    // What is sent, as the study team will read it, before it is
+                    <ConfirmActionDialog
+                      title="Request changes?" confirmLabel="Send" workingLabel="Sending…" width="md"
+                      onConfirm={() => sendLetter(letterText(letter))} onClose={() => setDialog(undefined)}
+                    >
+                      <DialogContentText sx={{ mb: 2 }}>
+                        {"The study team will get this letter. It pauses the clock until they answer, and your issues "
+                          + "in it can't be changed after, only replied to."}
+                      </DialogContentText>
+                      <LetterPage letter={letter} />
+                    </ConfirmActionDialog>
                   )}
                   {dialog === "approve" && (
                     <ConfirmActionDialog

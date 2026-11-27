@@ -36,12 +36,11 @@ import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Box, Button, ButtonBase, Checkbox, DialogContentText, FormControlLabel, IconButton, LinearProgress, Link, Stack,
+  Box, Button, ButtonBase, Checkbox, FormControlLabel, IconButton, LinearProgress, Link, Stack,
   Switch, Tooltip, Typography,
 } from "@mui/material";
 
 import { getCutShortStyle } from "@iap/documents-pdf-viewer/passageStyles";
-import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 import TagChip from "@iap/tags/TagChip";
@@ -163,7 +162,8 @@ export default function ReviewPanel(props: ReviewProps & {
   onFull: (full: boolean) => void;
   // Whether it heads itself with the way to show it over the whole workspace or back, rather than its tab doing so
   headed?: boolean;
-  // The letter asking for changes, while the reviewer is on it, shown beside their issues over the whole workspace
+  // PRETOTYPE: the REB's Letter of Review, drawn from the reviewer's issues, an entry of the review of its own; none
+  // for the groups that send their issues without one
   letter?: LetterWriting;
 }) {
   const { risks, doing, full, onFull, letter } = props;
@@ -177,13 +177,18 @@ export default function ReviewPanel(props: ReviewProps & {
     onFull(false);
     doing.open(note);
   };
+  // The letter is read over the whole workspace, where its page has room, as the entry chosen
+  const openLetter = () => {
+    setChosen(LETTER);
+    onFull(true);
+  };
 
   return (
     <Box ref={setRoot} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       {(props.headed ?? true) && <Stack direction="row" sx={{ alignItems: "center", gap: 2, pl: 1.5, pr: 0.5, py: 1,
         ...wide ? { borderBottom: 1, borderColor: "divider" } : {} }}>
         {/* Over the workspace, where the tabs naming it are hidden */}
-        {full && !compact && <Typography variant="panelTitle">{letter ? "Letter of Review" : "Review"}</Typography>}
+        {full && !compact && <Typography variant="panelTitle">Review</Typography>}
         <Box sx={{ flex: 1 }} />
         {/* Over the whole workspace, the submission folded beside it, Esc and the browser's Back also take it back */}
         <Tooltip disableInteractive title={full ? "Back beside the page" : "Open over the whole workspace"}
@@ -194,64 +199,72 @@ export default function ReviewPanel(props: ReviewProps & {
           </IconButton>
         </Tooltip>
       </Stack>}
-      {letter && full ? <LetterView {...props} letter={letter} row={!compact} onShow={show} />
-        : wide ? <WideReview {...props} chosen={chosen} onChosen={setChosen} row={!compact} roomy={full}
-          onShow={show} /> : (
-          // An open entry's name stays at the top, which the fade would hide
-          <PanelBody fadeTop={chosen === undefined}>
-            {/* The entries the whole review lists, unfolding in place */}
-            <Box sx={openSx(chosen === AI_TAB)}>
-              <PanelEntry open={chosen === AI_TAB} onClick={() => setChosen(chosen === AI_TAB ? undefined : AI_TAB)}
-                icon={<AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />}>
-                <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
-                  AI pre-review ({openFindingsOf(risks)})
-                </Typography>
+      {wide ? <WideReview {...props} chosen={chosen} onChosen={setChosen} row={!compact} roomy={full}
+        onShow={show} /> : (
+      // An open entry's name stays at the top, which the fade would hide
+        <PanelBody fadeTop={chosen === undefined}>
+          {/* The entries the whole review lists, unfolding in place */}
+          <Box sx={openSx(chosen === AI_TAB)}>
+            <PanelEntry open={chosen === AI_TAB} onClick={() => setChosen(chosen === AI_TAB ? undefined : AI_TAB)}
+              icon={<AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />}>
+              <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
+                AI pre-review ({openFindingsOf(risks)})
+              </Typography>
+            </PanelEntry>
+            {chosen === AI_TAB && (
+              <Box sx={{ px: 1.5, pb: 1.5 }}><AiPreReview {...props} fitRows onShow={show} /></Box>
+            )}
+          </Box>
+          <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === ALL_ISSUES) }}>
+            <PanelEntry open={chosen === ALL_ISSUES}
+              onClick={() => setChosen(chosen === ALL_ISSUES ? undefined : ALL_ISSUES)}
+              icon={<RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />}>
+              <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
+                Your issues ({props.issueCount})
+              </Typography>
+            </PanelEntry>
+            {chosen === ALL_ISSUES && (
+              <Box sx={{ px: 1.5, pb: 1.5 }}><AllIssues {...props} fitRows onShow={show} /></Box>
+            )}
+          </Box>
+          {letter && (
+            <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === LETTER) }}>
+              <PanelEntry open={chosen === LETTER} onClick={() => setChosen(chosen === LETTER ? undefined : LETTER)}
+                icon={<ForwardToInboxOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />}>
+                <LetterName letter={letter} />
               </PanelEntry>
-              {chosen === AI_TAB && (
-                <Box sx={{ px: 1.5, pb: 1.5 }}><AiPreReview {...props} fitRows onShow={show} /></Box>
+              {chosen === LETTER && <LetterSummary letter={letter} onOpen={openLetter} />}
+            </Box>
+          )}
+          <RisksLabel risks={risks} group={props.group} lettered={Boolean(letter)} dense />
+          {risks.map(risk => (
+            <Box key={risk.topic.path}
+              sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === risk.topic.path) }}>
+              <RiskHeading
+                risk={risk} doing={doing} open={chosen === risk.topic.path}
+                onClick={() => setChosen(chosen === risk.topic.path ? undefined : risk.topic.path)}
+              />
+              {chosen === risk.topic.path && (
+              // Under the risk's name: past its caret and its icon's slot, as PanelEntry lays them out
+                <Box sx={{ pl: 6.5, pr: 1.5, pb: 1.25 }}>
+                  <RiskDetail risk={risk} dense about={props.about} doing={doing} onShow={show} />
+                </Box>
               )}
             </Box>
-            <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === ALL_ISSUES) }}>
-              <PanelEntry open={chosen === ALL_ISSUES}
-                onClick={() => setChosen(chosen === ALL_ISSUES ? undefined : ALL_ISSUES)}
-                icon={<RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />}>
-                <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
-                  Your issues ({props.issueCount})
-                </Typography>
-              </PanelEntry>
-              {chosen === ALL_ISSUES && (
-                <Box sx={{ px: 1.5, pb: 1.5 }}><AllIssues {...props} fitRows onShow={show} /></Box>
-              )}
-            </Box>
-            <RisksLabel risks={risks} group={props.group} dense />
-            {risks.map(risk => (
-              <Box key={risk.topic.path}
-                sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === risk.topic.path) }}>
-                <RiskHeading
-                  risk={risk} doing={doing} open={chosen === risk.topic.path}
-                  onClick={() => setChosen(chosen === risk.topic.path ? undefined : risk.topic.path)}
-                />
-                {chosen === risk.topic.path && (
-                  // Under the risk's name: past its caret and its icon's slot, as PanelEntry lays them out
-                  <Box sx={{ pl: 6.5, pr: 1.5, pb: 1.25 }}>
-                    <RiskDetail risk={risk} dense about={props.about} doing={doing} onShow={show} />
-                  </Box>
-                )}
-              </Box>
-            ))}
-            <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === UNFILED) }}>
-              <PanelEntry open={chosen === UNFILED}
-                onClick={() => setChosen(chosen === UNFILED ? undefined : UNFILED)}>
-                <OtherName count={props.unfiled.length} counted={chosen !== UNFILED} />
-              </PanelEntry>
-              {chosen === UNFILED && (
-                <Box sx={{ px: 1.5, pb: 1.5 }}><OtherIssues {...props} fitRows onShow={show} /></Box>
-              )}
-            </Box>
-            <Others others={props.others} doing={doing} />
-          </PanelBody>
-        )}
-      {!(letter && full) && <Decision decision={doing.decision} wide={wide} />}
+          ))}
+          <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === UNFILED) }}>
+            <PanelEntry open={chosen === UNFILED}
+              onClick={() => setChosen(chosen === UNFILED ? undefined : UNFILED)}>
+              <OtherName count={props.unfiled.length} counted={chosen !== UNFILED} />
+            </PanelEntry>
+            {chosen === UNFILED && (
+              <Box sx={{ px: 1.5, pb: 1.5 }}><OtherIssues {...props} fitRows onShow={show} /></Box>
+            )}
+          </Box>
+          <Others others={props.others} doing={doing} />
+        </PanelBody>
+      )}
+      <Decision decision={doing.decision} wide={wide} />
     </Box>
   );
 }
@@ -259,21 +272,64 @@ export default function ReviewPanel(props: ReviewProps & {
 // The letter asking for changes, drawn from the reviewer's issues, and what can be done with it
 export interface LetterWriting {
   draft: DraftedLetter;
-  send: () => Promise<void>;
-  close: () => void;
+  // Shows it as it is sent, to send it
+  send: () => void;
+  // Why it cannot be sent now, as when the review waits on no decision
+  sendBlocked?: string;
+}
+
+// The Letter of Review's entry: its name, and how many points it makes
+function LetterName({ letter }: { letter: LetterWriting }) {
+  const points = letter.draft.sections.flatMap(section => section.points).length;
+  return (
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
+        Letter of Review
+      </Typography>
+      <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+        {points === 1 ? "1 point" : `${points} points`}
+      </Typography>
+    </Box>
+  );
+}
+
+// Beside the page, where the letter's page has no room: what it says, by its headings, and a way to read it whole
+function LetterSummary({ letter, onOpen }: { letter: LetterWriting; onOpen: () => void }) {
+  const sections = letter.draft.sections.filter(section => section.points.length > 0);
+  return (
+    <Stack spacing={1} sx={{ pl: 6.5, pr: 1.5, pb: 1.5 }}>
+      {sections.length === 0 ? (
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          {"No points yet. It's drawn from your open issues."}
+        </Typography>
+      ) : (
+        <Box component="ul" sx={{ m: 0, pl: 2.5, typography: "body2" }}>
+          {sections.map(section => (
+            <li key={section.heading}>
+              {section.heading} ({section.points.length})
+            </li>
+          ))}
+        </Box>
+      )}
+      <Button size="small" variant="text" startIcon={<OpenInFullOutlined />} onClick={onOpen}
+        sx={{ alignSelf: "flex-start", px: 0.75, ml: -0.75 }}>
+        Open the letter
+      </Button>
+    </Stack>
+  );
 }
 
 // The letter beside the issues it says, in its order, under its headings: an issue changed is the letter changed. A
 // point clicked in the letter selects its issue, and an issue clicked its point. Sending it, after making sure,
-// asks the study team for changes
+// asks the study team for changes. Side by side given the room, the issues over the page otherwise
 function LetterView(props: ReviewProps & {
   letter: LetterWriting;
-  row: boolean;
   onShow: (note: ReviewNote) => void;
 }) {
-  const { letter, doing, row } = props;
+  const { letter, doing } = props;
   const [ selected, setSelected ] = useState<string>();
-  const [ confirming, setConfirming ] = useState(false);
+  const [ root, setRoot ] = useState<HTMLDivElement | null>(null);
+  const row = !useNarrowerThan(root, 960);
   const issues = new Map([ ...props.risks.flatMap(one => one.issues), ...props.unfiled ]
     .map(issue => [ issue.id, issue ]));
   const select = (id: string, show: string) => {
@@ -281,15 +337,29 @@ function LetterView(props: ReviewProps & {
     document.getElementById(show)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
   const points = letter.draft.sections.flatMap(section => section.points).length;
+  const send = (
+    <Button variant="contained" size="small" startIcon={<ForwardToInboxOutlined />}
+      disabled={Boolean(letter.sendBlocked)} onClick={letter.send}>
+      Send
+    </Button>
+  );
   return (
-    <>
-      {/* The issues and the page side by side, together in the middle of whatever room is left over */}
-      <Stack direction={row ? "row" : "column"} sx={{ flex: 1, minHeight: 0, justifyContent: "center" }}>
-        <Box sx={{ flex: row ? "1 1 0" : undefined, minWidth: 0, maxWidth: row ? 640 : undefined, overflowY: "auto",
-          px: 2, py: 1.5 }}>
-          <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
-            The letter is drawn from your open issues. To change what it says, change your issues here.
-          </Typography>
+    // Side by side, the issues and the letter scroll each on their own, filling the pane
+    <Stack ref={setRoot} spacing={2} sx={row ? { height: "100%", minHeight: 0 } : undefined}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+        <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Letter of Review</Typography>
+        {letter.sendBlocked
+          ? <Tooltip disableInteractive title={letter.sendBlocked}><span>{send}</span></Tooltip>
+          : send}
+      </Stack>
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+        Drawn from your open issues; to change what it says, change your issues here. Sending it asks the study team
+        for changes, and keeps your issues as they read them.
+      </Typography>
+      <Stack direction={row ? "row" : "column"}
+        sx={{ gap: 3, alignItems: row ? "stretch" : "flex-start", ...row ? { flex: 1, minHeight: 0 } : {} }}>
+        <Box sx={{ flex: row ? "2 1 0" : undefined, minWidth: row ? 300 : 0, maxWidth: row ? 560 : undefined,
+          width: row ? undefined : "100%", ...row ? { overflowY: "auto", pr: 1 } : {} }}>
           {points === 0 && (
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
               {"You haven't raised any issues for the study team, so the letter has no points."}
@@ -297,7 +367,7 @@ function LetterView(props: ReviewProps & {
           )}
           {letter.draft.sections.map(section => (
             <Box key={section.heading} sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" component="h3" sx={{ fontWeight: "fontWeightBold", mb: 0.5 }}>
+              <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold", mb: 0.5 }}>
                 {section.heading}
               </Typography>
               {section.points.map(point => {
@@ -319,35 +389,13 @@ function LetterView(props: ReviewProps & {
             </Box>
           ))}
         </Box>
-        <Box sx={{ flex: row ? "0 1 880px" : undefined, minWidth: 0, overflowY: "auto", p: { xs: 1, sm: 3 },
-          pl: { sm: row ? 1 : 3 } }}>
+        <Box sx={{ flex: row ? "3 1 0" : undefined, minWidth: 0, maxWidth: row ? 880 : undefined,
+          width: row ? undefined : "100%", ...row ? { overflowY: "auto", pb: 1 } : {} }}>
           <LetterPage letter={letter.draft} selected={selected}
             onSelect={id => select(id, `review-issue-${id}`)} />
         </Box>
       </Stack>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}
-        sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: { sm: "center" } }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
-          Sending it asks the study team for changes, and keeps your issues as they read them.
-        </Typography>
-        <Button size="small" onClick={letter.close}>Back to the review</Button>
-        <Button variant="contained" size="small" startIcon={<ForwardToInboxOutlined />}
-          onClick={() => setConfirming(true)}>
-          Send
-        </Button>
-      </Stack>
-      {confirming && (
-        <ConfirmActionDialog
-          title="Send the letter to the study team?" confirmLabel="Send" workingLabel="Sending…"
-          onConfirm={letter.send} onClose={() => setConfirming(false)}
-        >
-          <DialogContentText>
-            {"It asks them for changes, and pauses the clock until they answer. Your issues in it can't be changed "
-              + "after, only replied to."}
-          </DialogContentText>
-        </ConfirmActionDialog>
-      )}
-    </>
+    </Stack>
   );
 }
 
@@ -361,8 +409,9 @@ function WideReview(props: ReviewProps & {
   // Whether it has the whole workspace, which gives the list more room
   roomy: boolean;
   onShow: (note: ReviewNote) => void;
+  letter?: LetterWriting;
 }) {
-  const { risks, doing, row, onShow } = props;
+  const { risks, doing, row, onShow, letter } = props;
   const [ sideElement, setSideElement ] = useState<HTMLDivElement | null>(null);
   const sideEdges = useScrollEdges(sideElement);
   // Whether the AI pre-review found anything: it may have failed, or the submission left it nothing to say
@@ -392,7 +441,12 @@ function WideReview(props: ReviewProps & {
   }, [ chosenElement, sideElement ]);
   const chosenRef = (page: string) => (chosen === page ? setChosenElement : undefined);
   // What the pinned copy says: the entry's mark and name, without what it counts
-  const chosenName = chosen === AI_TAB ? (
+  const chosenName = chosen === LETTER && letter ? (
+    <>
+      <ForwardToInboxOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />
+      <LetterName letter={letter} />
+    </>
+  ) : chosen === AI_TAB ? (
     <>
       <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
       <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
@@ -452,7 +506,13 @@ function WideReview(props: ReviewProps & {
               Your issues ({props.issueCount})
             </Typography>
           </ButtonBase>
-          <RisksLabel risks={risks} group={props.group} />
+          {letter && (
+            <ButtonBase ref={chosenRef(LETTER)} onClick={() => setChosen(LETTER)} sx={entrySx(LETTER)}>
+              <ForwardToInboxOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />
+              <LetterName letter={letter} />
+            </ButtonBase>
+          )}
+          <RisksLabel risks={risks} group={props.group} lettered={Boolean(letter)} />
           {risks.map(one => (
             <Box key={one.topic.path} ref={chosenRef(one.topic.path)} sx={{ borderTop: 1, borderColor: "divider",
               bgcolor: chosen === one.topic.path ? "background.paper" : undefined }}>
@@ -497,6 +557,7 @@ function WideReview(props: ReviewProps & {
             <Typography variant="h6" component="h3" sx={{ flex: 1, color: "issue.main" }}>Your issues</Typography>
           </>} />
         )}
+        {chosen === LETTER && letter && <LetterView {...props} letter={letter} onShow={onShow} />}
         {chosen === UNFILED && (
           // As a risk's page is: its name over its issues
           <Stack spacing={2}>
@@ -510,11 +571,18 @@ function WideReview(props: ReviewProps & {
 }
 
 const UNFILED = "unfiled";
+const LETTER = "letter";
 const ALL_ISSUES = "all";
 const AI_TAB = "ai";
 
 // Before the risks, what they are, how many are ticked off as considered, and what ticking one off means
-function RisksLabel({ risks, group, dense = false }: { risks: RiskReview[]; group?: string; dense?: boolean }) {
+function RisksLabel({ risks, group, lettered = false, dense = false }: {
+  risks: RiskReview[];
+  group?: string;
+  // Whether the reviewer's issues go into a Letter of Review
+  lettered?: boolean;
+  dense?: boolean;
+}) {
   const considered = risks.filter(risk => risk.considered).length;
   return (
     <Box sx={{ borderTop: 1, borderColor: "divider", px: dense ? 1.5 : 2, pt: 1.5, pb: 1 }}>
@@ -523,8 +591,8 @@ function RisksLabel({ risks, group, dense = false }: { risks: RiskReview[]; grou
           {group ? `${group} risks to consider` : "Your risks to consider"}
         </Typography>
         <Tooltip disableInteractive placement="right" title={"Your reviewer group's list of what to check in this "
-          + "submission. Issues you file under a risk go into your Letter of Review, and approving reminds you of "
-          + "any risk not yet ticked."}>
+          + `submission. Issues you file under a risk ${lettered ? "go into your Letter of Review"
+            : "go to the study team when you request changes"}, and approving reminds you of any risk not yet ticked.`}>
           <InfoOutlined aria-label="About the risks" sx={{ fontSize: "1rem", color: "text.secondary" }} />
         </Tooltip>
         <Typography variant="caption" sx={{ ml: "auto", color: "text.secondary", whiteSpace: "nowrap" }}>
@@ -1192,7 +1260,7 @@ function Decision({ decision, wide = false }: {
       {held(
         <Button variant="outlined" size="small" fullWidth={!wide} startIcon={<ForwardToInboxOutlined />}
           disabled={Boolean(decision.blocked)} onClick={decision.send}>
-          Letter of Review
+          Request changes
         </Button>,
       )}
       <Tooltip disableInteractive title={decision.blocked ?? decision.approveBlocked ?? ""}>
