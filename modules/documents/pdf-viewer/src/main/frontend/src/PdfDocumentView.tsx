@@ -140,6 +140,8 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, name, edgeToEdge, 
         overflow: "auto",
         // Scrolling the document stops at its ends instead of scrolling what holds it.
         overscrollBehavior: "contain",
+        // The scrollbar's track shows the frame under it, rather than the browser's own
+        scrollbarColor: `${(theme.vars ?? theme).palette.text.disabled} transparent`,
         bgcolor: "background.default",
         borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
         // Each page as a separate sheet, with space between the pages and on either side, in place of PDF.js's
