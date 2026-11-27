@@ -100,6 +100,21 @@
       <artifactId>jcr</artifactId>
       <scope>provided</scope>
     </dependency>
+    <!-- The session cookie, in place of the OAuth client's: its cookie manager SPI takes javax.servlet requests -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-sessions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.auth.oauth-client</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
+    </dependency>
     <!-- Decrypts the refresh token the OAuth client stored -->
     <dependency>
       <groupId>org.apache.sling</groupId>
@@ -107,10 +122,11 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- The tests mock ResourceResolver, whose deprecated methods take a javax.servlet request -->
+    <!-- The OAuth client's credentials name the user through Oak's external identity reference -->
     <dependency>
-      <groupId>javax.servlet</groupId>
-      <artifactId>javax.servlet-api</artifactId>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-auth-external</artifactId>
+      <version>${oak.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>

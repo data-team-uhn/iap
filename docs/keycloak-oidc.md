@@ -44,15 +44,15 @@ The OIDC handler is registered at **both `/` and `/oidc-login`**, with a **low
   more specific than the form handler's `/`. The OIDC handler starts the Keycloak round
   trip, whatever its ranking.
 - **After sign-in:** the form handler finds no credentials of its own, so the OIDC
-  handler reads the `sling.oidcauth` session cookie (set at `Path=/`). The sign-in holds
-  on **every page**.
+  handler reads IAP's `iap.session` cookie (set at `Path=/`). The sign-in holds on
+  **every page**, until the session ends (see [Session length](#session-length)).
 
 ```
 /login ──button──▶ GET /oidc-login ─(OIDC requestCredentials)─▶ Keycloak
                                                                    │
         GET / (session cookie honoured app-wide) ◀── /system/sling/oauth/callback
                         ▲                                (OIDC extractCredentials: token exchange,
-                        │                                 provisioning, sets sling.oidcauth cookie)
+                        │                                 provisioning, sets the iap.session cookie)
              /oidc-login is a sling:redirect → / that bounces the now-authenticated user to the app
 ```
 
@@ -63,16 +63,16 @@ started the login, and this node redirects them on to the home page.
 ## Sign-out flow
 
 The OAuth client's `dropCredentials` does nothing. `/system/sling/logout`, the Sign Out
-target, ends the Sling session but leaves the `sling.oidcauth` cookie in place.
+target, ends the Sling session but leaves the `iap.session` cookie in place.
 Keycloak's own SSO session also outlives the logout. The next "Continue with
 institutional credentials" click would sign the user straight back in with no password
 prompt. Two pieces in the OIDC support bundle end both:
 
 - **`OidcLogoutAuthenticationHandler`**, registered at `/`. Sling calls its
-  `dropCredentials` on every logout. When the `sling.oidcauth` cookie is present, the
-  user signed in through Keycloak. The handler then expires the cookie and ends
-  Keycloak's SSO session **back-channel**: it reads the user's stored refresh token and
-  posts it to Keycloak, server to server. A Keycloak that cannot be reached delays the
+  `dropCredentials` on every logout. When the session in the `iap.session` cookie began
+  with a Keycloak sign-in, rather than a local account's, the handler expires the cookie
+  and ends Keycloak's SSO session **back-channel**: it reads the user's stored refresh
+  token and posts it to Keycloak, server to server. A Keycloak that cannot be reached delays the
   logout by up to 10 seconds, and one that does not answer by up to 30, before the
   fallback. A local logout never involves Keycloak.
 - **`OidcEndSessionServlet`**, at `/system/sling/oauth/logout`, which needs no
@@ -89,7 +89,7 @@ client does not store the ID token, so the redirect cannot send an `id_token_hin
 ```
 Sign Out ──▶ GET /system/sling/logout
    └─ OidcLogoutAuthenticationHandler.dropCredentials  (only when the cookie was present)
-        ├─ expire sling.oidcauth
+        ├─ expire iap.session
         ├─ read + decrypt the refresh token from the user's home
         └─ POST {BACKEND_KEYCLOAK_REALM_URL}/protocol/openid-connect/logout
              ?client_id=…&client_secret=…&refresh_token=…
@@ -156,13 +156,39 @@ unit:
 | `IAP_PUBLIC_URL`                | `https://iap.example.org`                 | Public base URL of IAP, without a trailing slash.                                                                                                                                       |
 | `IAP_OAUTH_ENCRYPTION_PASSWORD` | (secret)                                  | Key for encrypting any OAuth token stored in the user's JCR home. Any non-empty value in dev. If unset, the crypto service fails to activate, and so does the OIDC handler.             |
 
+## Session length
+
+A session ends **30 minutes after its last request**, and **8 hours after signing in**,
+however busy it is. Both are settings of the session limits module, in the PID
+`io.uhndata.iap.auth.sessions.internal.SessionCookiesImpl`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `idleMinutes` | `30` | A session ends this long after its last request |
+| `maximumHours` | `8` | A session ends this long after signing in |
+
+The session lives in the signed `iap.session` cookie, which local-account sign-ins use
+too. The OAuth client's own cookie lasts a fixed 8 hours and is never renewed, so the
+OIDC support bundle replaces it: its `SessionLoginCookieManager` writes and reads
+`iap.session`. The client's cookie manager still starts, so the handler's configuration
+names IAP's (`$003.target`, the handler's unnamed constructor reference).
+
+Each request renews the session, except one sent with the `X-IAP-Background` header,
+as the notification bell's poll is. A page left open therefore lets the session end. The
+signing key is in the repository, at `/jcr:system/iap-sessions/SigningKey`, so every
+instance sharing it accepts the same cookies.
+
+**Keycloak's session must end at the same times** (see the realm setup below).
+Otherwise an IAP session that has ended sends the user to Keycloak, whose session is
+still alive, and they are signed back in without a password.
+
 ## Keycloak realm setup
 
 For a running Keycloak,
 [`tools/dev/keycloak/keycloak_setup.sh`](../tools/dev/keycloak/keycloak_setup.sh)
-automates all of the steps below (realm, client, roles, and the `groups` mapper) and
-prints the `KEYCLOAK_*` env block to paste into IAP's environment. Run
-`keycloak_setup.sh --help` for its options. The steps it implements:
+automates all of the steps below (realm, client, roles, the `groups` mapper, and the
+session lengths) and prints the `KEYCLOAK_*` env block to paste into IAP's environment.
+Run `keycloak_setup.sh --help` for its options. The steps it implements:
 
 1. **Realm**: create a realm, such as `iap`. Its name is the realm segment in the
    `*_KEYCLOAK_REALM_URL` values.
@@ -187,6 +213,9 @@ prints the `KEYCLOAK_*` env block to paste into IAP's environment. Run
 
    > For a different claim name, change `groupsClaimName` in the OIDC support feature to
    > match.
+5. **Session lengths**: under the realm's sessions settings, set SSO Session Idle to 30
+   minutes and SSO Session Max to 8 hours, or to IAP's `idleMinutes` and `maximumHours`
+   if they were changed.
 
 ## Running locally with Docker Compose
 
@@ -236,7 +265,7 @@ Three names tie the configurations together. The feature uses `keycloak` for all
   when the request names no connection.
 - **idp** `keycloak`: the `ExternalIdentityProvider` the handler registers
   (`OidcAuthenticationHandler.idp` = `ExternalLoginModuleFactory.idp.name` =
-  `SlingLoginCookieManager.idpName`).
+  `SessionLoginCookieManager.idpName`).
 - **sync handler** `keycloak`: links the JAAS login module to the sync handler
   (`ExternalLoginModuleFactory.sync.handlerName` = `DefaultSyncHandler.handler.name`).
 
@@ -291,7 +320,7 @@ authentication handler still accepts a local username and password posted to
    institutional credentials" as its main button. Click it and sign in at Keycloak. You
    land on the home page.
 5. Confirm the session holds on every page: in `/system/sling/info.sessionInfo.json`,
-   `userID` is the synced Keycloak user, not `anonymous`. A `sling.oidcauth` cookie at
+   `userID` is the synced Keycloak user, not `anonymous`. An `iap.session` cookie at
    path `/` is set.
 6. Confirm provisioning: the user appears under `/home/users/oidc`, with a
    `rep:externalPrincipalNames` property listing the role.
@@ -313,7 +342,7 @@ authentication handler still accepts a local username and password posted to
 ```
 
 Sign-in loops back to `/login`. Keycloak authenticates and the callback sets
-`sling.oidcauth`, but `extractCredentials` cannot produce a session without the IdP, and
+`iap.session`, but `extractCredentials` cannot produce a session without the IdP, and
 Sling sends the request back to the login page.
 
 The IdP has no configuration, so it cannot be _misconfigured_. The message means

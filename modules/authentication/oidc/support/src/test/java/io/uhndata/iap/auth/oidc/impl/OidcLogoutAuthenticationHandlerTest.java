@@ -18,6 +18,7 @@
 package io.uhndata.iap.auth.oidc.impl;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -41,6 +42,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.auth.sessions.api.SessionCookies;
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 
@@ -113,6 +115,19 @@ public class OidcLogoutAuthenticationHandlerTest
         final ArgumentCaptor<Cookie> captor = ArgumentCaptor.forClass(Cookie.class);
         Mockito.verify(response).addCookie(captor.capture());
         Assertions.assertEquals(true, captor.getValue().getSecure());
+    }
+
+    @Test
+    void dropCredentialsLeavesALocalAccountsSessionToItsOwnHandler()
+    {
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
+        Mockito.when(request.getCookies()).thenReturn(new Cookie[] { new Cookie(COOKIE_NAME, "local") });
+
+        this.handler.dropCredentials(request, response);
+
+        Mockito.verifyNoInteractions(response);
+        Mockito.verify(request, Mockito.never()).setAttribute(ArgumentMatchers.anyString(), ArgumentMatchers.any());
     }
 
     @Test
@@ -322,9 +337,19 @@ public class OidcLogoutAuthenticationHandlerTest
     {
         final OidcLogoutConfiguration config = Mockito.mock(OidcLogoutConfiguration.class);
         Mockito.when(config.cookieName()).thenReturn(COOKIE_NAME);
-        final OidcLogoutAuthenticationHandler built = new OidcLogoutAuthenticationHandler();
-        built.activate(config);
-        return built;
+        return new OidcLogoutAuthenticationHandler(Mockito.mock(HttpRequests.class), sessions(), config);
+    }
+
+    /** Sessions in which the provider's cookie holds a sign-in through it, and the local one a local account's. */
+    private static SessionCookies sessions()
+    {
+        final Instant now = Instant.now();
+        final SessionCookies sessions = Mockito.mock(SessionCookies.class);
+        Mockito.when(sessions.read("token")).thenReturn(
+            new io.uhndata.iap.auth.sessions.api.Session("carol", "oidc:keycloak", now, now.plusSeconds(1800)));
+        Mockito.when(sessions.read("local")).thenReturn(
+            new io.uhndata.iap.auth.sessions.api.Session("alice", "form", now, now.plusSeconds(1800)));
+        return sessions;
     }
 
     private static Cookie[] oidcCookies()
@@ -439,8 +464,8 @@ public class OidcLogoutAuthenticationHandlerTest
             {
                 osgi.registerService(CryptoService.class, this.cryptoService, "names", "iap-oauth");
             }
-            this.handler = osgi.registerInjectActivateService(
-                new OidcLogoutAuthenticationHandler(),
+            osgi.registerService(SessionCookies.class, sessions());
+            this.handler = osgi.registerInjectActivateService(OidcLogoutAuthenticationHandler.class,
                 "cookieName", COOKIE_NAME,
                 "refreshTokenPath", TOKEN_PATH,
                 "backchannelLogoutEndpoint", this.endpoint,

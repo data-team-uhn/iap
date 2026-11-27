@@ -22,9 +22,12 @@
     }
   ],
   "configurations":{
-    // Sling's form authentication sends a visitor without a session to /login
+    // Sling's form authentication sends a visitor without a session to /login. The session limits module
+    // ends sessions, so Sling's own cookie must outlast them. Sling renews it once half its life is left,
+    // so 480 minutes keeps it valid for any idle limit up to 240 minutes.
     "org.apache.sling.auth.form.FormAuthenticationHandler":{
-      "form.login.form":"/login"
+      "form.login.form":"/login",
+      "form.auth.timeout:Integer":480
     }
   },
   "repoinit:TEXT|true": "@file"
