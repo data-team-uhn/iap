@@ -77,9 +77,6 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "generateDocument";
 
-    /** The variable holding the path of the stored PDF, for the nodes downstream and the channel. */
-    public static final String GENERATED_PATH_VARIABLE = "generatedDocumentPath";
-
     /** The activity property naming the requirement to fill in. */
     static final String REQUIREMENT_PARAMETER = "requirement";
 
@@ -146,7 +143,6 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         StoredDocuments.write(stored, File.GENERATED_DOCX_CHILD, generated.openDocx(),
             GeneratedDocument.DOCX_MIME_TYPE);
         context.recordRole(document, "generated a document for " + requirement.getLabel());
-        context.setVariable(GENERATED_PATH_VARIABLE, stored.getPath() + "/" + StoredDocuments.UPLOADED_FILE_NODE);
     }
 
     /**

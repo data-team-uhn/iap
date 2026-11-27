@@ -197,15 +197,6 @@ class GenerateDocumentHandlerTest
     }
 
     @Test
-    void leavesThePdfsPathForTheNodesDownstream() throws Exception
-    {
-        this.handler.execute(context(LETTER));
-
-        assertEquals(currentFile().getPath() + "/uploadedFile",
-            this.variables.get(GenerateDocumentHandler.GENERATED_PATH_VARIABLE));
-    }
-
-    @Test
     void generatingAgainAddsAVersionRatherThanReplacingTheOneShown() throws Exception
     {
         this.handler.execute(context(LETTER));
