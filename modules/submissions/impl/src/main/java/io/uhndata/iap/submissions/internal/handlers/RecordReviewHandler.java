@@ -17,15 +17,18 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.Calendar;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.ReferenceUtils;
@@ -39,9 +42,12 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that records a decision as a review of the approval requirement it decides. The review is by
- * whoever completed the task, tagged with the task's outcome, with the decider's note as a comment. The activity
- * names the requirement in its {@code requirement} property.
+ * The service task that records a decision as a review of the approval requirement it decides. The decision closes
+ * the review the decider has open for that requirement, the one they write their issues in, so each reviewer keeps one
+ * review of it; a new review is written only when they have none open. The review is tagged with the task's outcome,
+ * in place of the state it had while open, and says when it was decided. The decider's note becomes a comment saying
+ * which decision it explains, since a review asked for changes outlives that request. The activity names the
+ * requirement in its {@code requirement} property.
  *
  * <p>It reads the decision from the completion that reached it, so it has to follow the deciding user task directly,
  * with no join or timer between them.</p>
@@ -73,7 +79,11 @@ public class RecordReviewHandler implements ServiceTaskHandler
     /** The review property pointing at the requirement it decides. */
     private static final String REQUIREMENT_PROPERTY = "requirement";
 
-    private static final String NOTE_NODE = "note";
+    /** The review property saying when it was last decided. */
+    private static final String DECIDED_AT_PROPERTY = "decidedAt";
+
+    /** The comment property naming the decision it explains. */
+    private static final String DECISION_PROPERTY = "decision";
 
     private static final String COMMENT_NODE_TYPE = "sub:Comment";
 
@@ -91,15 +101,18 @@ public class RecordReviewHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource host = ExecutionHost.of(context);
-        final ApprovalRequirement requirement = requirementDecided(SubmissionHost.read(host, HANDLER_NAME),
-            context.getActivity());
+        final Submission submission = SubmissionHost.read(host, HANDLER_NAME);
+        final ApprovalRequirement requirement = requirementDecided(submission, context.getActivity());
         final String outcome = Payloads.requireText(context.getEvent(), OUTCOME_PARAMETER,
             "A decision is written down with the outcome it reached");
         VersioningUtils.checkOut(host);
-        final Resource review = recordReview(context, host, requirement, outcome);
+        final Review open = submission.getOpenReview(context.getActor(), requirement);
+        final Resource review = open == null ? newReview(context, host, requirement)
+            : Objects.requireNonNull(context.getResourceResolver().getResource(open.getPath()), "The engine reads it");
+        decide(context, review, outcome);
         final String note = Payloads.text(context.getEvent(), NOTE_PARAMETER);
         if (note != null) {
-            commentOn(review, context.getActor(), note);
+            commentOn(review, context.getActor(), note, outcome);
         }
         context.recordRole(host, "reviewed as " + outcome);
     }
@@ -129,37 +142,53 @@ public class RecordReviewHandler implements ServiceTaskHandler
     }
 
     /**
-     * Creates the review: by whoever completed the task, pointing at the requirement, and tagged with the outcome.
+     * Creates a review by whoever completed the task, pointing at the requirement.
      *
      * @param context the executing task's context
      * @param host the submission the review belongs to
      * @param requirement the requirement decided
-     * @param outcome the decision, a tag naming a state a review can be in, such as {@code approved}
      * @return the review
-     * @throws WorkflowDefinitionException when the outcome names no such state
      * @throws PersistenceException when the review cannot be written
      */
-    private static Resource recordReview(final WorkflowTaskContext context, final Resource host,
-        final ApprovalRequirement requirement, final String outcome)
-        throws WorkflowDefinitionException, PersistenceException
+    private static Resource newReview(final WorkflowTaskContext context, final Resource host,
+        final ApprovalRequirement requirement) throws PersistenceException
     {
         // A UUID, since the same person may decide more than once
         final Resource review = context.getResourceResolver().create(host, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE_PROPERTY, REVIEW_NODE_TYPE, REVIEWER_PROPERTY, context.getActor()));
         ReferenceUtils.setReference(review, REQUIREMENT_PROPERTY, requirement);
+        return review;
+    }
+
+    /**
+     * Tags the review with the outcome, in place of the state it had, and records when it was decided.
+     *
+     * @param context the executing task's context
+     * @param review the review
+     * @param outcome the decision, a tag naming a state a review can be in, such as {@code approved}
+     * @throws WorkflowDefinitionException when the outcome names no such state
+     * @throws PersistenceException when the review cannot be written
+     */
+    private static void decide(final WorkflowTaskContext context, final Resource review, final String outcome)
+        throws WorkflowDefinitionException, PersistenceException
+    {
         try {
-            Objects.requireNonNull(review.adaptTo(Taggable.class), "A review can be tagged").tag(outcome, true);
+            // The states a review can be in share a category, so the outcome replaces the one it had
+            Objects.requireNonNull(review.adaptTo(Taggable.class), "A review can be tagged")
+                .tagReplacing(outcome, true);
         } catch (final IllegalArgumentException e) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " records the outcome " + outcome + ", which names no state a review can be in");
         }
-        return review;
+        Objects.requireNonNull(review.adaptTo(ModifiableValueMap.class), "A review can be written")
+            .put(DECIDED_AT_PROPERTY, Calendar.getInstance());
     }
 
-    private static void commentOn(final Resource review, final String author, final String note)
+    private static void commentOn(final Resource review, final String author, final String note, final String outcome)
         throws PersistenceException
     {
-        review.getResourceResolver().create(review, NOTE_NODE,
-            Map.of(PRIMARY_TYPE_PROPERTY, COMMENT_NODE_TYPE, AUTHOR_PROPERTY, author, TEXT_PROPERTY, note));
+        // A name of its own, since a review asked for changes takes a note again when it is decided again
+        review.getResourceResolver().create(review, "decision-" + UUID.randomUUID(), Map.of(PRIMARY_TYPE_PROPERTY,
+            COMMENT_NODE_TYPE, AUTHOR_PROPERTY, author, TEXT_PROPERTY, note, DECISION_PROPERTY, outcome));
     }
 }

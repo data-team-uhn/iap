@@ -27,6 +27,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -603,6 +604,57 @@ class SubmissionTest
         this.reviewOnDay("r2", CONSENT_ID, 7, "approved");
 
         assertNull(submission.findLatestDecisionOn(this.reb()));
+    }
+
+    @Test
+    void findsTheLatestDecisionByWhenItWasDecidedNotWritten()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithReviews();
+        // Written first, sent back for changes, then approved after the other was decided
+        this.reviewOnDay("r1", REB_ID, 5, "approved");
+        this.decidedOnDay("r1", 10);
+        this.reviewOnDay("r2", REB_ID, 7, "rejected");
+
+        assertEquals("r1", submission.findLatestDecisionOn(this.reb()).getName());
+    }
+
+    @Test
+    void findsTheReviewAReviewerHasOpenForARequirement()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithReviews();
+        this.reviewBy("decided", "anne", REB_ID, "approved");
+        this.reviewBy("othersOpen", "bob", REB_ID, "in-progress");
+        this.reviewBy("anotherRequirement", "anne", CONSENT_ID, "in-progress");
+        this.reviewBy("sentBack", "anne", REB_ID, "changes-requested");
+
+        assertEquals("sentBack", submission.getOpenReview("anne", this.reb()).getName());
+    }
+
+    @Test
+    void findsNoOpenReviewWhenTheReviewerHasDecided()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithReviews();
+        this.reviewBy("decided", "anne", REB_ID, "rejected");
+
+        assertNull(submission.getOpenReview("anne", this.reb()));
+    }
+
+    private void reviewBy(final String name, final String reviewer, final String requirement, final String tag)
+    {
+        this.context.create().resource("/Submissions/submission/" + name, Map.of(SLING_RESOURCE_TYPE,
+            Review.RESOURCE_TYPE, "reviewer", reviewer, "requirement", requirement, "tags", new String[] {tag}));
+    }
+
+    private void decidedOnDay(final String name, final int day)
+    {
+        final Calendar decided = Calendar.getInstance();
+        decided.set(2026, Calendar.APRIL, day, 9, 0, 0);
+        Objects.requireNonNull(Objects.requireNonNull(
+            this.context.resourceResolver().getResource("/Submissions/submission/" + name))
+            .adaptTo(ModifiableValueMap.class)).put("decidedAt", decided);
     }
 
     // A submission whose reviews can name the schema's requirements and be read for their tags

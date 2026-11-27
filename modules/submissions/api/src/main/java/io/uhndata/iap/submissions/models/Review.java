@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Calendar;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -49,6 +51,9 @@ public class Review extends Feedback
 
     @ValueMapValue
     private String requirement;
+
+    @ValueMapValue
+    private Calendar decidedAt;
 
     /**
      * Who wrote this review.
@@ -95,6 +100,18 @@ public class Review extends Feedback
     {
         final Taggable tags = this.as(Taggable.class);
         return tags != null && (tags.hasOwnTag(Submission.APPROVED_TAG) || tags.hasOwnTag(REJECTED_TAG));
+    }
+
+    /**
+     * When this review was last decided. A review asked for changes is decided again once the changes come back. A
+     * review written before the time of a decision was recorded counts as decided when it was written.
+     *
+     * @return the time of its last decision, or of its writing; {@code null} if neither is known
+     */
+    @Nullable
+    public Calendar getDecidedAt()
+    {
+        return this.decidedAt == null ? this.getCreated() : this.decidedAt;
     }
 
     /**
