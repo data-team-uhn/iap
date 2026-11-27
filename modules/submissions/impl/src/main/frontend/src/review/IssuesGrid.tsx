@@ -82,8 +82,8 @@ const SEVERITY_NAMES: Record<string, string> = {
 // concerns can be listed among them, greyed, to triage everything in one list: made issues of as they are, or
 // dismissed.
 export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss,
-  onRemove, onReply, onEditReply, onRemoveReply, compact = false, keepRisk = false, adding = false, defaultRisk = "",
-  onAdd, onAddingDone }: {
+  onRemove, onReply, onEditReply, onRemoveReply, compact = false, keepRisk = false, fitRows = compact, sayEmpty = true,
+  adding = false, defaultRisk = "", onAdd, onAddingDone }: {
   issues: ReviewNote[];
   concerns?: ReviewNote[];
   // The risks issues can be filed under, by path
@@ -101,6 +101,10 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   // where the issues are under none, to file them
   compact?: boolean;
   keepRisk?: boolean;
+  // As tall as its rows, rather than the height it is given; so it is when compact
+  fitRows?: boolean;
+  // Whether a box says there are none, where nothing else would
+  sayEmpty?: boolean;
   // A new issue being written, in a row of its own pinned at the top: saved under the risk chosen in it, or given up
   adding?: boolean;
   defaultRisk?: string;
@@ -151,7 +155,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       onStop={() => setWritingTo(undefined)} onReply={onReply} onEditReply={onEditReply} onRemoveReply={onRemoveReply}
     />
   ), [ writingTo, onReply, onEditReply, onRemoveReply ]);
-  const riskLabel = (path: string) => risks.find(risk => risk.path === path)?.label ?? "No risk";
+  const riskLabel = (path: string) => risks.find(risk => risk.path === path)?.label ?? "Other";
   // Where the grid is too narrow for its columns, each issue is a card, changed on the card as the new one is written
   const [ element, setElement ] = useState<HTMLDivElement | null>(null);
   const cards = useNarrowerThan(element, CARDS_BELOW);
@@ -227,7 +231,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     {
       field: "risk", headerName: "Risk", width: 160, editable: true, type: "singleSelect",
       cardSlot: "caption", cardValue: row => riskLabel(row.risk),
-      valueOptions: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ],
+      valueOptions: [ { value: "", label: "Other" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ],
       valueFormatter: (value: string) => riskLabel(value),
       renderEditCell: params => <ChoiceEdit {...params} />,
     },
@@ -328,7 +332,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   // The new issue's cells read it from one place, since the grid redraws a cell only when its own value changes
   const drafting = { draft, setDraft, save, stop: stopAdding, saving,
     severities: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
-    risks: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ] };
+    risks: [ { value: "", label: "Other" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ] };
   const draftCell = (field: string) => <DraftCell field={field} />;
   const saveCard = async () => {
     const row = onCard && rows.find(one => one.id === onCard.id);
@@ -377,7 +381,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
 
   // Nothing to list: a plain box saying so, rather than an empty table
   if (rows.length === 0 && !adding) {
-    return (
+    return sayEmpty && (
       <Box sx={{ borderRadius: 1, px: 2, py: 2, bgcolor: "background.muted", textAlign: "center" }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>No issues raised yet</Typography>
       </Box>
@@ -385,7 +389,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   }
   return (
     <Drafting.Provider value={drafting}>
-      <Stack ref={setElement} sx={{ width: "100%", height: compact ? undefined : "100%" }}>
+      <Stack ref={setElement} sx={{ width: "100%", height: fitRows ? undefined : "100%" }}>
         {/* On cards, the new issue is written on one of its own, over the others */}
         {cards && adding && (
           <Box sx={{ mb: 1, px: 1.5, border: 2, borderColor: "primary.main", borderRadius: 1,
@@ -406,7 +410,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
             slotProps={{ toolbar: { searchLabel: "Search your issues", showSortMenu: cards, sortModel,
               onSortModelChange: setSortModel, sortableColumns: shownColumns.filter(column => column.sortable !== false)
                 .map(column => ({ field: column.field, headerName: column.headerName })) } }}
-            autoHeight={compact} getRowHeight={() => "auto"}
+            autoHeight={fitRows} getRowHeight={() => "auto"}
             // The AI's concerns are greyed, and are not changed in place: they become issues first
             // The new issue's row has its own editors, which the grid's must not take over
             isCellEditable={({ row }: { row: IssueRow }) => canChange(row)}
@@ -444,7 +448,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
                 alignItems: "center", justifyContent: "center", "& svg": { fontSize: "0.95rem" } },
               "& .MuiDataGrid-cell--editable:hover .edit-hint": { display: "flex" },
               "@media (hover: none)": { "& .MuiDataGrid-cell--editable": { "& .editable": { pr: 3.5 },
-                "& .edit-hint": { display: "flex" } } }, flex: compact ? undefined : 1, minHeight: 0 }}
+                "& .edit-hint": { display: "flex" } } }, flex: fitRows ? undefined : 1, minHeight: 0 }}
           />
         )}
       </Stack>

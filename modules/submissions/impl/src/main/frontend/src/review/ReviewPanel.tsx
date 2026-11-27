@@ -16,28 +16,31 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import AddOutlined from "@mui/icons-material/AddOutlined";
+import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
+import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-import CircleOutlined from "@mui/icons-material/CircleOutlined";
+import CheckOutlined from "@mui/icons-material/CheckOutlined";
+import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CloseFullscreenOutlined from "@mui/icons-material/CloseFullscreenOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ForwardToInboxOutlined from "@mui/icons-material/ForwardToInboxOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Box, Button, ButtonBase, DialogContentText, FormControlLabel, IconButton, LinearProgress, Link, Stack, Switch,
-  Tooltip, Typography,
+  Box, Button, ButtonBase, Checkbox, DialogContentText, FormControlLabel, IconButton, LinearProgress, Link, Stack,
+  Switch, Tooltip, Typography,
 } from "@mui/material";
 
-import { getCutShortStyle, getPassageCardStyle } from "@iap/documents-pdf-viewer/passageStyles";
+import { getCutShortStyle } from "@iap/documents-pdf-viewer/passageStyles";
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
@@ -47,7 +50,7 @@ import AiGrid from "./AiGrid";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import LetterPage from "./LetterPage";
-import NoteCard, { SentLock, Thread } from "./NoteCard";
+import { SentLock, Thread } from "./NoteCard";
 import NoteKindIcon, { KindCount } from "./noteIcons";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
@@ -94,8 +97,6 @@ export interface ReviewDoing {
   addIssue: (topic: string | undefined, text: string, severity?: string) => Promise<void>;
   editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
   removeIssue: (note: ReviewNote) => Promise<void>;
-  addNote: (text: string) => Promise<void>;
-  editNote: (note: ReviewNote, text: string) => Promise<void>;
   reply: (note: ReviewNote, text: string) => Promise<void>;
   editReply: (reply: string, text: string) => Promise<void>;
   removeReply: (reply: string) => Promise<void>;
@@ -121,9 +122,9 @@ export interface DecisionActions {
 interface ReviewProps {
   risks: RiskReview[];
   unfiled: ReviewNote[];
-  // The reviewer's notes to self on the submission as a whole
-  notes: ReviewNote[];
   issueCount: number;
+  // The reviewer group whose risks these are, by its short name; none when the reviewer weighs several groups' risks
+  group?: string;
   others: OthersRaised[];
   about: (note: ReviewNote) => string;
   doing: ReviewDoing;
@@ -160,6 +161,8 @@ export default function ReviewPanel(props: ReviewProps & {
   // Whether it is shown over the whole workspace, rather than beside the page
   full: boolean;
   onFull: (full: boolean) => void;
+  // Whether it heads itself with the way to show it over the whole workspace or back, rather than its tab doing so
+  headed?: boolean;
   // The letter asking for changes, while the reviewer is on it, shown beside their issues over the whole workspace
   letter?: LetterWriting;
 }) {
@@ -177,44 +180,75 @@ export default function ReviewPanel(props: ReviewProps & {
 
   return (
     <Box ref={setRoot} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 2, pl: 1.5, pr: 0.5, py: 1,
+      {(props.headed ?? true) && <Stack direction="row" sx={{ alignItems: "center", gap: 2, pl: 1.5, pr: 0.5, py: 1,
         ...wide ? { borderBottom: 1, borderColor: "divider" } : {} }}>
         {/* Over the workspace, where the tabs naming it are hidden */}
         {full && !compact && <Typography variant="panelTitle">{letter ? "Letter of Review" : "Review"}</Typography>}
-        {letter ? <Box sx={{ flex: 1 }} /> : (
-          <>
-            <Box sx={{ flex: 1, maxWidth: wide ? 560 : undefined }}><Progress risks={risks} more={wide} /></Box>
-            {wide && <Box sx={{ flex: 1 }} />}
-          </>
-        )}
+        <Box sx={{ flex: 1 }} />
+        {/* Over the whole workspace, the submission folded beside it, Esc and the browser's Back also take it back */}
         <Tooltip disableInteractive title={full ? "Back beside the page" : "Open over the whole workspace"}
           placement="left">
-          <IconButton size="small" aria-label={full ? "Show the review beside the page" : "Show the review over the whole workspace"}
-            onClick={() => onFull(!full)}>
+          <IconButton size="small" onClick={() => onFull(!full)}
+            aria-label={full ? "Show the review beside the page" : "Show the review over the whole workspace"}>
             {full ? <CloseFullscreenOutlined fontSize="small" /> : <OpenInFullOutlined fontSize="small" />}
           </IconButton>
         </Tooltip>
-      </Stack>
+      </Stack>}
       {letter && full ? <LetterView {...props} letter={letter} row={!compact} onShow={show} />
         : wide ? <WideReview {...props} chosen={chosen} onChosen={setChosen} row={!compact} roomy={full}
           onShow={show} /> : (
-          <PanelBody>
+          // An open entry's name stays at the top, which the fade would hide
+          <PanelBody fadeTop={chosen === undefined}>
+            {/* The entries the whole review lists, unfolding in place */}
+            <Box sx={openSx(chosen === AI_TAB)}>
+              <PanelEntry open={chosen === AI_TAB} onClick={() => setChosen(chosen === AI_TAB ? undefined : AI_TAB)}
+                icon={<AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />}>
+                <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
+                  AI pre-review ({openFindingsOf(risks)})
+                </Typography>
+              </PanelEntry>
+              {chosen === AI_TAB && (
+                <Box sx={{ px: 1.5, pb: 1.5 }}><AiPreReview {...props} fitRows onShow={show} /></Box>
+              )}
+            </Box>
+            <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === ALL_ISSUES) }}>
+              <PanelEntry open={chosen === ALL_ISSUES}
+                onClick={() => setChosen(chosen === ALL_ISSUES ? undefined : ALL_ISSUES)}
+                icon={<RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />}>
+                <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
+                  Your issues ({props.issueCount})
+                </Typography>
+              </PanelEntry>
+              {chosen === ALL_ISSUES && (
+                <Box sx={{ px: 1.5, pb: 1.5 }}><AllIssues {...props} fitRows onShow={show} /></Box>
+              )}
+            </Box>
+            <RisksLabel risks={risks} group={props.group} dense />
             {risks.map(risk => (
-              <Box key={risk.topic.path} sx={{ borderTop: 1, borderColor: "divider" }}>
+              <Box key={risk.topic.path}
+                sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === risk.topic.path) }}>
                 <RiskHeading
                   risk={risk} doing={doing} open={chosen === risk.topic.path}
                   onClick={() => setChosen(chosen === risk.topic.path ? undefined : risk.topic.path)}
                 />
                 {chosen === risk.topic.path && (
-                  <Box sx={{ pl: 5, pr: 1.5, pb: 1.25 }}>
+                  // Under the risk's name: past its caret and its icon's slot, as PanelEntry lays them out
+                  <Box sx={{ pl: 6.5, pr: 1.5, pb: 1.25 }}>
                     <RiskDetail risk={risk} dense about={props.about} doing={doing} onShow={show} />
                   </Box>
                 )}
               </Box>
             ))}
-            <Unfiled {...props} dense onShow={show} />
+            <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === UNFILED) }}>
+              <PanelEntry open={chosen === UNFILED}
+                onClick={() => setChosen(chosen === UNFILED ? undefined : UNFILED)}>
+                <OtherName count={props.unfiled.length} counted={chosen !== UNFILED} />
+              </PanelEntry>
+              {chosen === UNFILED && (
+                <Box sx={{ px: 1.5, pb: 1.5 }}><OtherIssues {...props} fitRows onShow={show} /></Box>
+              )}
+            </Box>
             <Others others={props.others} doing={doing} />
-            <SelfNotes notes={props.notes} doing={doing} />
           </PanelBody>
         )}
       {!(letter && full) && <Decision decision={doing.decision} wide={wide} />}
@@ -338,100 +372,137 @@ function WideReview(props: ReviewProps & {
   // issues once they have, or when the AI found nothing
   const chosen = props.chosen ?? (aiFound && props.issueCount === 0 ? AI_TAB : ALL_ISSUES);
   const setChosen = props.onChosen;
-  const [ grouped, setGrouped ] = useState(false);
-  const [ withSettled, setWithSettled ] = useState(false);
-  const openFindings = risks.reduce((sum, one) => sum + one.aiOpen.length, 0)
-    + new Set(risks.flatMap(one => one.mismatches.map(mismatch => mismatch.evidence.id))).size;
+  const openFindings = openFindingsOf(risks);
   const risk = risks.find(one => one.topic.path === chosen);
   const entrySx = (page: string) => ({ display: "flex", justifyContent: "flex-start", gap: 0.75, width: "100%",
     textAlign: "start", px: 2, py: 1, borderTop: 1, borderColor: "divider",
     bgcolor: chosen === page ? "background.paper" : undefined }) as const;
+  // The entry chosen, and, when it has scrolled out of the list, the edge it left by, where a copy of it stays pinned,
+  // as the contents keep the part being read
+  const [ chosenElement, setChosenElement ] = useState<HTMLElement | null>(null);
+  const [ pinned, setPinned ] = useState<"above" | "below">();
+  useEffect(() => {
+    if (!chosenElement || !sideElement) {
+      return undefined;
+    }
+    const observer = new IntersectionObserver(([ seen ]) => setPinned(seen.isIntersecting ? undefined
+      : seen.boundingClientRect.top < (seen.rootBounds?.top ?? 0) ? "above" : "below"), { root: sideElement });
+    observer.observe(chosenElement);
+    return () => observer.disconnect();
+  }, [ chosenElement, sideElement ]);
+  const chosenRef = (page: string) => (chosen === page ? setChosenElement : undefined);
+  // What the pinned copy says: the entry's mark and name, without what it counts
+  const chosenName = chosen === AI_TAB ? (
+    <>
+      <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
+      <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
+        AI pre-review ({openFindings})
+      </Typography>
+    </>
+  ) : chosen === ALL_ISSUES ? (
+    <>
+      <RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />
+      <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
+        Your issues ({props.issueCount})
+      </Typography>
+    </>
+  ) : (
+    <>
+      <Box sx={{ width: "1rem", flexShrink: 0, color: "text.secondary" }}>
+        {risk?.considered && <CheckOutlined titleAccess="Considered" sx={{ fontSize: "1rem", display: "block" }} />}
+      </Box>
+      <Typography variant="body2" sx={{ color: risk?.considered ? "text.secondary" : "primary.main",
+        fontWeight: "fontWeightMedium" }}>
+        {risk?.topic.label ?? "Other"}
+      </Typography>
+    </>
+  );
+  const pinnedEntry = pinned && (
+    <ButtonBase
+      aria-label="Scroll the list to the entry shown" onClick={() => chosenElement?.scrollIntoView({ block: "nearest",
+        behavior: "smooth" })}
+      sx={theme => ({ ...entrySx(chosen), borderTop: "none", alignItems: "center", position: "relative", zIndex: 1,
+        boxShadow: theme.shadows[3] })}
+    >
+      {chosenName}
+      <Box sx={{ flex: 1 }} />
+      {pinned === "above"
+        ? <ArrowUpwardOutlined fontSize="small" sx={{ color: "text.secondary" }} />
+        : <ArrowDownwardOutlined fontSize="small" sx={{ color: "text.secondary" }} />}
+    </ButtonBase>
+  );
   return (
     <Stack direction={row ? "row" : "column"} sx={{ flex: 1, minHeight: 0 }}>
-      {/* No scrollbar between the list and the page beside it, as in the contents panel: the fade says there is more */}
-      <Box ref={setSideElement} sx={{ width: row ? (props.roomy ? 340 : 280) : undefined, flexShrink: 0,
-        overflowY: "auto", maxHeight: row ? undefined : 240, scrollbarWidth: "none", maskImage: fadeEdges(sideEdges) }}>
-        <ButtonBase onClick={() => setChosen(AI_TAB)} sx={{ ...entrySx(AI_TAB), borderTop: "none" }}>
-          <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
-          <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
-            AI pre-review ({openFindings})
-          </Typography>
-        </ButtonBase>
-        <ButtonBase onClick={() => setChosen(ALL_ISSUES)} sx={entrySx(ALL_ISSUES)}>
-          <RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />
-          <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
-            Your issues ({props.issueCount})
-          </Typography>
-        </ButtonBase>
-        {risks.map(one => (
-          <Box key={one.topic.path} sx={{ borderTop: 1, borderColor: "divider",
-            bgcolor: chosen === one.topic.path ? "background.paper" : undefined }}>
-            <RiskHeading risk={one} doing={doing} onClick={() => setChosen(one.topic.path)} />
-          </Box>
-        ))}
-        <ButtonBase onClick={() => setChosen(UNFILED)} sx={{ ...entrySx(UNFILED), display: "block" }}>
-          <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
-            Under no risk
-          </Typography>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {plural(props.unfiled.length, "issue")}
-          </Typography>
-        </ButtonBase>
-        <Others others={props.others} doing={doing} />
-        <SelfNotes notes={props.notes} doing={doing} />
-      </Box>
+      <Stack sx={{ width: row ? (props.roomy ? 340 : 280) : undefined, flexShrink: 0, minHeight: 0,
+        maxHeight: row ? undefined : 240 }}>
+        {pinned === "above" && pinnedEntry}
+        {/* No scrollbar between the list and the page beside it, as in the contents panel: the fade says there is more */}
+        <Box ref={setSideElement} sx={{ flex: 1, minHeight: 0, overflowY: "auto", scrollbarWidth: "none",
+          maskImage: fadeEdges(sideEdges) }}>
+          <ButtonBase ref={chosenRef(AI_TAB)} onClick={() => setChosen(AI_TAB)}
+            sx={{ ...entrySx(AI_TAB), borderTop: "none" }}>
+            <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
+            <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
+              AI pre-review ({openFindings})
+            </Typography>
+          </ButtonBase>
+          <ButtonBase ref={chosenRef(ALL_ISSUES)} onClick={() => setChosen(ALL_ISSUES)} sx={entrySx(ALL_ISSUES)}>
+            <RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />
+            <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
+              Your issues ({props.issueCount})
+            </Typography>
+          </ButtonBase>
+          <RisksLabel risks={risks} group={props.group} />
+          {risks.map(one => (
+            <Box key={one.topic.path} ref={chosenRef(one.topic.path)} sx={{ borderTop: 1, borderColor: "divider",
+              bgcolor: chosen === one.topic.path ? "background.paper" : undefined }}>
+              {/* Lined up with the entries over them, a tick where they have an icon, once the risk is considered */}
+              <ButtonBase onClick={() => setChosen(one.topic.path)} sx={{ ...entrySx(one.topic.path), borderTop: "none",
+                alignItems: "flex-start", bgcolor: undefined }}>
+                <Box sx={{ width: "1rem", flexShrink: 0, color: "text.secondary", mt: 0.25 }}>
+                  {one.considered && <CheckOutlined titleAccess="Considered" sx={{ fontSize: "1rem", display: "block" }} />}
+                </Box>
+                <RiskName risk={one} />
+              </ButtonBase>
+            </Box>
+          ))}
+          <ButtonBase ref={chosenRef(UNFILED)} onClick={() => setChosen(UNFILED)} sx={entrySx(UNFILED)}>
+            <Box sx={{ width: "1rem", flexShrink: 0 }} />
+            <OtherName count={props.unfiled.length} />
+          </ButtonBase>
+          <Others others={props.others} doing={doing} />
+        </Box>
+        {pinned === "below" && pinnedEntry}
+      </Stack>
       <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", px: { xs: 2, md: 3 }, py: 2.5, containerType: "inline-size",
         bgcolor: "background.paper" }}>
         {risk && (
           <Stack spacing={2}>
             <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
               <Typography variant="h6" component="h3" sx={{ flex: 1 }}>{risk.topic.label}</Typography>
-              <ConsideredButton risk={risk} doing={doing} />
+              <ConsideredCheck labelled risk={risk} doing={doing} />
             </Stack>
             <RiskDetail risk={risk} about={props.about} doing={doing} onShow={onShow} />
           </Stack>
         )}
         {chosen === AI_TAB && (
-          <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
-            <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-              <AutoAwesomeOutlined sx={{ color: "assistant.main" }} />
-              <Typography variant="h6" component="h3" sx={{ flex: 1, color: "assistant.main" }}>AI pre-review</Typography>
-              <FormControlLabel label="Group by risk"
-                control={<Switch checked={grouped} onChange={event => setGrouped(event.target.checked)} />} />
-              <FormControlLabel label="Show settled"
-                control={<Switch checked={withSettled} onChange={event => setWithSettled(event.target.checked)} />} />
-            </Stack>
-            <Box sx={{ flex: 1, minHeight: 0 }}>
-              <AiGrid
-                risks={risks} grouped={grouped} settled={withSettled} about={props.about} onShow={onShow}
-                onMakeIssue={concern => doing.makeIssue(concern,
-                  concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
-                  concern.severity, concern.topicPath)}
-                onDismiss={concern => doing.dismiss(concern)} onUndismiss={concern => doing.undismiss(concern)}
-              />
-            </Box>
-          </Stack>
+          <AiPreReview {...props} onShow={onShow} heading={<>
+            <AutoAwesomeOutlined sx={{ color: "assistant.main" }} />
+            <Typography variant="h6" component="h3" sx={{ flex: 1, color: "assistant.main" }}>AI pre-review</Typography>
+          </>} />
         )}
         {chosen === ALL_ISSUES && (
-          <IssueTable
-            fill issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
-            risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
-            about={props.about} doing={doing} onShow={onShow}
-            heading={<>
-              <RateReviewOutlined sx={{ color: "issue.main" }} />
-              <Typography variant="h6" component="h3" sx={{ flex: 1, color: "issue.main" }}>Your issues</Typography>
-            </>}
-          />
+          <AllIssues {...props} onShow={onShow} heading={<>
+            <RateReviewOutlined sx={{ color: "issue.main" }} />
+            <Typography variant="h6" component="h3" sx={{ flex: 1, color: "issue.main" }}>Your issues</Typography>
+          </>} />
         )}
         {chosen === UNFILED && (
-          // The grid of all the reviewer's issues, narrowed to these, its Risk kept to file them
-          <IssueTable
-            compact keepRisk issues={props.unfiled}
-            risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
-            about={props.about} doing={doing} onShow={onShow}
-            heading={<Typography variant="h6" component="h3" sx={{ flex: 1 }}>Under no risk</Typography>}
-            note="Issues not filed under one of your risks. Choose a risk in the Risk column to file one there."
-          />
+          // As a risk's page is: its name over its issues
+          <Stack spacing={2}>
+            <Typography variant="h6" component="h3">Other</Typography>
+            <OtherIssues {...props} onShow={onShow} />
+          </Stack>
         )}
       </Box>
     </Stack>
@@ -442,78 +513,203 @@ const UNFILED = "unfiled";
 const ALL_ISSUES = "all";
 const AI_TAB = "ai";
 
-// How far the review has gone: the risks considered, and, given room, what is left open across them
-function Progress({ risks, more = false }: { risks: RiskReview[]; more?: boolean }) {
+// Before the risks, what they are, how many are ticked off as considered, and what ticking one off means
+function RisksLabel({ risks, group, dense = false }: { risks: RiskReview[]; group?: string; dense?: boolean }) {
   const considered = risks.filter(risk => risk.considered).length;
-  const concerns = risks.reduce((sum, one) => sum + one.aiOpen.length, 0);
-  // An answer two risks draw on counts once
-  const contradictions = new Set(risks.flatMap(one => one.mismatches.map(mismatch => mismatch.evidence.id))).size;
   return (
-    <>
-      <Typography variant="caption" sx={{ display: "block" }}>
-        {considered} of {plural(risks.length, "risk")} considered
-        {more && concerns > 0 && ` · ${plural(concerns, "open AI concern")}`}
-        {more && contradictions > 0 && ` · ${plural(contradictions, "AI-found mismatch", "AI-found mismatches")}`}
-      </Typography>
+    <Box sx={{ borderTop: 1, borderColor: "divider", px: dense ? 1.5 : 2, pt: 1.5, pb: 1 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.5 }}>
+        <Typography variant="body2" component="h3" sx={{ fontWeight: "fontWeightMedium" }}>
+          {group ? `${group} risks to consider` : "Your risks to consider"}
+        </Typography>
+        <Tooltip disableInteractive placement="right" title={"Your reviewer group's list of what to check in this "
+          + "submission. Issues you file under a risk go into your Letter of Review, and approving reminds you of "
+          + "any risk not yet ticked."}>
+          <InfoOutlined aria-label="About the risks" sx={{ fontSize: "1rem", color: "text.secondary" }} />
+        </Tooltip>
+        <Typography variant="caption" sx={{ ml: "auto", color: "text.secondary", whiteSpace: "nowrap" }}>
+          {considered} of {risks.length} considered
+        </Typography>
+      </Stack>
       <LinearProgress
         variant="determinate" value={risks.length ? considered / risks.length * 100 : 0}
-        aria-label="Risks considered" sx={{ mt: 0.5, borderRadius: 1 }}
+        aria-label="Risks considered" sx={{ my: 0.75, borderRadius: 1 }}
       />
-    </>
+      <Typography variant="caption" component="p" sx={{ color: "text.secondary" }}>
+        Tick each risk once you&apos;ve considered it, whether or not you raise an issue.
+      </Typography>
+    </Box>
   );
 }
 
+// What the AI found that is still open: its concerns, and its mismatches, an answer two risks draw on counted once
+function openFindingsOf(risks: RiskReview[]): number {
+  return risks.reduce((sum, one) => sum + one.aiOpen.length, 0)
+    + new Set(risks.flatMap(one => one.mismatches.map(mismatch => mismatch.evidence.id))).size;
+}
 
-function ConsideredButton({ risk, doing }: { risk: RiskReview; doing: ReviewDoing }) {
-  const [ saving, setSaving ] = useState(false);
+// Everything the AI pre-review found, in a table: filling the height beside the list, or, unfolded in the list, as
+// tall as its rows
+function AiPreReview({ risks, about, doing, onShow, heading, fitRows = false }: ReviewProps & {
+  onShow: (note: ReviewNote) => void;
+  heading?: ReactNode;
+  fitRows?: boolean;
+}) {
+  const [ grouped, setGrouped ] = useState(false);
+  const [ withSettled, setWithSettled ] = useState(false);
+  const grid = (
+    <AiGrid
+      risks={risks} grouped={grouped} settled={withSettled} fitRows={fitRows} about={about} onShow={onShow}
+      onMakeIssue={concern => doing.makeIssue(concern,
+        concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
+        concern.severity, concern.topicPath)}
+      onDismiss={concern => doing.dismiss(concern)} onUndismiss={concern => doing.undismiss(concern)}
+    />
+  );
   return (
-    <Tooltip disableInteractive title={risk.considered ? "Considered. Click to unmark" : "Mark as considered"} placement="left">
-      <IconButton
-        size="small" disabled={saving} aria-pressed={risk.considered} aria-label={`${risk.topic.label} considered`}
-        onClick={() => {
-          setSaving(true);
-          void doing.consider(risk.topic.path, !risk.considered).finally(() => setSaving(false));
-        }}
-      >
-        {risk.considered ? <CheckCircle fontSize="small" color="primary" /> : <CircleOutlined fontSize="small" />}
-      </IconButton>
+    <Stack spacing={fitRows ? 1 : 2} sx={fitRows ? undefined : { height: "100%", minHeight: 360 }}>
+      <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, flexWrap: "wrap" }}>
+        {heading}
+        <FormControlLabel label="Group by risk"
+          control={<Switch size={fitRows ? "small" : "medium"} checked={grouped}
+            onChange={event => setGrouped(event.target.checked)} />} />
+        <FormControlLabel label="Show settled"
+          control={<Switch size={fitRows ? "small" : "medium"} checked={withSettled}
+            onChange={event => setWithSettled(event.target.checked)} />} />
+      </Stack>
+      {fitRows ? grid : <Box sx={{ flex: 1, minHeight: 0 }}>{grid}</Box>}
+    </Stack>
+  );
+}
+
+// All the reviewer's issues, in a table: filling the height beside the list, or, unfolded in the list, as tall as its
+// rows
+function AllIssues({ risks, unfiled, about, doing, onShow, heading, fitRows = false }: ReviewProps & {
+  onShow: (note: ReviewNote) => void;
+  heading?: ReactNode;
+  fitRows?: boolean;
+}) {
+  return (
+    <IssueTable
+      fill={!fitRows} fitRows={fitRows} dense={fitRows}
+      issues={[ ...risks.flatMap(one => one.issues), ...unfiled ]}
+      risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
+      about={about} doing={doing} onShow={onShow} heading={heading ?? <Box sx={{ flex: 1 }} />}
+    />
+  );
+}
+
+// Whether the reviewer has considered a risk, ticked off as done: named "Considered" beside the risk's title, or, in a
+// list, named by a tooltip
+function ConsideredCheck({ risk, doing, labelled = false }: {
+  risk: RiskReview;
+  doing: ReviewDoing;
+  labelled?: boolean;
+}) {
+  const [ saving, setSaving ] = useState(false);
+  const check = (
+    <Checkbox
+      size="small" checked={risk.considered} disabled={saving}
+      onChange={(_event, checked) => {
+        setSaving(true);
+        void doing.consider(risk.topic.path, checked).finally(() => setSaving(false));
+      }}
+      slotProps={{ input: { "aria-label": `${risk.topic.label} considered` } }}
+    />
+  );
+  return labelled ? (
+    <FormControlLabel control={check} label="Considered" labelPlacement="end"
+      sx={{ mr: 0, "& .MuiFormControlLabel-label": { typography: "body2", color: "text.secondary" } }} />
+  ) : (
+    <Tooltip disableInteractive title={risk.considered ? "Considered. Click to unmark" : "Mark as considered"}
+      placement="left">
+      {check}
     </Tooltip>
   );
 }
 
-// A risk's tick, its name and what is under it
+// A risk's name, grey once considered, and what is under it
+function RiskName({ risk, counted = true }: { risk: RiskReview; counted?: boolean }) {
+  return <EntryName label={risk.topic.label} done={risk.considered} counts={counted ? countsOf(risk) : []} />;
+}
+
+// An entry's name, grey once done with, and what is under it, counted as the contents count what is in a part
+function EntryName({ label, done = false, counts }: {
+  label: string;
+  done?: boolean;
+  counts: ReturnType<typeof countsOf>;
+}) {
+  return (
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Typography variant="body2"
+        sx={{ color: done ? "text.secondary" : "primary.main", fontWeight: "fontWeightMedium" }}>
+        {label}
+      </Typography>
+      {counts.length > 0 && (
+        <Tooltip disableInteractive placement="right" title={counts.map(({ kind, count }) =>
+          plural(count, COUNTED[kind][0], COUNTED[kind][1])).join(", ")}>
+          <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+            {counts.map(({ kind, count }) => <KindCount key={kind} kind={kind} count={count} />)}
+          </Box>
+        </Tooltip>
+      )}
+    </Box>
+  );
+}
+
+// An entry of the panel's list unfolded, white with what is under it, as the whole review's chosen entry and its page
+const openSx = (open: boolean) => (open ? { bgcolor: "background.paper" } : {});
+
+// An entry in the panel's list, unfolding under it: the caret saying whether it is open, a slot for its icon, so
+// every entry's name lines up as in the whole review's list, its name, and what can be done with it at the end, apart,
+// so opening it and doing that are not mistaken for each other
+function PanelEntry({ open, onClick, icon, end, children }: {
+  open: boolean;
+  onClick: () => void;
+  icon?: ReactNode;
+  end?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    // One row under the pointer, though it opens and its end acts apart. Open, it stays at the top while what is
+    // under it scrolls by, so the reviewer keeps sight of where they are: white, with a line under it, and under the
+    // pointer a grey shade laid over the white, so nothing shows through
+    <Stack direction="row" sx={theme => {
+      const shade = (theme.vars ?? theme).palette.action.hover;
+      return { alignItems: "flex-start",
+        ...open ? { position: "sticky", top: 0, zIndex: 3, bgcolor: "background.paper",
+          boxShadow: `0 1px 0 ${(theme.vars ?? theme).palette.divider}`,
+          "&:hover": { backgroundImage: `linear-gradient(${shade}, ${shade})` } }
+          : { "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) } } };
+    }}>
+      <ButtonBase
+        onClick={onClick} aria-expanded={open}
+        sx={{ flex: 1, minWidth: 0, justifyContent: "flex-start", alignItems: "flex-start", gap: 0.75,
+          textAlign: "start", py: 0.75, pl: 1, pr: 0.5, minHeight: 40 }}
+      >
+        <Stack direction="row" sx={{ alignItems: "center", flexShrink: 0 }}>
+          {open ? <ExpandMoreOutlined fontSize="small" /> : <ChevronRightOutlined fontSize="small" />}
+          <Box sx={{ width: "1rem", display: "flex", ml: 0.25 }}>{icon}</Box>
+        </Stack>
+        {children}
+      </ButtonBase>
+      {end && <Box sx={{ mr: 0.75, mt: 0.25 }}>{end}</Box>}
+    </Stack>
+  );
+}
+
+// A risk in the panel's list: its name and what is under it, ticked off as considered at the end
 function RiskHeading({ risk, doing, open, onClick }: {
   risk: RiskReview;
   doing: ReviewDoing;
-  open?: boolean;
+  open: boolean;
   onClick: () => void;
 }) {
-  const counts = countsOf(risk);
   return (
-    <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-      <Box sx={{ ml: 0.75, mt: 0.5 }}><ConsideredButton risk={risk} doing={doing} /></Box>
-      <ButtonBase
-        onClick={onClick} aria-expanded={open}
-        sx={theme => ({ flex: 1, minWidth: 0, justifyContent: "flex-start", textAlign: "start", py: 0.75, pl: 0.5,
-          pr: 1, "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) } })}
-      >
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="body2"
-            sx={{ color: risk.considered ? "text.secondary" : "primary.main", fontWeight: "fontWeightMedium" }}>
-            {risk.topic.label}
-          </Typography>
-          {counts.length > 0 && (
-            <Tooltip disableInteractive placement="right" title={counts.map(({ kind, count }) =>
-              plural(count, COUNTED[kind][0], COUNTED[kind][1])).join(", ")}>
-              <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-                {counts.map(({ kind, count }) => <KindCount key={kind} kind={kind} count={count} />)}
-              </Box>
-            </Tooltip>
-          )}
-        </Box>
-        {open !== undefined && (open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />)}
-      </ButtonBase>
-    </Stack>
+    <PanelEntry open={open} onClick={onClick} end={<ConsideredCheck risk={risk} doing={doing} />}>
+      {/* Open, what it counts is all under it */}
+      <RiskName risk={risk} counted={!open} />
+    </PanelEntry>
   );
 }
 
@@ -562,12 +758,13 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
       )}
     </AiBlock>
   );
-  // The reviewer's own
+  // The reviewer's own, in the grid of all their issues, narrowed to the risk
   const yours = (
-    <Section title={`Your issues (${risk.issues.length})`} dense={dense}>
-      <Issues issues={risk.issues} dense={dense} about={about} doing={doing} onShow={onShow} />
-      <AddIssue topic={risk.topic.path} doing={doing} />
-    </Section>
+    <IssueTable
+      compact dense={dense} issues={risk.issues} risks={[ { path: risk.topic.path, label: risk.topic.label } ]}
+      defaultRisk={risk.topic.path} about={about} doing={doing} onShow={onShow}
+      heading={<IssuesTitle count={risk.issues.length} />}
+    />
   );
   if (dense) {
     return (
@@ -579,7 +776,7 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
     );
   }
   // In full, what the reviewer reads first, the app's guidance beside the AI's pre-review where the room allows; then,
-  // the whole width, what they write: their issues under the risk, in the grid of all their issues, narrowed to it
+  // the whole width, what they write
   return (
     <Stack spacing={3}>
       <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3, alignItems: "start",
@@ -587,15 +784,7 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         {guidance ?? <Box />}
         {ai || <Box />}
       </Box>
-      <IssueTable
-        compact issues={risk.issues} risks={[ { path: risk.topic.path, label: risk.topic.label } ]}
-        defaultRisk={risk.topic.path} about={about} doing={doing} onShow={onShow}
-        heading={(
-          <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold", flex: 1 }}>
-            Your issues ({risk.issues.length})
-          </Typography>
-        )}
-      />
+      {yours}
     </Stack>
   );
 }
@@ -603,7 +792,7 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
 // The reviewer's issues as a table under a heading, with a way to add one in a row of its own at the table's top;
 // filling the height it is given, or as tall as its rows
 function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false, keepRisk = false, fill = false,
-  about, doing, onShow }: {
+  fitRows = compact, dense = false, about, doing, onShow }: {
   heading: ReactNode;
   note?: string;
   issues: ReviewNote[];
@@ -612,6 +801,9 @@ function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false
   compact?: boolean;
   keepRisk?: boolean;
   fill?: boolean;
+  fitRows?: boolean;
+  // In the panel beside the page: a quiet way to add one, and nothing said when there are none
+  dense?: boolean;
   about: (note: ReviewNote) => string;
   doing: ReviewDoing;
   onShow: (note: ReviewNote) => void;
@@ -619,7 +811,8 @@ function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false
   const [ adding, setAdding ] = useState(false);
   const grid = (
     <IssuesGrid
-      compact={compact} keepRisk={keepRisk} issues={issues} risks={risks} about={about} onShow={onShow}
+      compact={compact} keepRisk={keepRisk} fitRows={fitRows} sayEmpty={!dense} issues={issues} risks={risks}
+      about={about} onShow={onShow}
       onRemove={issue => doing.removeIssue(issue)} onReply={(issue, text) => doing.reply(issue, text)}
       onEditReply={(reply, text) => doing.editReply(reply, text)} onRemoveReply={reply => doing.removeReply(reply)}
       onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
@@ -631,7 +824,7 @@ function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false
     <Stack spacing={fill ? 2 : 1} sx={fill ? { height: "100%", minHeight: 360 } : undefined}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
         {heading}
-        <Button size="small" variant="contained" startIcon={<AddOutlined />} disabled={adding}
+        <Button size="small" variant={dense ? "text" : "contained"} startIcon={<AddOutlined />} disabled={adding}
           onClick={() => setAdding(true)}>
           Add an issue
         </Button>
@@ -673,23 +866,43 @@ function SettledConcerns({ concerns, dense, doing, onShow }: {
 function Guidance({ text, dense }: { text: string; dense: boolean }) {
   const [ open, setOpen ] = useState(false);
   const [ first, ...rest ] = text.split(/\n\s*\n/);
+  // In the panel, its first three lines, fading out where there is more
+  const [ shown, setShown ] = useState<HTMLElement | null>(null);
+  const edges = useScrollEdges(shown);
+  const clamped = dense && !open;
+  const more = rest.length > 0 || (clamped && edges.below);
+  const toggle = more || open ? () => setOpen(!open) : undefined;
+  const variant = dense ? "caption" : "body2";
   return (
-    <Box sx={{ bgcolor: "background.muted", borderRadius: 1, px: dense ? 1 : 2, py: dense ? 0.75 : 1.5 }}>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: dense && !open ? 0 : 0.5 }}>
+    // A click anywhere on it opens it or closes it, unless it selects some of its text
+    <Box
+      onClick={toggle && (() => {
+        if (!window.getSelection()?.toString()) {
+          toggle();
+        }
+      })}
+      sx={{ bgcolor: "background.muted", borderRadius: 1, px: dense ? 1 : 2, py: dense ? 0.75 : 1.5,
+        cursor: toggle ? "pointer" : undefined }}
+    >
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: 0.5 }}>
         <MenuBookOutlined sx={{ fontSize: "1rem", color: "text.secondary" }} />
-        <Typography variant="caption" component="h4" sx={{ fontWeight: "fontWeightBold", color: "text.secondary",
-          flex: 1 }}>
+        <Typography variant="caption" component="h4" sx={{ fontWeight: "fontWeightBold", color: "text.secondary" }}>
           What to look at
         </Typography>
-        {(dense || rest.length > 0) && (
-          <Link component="button" variant="caption" onClick={() => setOpen(!open)}>{open ? "Less" : "More"}</Link>
-        )}
       </Stack>
-      {(!dense || open) && (
-        <Typography variant={dense ? "caption" : "body2"} component="div"
-          sx={{ whiteSpace: "pre-wrap", color: "text.secondary" }}>
-          {open ? text : first}
-        </Typography>
+      <Typography ref={setShown} variant={variant} component="div"
+        sx={theme => ({ whiteSpace: "pre-wrap", color: "text.secondary",
+          ...clamped && { overflow: "hidden", maskImage: fadeEdges(edges),
+            maxHeight: `calc(3em * ${String(theme.typography[variant].lineHeight)})` } })}>
+        {open ? text : first}
+      </Typography>
+      {toggle && (
+        <Link component="button" variant="caption" sx={{ mt: 0.5 }} onClick={event => {
+          event.stopPropagation();
+          toggle();
+        }}>
+          {open ? "Less" : "More"}
+        </Link>
       )}
     </Box>
   );
@@ -707,8 +920,8 @@ export function AiBlock({ dense = false, title = "AI pre-review", children }: {
       bgcolor: theme.alpha(theme.palette.assistant.light, 0.12), borderRadius: 1, px: dense ? 1 : 2,
       py: dense ? 0.75 : 1.5 })}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
-        <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
-        <Typography variant="caption" component="h4" sx={{ fontWeight: "fontWeightBold", color: "assistant.main" }}>
+        <AutoAwesomeOutlined sx={{ fontSize: "1.125rem", color: "assistant.main" }} />
+        <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold", color: "assistant.main" }}>
           {title}
         </Typography>
       </Stack>
@@ -888,71 +1101,36 @@ function Settled({ note, dense, doing, onShow }: {
   );
 }
 
-// The reviewer's issues, most serious first
-function Issues({ issues, dense, about, doing, onShow }: {
-  issues: ReviewNote[];
-  dense: boolean;
-  about: (note: ReviewNote) => string;
-  doing: ReviewDoing;
-  onShow: (note: ReviewNote) => void;
-}) {
+// The reviewer's issues under an entry, titled as the AI's block over them is: its mark and its name, in the issues'
+// colour
+function IssuesTitle({ count }: { count: number }) {
   return (
-    <Rows>
-      {bySeverity(issues).map(issue => (
-        <IssueRow key={issue.id} issue={issue} dense={dense} about={about} doing={doing} onShow={onShow} />
-      ))}
-    </Rows>
+    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flex: 1, color: "issue.main" }}>
+      <RateReviewOutlined sx={{ fontSize: "1.125rem" }} />
+      <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold" }}>
+        Your issues ({count})
+      </Typography>
+    </Stack>
   );
 }
 
-// An issue under a risk, pointing at no answer or passage, written in the panel
-function AddIssue({ topic, doing }: { topic?: string; doing: ReviewDoing }) {
-  const [ writing, setWriting ] = useState(false);
-  if (!writing) {
-    return (
-      <Button size="small" variant="text" sx={{ alignSelf: "flex-start", px: 0.75, ml: -0.75 }}
-        onClick={() => setWriting(true)}>
-        Add an issue
-      </Button>
-    );
-  }
-  return (
-    <Box sx={theme => ({ ...getPassageCardStyle(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
-      outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
-      <Composer
-        kinds={[ "issue" ]} initialTopic={topic ?? ""}
-        onCancel={() => setWriting(false)}
-        onSave={async (_kind, text, severity, chosen) => {
-          await doing.addIssue(chosen === "" ? undefined : chosen, text, severity);
-          setWriting(false);
-        }}
-      />
-    </Box>
-  );
+// The entry for the reviewer's issues filed under none of their risks, counted as a risk's are
+function OtherName({ count, counted = true }: { count: number; counted?: boolean }) {
+  return <EntryName label="Other" counts={counted && count > 0 ? [ { kind: "issue", count } ] : []} />;
 }
 
-function Unfiled({ unfiled, about, doing, dense = false, onShow }: ReviewProps & {
-  dense?: boolean;
+// The reviewer's issues filed under none of their risks: the grid of all their issues, narrowed to these, its risk
+// kept to file them
+function OtherIssues({ risks, unfiled, about, doing, onShow, fitRows }: ReviewProps & {
   onShow: (note: ReviewNote) => void;
+  fitRows?: boolean;
 }) {
-  if (dense && unfiled.length === 0) {
-    return null;
-  }
   return (
-    <Box sx={dense ? { borderTop: 1, borderColor: "divider", px: 1.5, py: 1 } : undefined}>
-      {dense && (
-        <Typography variant="caption" sx={{ display: "block", fontWeight: "fontWeightBold", mb: 0.5 }}>
-          Your issues under no risk ({unfiled.length})
-        </Typography>
-      )}
-      {!dense && (
-        <Typography variant="body2" sx={{ color: "text.secondary", mb: 1 }}>
-          Issues not filed under one of your risks. Change one to file it.
-        </Typography>
-      )}
-      <Issues issues={unfiled} dense={dense} about={about} doing={doing} onShow={onShow} />
-      {!dense && <AddIssue doing={doing} />}
-    </Box>
+    <IssueTable
+      compact keepRisk fitRows={fitRows} dense={fitRows} issues={unfiled}
+      risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
+      about={about} doing={doing} onShow={onShow} heading={<IssuesTitle count={unfiled.length} />}
+    />
   );
 }
 
@@ -965,44 +1143,6 @@ function Others({ others, doing }: { others: OthersRaised[]; doing: ReviewDoing 
       <Link component="button" variant="caption" onClick={doing.showOthers}>Show them</Link>
     </Typography>
   ));
-}
-
-// The reviewer's notes to self on the submission as a whole, the ones the queue shows beside it
-function SelfNotes({ notes, doing }: { notes: ReviewNote[]; doing: ReviewDoing }) {
-  const [ writing, setWriting ] = useState(false);
-  return (
-    <Stack spacing={1} sx={{ borderTop: 1, borderColor: "divider", px: 1.5, py: 1 }}>
-      <Typography variant="caption" sx={{ fontWeight: "fontWeightBold" }}>
-        Notes to self{notes.length > 0 ? ` (${notes.length})` : ""}
-      </Typography>
-      {notes.map(note => (
-        <Box key={note.id} sx={theme => ({ ...getPassageCardStyle(theme, "annotation"), px: 1.25, py: 0.75 })}>
-          <NoteCard
-            note={note} onEdit={said => doing.editNote(note, said)} onRemove={() => doing.removeIssue(note)}
-            onMakeIssue={(said, severity, topic) => doing.makeIssue(note, said, severity, topic)}
-          />
-        </Box>
-      ))}
-      {writing ? (
-        <Box sx={theme => ({ ...getPassageCardStyle(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
-          outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
-          <Composer
-            kinds={[ "note" ]}
-            onCancel={() => setWriting(false)}
-            onSave={async (_kind, said) => {
-              await doing.addNote(said);
-              setWriting(false);
-            }}
-          />
-        </Box>
-      ) : (
-        <Button size="small" variant="text" sx={{ alignSelf: "flex-start", px: 0.75, ml: -0.75 }}
-          onClick={() => setWriting(true)}>
-          Add a note to self
-        </Button>
-      )}
-    </Stack>
-  );
 }
 
 // What the reviewer decided, when it no longer waits on them, with the letter they sent

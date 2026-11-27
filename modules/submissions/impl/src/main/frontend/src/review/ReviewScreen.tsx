@@ -25,6 +25,7 @@ import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
+import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import SplitscreenOutlined from "@mui/icons-material/SplitscreenOutlined";
 import {
@@ -102,6 +103,7 @@ import { withSources } from "./sources";
 import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser, useMyGroups } from "./useCurrentUser";
 import VersionMenu, { type SubmissionVersion } from "./VersionMenu";
+import WholeNotes from "./WholeNotes";
 
 type Node = Record<string, unknown>;
 
@@ -109,6 +111,13 @@ type Node = Record<string, unknown>;
 const KINDS_KEY = "iap.review.notesShown2";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const SIDE_OPEN_KEY = "iap.review.sideOpen";
+// How wide a panel folded to a rail is, as the contents and the submission under the review fold
+const FOLDED_WIDTH = 48;
+// PRETOTYPE: the review over the whole workspace is a step in the browser's history, named in the address, so Back
+// returns beside the page and a reload keeps it
+const FULL_PARAM = "view";
+const FULL_VIEW = "review";
+const fullInAddress = () => new URLSearchParams(window.location.search).get(FULL_PARAM) === FULL_VIEW;
 // How big the round buttons folding the panels away are
 const FOLD_SIZE = 24;
 const FOCUSED_KEY = "iap.review.focused";
@@ -356,22 +365,75 @@ export default function ReviewScreen({ path }: { path: string }) {
     return () => observer.disconnect();
   }, [ readEntry ]);
   const [ dialog, setDialog ] = useState<"board" | "approve" | "sentLetter">();
-  const [ sideTab, setSideTab ] = useStoredSetting<SideTab>("iap.review.sideTab", "notes", isSideTab);
+  const [ chosenTab, setSideTab ] = useStoredSetting<SideTab>("iap.review.sideTab", "notes", isSideTab);
   // Whether the review is shown over the whole workspace, its contents and page, rather than beside the page; and
   // whether the reviewer is on the letter asking for changes there, leaving it as they leave the whole workspace
-  const [ reviewFull, setReviewFull ] = useState(false);
+  const [ reviewFull, setReviewFull ] = useState(fullInAddress);
   const [ writingLetter, setWritingLetter ] = useState(false);
+  // Over the whole workspace, it is the review shown, whichever tab was chosen before, as on a reload
+  const sideTab: SideTab = reviewFull ? "review" : chosenTab;
   // PRETOTYPE: how many changes the viewer showing a document counts, by the document, kept as it last said
   const [ changeCounts, setChangeCounts ] = useState<Record<string, number>>({});
   const countChanges = useCallback((uuid: string, count: number) =>
     setChangeCounts(counts => (counts[uuid] === count ? counts : { ...counts, [uuid]: count })), []);
-  const spreadReview = (spread: boolean) => {
-    setReviewFull(spread);
-    if (!spread) {
-      setWritingLetter(false);
+  const leaveFull = useCallback(() => {
+    setReviewFull(false);
+    setWritingLetter(false);
+  }, []);
+  // Whether the step in the history that spread the review was taken on this page, rather than before a reload, so
+  // that going back to it does not load the page again
+  const spreadHere = useRef(false);
+  // Back and Forward follow the address
+  useEffect(() => {
+    const follow = () => {
+      spreadHere.current = fullInAddress() && spreadHere.current;
+      if (fullInAddress()) {
+        setReviewFull(true);
+      } else {
+        leaveFull();
+      }
+    };
+    window.addEventListener("popstate", follow);
+    return () => window.removeEventListener("popstate", follow);
+  }, [ leaveFull ]);
+  const spreadReview = useCallback((spread: boolean) => {
+    const address = new URL(window.location.href);
+    if (spread) {
+      if (!fullInAddress()) {
+        address.searchParams.set(FULL_PARAM, FULL_VIEW);
+        window.history.pushState(null, "", address);
+        spreadHere.current = true;
+      }
+      setSideTab("review");
+      setReviewFull(true);
+    } else if (spreadHere.current) {
+      // Its own step in the history, undone as Back would
+      spreadHere.current = false;
+      window.history.back();
+    } else {
+      // Opened from the address itself, as on a reload: nothing on this page to go back to
+      address.searchParams.delete(FULL_PARAM);
+      window.history.replaceState(null, "", address);
+      leaveFull();
     }
-  };
-  const full = reviewFull && sideTab === "review";
+  }, [ leaveFull, setSideTab ]);
+  // Esc leaves it too, unless it is closing something over it, or changing what is being written
+  useEffect(() => {
+    if (!reviewFull) {
+      return undefined;
+    }
+    const escape = (event: KeyboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (event.key === "Escape" && !event.defaultPrevented
+        && !document.querySelector(".MuiModal-root:not(.MuiModal-hidden)")
+        && !target?.closest("input, textarea, select, [contenteditable='true']")) {
+        spreadReview(false);
+      }
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [ reviewFull, spreadReview ]);
+  const full = reviewFull;
   const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
   // Whether the panel of notes and review beside the page is open, as the contents on the other side can be folded
   const [ sideOpen = true, setSideOpen ] = useStoredFlag(SIDE_OPEN_KEY);
@@ -437,6 +499,10 @@ export default function ReviewScreen({ path }: { path: string }) {
   // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
   const groupLabels = useMemo(() => new Map((loaded?.approvals ?? []).map(approval =>
     [ text(approval.approverGroup), groupShortName(text(approval.label)) ] as const)), [ loaded ]);
+  // The reviewer's group by its short name, when they review for only one
+  const myGroupNames = (loaded?.approvals ?? []).filter(approval => myGroups.includes(text(approval.approverGroup)))
+    .map(approval => groupShortName(text(approval.label)));
+  const myGroupName = myGroupNames.length === 1 ? myGroupNames[0] : undefined;
   // The risks the reviewer's groups weigh, which their issues are filed under
   const reviewerTopics = useMemo(() => {
     const approvals = new Set((loaded?.approvals ?? [])
@@ -509,9 +575,14 @@ export default function ReviewScreen({ path }: { path: string }) {
         .filter(note => note.passage !== undefined || note.subjects.includes(document.uuid))
       : [];
   }, [ seen, showDone ]);
+  // The reviewers' discussion and the reviewer's notes to self on the whole submission, rather than on a question or
+  // passage, as the queue shows them; those done with only when the reviewer asks, as on the parts
+  const wholeNotes = ((viewData ?? data)?.notes ?? []).filter(note => (note.kind === "discussion"
+    || note.kind === "note") && note.subjects.length === 0 && !note.passage && (showDone || !note.done));
   // What the filters count: the notes of the parts the contents list, each once though it is about two of them, as a
-  // contradiction is about an answer and the protocol
-  const listedNotes = [ ...new Map(listed.flatMap(one => notesOf(one, true)).map(note => [ note.id, note ])).values() ];
+  // contradiction is about an answer and the protocol, and those on the whole submission
+  const listedNotes = [ ...new Map([ ...listed.flatMap(one => notesOf(one, true)), ...wholeNotes ]
+    .map(note => [ note.id, note ])).values() ];
   const kindCount = (kind: NoteKind) => listedNotes.filter(note => note.kind === kind && (showDone || !note.done))
     .length;
 
@@ -889,9 +960,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     considered: data.considered.has(topic.path),
   }));
   const unfiled = myIssues.filter(note => !reviewerTopics.mine.some(topic => topic.path === note.topicPath));
-  // The reviewer's notes to self on the whole submission, rather than on a question or passage, as the queue shows
-  const generalNotes = (viewData ?? data).notes.filter(note => note.kind === "note" && note.subjects.length === 0
-    && !note.passage);
+  const wholeKinds = ([ "discussion", "note" ] as const).filter(kind => shown.has(kind));
   // What other reviewers raised, by group, and how much of it on what this reviewer also reviews
   const othersRaised: OthersRaised[] = [ ...Map.groupBy(data.notes.filter(note => note.kind === "otherIssue"),
     note => groupLabels.get(note.group ?? "") ?? "Another group") ].map(([ group, raised ]) => ({
@@ -916,8 +985,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     editIssue: (note, said, severity, topic) => actions.write({ edit: note.id, text: said,
       ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} }),
     removeIssue: note => actions.write({ remove: note.id }),
-    addNote: said => actions.write({ kind: "note", text: said }),
-    editNote: (note, said) => actions.write({ edit: note.id, text: said }),
     reply: (note, said) => actions.write({ replyTo: note.id, text: said }),
     editReply: (reply, said) => actions.write({ edit: reply, text: said }),
     removeReply: reply => actions.write({ remove: reply }),
@@ -1171,10 +1238,10 @@ export default function ReviewScreen({ path }: { path: string }) {
     <GroupLabels.Provider value={groupLabels}>
       <ReviewerTopics.Provider value={reviewerTopics}>
         <ReviewPanel
-          risks={risks} unfiled={unfiled} issueCount={myIssues.length} notes={generalNotes}
+          risks={risks} unfiled={unfiled} issueCount={myIssues.length} group={myGroupName}
           others={othersRaised} about={about}
           doing={{ ...doing, decision: reviewActions }}
-          full={reviewFull} onFull={spreadReview}
+          full={reviewFull} onFull={spreadReview} headed={reviewFull || narrow}
           letter={writingLetter ? { draft: letter, close: () => setWritingLetter(false), send: async () => {
             await sendLetter(letterText(letter));
             spreadReview(false);
@@ -1396,6 +1463,26 @@ export default function ReviewScreen({ path }: { path: string }) {
         <Stack direction={{ xs: "column", md: "row" }}
           sx={{ gap: 1.5, alignItems: { xs: "flex-start", md: "stretch" }, flex: { md: 1 }, minHeight: { md: 0 },
             position: "relative", ...narrow && sideTab === "review" ? { display: "none" } : {} }}>
+          {/* Under the review over the whole workspace, the submission is folded to the left, as the contents fold, and
+            unfolds back beside it */}
+          {full && !narrow && (
+            // On the page's own grey, covering the contents and the page as the review beside it does
+            <Box sx={{ position: "absolute", inset: 0, zIndex: 2, bgcolor: "background.default" }}>
+              <Paper sx={{ height: "100%", width: FOLDED_WIDTH, py: 1, display: "flex", flexDirection: "column",
+                alignItems: "center", gap: 1 }}>
+                <Tooltip title="Back beside the page" placement="right" disableInteractive>
+                  <IconButton size="small" aria-label="Show the submission beside the review"
+                    onClick={() => spreadReview(false)}>
+                    <ChevronRightOutlined />
+                  </IconButton>
+                </Tooltip>
+                <Typography variant="caption" sx={{ writingMode: "vertical-rl", transform: "rotate(180deg)",
+                  color: "text.secondary", whiteSpace: "nowrap" }}>
+                  Submission
+                </Typography>
+              </Paper>
+            </Box>
+          )}
           {railOpen || narrow ? (
           // Part of the frame, tinted like the app bar; the requirement being read is a tab of the white page beside it
             <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0,
@@ -1427,7 +1514,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             </Paper>
           ) : (
           // Folded, it still says what it is
-            <Paper sx={{ width: 48, py: 1, flexShrink: 0, display: "flex",
+            <Paper sx={{ width: FOLDED_WIDTH, py: 1, flexShrink: 0, display: "flex",
               flexDirection: "column", alignItems: "center", gap: 1 }}>
               <Tooltip title="Show the contents" placement="right" disableInteractive>
                 <IconButton size="small" aria-label="Show the submission contents" onClick={() => setRailOpen(true)}>
@@ -1516,11 +1603,27 @@ export default function ReviewScreen({ path }: { path: string }) {
                       {/* Folded away, it stays, hidden, the notes listed into it by the page staying in step */}
                       <Box sx={{ width: notesShown, flexShrink: 0, height: "100%", display: sideShown ? "flex" : "none",
                         flexDirection: "column", bgcolor: "background.tinted", position: "relative", ...full ? { position: "absolute",
-                          inset: 0, width: "auto", zIndex: 2, borderRadius: 1, border: 1, borderColor: "divider",
+                          top: 0, right: 0, bottom: 0, left: theme => `calc(${FOLDED_WIDTH}px + ${theme.spacing(1.5)})`,
+                          width: "auto", zIndex: 2, borderRadius: 1, border: 1, borderColor: "divider",
                           overflow: "hidden" } : {} }}>
                         {/* Its tabs, after the tag folding it away, on its inner edge */}
                         {!full && (
-                          <Box sx={{ pl: 0.5, bgcolor: halfwayTint, flexShrink: 0 }}>{sideTabs}</Box>
+                          // With the review shown, the way to spread it over the whole workspace sits at the end of its
+                          // tab, laid over it rather than in it, so the tab keeps its tint and its bar
+                          <Box sx={{ pl: 0.5, bgcolor: halfwayTint, flexShrink: 0, position: "relative" }}>
+                            {sideTabs}
+                            {sideTab === "review" && (
+                              <Box sx={{ position: "absolute", right: 4, top: 3, bottom: 0, display: "flex",
+                                alignItems: "center" }}>
+                                <Tooltip disableInteractive title="Open over the whole workspace" placement="left">
+                                  <IconButton size="small" aria-label="Show the review over the whole workspace"
+                                    onClick={() => spreadReview(true)}>
+                                    <OpenInFullOutlined fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            )}
+                          </Box>
                         )}
                         {/* On the line of the handle beside it, half the handle's width before the panel */}
                         {!full && foldButton("right", () => setSideOpen(false), "Fold the notes and review away",
@@ -1542,6 +1645,9 @@ export default function ReviewScreen({ path }: { path: string }) {
                                 typography: "body2", textAlign: "center", py: 2 } }}
                           />
                           {resolvedLine}
+                          {wholeKinds.length > 0 && (
+                            <WholeNotes notes={wholeNotes} kinds={wholeKinds} actions={pageActions} />
+                          )}
                         </Box>
                         {sideTab === "review" && reviewPanel}
                       </Box>
@@ -1600,7 +1706,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               {!sideShown && (
                 // Folded, it still says what it holds, mirroring the contents on the other side: a button bringing it
                 // back, and its tabs, read downwards, each opening it on that tab
-                <Paper sx={{ width: 48, py: 1, flexShrink: 0, display: "flex", flexDirection: "column",
+                <Paper sx={{ width: FOLDED_WIDTH, py: 1, flexShrink: 0, display: "flex", flexDirection: "column",
                   alignItems: "center", gap: 1 }}>
                   <Tooltip title="Show the notes and the review" placement="left" disableInteractive>
                     <IconButton size="small" aria-label="Show the notes and the review" onClick={() => setSideOpen(true)}>

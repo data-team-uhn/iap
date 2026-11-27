@@ -36,10 +36,12 @@ export const panelPlacement = {
 // What a side panel holds under its title: scrolling on its own when it is taller than the panel, faded where
 // there is more. The entry marked selected is kept in view, each time `follow` changes. Without a scrollbar, the fade
 // alone says there is more, for a panel whose edge must stay clear, e.g. where its selected entry meets the page.
-export function PanelBody({ children, follow, noScrollbar }: {
+export function PanelBody({ children, follow, noScrollbar, fadeTop = true }: {
   children: ReactNode;
   follow?: string;
   noScrollbar?: boolean;
+  // Whether what scrolls out at the top fades, as it should not under something kept there
+  fadeTop?: boolean;
 }) {
   const [ body, setBody ] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(body);
@@ -47,7 +49,7 @@ export function PanelBody({ children, follow, noScrollbar }: {
     body?.querySelector(".Mui-selected")?.scrollIntoView({ block: "nearest" });
   }, [ body, follow ]);
   return (
-    <Box ref={setBody} data-panel-body sx={{ flex: 1, minHeight: 0, overflowY: "auto", maskImage: fadeEdges(edges),
+    <Box ref={setBody} data-panel-body sx={{ flex: 1, minHeight: 0, overflowY: "auto", maskImage: fadeEdges({ ...edges, above: fadeTop && edges.above }),
       ...noScrollbar ? { scrollbarWidth: "none" } : {} }}>
       {children}
     </Box>

@@ -56,10 +56,13 @@ const KIND_NAMES: Record<Kind, string> = {
 // of it and folding over what it found under it, the answers the protocol contradicts and its concerns; or, not
 // grouped, one list of findings across risks, to sort most serious first. Settled concerns show at the reviewer's
 // asking, greyed. Concerns are made issues of or dismissed from their row, a dismissal taken back.
-export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeIssue, onDismiss, onUndismiss }: {
+export default function AiGrid({ risks, grouped, settled, fitRows = false, about, onShow, onMakeIssue, onDismiss,
+  onUndismiss }: {
   risks: RiskReview[];
   grouped: boolean;
   settled: boolean;
+  // As tall as its rows, rather than the height it is given
+  fitRows?: boolean;
   about: (note: ReviewNote) => string;
   onShow: (note: ReviewNote) => void;
   onMakeIssue: (concern: ReviewNote) => Promise<void>;
@@ -165,9 +168,9 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
   const inOrder = grouped && cards;
 
   return (
-    <Box ref={setElement} sx={{ width: "100%", height: "100%" }}>
+    <Box ref={setElement} sx={{ width: "100%", height: fitRows ? undefined : "100%" }}>
       <DataGridPro
-        rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter
+        rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter autoHeight={fitRows}
         listView={cards} listViewColumn={{ field: "__card__", renderCell: ({ row }) => card(row) }}
         columnVisibilityModel={visibility} onColumnVisibilityModelChange={setVisibility}
         sortModel={inOrder ? [] : sortModel} onSortModelChange={setSortModel}
