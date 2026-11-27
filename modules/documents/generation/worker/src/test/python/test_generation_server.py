@@ -127,6 +127,46 @@ class TestGenerate:
         assert status == HTTPStatus.UNPROCESSABLE_ENTITY
         assert "expands" in reply["error"]
 
+    def test_a_template_that_never_ends_is_stopped_and_gives_its_slot_back(
+        self, server, fake_soffice, monkeypatch
+    ):
+        monkeypatch.setenv(generation_server.RENDER_TIMEOUT_VARIABLE, "1")
+        endless = "{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}"
+
+        status, reply = post(server, generate_request(build_template(endless), {}))
+
+        assert status == HTTPStatus.UNPROCESSABLE_ENTITY
+        assert "more than 1 s" in reply["error"]
+        assert fake_soffice == []
+        state = generation_server._STATE
+        free = [state.slots.acquire(blocking=False) for _ in range(state.slot_count)]
+        for _ in filter(None, free):
+            state.slots.release()
+        assert all(free), "the slot must be free for the next request"
+
+    def test_a_template_that_eats_memory_is_stopped(self, server, fake_soffice, monkeypatch):
+        monkeypatch.setenv(generation_server.RENDER_MEMORY_VARIABLE, str(128 * 1024 * 1024))
+
+        status, reply = post(server, generate_request(build_template("{{ 'x' * 10**9 }}"), {}))
+
+        assert status == HTTPStatus.UNPROCESSABLE_ENTITY
+        assert "more memory" in reply["error"]
+        assert fake_soffice == []
+
+    def test_what_a_template_fills_in_is_bounded_as_the_template_is(
+        self, server, fake_soffice, monkeypatch
+    ):
+        template = build_template("{{ 'x' * 100000 }}")
+        with zipfile.ZipFile(io.BytesIO(template)) as archive:
+            expanded = sum(member.file_size for member in archive.infolist())
+        monkeypatch.setenv("IAP_MAX_EXPANDED_BYTES", str(expanded + 10_000))
+
+        status, reply = post(server, generate_request(template, {}))
+
+        assert status == HTTPStatus.UNPROCESSABLE_ENTITY
+        assert reply["error"].startswith("the filled-in document:")
+        assert fake_soffice == []
+
     def test_a_conversion_failure_keeps_its_details_in_the_log(self, server, monkeypatch):
         def failing(source, output_dir, log=None):
             raise RuntimeError("soffice said something about /tmp/iap-gen-secret")

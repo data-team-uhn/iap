@@ -224,7 +224,10 @@ at once; a request past that is answered 503 and IAP reports the worker as unava
 `IAP_MAX_TEMPLATE_BYTES` (10 MiB by default) is the largest template an administrator may upload.
 Set it in `.env`: IAP and the worker both read it, and the worker sizes its request limit to match.
 Larger templates cost memory on both sides, and each generation stores a new copy of the filled
-document.
+document. Each template is filled in by a process of its own, which is stopped after
+`IAP_GENERATION_RENDER_TIMEOUT_SECONDS` (10 by default) or once it holds
+`IAP_GENERATION_RENDER_MEMORY_BYTES` (256 MiB by default), so a template that loops or grows without
+end is reported as a template error, and its slot is free again.
 
 ## Credentials
 

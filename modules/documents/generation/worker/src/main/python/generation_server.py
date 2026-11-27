@@ -41,6 +41,7 @@ import json
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -89,6 +90,19 @@ CONTEXT_ALLOWANCE_BYTES = 2 * 1024 * 1024
 
 # The name the template is written under for the zip-bomb check and the conversion
 STAGED_DOCX = "document.docx"
+RENDER_CONTEXT = "context.json"
+RENDERED_DOCX = "rendered.docx"
+RENDERER = Path(render_template.__file__).resolve()
+
+# With the conversion's own limit (IAP_LIBREOFFICE_TIMEOUT_SECONDS, tried twice), within the 40 s
+# IAP waits for an answer
+RENDER_TIMEOUT_VARIABLE = "IAP_GENERATION_RENDER_TIMEOUT_SECONDS"
+DEFAULT_RENDER_TIMEOUT_SECONDS = 10
+
+# The renderer's address space. The demo's letter peaks at about 36 MB, and renders under 96 MB;
+# the rest of the container's memory stays for the other slots and their conversions
+RENDER_MEMORY_VARIABLE = "IAP_GENERATION_RENDER_MEMORY_BYTES"
+DEFAULT_RENDER_MEMORY_BYTES = 256 * 1024 * 1024
 
 # How often :func:`main` looks for a shutdown request; see docling_daemon for why it polls
 SHUTDOWN_POLL_SECONDS = 0.5
@@ -102,6 +116,20 @@ def _log_stderr(message: str) -> None:
 def _get_slot_count() -> int:
     configured = shared_docs.read_positive_number_from_env(SLOTS_VARIABLE, DEFAULT_SLOTS)
     return configured if configured is not None else DEFAULT_SLOTS
+
+
+def _get_render_timeout_seconds() -> float:
+    configured = shared_docs.read_positive_number_from_env(
+        RENDER_TIMEOUT_VARIABLE, DEFAULT_RENDER_TIMEOUT_SECONDS, float, "a number"
+    )
+    return configured if configured is not None else DEFAULT_RENDER_TIMEOUT_SECONDS
+
+
+def _get_render_memory_bytes() -> int:
+    configured = shared_docs.read_positive_number_from_env(
+        RENDER_MEMORY_VARIABLE, DEFAULT_RENDER_MEMORY_BYTES
+    )
+    return configured if configured is not None else DEFAULT_RENDER_MEMORY_BYTES
 
 
 def _get_max_request_bytes() -> int:
@@ -179,12 +207,51 @@ def generate(template: bytes, context: dict[str, Any]) -> tuple[bytes, bytes]:
         except shared_docs.ParseRequestError as exc:
             raise render_template.TemplateError(str(exc)) from exc
 
-        rendered = render_template.render(template, context)
+        rendered = _render_apart(staged, context, work_dir)
         staged.write_bytes(rendered)
+        # What the template made of it is bounded as the template was, before LibreOffice opens it
+        try:
+            shared_docs.refuse_oversized_docx(staged)
+        except shared_docs.ParseRequestError as exc:
+            raise render_template.TemplateError(f"the filled-in document: {exc}") from exc
         pdf = libreoffice_convert.docx_to_pdf(staged, work_dir, log=_log_stderr)
         return rendered, pdf.read_bytes()
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def _render_apart(template: Path, context: dict[str, Any], work_dir: Path) -> bytes:
+    """Render in a process of its own, killed when it overruns, so a slot is always given back.
+
+    @param template: the staged template
+    @param context: the values its tags refer to
+    @param work_dir: where the context and the result are staged
+    @return: the rendered .docx's bytes
+    @raise render_template.TemplateError: when the template is wrong, or overruns its time or
+        memory
+    @raise RuntimeError: when the renderer fails for any other reason
+    """
+    timeout = _get_render_timeout_seconds()
+    context_file = work_dir / RENDER_CONTEXT
+    context_file.write_text(json.dumps(context), "utf-8")
+    output = work_dir / RENDERED_DOCX
+    command = [
+        sys.executable, "-I", str(RENDERER), str(template), str(context_file), str(output),
+        "--memory-bytes", str(_get_render_memory_bytes()),
+    ]
+    try:
+        finished = subprocess.run(
+            command, capture_output=True, text=True, timeout=timeout, check=False
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise render_template.TemplateError(
+            f"the template took more than {timeout:g} s to fill in"
+        ) from exc
+    if finished.returncode == render_template.EXIT_TEMPLATE_ERROR:
+        raise render_template.TemplateError(finished.stdout.strip())
+    if finished.returncode != 0:
+        raise RuntimeError(f"the renderer failed with {finished.returncode}: {finished.stderr}")
+    return output.read_bytes()
 
 
 class GenerationHandler(BaseHTTPRequestHandler):

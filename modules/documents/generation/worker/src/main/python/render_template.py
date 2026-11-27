@@ -26,9 +26,14 @@ otherwise produces a file Word refuses to open.
 
 from __future__ import annotations
 
+import argparse
 import io
+import json
+import resource
+import sys
 import zipfile
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import jinja2
@@ -36,6 +41,9 @@ from docx.opc.exceptions import PackageNotFoundError
 from docxtpl import DocxTemplate
 from jinja2.sandbox import SandboxedEnvironment
 from lxml import etree
+
+# How main() says the template was at fault, with the reason as its only output
+EXIT_TEMPLATE_ERROR = 2
 
 
 class TemplateError(ValueError):
@@ -97,3 +105,36 @@ def _describe(error: jinja2.TemplateError) -> str:
     if isinstance(error, jinja2.TemplateSyntaxError):
         return f"the template has a tag Jinja cannot read: {error.message}"
     return f"the template could not be rendered: {error.message or type(error).__name__}"
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Render one template from files, in a process of its own that the worker can kill.
+
+    A template can loop or build strings without end, which the sandbox does not stop. Here it
+    can only spend the memory it is given, and the worker bounds its time.
+
+    @param argv: the template, context (JSON) and output paths, and the memory allowed
+    @return: 0 once the output is written, or :data:`EXIT_TEMPLATE_ERROR` with the reason printed
+    """
+    parser = argparse.ArgumentParser(description="Render a .docx template with a JSON context.")
+    parser.add_argument("template", type=Path)
+    parser.add_argument("context", type=Path)
+    parser.add_argument("output", type=Path)
+    parser.add_argument("--memory-bytes", type=int, required=True)
+    args = parser.parse_args(argv)
+
+    resource.setrlimit(resource.RLIMIT_AS, (args.memory_bytes, args.memory_bytes))
+    try:
+        rendered = render(args.template.read_bytes(), json.loads(args.context.read_text("utf-8")))
+    except TemplateError as exc:
+        print(exc)
+        return EXIT_TEMPLATE_ERROR
+    except MemoryError:
+        print("the template needs more memory than one document is allowed")
+        return EXIT_TEMPLATE_ERROR
+    args.output.write_bytes(rendered)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
