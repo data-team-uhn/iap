@@ -79,10 +79,15 @@
         },
 
         // --- OAuth client token store + login cookie ------------------------------------------
-        // The OAuth client keeps tokens in the signed-in user's home. idpName is the idp name above.
+        // The OAuth client keeps tokens in the signed-in user's home. The sign-in itself lives in IAP's
+        // session cookie, which the session limits end. The OAuth client's own cookie manager still
+        // starts, so the authentication handler below names IAP's. idpName is the idp name above.
         "org.apache.sling.auth.oauth_client.impl.JcrUserHomeOAuthTokenStore":{
         },
         "org.apache.sling.auth.oauth_client.impl.SlingLoginCookieManager":{
+            "idpName":"keycloak"
+        },
+        "io.uhndata.iap.auth.oidc.impl.SessionLoginCookieManager":{
             "idpName":"keycloak"
         },
 
@@ -119,7 +124,7 @@
         },
 
         // --- The Sling authentication handler -------------------------------------------------
-        // Covering "/", it reads the sling.oidcauth session cookie on any request the form handler
+        // Covering "/", it reads the session cookie on any request the form handler
         // finds no credentials in, so a Keycloak sign-in holds across the whole site. Its low
         // service.ranking puts the form handler first at "/", so a signed-out user is sent to
         // /login. "/oidc-login" is more specific than "/", so there this handler starts the
@@ -133,7 +138,10 @@
             "defaultConnectionName":"keycloak",
             "callbackUri":"$[env:IAP_PUBLIC_URL]/system/sling/oauth/callback",
             "pkceEnabled":true,
-            "userInfoEnabled":true
+            "userInfoEnabled":true,
+            // The handler's cookie manager is its unnamed fourth constructor reference, which bnd names
+            // $003. Without this, it binds whichever manager starts first.
+            "$003.target":"(component.name=io.uhndata.iap.auth.oidc.impl.SessionLoginCookieManager)"
         },
 
         // --- Oak provisioning: sync handler ---------------------------------------------------

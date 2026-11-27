@@ -20,6 +20,8 @@ package io.uhndata.iap.auth.oidc.impl;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
+import io.uhndata.iap.auth.sessions.api.SessionCookies;
+
 /**
  * Configuration for the {@link OidcEndSessionServlet}.
  *
@@ -72,5 +74,5 @@ public @interface OidcEndSessionConfiguration
     @AttributeDefinition(name = "Cookie name",
         description = "The session cookie to expire, for a request that reaches this servlet without going through "
             + "Sling's logout. Must match the logout handler's cookieName.")
-    String cookieName() default "sling.oidcauth";
+    String cookieName() default SessionCookies.COOKIE_NAME;
 }

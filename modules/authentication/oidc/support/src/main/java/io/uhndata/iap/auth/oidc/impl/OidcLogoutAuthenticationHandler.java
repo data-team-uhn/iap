@@ -20,6 +20,8 @@ package io.uhndata.iap.auth.oidc.impl;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Optional;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -46,6 +48,7 @@ import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.auth.sessions.api.SessionCookies;
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 
@@ -55,7 +58,7 @@ import io.uhndata.iap.httprequests.api.HttpResponse;
  *
  * <p>
  * The Apache Sling OAuth client's {@code OidcAuthenticationHandler} has an empty
- * {@code dropCredentials}. A logout therefore leaves its {@code sling.oidcauth} cookie in place,
+ * {@code dropCredentials}. A logout therefore leaves the session cookie in place,
  * and the next request presenting that cookie is signed back in. Sling calls
  * {@code dropCredentials} on every authentication handler whose path covers the logout request.
  * This handler sits at {@code /} and expires the cookie. It takes no part in signing in:
@@ -84,8 +87,9 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
 
     private static final String FORM_CONTENT_TYPE = "application/x-www-form-urlencoded";
 
-    @Reference
-    private HttpRequests httpRequests;
+    private final HttpRequests httpRequests;
+
+    private final SessionCookies sessions;
 
     /**
      * The {@code iap-oauth} crypto service, the one the OAuth client encrypted the refresh token with. Another
@@ -101,24 +105,53 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         target = "(names=iap-oauth)")
     private volatile CryptoService cryptoService;
 
-    private String cookieName;
+    private final String cookieName;
 
-    private String refreshTokenPath;
+    private final String refreshTokenPath;
 
-    private String backchannelLogoutEndpoint;
+    private final String backchannelLogoutEndpoint;
 
-    private String clientId;
+    private final String clientId;
 
-    private String clientSecret;
+    private final String clientSecret;
 
+    /**
+     * Binds the services it uses and reads its configuration.
+     *
+     * @param httpRequests posts the refresh token to the provider
+     * @param sessions reads the session cookie, which says how the user signed in
+     * @param config the provider's logout endpoint and credentials, and the session cookie's name
+     */
     @Activate
-    void activate(final OidcLogoutConfiguration config)
+    public OidcLogoutAuthenticationHandler(@Reference final HttpRequests httpRequests,
+        @Reference final SessionCookies sessions, final OidcLogoutConfiguration config)
     {
+        this.httpRequests = httpRequests;
+        this.sessions = sessions;
         this.cookieName = config.cookieName();
         this.refreshTokenPath = config.refreshTokenPath();
         this.backchannelLogoutEndpoint = config.backchannelLogoutEndpoint();
         this.clientId = config.clientId();
         this.clientSecret = config.clientSecret();
+    }
+
+    /**
+     * Whether the request's session began with a sign-in through the identity provider.
+     *
+     * @param request the logout request
+     * @return {@code true} for a provider's session that has not ended
+     */
+    private boolean signedInThroughProvider(final HttpServletRequest request)
+    {
+        final Cookie[] cookies = request.getCookies();
+        final String value = cookies == null ? null : Arrays.stream(cookies)
+            .filter(cookie -> this.cookieName.equals(cookie.getName()))
+            .map(Cookie::getValue)
+            .findFirst()
+            .orElse(null);
+        return Optional.ofNullable(this.sessions.read(value))
+            .map(session -> session.kind().startsWith(SessionLoginCookieManager.KIND_PREFIX))
+            .orElse(false);
     }
 
     /**
@@ -288,23 +321,9 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     @Override
     public void dropCredentials(final HttpServletRequest request, final HttpServletResponse response)
     {
-        // Only the session cookie says the user signed in through the provider. getCookies() is null when the
-        // request carries no cookies.
-        final Cookie[] cookies = request.getCookies();
-        if (cookies == null)
-        {
-            return;
-        }
-        boolean oidcSession = false;
-        for (final Cookie cookie : cookies)
-        {
-            if (this.cookieName.equals(cookie.getName()))
-            {
-                oidcSession = true;
-                break;
-            }
-        }
-        if (!oidcSession)
+        // Only the session says the user signed in through the provider: a local account's session lives in the
+        // same cookie
+        if (!this.signedInThroughProvider(request))
         {
             return;
         }

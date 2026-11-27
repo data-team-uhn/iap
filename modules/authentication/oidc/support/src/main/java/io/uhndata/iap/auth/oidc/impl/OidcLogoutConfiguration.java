@@ -21,6 +21,8 @@ import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.AttributeType;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
+import io.uhndata.iap.auth.sessions.api.SessionCookies;
+
 /**
  * Configuration for the {@link OidcLogoutAuthenticationHandler}.
  *
@@ -35,12 +37,11 @@ public @interface OidcLogoutConfiguration
     /**
      * The cookie to expire on logout.
      *
-     * @return the cookie name, which must match the OAuth client's SlingLoginCookieManager
+     * @return the cookie name, which must match the session cookie
      */
     @AttributeDefinition(name = "Cookie name",
-        description = "The session cookie to expire on logout. Must match the cookie name configured on the OAuth "
-            + "client's SlingLoginCookieManager. The two default to the same value.")
-    String cookieName() default "sling.oidcauth";
+        description = "The session cookie to expire on logout: IAP's session cookie, which holds the sign-in.")
+    String cookieName() default SessionCookies.COOKIE_NAME;
 
     /**
      * Where the user's refresh token is stored, relative to their home node.
