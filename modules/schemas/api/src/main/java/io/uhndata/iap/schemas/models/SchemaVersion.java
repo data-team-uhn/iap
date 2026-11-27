@@ -140,4 +140,20 @@ public class SchemaVersion extends Entity
     {
         return this.getChildren(ApprovalRequirement.RESOURCE_TYPE, ApprovalRequirement.class);
     }
+
+    /**
+     * One approval requirement of this version, by name. A workflow step names the approval it handles this way,
+     * so one workflow serves every version that asks for it.
+     *
+     * @param name the requirement's node name, such as {@code reb}
+     * @return the approval requirement; {@code null} if this version asks for no approval by that name
+     */
+    @Nullable
+    public ApprovalRequirement getApprovalRequirement(@NotNull final String name)
+    {
+        return this.getApprovalRequirements().stream()
+            .filter(requirement -> name.equals(requirement.getName()))
+            .findFirst()
+            .orElse(null);
+    }
 }

@@ -134,11 +134,12 @@ public class RecordReviewHandler implements ServiceTaskHandler
             throw new WorkflowDefinitionException("The activity " + activity.getPath()
                 + " does not say which requirement it decides");
         }
-        return submission.getSchemaVersion().getApprovalRequirements().stream()
-            .filter(candidate -> named.equals(candidate.getName()))
-            .findFirst()
-            .orElseThrow(() -> new WorkflowDefinitionException("The activity " + activity.getPath() + " decides "
-                + named + ", which is no approval this submission's schema version asks"));
+        final ApprovalRequirement requirement = submission.getSchemaVersion().getApprovalRequirement(named);
+        if (requirement == null) {
+            throw new WorkflowDefinitionException("The activity " + activity.getPath() + " decides " + named
+                + ", which is no approval this submission's schema version asks");
+        }
+        return requirement;
     }
 
     /**

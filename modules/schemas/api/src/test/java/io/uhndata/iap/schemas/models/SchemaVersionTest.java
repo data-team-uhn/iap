@@ -166,4 +166,22 @@ class SchemaVersionTest
         assertEquals(1, version.getApprovalRequirements().size());
         assertEquals("reb", version.getApprovalRequirements().get(0).getName());
     }
+
+    @Test
+    void namesAnApprovalRequirementAndNothingElse()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0",
+            "sling:resourceType", SchemaVersion.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/consent", Map.of(
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE,
+            "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
+        this.context.create().resource("/Schemas/schema/1.0/reb", Map.of(
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
+            "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
+        final SchemaVersion version = resource.adaptTo(SchemaVersion.class);
+
+        assertEquals("reb", version.getApprovalRequirement("reb").getName());
+        assertNull(version.getApprovalRequirement("consent"));
+        assertNull(version.getApprovalRequirement("missing"));
+    }
 }
