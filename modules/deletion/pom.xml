@@ -183,11 +183,10 @@
       <artifactId>javax.annotation-api</artifactId>
       <scope>compile</scope>
     </dependency>
-    <!-- For the mock requests the tests build with the context's bundle context -->
+    <!-- The direct-deletion switch, and the bundle context of the tests' mock requests -->
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.framework</artifactId>
-      <scope>test</scope>
     </dependency>
   </dependencies>
 

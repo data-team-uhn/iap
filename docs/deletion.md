@@ -121,6 +121,13 @@ Content is deleted only by a workflow: the `delete` event, sent as
 administrators) and `deleteCategory` (for administrators) ship that way. A schema
 draft is thrown away with `discard` instead, a different act with its own workflows.
 
+Nothing else deletes content. `DirectDeletionFilter` answers 405 to an HTTP `DELETE`,
+and to a `POST` asking the Sling POST servlet for its `delete` operation, whatever it
+names with `:applyTo`. The framework property `iap.deletion.direct=allowed` lets them
+through. The test-data feature sets it for the sample data, and so does the platform
+integration-test instance, whose stories remove what they create. Nothing a real
+instance runs sets it, so leaving it out refuses.
+
 A workflow deletes its target with the `delete` service task, which goes through the
 same service. It archives unless the activity sets `permanent`, and it refuses
 whatever the service refuses. It never deletes recursively, since a workflow may

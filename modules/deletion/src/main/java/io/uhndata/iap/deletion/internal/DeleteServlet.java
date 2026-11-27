@@ -46,7 +46,8 @@ import io.uhndata.iap.deletion.api.Veto;
  * Deletes a content resource on {@code DELETE <path>}. By default it moves the resource into the archive, and refuses
  * if other resources reference it. Two boolean parameters change that. {@code recursive=true} deletes the referencing
  * resources too, and {@code permanent=true} skips the archive. Content is deleted by a workflow's {@code delete}
- * event; this serves the test data and the integration tests, which clean up through it.
+ * event; this serves the test data and the integration tests, which clean up through it. Only an instance that allows
+ * direct deletion lets the request reach it (see {@link DirectDeletionFilter}).
  *
  * <p>
  * It answers in JSON: 200 with the outcome, and 409 when references or a guard block the deletion. It answers 401
