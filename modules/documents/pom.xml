@@ -32,7 +32,9 @@
 
   <modules>
     <module>api</module>
+    <module>utils</module>
     <module>processing</module>
     <module>pdf-viewer</module>
+    <module>generation</module>
   </modules>
 </project>

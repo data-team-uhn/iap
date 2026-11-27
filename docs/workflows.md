@@ -912,7 +912,10 @@ part, and places the aggregated `incomplete` system tag on the parts reported, r
 it from the rest, so the submission carries it while any part does. An answer is
 incomplete while it holds fewer than `minAnswers` non-blank values, a required document
 while nothing is uploaded into it; an approval never counts, since somebody else gives
-it. An applicable item with no part is a fault: the evaluator records it and reports the
+it, and neither does a generated document, which the schema's workflow fills in once the
+request is sent, in a `generateDocument` step naming the requirement. A schema version
+whose workflow has no such step for one of its generated documents cannot be published.
+An applicable item with no part is a fault: the evaluator records it and reports the
 submission itself. The create and attach workflows run the last two, so a new submission
 starts with its parts and marks. Detaching removes every version of a document and
 leaves it empty as its requirement's part, and the detach workflow marks the submission

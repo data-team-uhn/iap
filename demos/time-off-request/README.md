@@ -15,7 +15,7 @@ mvn clean install
 
 | Path                        | What                                                                     |
 |-----------------------------|--------------------------------------------------------------------------|
-| `/Schemas/timeOffRequest`   | What a requester fills in — duration, dates, absence type, and a doctor's note when the absence is sick leave |
+| `/Schemas/timeOffRequest`   | What a requester fills in — duration, dates, absence type, and a doctor's note when the absence is sick leave — and a request form generated from it |
 | `/Workflows/timeOffRequest` | The process, as BPMN: raised → budget looked up → filled in and sent → flagged if it starts soon → approved or refused, and the requester told |
 | `TimeOffBudgetHandler`      | Looks up the days left, through the engine's service-task extension point |
 | `TimeOffBudgetValidator`    | Refuses an answer asking for more days than are left                      |
@@ -48,8 +48,9 @@ The whole process, end to end, and the stories in `specs/demo/stories/` walk thr
    would ask for more days than the lookup in step 2 found. A span whose last day comes before its first is
    saved but keeps the request incomplete, so that moving a span one day at a time never meets a refusal.
 4. **`demo-requester` sends it** — `POST` to the `fillIn` task, with no outcome, because there is nothing to
-   decide: it is finished or it is not. That is the whole of what a submit button does. The walk tags the
-   request `submitted`, which retires `draft`, and carries on to `approveRequest`, the approver's task. From
+   decide: it is finished or it is not. That is the whole of what a submit button does. The walk fills the
+   request form in (see below), tags the request `submitted`, which retires `draft`, and carries on to
+   `approveRequest`, the approver's task. From
    then on the save workflow refuses further answers, without being told anything new.
    Somebody else POSTing to `fillIn` is refused with a 403, the approver included.
 5. **Reading follows from the same declarations**: starting the instance granted read to the requester and
@@ -70,6 +71,33 @@ request a `reassessTimeOffUrgency` event, and the system workflow of that name r
 makes the change either way.
 
 The schema version points at its workflow version, so the two halves are joined.
+
+## The generated request form
+
+`requestForm` is a generated document: the platform fills its `.docx` template in from the answers and
+attaches the PDF. The workflow's `generateRequestForm` step does this when the request is sent, from the
+answers as they were sent, so it never holds the request back as incomplete. Before sending, the requester can
+preview it from the request's page, download the filled `.docx`, edit it, and upload it back; a version of
+their own is what goes to the approver, and nothing is generated over it. The requirement takes only a `.docx`
+(its `acceptedFileTypes`).
+
+Sending needs the generation worker running (`generate_compose.py --generation`, or the worker on
+`localhost:18766` beside `start.py`). Without it, sending is refused and the request stays a draft. The e2e
+suites use a stub instead, `integration-tests/src/test/e2e/support/generation-stub.ts`.
+
+The template is `SLING-INF/content/Schemas/timeOffRequest/v1/requestForm/template`, a plain `.docx` with no
+extension, because the node it becomes has to be called `template`. Replace it with any `.docx` of your own,
+a letterhead with a logo say, edited in Word. It is a Jinja template (docxtpl), and may use:
+
+- `{{ submission.title }}`, and `{{ submission.created }}`, an ISO date-time (`[:10]` keeps the date)
+- `{{ submission.answers.details.startDate }}`, `{{ submission.answers.details.endDate }}`: each answer,
+  nested as the schema nests its questions. One the request was not asked, such as the last day of a
+  single-day request, is blank. A name that starts with a digit or holds a `-` is written in brackets,
+  as in `{{ submission.answers["details"]["2nd-day"] }}`
+- `{{ submitter.name }}`, `{{ submitter.email }}`, `{{ submitter.id }}`
+
+A name the template uses that the request does not have fails the generation with that name, rather than
+printing nothing.
 
 ## Editing the process
 

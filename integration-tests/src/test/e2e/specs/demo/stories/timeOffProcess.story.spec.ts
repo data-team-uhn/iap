@@ -20,6 +20,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { ADMIN, adminAuth, basicAuth } from '../../../support/auth';
+import { generationCalls } from '../../../support/generation-stub';
 import { tagsOf } from '../../../support/nodes';
 import {
   APPROVER, localDay, raiseRequest, REQUESTER, taskUrl, TIME_OFF_SCHEMA_VERSION,
@@ -205,6 +206,7 @@ test.describe('a story: the time off process, over HTTP', () => {
     test('sends the request on to the approver when its requester says it is finished', async ({ request }) => {
       // No outcome: this task offers none, so completing it is not a decision. There is no submit event. Sending
       // a request is completing this task.
+      const generatedBefore = await generationCalls();
       const sent = await request.post(taskUrl(raised, 'fillIn'), {
         headers: requesterAuth,
         maxRedirects: 0,
@@ -213,6 +215,7 @@ test.describe('a story: the time off process, over HTTP', () => {
 
       const response = await request.get(`${raised}.deep.-dereference.infinity.json`, { headers: approverAuth });
       const submission = (await response.json()) as {
+        [child: string]: unknown;
         tags?: string[];
         aggregatedTags?: string[];
         'wf:instances'?: {
@@ -238,6 +241,25 @@ test.describe('a story: the time off process, over HTTP', () => {
       // the UI enforces completeness, and this test talks HTTP.
       expect(submission.tags).toEqual([ 'submitted' ]);
       expect(submission.aggregatedTags).toContain('incomplete');
+      // Sending filled the request form in, so the approver has it. Other tests may send at the same time, so
+      // the count only has to have moved.
+      expect(await generationCalls()).toBeGreaterThan(generatedBefore);
+      const forms = Object.values(submission).filter(child => typeof child === 'object' && child !== null
+        && (child as { title?: string }).title === 'Time off request form.pdf');
+      expect(forms).toHaveLength(1);
+    });
+
+    test('offers a preview of its documents to its requester, and not to the approver who reads it', async ({
+      request,
+    }) => {
+      const offered = async (headers: Record<string, string>) => {
+        const response = await request.get(`${raised}.events.json`, { headers });
+        expect(response.ok()).toBeTruthy();
+        return ((await response.json()) as { '@events'?: string[] })['@events'] ?? [];
+      };
+
+      expect(await offered(requesterAuth)).toContain('generateDocument');
+      expect(await offered(approverAuth)).not.toContain('generateDocument');
     });
 
     test('will not take any more answers once the request has been sent', async ({ request }) => {

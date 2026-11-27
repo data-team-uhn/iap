@@ -16,14 +16,12 @@
  * limitations under the License.
  */
 
-import { type ChangeEvent, Fragment, useEffect, useState } from "react";
+import { type ChangeEvent, Fragment } from "react";
 
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
-import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 
 import {
@@ -31,6 +29,7 @@ import {
   attachDocument,
   toFileUrl
 } from "./submissionForm";
+import { checkUpload, useQueuedWork } from "./useQueuedWork";
 
 // Keeps the file input out of sight. It is the real control, so it stays focusable and named.
 // `hidden` or `display: none` would take it out of the tab order and leave the label naming nothing.
@@ -53,7 +52,7 @@ interface FileButtonProps {
 }
 
 // A button that opens the file dialog and hands over the file picked.
-function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButtonProps) {
+export function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButtonProps) {
   return (
     <Button component="label" size="small" variant="outlined" startIcon={<UploadIcon />} disabled={disabled}>
       {label}
@@ -79,10 +78,6 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
   );
 }
 
-// How long the browser check of a file may take, in milliseconds. Past it, the file is sent unchecked,
-// and the server still checks its type and size.
-const CHECK_TIMEOUT_MS = 30_000;
-
 export interface DocumentUploadProps {
   path: string;
   requirement: DocumentRequirement;
@@ -96,48 +91,20 @@ export interface DocumentUploadProps {
 // Answers a document requirement: what has been attached for it, and a way to attach a file. It
 // offers no removal. A newer upload for the same requirement becomes a new version of the document.
 function DocumentUpload({ path, requirement, disabled, queueSave, onAttached }: DocumentUploadProps) {
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<string | undefined>(undefined);
+  const { busy, failure, dismiss, run } = useQueuedWork(queueSave);
   const doFetch = useAuthenticatedFetch();
   const accepted = requirement.acceptedFileTypes;
   const attached = requirement.attached;
   const name = requirement.label || requirement.name;
 
-  // Leaving the page aborts an upload still on its way, so the browser asks first. Moving within the
-  // app does not abort it.
-  useEffect(() => {
-    if (!busy) {
-      return undefined;
-    }
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [busy]);
-
-  const upload = (file: File) => {
-    setBusy(true);
-    setFailure(undefined);
-    validateUpload(file, { accepted, timeoutMs: CHECK_TIMEOUT_MS }).then(problem => {
-      if (problem !== undefined) {
-        throw new Error(problem);
-      }
-      return queueSave(() => attachDocument(doFetch, path, requirement.name, file));
-    }).then(
-      () => {
-        setBusy(false);
-        onAttached();
-      },
-      (error: unknown) => {
-        setBusy(false);
-        // Why the browser check or the engine refused the file, or why the request failed
-        setFailure(messageOf(error));
-      }
-    );
-  };
+  const upload = (file: File) => run(() => attachDocument(doFetch, path, requirement.name, file), {
+    check: checkUpload(file, accepted),
+    onDone: onAttached,
+  });
 
   return (
     <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
-      {failure ? <Alert severity="error" onClose={() => setFailure(undefined)}>{failure}</Alert> : null}
+      {failure ? <Alert severity="error" onClose={dismiss}>{failure}</Alert> : null}
       {attached.length > 0
         ? (
           <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>

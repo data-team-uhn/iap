@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -103,6 +104,17 @@ class DocumentCompletenessEvaluatorTest
         document(this.context, DOCTORS_NOTE, true);
 
         assertEquals(List.of(), this.evaluator.evaluate(submission(this.context)));
+    }
+
+    @Test
+    void doesNotDemandAGeneratedDocument() throws Exception
+    {
+        this.context.resourceResolver().getResource(VERSION_PATH + "/" + DOCTORS_NOTE)
+            .adaptTo(ModifiableValueMap.class).put("generated", true);
+        document(this.context, DOCTORS_NOTE, false);
+
+        assertEquals(List.of(), this.evaluator.evaluate(submission(this.context)),
+            "The platform fills a generated document in once the request is sent, so it cannot hold sending back");
     }
 
     @Test

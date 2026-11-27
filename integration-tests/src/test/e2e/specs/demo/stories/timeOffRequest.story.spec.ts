@@ -23,6 +23,7 @@ import { DashboardPage } from '../../../pages/dashboard.page';
 import { LoginPage } from '../../../pages/login.page';
 import { SubmissionPage } from '../../../pages/submission.page';
 import { basicAuth } from '../../../support/auth';
+import { generationCalls } from '../../../support/generation-stub';
 import { childNodes } from '../../../support/nodes';
 import { onePagePdf } from '../../../support/pdf';
 import { APPROVER, REQUESTER } from '../../../support/timeOffDemo';
@@ -52,7 +53,8 @@ const FIRST_DAY_AWAY = /Which day does your time off start/;
  * Priya needs the last week of November away. She signs in and raises a time off request. She fills
  * it in: several days, the days she means to be away, and what kind of absence it is. The first last
  * day she gives would take more time off than she has left, and the form says so at once. She corrects
- * it, and the request is complete. She sends it and signs out.
+ * it, and the request is complete. She previews the request form her answers fill in, then sends it and
+ * signs out.
  *
  * Her approver signs in, finds the request waiting for a decision, reads what she asked for, and
  * approves it. He signs out.
@@ -133,6 +135,19 @@ test.describe('a story: asking for time off, and getting it', () => {
       await page.getByRole('radio', { name: 'Vacation' }).check();
       // One, not four: the reload remounted the editor, so only a field saved since then says so
       await expect(page.getByText('Saved')).toHaveCount(1);
+    });
+
+    await test.step('she previews the request form her answers fill in, and reads it', async () => {
+      const generatedBefore = await generationCalls();
+      await page.getByRole('button', { name: 'Preview "Time off request form"' }).click();
+
+      // The stub's one-page PDF, opened in the viewer once the form lists it
+      const viewer = page.getByRole('dialog', { name: 'Time off request form.pdf' });
+      await expect(viewer.getByText('Page 1 of 1', { exact: true })).toBeVisible();
+      // Other tests may generate at the same time, so the count only has to have moved
+      expect(await generationCalls()).toBeGreaterThan(generatedBefore);
+      await viewer.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(viewer).toHaveCount(0);
     });
 
     await test.step('she sends it', async () => {
@@ -343,10 +358,12 @@ test.describe('a story: being off sick, and having to prove it', () => {
         expect(response.ok()).toBeTruthy();
         const documents = childNodes(await response.json())
           .filter(child => child['sling:resourceType'] === 'sub/Document');
-        expect(documents).toHaveLength(1);
-        expect(documents[0].title).toBe('sick-note.pdf');
-        expect(documents[0].fulfills).toBeTruthy();
-        const versions = childNodes(documents[0]).filter(child => child['jcr:primaryType'] === 'sub:DocumentVersion');
+        // Beside it, the request form that sending filled in
+        expect(documents.map(document => document.title).sort())
+          .toEqual([ 'Time off request form.pdf', 'sick-note.pdf' ]);
+        const note = documents.find(document => document.title === 'sick-note.pdf');
+        expect(note?.fulfills).toBeTruthy();
+        const versions = childNodes(note ?? {}).filter(child => child['jcr:primaryType'] === 'sub:DocumentVersion');
         expect(versions).toHaveLength(1);
         // The `files` processor flattens an nt:file into a download descriptor: the type and size move up
         // onto the file node, and the path streams the bytes

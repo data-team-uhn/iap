@@ -58,6 +58,10 @@ public class DocumentRequirementDescriber implements RequirementDescriber
 
     private static final String REQUIRED_KEY = "required";
 
+    private static final String GENERATED_KEY = "generated";
+
+    private static final String DOCX_KEY = "docx";
+
     private final MimeTypeService mimeTypes;
 
     /**
@@ -83,6 +87,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
         final DocumentRequirement asked = (DocumentRequirement) requirement;
         // Stated always, not only when false
         json.add(REQUIRED_KEY, asked.isRequired());
+        // Stated always, for the same reason: the form offers to generate a generated document, as well as to upload
+        json.add(GENERATED_KEY, asked.isGenerated());
         json.add(ACCEPTED_FILE_TYPES_KEY, acceptedFileTypes(asked));
         addTemplate(json, asked);
         json.add(ATTACHED_KEY, attachments(asked, submission));
@@ -111,7 +117,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     private void addTemplate(final JsonObjectBuilder json, final DocumentRequirement asked)
     {
         final Resource template = asked.getTemplate();
-        if (template != null) {
+        // A generated document's template is what the platform fills in, not a blank for the submitter
+        if (template != null && !asked.isGenerated()) {
             json.add(TEMPLATE_KEY, template.getPath());
             json.add(TEMPLATE_NAME_KEY, getTemplateFileName(asked, template));
         }
@@ -136,7 +143,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     }
 
     /**
-     * One attached document: its title, and the path of its newest file, which is where it downloads from.
+     * One attached document: its title, the path of its newest file, which is where it downloads from, and, when the
+     * platform generated that file, the path of the {@code .docx} it was filled in as, for the submitter to edit.
      *
      * @param document the attached document
      * @return the document's JSON, without a path when no file is stored yet
@@ -149,7 +157,21 @@ public class DocumentRequirementDescriber implements RequirementDescriber
             .map(DocumentVersion::getFile)
             .map(File::getUploadedFile)
             .ifPresent(file -> json.add(FormKeys.PATH_KEY, file.getPath()));
+        editableOf(document).ifPresent(docx -> json.add(DOCX_KEY, docx.getPath()));
         return json;
+    }
+
+    /**
+     * The filled {@code .docx} beside a document's newest file, which only a generated version has.
+     *
+     * @param document the document
+     * @return the {@code .docx}, or empty when the newest version is an upload, or there is none
+     */
+    private static Optional<Resource> editableOf(final Document document)
+    {
+        return Optional.ofNullable(document.getCurrentVersion())
+            .map(DocumentVersion::getFile)
+            .map(File::getGeneratedDocx);
     }
 
     /**
