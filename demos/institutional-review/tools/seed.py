@@ -38,6 +38,8 @@ import tempfile
 
 import requests
 
+from standard_questions import SCHEMA as SCHEMA_PATH, citation_of, match
+
 SCHEMA = "/Schemas/retrospectiveStudy/v1"
 ASSISTANT = "iap-assistant"
 CHROME = pathlib.Path.home() / ".cache/ms-playwright/chromium-1248/chrome-linux64/chrome"
@@ -399,7 +401,7 @@ def add_extractions(admin, study, answers, documents, when=None):
         create(admin, f"{node}/context", context_fields(protocol, extraction["quote"], extraction["page"]))
 
 
-def add_comment(admin, node, comment, author, answers, documents, tags=None, when=None):
+def add_comment(admin, node, comment, author, answers, documents, tags=None, when=None, extra=None):
     subjects = [answers[s][1] if s in answers else documents[s][0]
                 for s in comment.get("subjects", []) if s in answers or s in documents]
     fields = {"jcr:primaryType": "sub:Comment", "text": comment["text"], "author": author,
@@ -407,6 +409,7 @@ def add_comment(admin, node, comment, author, answers, documents, tags=None, whe
               **dated(when)}
     if comment.get("suggestion"):
         fields["suggestion"] = comment["suggestion"]
+    fields.update(extra or {})
     if subjects:
         fields.update({"subjects": subjects, "subjects@TypeHint": "WeakReference[]"})
     create(admin, node, fields)
@@ -427,7 +430,12 @@ def add_screening(admin, path, study, schema, answers, documents, when=None, fix
                              "summary": assessment["summary"]})
         for index, comment in enumerate(assessment["comments"]):
             if not any(comment["text"].startswith(start) for start in fixed):
-                add_comment(admin, f"{here}/comment{index}", comment, ASSISTANT, answers, documents, when=when)
+                # PRETOTYPE: the REB's standard question it raised, if any, and the policy that question rests on
+                standard = match(assessment["topic"], comment["text"]) if assessment["approval"] == "reb" else None
+                extra = {"standard": f"{SCHEMA_PATH}/reb/{assessment['topic']}/{standard}",
+                         "citation": citation_of(assessment["topic"], standard)} if standard else None
+                add_comment(admin, f"{here}/comment{index}", comment, ASSISTANT, answers, documents, when=when,
+                            extra=extra)
 
 
 # PRETOTYPE: what each study team did with the AI pre-review before sending, finding by finding, named by its risk and

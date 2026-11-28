@@ -132,6 +132,18 @@ export interface ReviewNote {
   sent?: string;
   // PRETOTYPE: an AI pre-review comment the study team answered before sending, with why they left it as it is
   teamResponse?: string;
+  // PRETOTYPE: the policy an issue or an AI comment rests on, and the REB's standard question it raised, by path
+  citation?: string;
+  standard?: string;
+}
+
+// PRETOTYPE: one of the REB's standard questions under a risk, the wording the board agreed for what it asks most
+export interface StandardQuestion {
+  path: string;
+  text: string;
+  citation?: string;
+  nature: Nature;
+  severity?: string;
 }
 
 export interface ReviewedAnswer {
@@ -273,6 +285,8 @@ export interface Topic {
   description?: string;
   // PRETOTYPE: the section of the approval's letter template that issues under it go in
   letterSection?: string;
+  // PRETOTYPE: the standard questions the board agreed for it
+  standards?: StandardQuestion[];
   approval: string;
   sources: string[];
 }
@@ -297,6 +311,8 @@ function comment(node: Node, kind: NoteKind, me: string, topic?: Node, topics?: 
     suggestion: text(node.suggestion) || undefined,
     resolvedBy: text(node.resolvedBy) || undefined,
     from: text(node.from) || undefined,
+    citation: text(node.citation) || undefined,
+    standard: text(node.standard) || undefined,
   };
 }
 
@@ -416,6 +432,12 @@ export function parseTopics(approvals: Node[], schema: string): Map<string, Topi
       const path = text(topic["@path"]) || `${text(approval["@path"])}/${name}`;
       topics.set(path, { path, label: text(topic.text), description: text(topic.description) || undefined,
         letterSection: text(topic.letterSection) || undefined,
+        standards: Object.values(topic).filter(isNode)
+          .filter(entry => entry["sling:resourceType"] === "sch/StandardQuestion")
+          .map(entry => ({ path: text(entry["@path"]), text: text(entry.text),
+            citation: text(entry.citation) || undefined,
+            nature: NATURES.find(one => one === entry.nature) ?? "required-change",
+            severity: text(entry.severity) || undefined })),
         approval: text(approval["@name"]),
         sources: (Array.isArray(topic.sources) ? topic.sources : []).map(source => relative(pathOf(source), schema)) });
     }
@@ -458,8 +480,8 @@ export function notesAbout(notes: ReviewNote[], uuids: string[]): ReviewNote[] {
 // A short label for reviewer groups on a chip
 // An issue for the study team written from an AI pre-review note: about the same answers and documents, on the
 // same passage, as the reviewer worded it
-export function issueFrom(note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature)
-  : Record<string, string | string[]> {
+export function issueFrom(note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature,
+  citation?: string): Record<string, string | string[]> {
   const passage = note.passage;
   return {
     // A note to self gives way to the issue made of it, so the issue does not point back at it
@@ -468,6 +490,9 @@ export function issueFrom(note: ReviewNote, text: string, severity?: string, top
     // The type the reviewer chose; what the AI said is a suggestion stays one unless they chose
     ...nature ? { nature } : note.kind === "aiIssue" && note.nature === "suggestion" ? { nature: "suggestion" } : {},
     ...topic ? { topic } : {},
+    // PRETOTYPE: the policy it rests on, as the reviewer put it or as the AI said, and the standard question behind it
+    ...(citation ?? note.citation) ? { citation: citation ?? note.citation ?? "" } : {},
+    ...note.standard ? { standard: note.standard } : {},
     ...passage ? {
       quote: passage.quote,
       ...passage.source ? { source: passage.source } : {},
@@ -486,8 +511,9 @@ export function groupShortName(label: string): string {
 // Makes an issue of a note: of an AI comment, which it settles; of a discussion entry, which stays and says so; or
 // of a note to self, which it replaces
 export async function raiseAsIssue(write: (fields: Record<string, string | string[]>) => Promise<void>,
-  note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature): Promise<void> {
-  await write(issueFrom(note, text, severity, topic, nature));
+  note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature, citation?: string)
+  : Promise<void> {
+  await write(issueFrom(note, text, severity, topic, nature, citation));
   if (note.kind === "note") {
     await write({ remove: note.id });
   }

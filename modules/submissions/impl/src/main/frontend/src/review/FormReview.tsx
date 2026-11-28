@@ -118,11 +118,12 @@ export function noteWrites(note: ReviewNote, actions: ReviewActions) {
     onReply: (text: string) => actions.write({ replyTo: note.id, text }),
     onEditReply: (reply: string, text: string) => actions.write({ edit: reply, text }),
     onRemoveReply: (reply: string) => actions.write({ remove: reply }),
-    onEdit: (text: string, severity?: string, topic?: string, nature?: Nature) => actions.write({ edit: note.id, text,
-      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {}, ...nature ? { nature } : {} }),
+    onEdit: (text: string, severity?: string, topic?: string, nature?: Nature, citation?: string) => actions.write({
+      edit: note.id, text, ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {},
+      ...nature ? { nature } : {}, ...citation !== undefined ? { citation } : {} }),
     onRemove: () => actions.write({ remove: note.id }),
-    onMakeIssue: (text: string, severity?: string, topic?: string, nature?: Nature) =>
-      raiseAsIssue(actions.write, note, text, severity, topic, nature),
+    onMakeIssue: (text: string, severity?: string, topic?: string, nature?: Nature, citation?: string) =>
+      raiseAsIssue(actions.write, note, text, severity, topic, nature, citation),
     onDismiss: () => actions.write({ dismiss: note.id }),
     write: actions.write,
     onShowNote: actions.show,
@@ -291,9 +292,9 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               <Composer
                 kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
                 onCancel={() => setWriting(false)}
-                onSave={async (kind, text, severity, topic, nature) => {
+                onSave={async (kind, text, severity, topic, nature, citation) => {
                   await actions.write({ kind, text, subjects: [ answer.uuid ], ...severity ? { severity } : {},
-                    ...topic ? { topic } : {}, ...nature ? { nature } : {} });
+                    ...topic ? { topic } : {}, ...nature ? { nature } : {}, ...citation ? { citation } : {} });
                   setWriting(false);
                 }}
               />
@@ -641,9 +642,10 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 <Composer
                   kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
                   onCancel={onDraftDone}
-                  onSave={async (kind, text, severity, topic, nature) => {
+                  onSave={async (kind, text, severity, topic, nature, citation) => {
                     await actions.write({ kind, text, subjects: answer ? [ answer.uuid ] : [],
-                      ...severity ? { severity } : {}, ...topic ? { topic } : {}, ...nature ? { nature } : {} });
+                      ...severity ? { severity } : {}, ...topic ? { topic } : {}, ...nature ? { nature } : {},
+                      ...citation ? { citation } : {} });
                     onDraftDone();
                   }}
                 />

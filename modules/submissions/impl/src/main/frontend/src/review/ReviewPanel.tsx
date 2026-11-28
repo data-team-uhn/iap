@@ -52,6 +52,7 @@ import IssuesGrid from "./IssuesGrid";
 import LetterPage from "./LetterPage";
 import { SentLock, Thread } from "./NoteCard";
 import NoteKindIcon, { KindCount } from "./noteIcons";
+import PolicyLine from "./PolicyLine";
 import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
 import { severityShown, SEVERITIES, type Nature, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
@@ -92,11 +93,16 @@ export interface OthersRaised {
 export interface ReviewDoing {
   open: (note: ReviewNote) => void;
   consider: (topic: string, considered: boolean) => Promise<void>;
-  makeIssue: (note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
+  makeIssue: (note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature, citation?: string)
+  => Promise<void>;
   dismiss: (note: ReviewNote) => Promise<void>;
   undismiss: (note: ReviewNote) => Promise<void>;
-  addIssue: (topic: string | undefined, text: string, severity?: string, nature?: Nature) => Promise<void>;
-  editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
+  // PRETOTYPE: with the policy it rests on, and the standard question it was raised from, by path
+  addIssue: (topic: string | undefined, text: string, severity?: string, nature?: Nature,
+    from?: { citation?: string; standard?: string }) => Promise<void>;
+  // PRETOTYPE: a policy given, empty or not, replaces the one it had
+  editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature, citation?: string)
+  => Promise<void>;
   // PRETOTYPE: what the reviewer's new issues are unless they say otherwise, as their group usually asks
   defaultNature: Nature;
   removeIssue: (note: ReviewNote) => Promise<void>;
@@ -200,6 +206,10 @@ export default function ReviewPanel(props: ReviewProps & {
   const setChosen = (entry: string | undefined) => setStored(entry ?? null);
   // A mark followed opens the risk the review lists it under, or, under none, the issues filed under none or the AI
   // pre-review; set as the mark is followed, as React adjusts state to a prop
+  // The entry listing a note: the risk it is under, Other for an issue filed under none, or else the AI pre-review
+  const entryHolding = (id: string) => risks.find(risk => [ ...risk.aiOpen, ...risk.aiSettled, ...risk.issues,
+    ...risk.mismatches.map(one => one.evidence) ].some(note => note.id === id))?.topic.path
+    ?? (props.unfiled.some(note => note.id === id) ? UNFILED : AI_TAB);
   const [ revealed, setRevealed ] = useState(reveal);
   // With the letter open, a mark followed is pointed out in the letter and beside it instead
   const [ letterPick, setLetterPick ] = useState<{ id: string; at: number }>();
@@ -209,17 +219,15 @@ export default function ReviewPanel(props: ReviewProps & {
       && letter?.draft.sections.some(section => section.points.some(point => point.id === reveal.id))) {
       setLetterPick(reveal);
     } else if (reveal) {
-      const holds = (risk: RiskReview) => [ ...risk.aiOpen, ...risk.issues,
-        ...risk.mismatches.map(one => one.evidence) ].some(note => note.id === reveal.id);
-      setChosen(risks.find(holds)?.topic.path
-        ?? (props.unfiled.some(note => note.id === reveal.id) ? UNFILED : AI_TAB));
+      setChosen(entryHolding(reveal.id));
     }
   }
   useEffect(() => {
     if (reveal) {
-      const id = CSS.escape(reveal.id);
+      const escaped = CSS.escape(reveal.id);
       pulseWhenThere(() => document.querySelector<HTMLElement>(
-        `[data-review-panel] [data-note="${id}"], [data-review-panel] [role="row"][data-id="${id}"]`), "center");
+        `[data-review-panel] [data-note="${escaped}"], [data-review-panel] [role="row"][data-id="${escaped}"]`),
+      "center");
     }
   }, [ reveal ]);
   const [ root, setRoot ] = useState<HTMLDivElement | null>(null);
@@ -730,7 +738,6 @@ const LETTER = "letter";
 const isEntry = (value: unknown): value is string | null => typeof value === "string" || value === null;
 const ALL_ISSUES = "all";
 const AI_TAB = "ai";
-
 // Before the risks, what they are, how many are ticked off as considered, and what ticking one off means
 function RisksLabel({ risks, group, lettered = false, dense = false }: {
   risks: RiskReview[];
@@ -988,6 +995,8 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
       )}
     </AiBlock>
   );
+  // PRETOTYPE: the REB's standard questions nobody has raised yet
+  const standards = <StandardQuestions risk={risk} dense={dense} doing={doing} />;
   // The reviewer's own, in the grid of all their issues, narrowed to the risk
   const yours = (
     <IssueTable
@@ -1000,22 +1009,92 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
     return (
       <Stack spacing={1.25}>
         {guidance}
+        {standards}
         {ai}
         {yours}
       </Stack>
     );
   }
-  // In full, what the reviewer reads first, the app's guidance beside the AI's pre-review where the room allows; then,
-  // the whole width, what they write
+  // In full, what the reviewer reads first, the app's guidance and what is commonly raised, beside the AI's pre-review
+  // where the room allows; then, the whole width, what they write
   return (
     <Stack spacing={3}>
       <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3, alignItems: "start",
         "@container (min-width: 900px)": { gridTemplateColumns: "minmax(0, 5fr) minmax(0, 7fr)", columnGap: 4 } }}>
-        {guidance ?? <Box />}
+        {/* What reviewers commonly raise under it, right under what to look at */}
+        <Stack spacing={2}>
+          {guidance}
+          {standards}
+        </Stack>
         {ai || <Box />}
       </Box>
       {yours}
     </Stack>
+  );
+}
+
+// PRETOTYPE: what reviewers commonly raise under a risk, from the REB's issue library, that neither the AI nor the
+// reviewer has raised here, folded; each is raised as an issue in the board's wording, its type and policy with it,
+// which the reviewer can change first
+function StandardQuestions({ risk, dense, doing }: { risk: RiskReview; dense: boolean; doing: ReviewDoing }) {
+  const [ open, setOpen ] = useState(false);
+  const [ raising, setRaising ] = useState<string>();
+  const raised = new Set([ ...risk.aiOpen, ...risk.aiSettled, ...risk.issues ].map(note => note.standard));
+  const left = (risk.topic.standards ?? []).filter(one => !raised.has(one.path));
+  if (left.length === 0) {
+    return null;
+  }
+  return (
+    <Box>
+      <ButtonBase onClick={() => setOpen(!open)} aria-expanded={open}
+        sx={{ gap: 0.5, typography: dense ? "body2" : "subtitle2", color: "text.primary", borderRadius: 1 }}>
+        {open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
+        Commonly raised ({left.length})
+      </ButtonBase>
+      {open && (
+        <Stack sx={{ mt: 0.5 }}>
+          <Typography variant={dense ? "caption" : "body2"} sx={{ color: "text.secondary", pb: 1 }}>
+            From the issue library: the board&apos;s standard wording for what reviewers often raise under this risk.
+            Raise one if it applies to this study.
+          </Typography>
+          {left.map(entry => (
+            <Box key={entry.path} sx={{ py: 1, borderTop: 1, borderColor: "divider" }}>
+              {raising === entry.path ? (
+                <Composer
+                  kinds={[ "issue" ]} initialText={entry.text} initialNature={entry.nature}
+                  initialSeverity={entry.severity} initialTopic={risk.topic.path} initialCitation={entry.citation}
+                  saveLabel="Add issue" onCancel={() => setRaising(undefined)}
+                  onSave={async (_kind, text, severity, topic, nature, citation) => {
+                    await doing.addIssue(topic === "" ? undefined : topic, text, severity, nature,
+                      { citation, standard: entry.path });
+                    setRaising(undefined);
+                  }}
+                />
+              ) : (
+                <>
+                  {entry.nature === "required-change" && entry.severity
+                    ? <TagChip tags={[ entry.severity ]} category="severity" />
+                    : <TagChip tags={[ entry.nature ]} category="issue-kind" />}
+                  <Typography variant="body2" sx={{ mt: 0.5, ...dense ? getCutShortStyle(3) : {} }}>
+                    {entry.text}
+                  </Typography>
+                  {entry.citation && (
+                    <Typography variant="caption" component="div" sx={{ color: "text.secondary", mt: 0.25 }}>
+                      Policy: {entry.citation}
+                    </Typography>
+                  )}
+                  <Links>
+                    <Link component="button" variant="caption" onClick={() => setRaising(entry.path)}>
+                      Raise as an issue
+                    </Link>
+                  </Links>
+                </>
+              )}
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </Box>
   );
 }
 
@@ -1219,8 +1298,9 @@ function AiRow({ note, topic, dense, about, doing, onShow }: {
             initialSeverity={note.severity} initialTopic={note.topicPath ?? topic} saveLabel="Add issue"
             initialNature={note.nature === "suggestion" ? "suggestion" : undefined}
             onCancel={() => setAdopting(false)}
-            onSave={async (_kind, text, severity, chosen, nature) => {
-              await doing.makeIssue(note, text, severity, chosen, nature);
+            initialCitation={note.citation}
+            onSave={async (_kind, text, severity, chosen, nature, citation) => {
+              await doing.makeIssue(note, text, severity, chosen, nature, citation);
               setAdopting(false);
             }}
           />
@@ -1231,6 +1311,7 @@ function AiRow({ note, topic, dense, about, doing, onShow }: {
           {!dense && note.suggestion && (
             <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Suggestion. {note.suggestion}</Typography>
           )}
+          <PolicyLine note={note} dense={dense} />
           <Links>
             <Link component="button" variant="caption" onClick={() => setAdopting(true)}>Make it an issue</Link>
             <Link component="button" variant="caption" onClick={() => void doing.dismiss(note)}>Dismiss</Link>
@@ -1261,8 +1342,9 @@ function IssueRow({ issue, dense, replyable = true, about, doing, onShow }: {
           kinds={[ "issue" ]} initialText={issue.text} initialSeverity={issue.severity} initialNature={issue.nature}
           initialTopic={issue.topicPath ?? ""} saveLabel="Save"
           onCancel={() => setEditing(false)}
-          onSave={async (_kind, text, severity, topic, nature) => {
-            await doing.editIssue(issue, text, severity, topic, nature);
+          initialCitation={issue.citation}
+          onSave={async (_kind, text, severity, topic, nature, citation) => {
+            await doing.editIssue(issue, text, severity, topic, nature, citation);
             setEditing(false);
           }}
         />
@@ -1283,6 +1365,7 @@ function IssueRow({ issue, dense, replyable = true, about, doing, onShow }: {
         </Box>
       )} />
       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...dense ? getCutShortStyle(3) : {} }}>{issue.text}</Typography>
+      <PolicyLine note={issue} dense={dense} />
       {/* In full, its thread under it: the study team's and other reviewers' replies, and the reviewer's own */}
       {!dense && (
         <Thread replies={issue.replies} onEdit={(reply, text) => doing.editReply(reply, text)}

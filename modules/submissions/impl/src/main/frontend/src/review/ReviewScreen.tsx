@@ -1034,15 +1034,17 @@ export default function ReviewScreen({ path }: { path: string }) {
       openIssue(note);
     },
     consider: (topic, considered) => actions.write(considered ? { consider: topic } : { unconsider: topic }),
-    makeIssue: (note, said, severity, topic, nature) =>
-      raiseAsIssue(actions.write, note, said, severity, topic, nature),
+    makeIssue: (note, said, severity, topic, nature, citation) =>
+      raiseAsIssue(actions.write, note, said, severity, topic, nature, citation),
     dismiss: note => actions.write({ dismiss: note.id }),
     undismiss: note => actions.write({ undismiss: note.id }),
     defaultNature: defaultNature(consulting),
-    addIssue: (topic, said, severity, nature) => actions.write({ kind: "issue", text: said,
-      ...severity ? { severity } : {}, ...topic ? { topic } : {}, ...nature ? { nature } : {} }),
-    editIssue: (note, said, severity, topic, nature) => actions.write({ edit: note.id, text: said,
-      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {}, ...nature ? { nature } : {} }),
+    addIssue: (topic, said, severity, nature, from) => actions.write({ kind: "issue", text: said,
+      ...severity ? { severity } : {}, ...topic ? { topic } : {}, ...nature ? { nature } : {},
+      ...from?.citation ? { citation: from.citation } : {}, ...from?.standard ? { standard: from.standard } : {} }),
+    editIssue: (note, said, severity, topic, nature, citation) => actions.write({ edit: note.id, text: said,
+      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {}, ...nature ? { nature } : {},
+      ...citation !== undefined ? { citation } : {} }),
     removeIssue: note => actions.write({ remove: note.id }),
     reply: (note, said) => actions.write({ replyTo: note.id, text: said }),
     editReply: (reply, said) => actions.write({ edit: reply, text: said }),

@@ -28,6 +28,7 @@ import TagChip from "@iap/tags/TagChip";
 import Composer from "./Composer";
 import NoteKindIcon from "./noteIcons";
 import { GroupChip, GroupLabels, PersonName } from "./people";
+import PolicyLine from "./PolicyLine";
 import RemoveButton from "./RemoveButton";
 import { kindInfo, severityShown, type Nature, type ReviewNote } from "./reviewData";
 import TeamAnswer from "./TeamAnswer";
@@ -221,9 +222,9 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   // The extracted answer as the question's options call it
   answerLabel?: string;
   onReply?: (text: string) => Promise<void>;
-  onEdit?: (text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
+  onEdit?: (text: string, severity?: string, topic?: string, nature?: Nature, citation?: string) => Promise<void>;
   onRemove?: () => Promise<void>;
-  onMakeIssue?: (text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
+  onMakeIssue?: (text: string, severity?: string, topic?: string, nature?: Nature, citation?: string) => Promise<void>;
   onDismiss?: () => Promise<void>;
   // Changing or removing one of the reader's own replies, by its path
   onEditReply?: (reply: string, text: string) => Promise<void>;
@@ -255,10 +256,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     return (
       <Composer
         kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity} initialNature={note.nature}
-        initialTopic={note.topicPath ?? ""} saveLabel="Save"
+        initialTopic={note.topicPath ?? ""} initialCitation={note.citation} saveLabel="Save"
         onCancel={() => setEditing(false)}
-        onSave={async (_kind, text, severity, topic, nature) => {
-          await onEdit(text, severity, topic, nature);
+        onSave={async (_kind, text, severity, topic, nature, citation) => {
+          await onEdit(text, severity, topic, nature, citation);
           setEditing(false);
         }}
       />
@@ -278,10 +279,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       <Composer
         kinds={[ "issue" ]} initialText={initialText} about={note.question ? [ note.question ] : []}
         initialSeverity={note.severity} initialTopic={note.topicPath} saveLabel="Add issue"
-        initialNature={note.nature === "suggestion" ? "suggestion" : undefined}
+        initialNature={note.nature === "suggestion" ? "suggestion" : undefined} initialCitation={note.citation}
         onCancel={() => setAdopting(false)}
-        onSave={async (_kind, text, severity, topic, nature) => {
-          await onMakeIssue(text, severity, topic, nature);
+        onSave={async (_kind, text, severity, topic, nature, citation) => {
+          await onMakeIssue(text, severity, topic, nature, citation);
           setAdopting(false);
         }}
       />
@@ -333,6 +334,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           <Field label="Suggestion">{note.suggestion}</Field>
         </Box>
       )}
+      <PolicyLine note={note} />
       <TeamAnswer note={note} />
       <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
       {/* An issue and the note it was made of each lead to the other */}

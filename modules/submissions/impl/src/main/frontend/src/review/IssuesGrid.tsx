@@ -39,6 +39,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import Composer, { ISSUE_PROMPTS } from "./Composer";
 import { SentLock, Thread } from "./NoteCard";
+import PolicyLine from "./PolicyLine";
 import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
 import { NATURE_NAMES, NATURES, SEVERITIES, type Nature, type ReviewNote } from "./reviewData";
@@ -295,6 +296,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       renderCell: ({ row, value }) => (
         <>
           <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>
+          <PolicyLine note={row.issue} dense />
           {replyLinks(row)}
         </>
       ),
@@ -304,6 +306,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       cardValue: row => (
         <>
           <Box sx={{ whiteSpace: "pre-wrap" }}>{row.text}</Box>
+          <PolicyLine note={row.issue} dense />
           {replyLinks(row)}
           {expanded.has(row.id) && (
             <Box sx={{ mt: 1 }}>

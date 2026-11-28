@@ -49,6 +49,8 @@ export interface LetterPoint {
   about: string;
   text: string;
   quote?: string;
+  // PRETOTYPE: the policy it rests on
+  citation?: string;
 }
 
 export interface LetterSection {
@@ -104,7 +106,7 @@ function pointsOf(sections: { heading: string; issues: ReviewNote[] }[], about: 
       .map(issue => ({ id: issue.id, number: number++,
         label: issue.nature === "question" || issue.nature === "suggestion" ? NATURE_NAMES[issue.nature]
           : SEVERITY_NAMES[issue.severity ?? "medium"],
-        about: about(issue), text: issue.text, quote: issue.passage?.quote })),
+        about: about(issue), text: issue.text, quote: issue.passage?.quote, citation: issue.citation })),
   })).filter(section => section.points.length > 0);
 }
 
@@ -190,7 +192,8 @@ export function letterText(letter: DraftedLetter): string {
     ...letter.letterhead ? [ letter.letterhead.join("\n") ] : [],
     letter.date, letter.salutation, letter.re.join("\n"), ...letter.opening,
     ...letter.sections.map(section => [ section.heading, ...section.points.map(point =>
-      point.quote ? `${pointText(point)}\n   The protocol says: "${point.quote}"` : pointText(point)) ].join("\n\n")),
+      [ pointText(point), ...point.quote ? [ `   The protocol says: "${point.quote}"` ] : [],
+        ...point.citation ? [ `   Reference: ${point.citation}` ] : [] ].join("\n")) ].join("\n\n")),
     ...letter.closing, letter.signature.join("\n"),
     ...(letter.signatories ?? []).map(one => [ one.heading, ...one.lines ].join("\n")),
     ...letter.footer ? [ letter.footer ] : [],

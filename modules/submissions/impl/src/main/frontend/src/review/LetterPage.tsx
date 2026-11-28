@@ -76,6 +76,11 @@ export default function LetterPage({ letter, selected, onSelect }: {
                     The protocol says: &ldquo;{point.quote}&rdquo;
                   </Box>
                 )}
+                {point.citation && (
+                  <Box component="span" sx={{ display: "block", mt: 0.5, color: "grey.700", fontStyle: "italic" }}>
+                    Reference: {point.citation}
+                  </Box>
+                )}
               </span>
             </ButtonBase>
           ))}

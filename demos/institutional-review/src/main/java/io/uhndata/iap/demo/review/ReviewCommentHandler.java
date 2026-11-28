@@ -53,9 +53,11 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * it; with {@code undismiss}, the reviewer takes it back; the same goes for what the AI read of an answer that the
  * protocol contradicts. With {@code resolve}, a discussion entry, or the reviewer's own issue or note to self, is
  * marked resolved, for everyone, with who and when; {@code unresolve} reopens it. An issue is filed under the risk
- * {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. The reviewer group the
- * issues are raised for, {@code group}, is kept on the review, and so are the risks the reviewer has considered:
- * {@code consider} or {@code unconsider} naming one marks it, or unmarks it.
+ * {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. An issue keeps the policy
+ * it rests on, {@code citation}, which an edit changes or, empty, removes, and the REB's standard question it was
+ * raised from, {@code standard}, by path. The reviewer group the issues are raised for, {@code group}, is kept on the
+ * review, and so are the risks the reviewer has considered: {@code consider} or {@code unconsider} naming one marks
+ * it, or unmarks it.
  *
  * <p>The notes are kept apart from the review and the discussion, in an {@code irv:Notes} node per reviewer. They
  * are not hidden from the other reviewers by an access rule yet: the pages only show a reviewer their own.</p>
@@ -83,6 +85,10 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     private static final String NATURE_FIELD = "nature";
 
     private static final String CONSIDERED_PROPERTY = "considered";
+
+    private static final String CITATION_PROPERTY = "citation";
+
+    private static final String STANDARD_PROPERTY = "standard";
 
     @Override
     public String getName()
@@ -201,6 +207,14 @@ public class ReviewCommentHandler implements ServiceTaskHandler
                 Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tagReplacing(tag, false);
             }
         }
+        if (context.getEvent().getPayload().containsKey(CITATION_PROPERTY)) {
+            final String citation = Payloads.text(context.getEvent(), CITATION_PROPERTY);
+            if (citation == null) {
+                writable(comment).remove(CITATION_PROPERTY);
+            } else {
+                writable(comment).put(CITATION_PROPERTY, citation);
+            }
+        }
         if (context.getEvent().getPayload().containsKey(TOPIC_PROPERTY)) {
             final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
             final ModifiableValueMap values = writable(comment);
@@ -236,13 +250,8 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         if (!subjects.isEmpty()) {
             properties.put("subjects", subjects.toArray(String[]::new));
         }
-        final String from = Payloads.text(context.getEvent(), "from");
-        if (ISSUE_KIND.equals(kind) && from != null) {
-            properties.put("from", within(submission, from).getPath());
-        }
-        final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
-        if (ISSUE_KIND.equals(kind) && topic != null) {
-            properties.put(TOPIC_PROPERTY, topic(submission, topic));
+        if (ISSUE_KIND.equals(kind)) {
+            issueProperties(context, submission, properties);
         }
         final Resource comment = submission.getResourceResolver().create(holder, name("comment"), properties);
         for (final String tagged : List.of(SEVERITY_FIELD, NATURE_FIELD)) {
@@ -252,6 +261,27 @@ public class ReviewCommentHandler implements ServiceTaskHandler
             }
         }
         passage(context, comment);
+    }
+
+    // What only an issue keeps: the AI comment it was made from, the risk it is filed under, the policy it rests on and
+    // the standard question it was raised from
+    private static void issueProperties(final WorkflowTaskContext context, final Resource submission,
+        final Map<String, Object> properties) throws WorkflowException
+    {
+        final String from = Payloads.text(context.getEvent(), "from");
+        if (from != null) {
+            properties.put("from", within(submission, from).getPath());
+        }
+        final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
+        if (topic != null) {
+            properties.put(TOPIC_PROPERTY, topic(submission, topic));
+        }
+        for (final String kept : List.of(CITATION_PROPERTY, STANDARD_PROPERTY)) {
+            final String value = Payloads.text(context.getEvent(), kept);
+            if (value != null) {
+                properties.put(kept, value);
+            }
+        }
     }
 
     // The passage a comment points at, when it points at one

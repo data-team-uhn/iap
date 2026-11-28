@@ -51,7 +51,7 @@ export const ReviewerTopics = createContext<{ mine: Topic[]; all: Map<string, To
 // PRETOTYPE. Writing a note: which kind, for an issue its type, how serious a required change is, and under which
 // risk, and what it says. The risk is chosen for the reviewer when only one of theirs draws on what the note is about.
 export default function Composer({ kinds, initialKind, initialText = "", initialSeverity, initialNature, initialTopic,
-  about = [], saveLabel = "Add", onSave, onCancel }: {
+  initialCitation = "", about = [], saveLabel = "Add", onSave, onCancel }: {
   // The kinds to choose between; none for a reply
   kinds: NoteKind[];
   initialKind?: NoteKind;
@@ -61,12 +61,15 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
   initialNature?: Nature;
   // The risk to start with, by path; empty for none
   initialTopic?: string;
+  // PRETOTYPE: the policy an issue rests on, to start with
+  initialCitation?: string;
   // What the note is about: questions and documents, by schema path
   about?: string[];
   saveLabel?: string;
-  // The topic is empty for none, and undefined unless the note is an issue, as its type is; the severity is undefined
-  // unless it is a required change
-  onSave: (kind: NoteKind, text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
+  // The topic is empty for none, and undefined unless the note is an issue, as its type and policy are; the severity is
+  // undefined unless it is a required change
+  onSave: (kind: NoteKind, text: string, severity?: string, topic?: string, nature?: Nature, citation?: string)
+  => Promise<void>;
   onCancel: () => void;
 }) {
   const [ kind, setKind ] = useState<NoteKind>(initialKind ?? kinds.at(0) ?? "discussion");
@@ -76,6 +79,7 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
   const [ nature, setNature ] = useState<Nature>(initialNature ?? usual);
   const fitting = mine.filter(topic => topic.sources.some(source => about.includes(source)));
   const [ topic, setTopic ] = useState(initialTopic ?? (fitting.length === 1 ? fitting[0].path : ""));
+  const [ citation, setCitation ] = useState(initialCitation);
   // Those drawing on what the note is about first; and the one it starts with, even when not the reviewer's own
   const others = mine.filter(one => !fitting.includes(one));
   const outside = topic && !mine.some(one => one.path === topic) ? topic : undefined;
@@ -98,7 +102,7 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
     try {
       const issue = kind === "issue";
       await onSave(kind, text.trim(), issue && nature === "required-change" ? severity : undefined,
-        issue ? topic : undefined, issue ? nature : undefined);
+        issue ? topic : undefined, issue ? nature : undefined, issue ? citation.trim() : undefined);
     } finally {
       setSaving(false);
     }
@@ -156,6 +160,12 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
             {fitting.length > 0 && others.length > 0 && <Divider />}
             {others.map(one => <MenuItem key={one.path} value={one.path}>{one.label}</MenuItem>)}
           </TextField>
+          {/* PRETOTYPE: the policy it rests on, printed with it in the letter */}
+          <TextField
+            size="small" label="Policy" value={citation} onChange={event => setCitation(event.target.value)}
+            placeholder="Such as TCPS 2, Art. 5.5A" sx={{ flex: 1, minWidth: 180 }}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
         </Stack>
       )}
       <TextField

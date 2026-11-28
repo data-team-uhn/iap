@@ -30,6 +30,7 @@ import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import TagChip from "@iap/tags/TagChip";
 
 import { CARDS_BELOW, type CardColumn, WhereLink, cardOf } from "./IssuesGrid";
+import PolicyLine from "./PolicyLine";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
 import TeamAnswer from "./TeamAnswer";
 
@@ -141,12 +142,14 @@ export default function AiGrid({ risks, grouped, settled, fitRows = false, about
       renderCell: ({ row }) => (
         <Box sx={{ py: 0.25 }}>
           <Box sx={{ whiteSpace: "pre-wrap", ...row.kind === "risk" ? { color: "text.secondary" } : {} }}>{row.finding}</Box>
+          {row.note && <PolicyLine note={row.note} />}
           {row.note && <TeamAnswer note={row.note} />}
         </Box>
       ),
       cardValue: row => (
         <Box>
           <Box sx={{ whiteSpace: "pre-wrap" }}>{row.finding}</Box>
+          {row.note && <PolicyLine note={row.note} />}
           {row.note && <TeamAnswer note={row.note} />}
         </Box>
       ),

@@ -2762,7 +2762,29 @@
           "/Schemas/retrospectiveStudy/v1/classification/cohort/startDate",
           "/Schemas/retrospectiveStudy/v1/classification/cohort/endDate",
           "/Schemas/retrospectiveStudy/v1/protocol"
-        ]
+        ],
+        "researchOrQi": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please explain why this work is research rather than quality improvement, and say whether QIRC has looked at it.",
+          "citation": "TCPS 2, Art. 2.5",
+          "nature": "question"
+        },
+        "contact": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "The protocol describes contact with participants or new data collection. Please revise the study classification, or explain why no one is contacted and nothing new is collected.",
+          "citation": "TCPS 2, Art. 5.6",
+          "nature": "required-change",
+          "severity": "major"
+        },
+        "originalPurpose": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please state why the information was originally collected, and by whom.",
+          "citation": "TCPS 2, Ch. 5 §D",
+          "nature": "question"
+        }
       },
       "design": {
         "jcr:primaryType": "sch:Topic",
@@ -2773,7 +2795,14 @@
           "/Schemas/retrospectiveStudy/v1/classification/design",
           "/Schemas/retrospectiveStudy/v1/classification/designOther",
           "/Schemas/retrospectiveStudy/v1/protocol"
-        ]
+        ],
+        "components": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "The design goes beyond a chart review. Please describe each component and how it is carried out.",
+          "citation": "TCPS 2, Art. 2.7",
+          "nature": "question"
+        }
       },
       "identifiability": {
         "jcr:primaryType": "sch:Topic",
@@ -2788,7 +2817,23 @@
           "/Schemas/retrospectiveStudy/v1/identifiability/lessIdentifiable",
           "/Schemas/retrospectiveStudy/v1/identifiability/lessIdentifiableWhy",
           "/Schemas/retrospectiveStudy/v1/variables"
-        ]
+        ],
+        "coded": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please correct the identifiability answers: data the team, or someone the team can reach, can link back to a person is coded, not anonymous. Say who holds the key and where it is kept.",
+          "citation": "TCPS 2, Ch. 5 §A",
+          "nature": "required-change",
+          "severity": "major"
+        },
+        "fields": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please explain why each identifying field is needed (such as names, full dates, MRN or postal code), or replace it with a less identifying one (such as age, year or region).",
+          "citation": "TCPS 2, Art. 5.5A(a)",
+          "nature": "required-change",
+          "severity": "medium"
+        }
       },
       "waiver": {
         "jcr:primaryType": "sch:Topic",
@@ -2803,7 +2848,31 @@
           "/Schemas/retrospectiveStudy/v1/consent/waiver/welfare",
           "/Schemas/retrospectiveStudy/v1/consent/waiver/impracticable",
           "/Schemas/retrospectiveStudy/v1/priorConsentForm"
-        ]
+        ],
+        "impracticable": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please explain why seeking consent is impracticable for this cohort, for example its size, how long ago care took place, or how many people can no longer be reached. Cost or inconvenience alone does not meet this condition.",
+          "citation": "TCPS 2, Art. 5.5A(c)",
+          "nature": "required-change",
+          "severity": "medium"
+        },
+        "whyIdentifiable": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please explain why identifiable information is essential to the research.",
+          "citation": "TCPS 2, Art. 5.5A(a)",
+          "nature": "required-change",
+          "severity": "medium"
+        },
+        "secondaryUse": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Article 3.7A does not apply to the secondary use of information. Please request a waiver under Article 5.5A and address each of its conditions.",
+          "citation": "TCPS 2, Art. 5.5A",
+          "nature": "required-change",
+          "severity": "major"
+        }
       },
       "authority": {
         "jcr:primaryType": "sch:Topic",
@@ -2815,7 +2884,30 @@
           "/Schemas/retrospectiveStudy/v1/access/custodianApproval",
           "/Schemas/retrospectiveStudy/v1/access/authority",
           "/Schemas/retrospectiveStudy/v1/dsa"
-        ]
+        ],
+        "custodianApproval": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please attach the data custodian's written approval for this use of the data.",
+          "citation": "TCPS 2, Art. 5.5A(f)",
+          "nature": "required-change",
+          "severity": "medium"
+        },
+        "agreement": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please give the status of the data sharing agreement. The data should not be transferred until it is signed.",
+          "citation": "TCPS 2, Art. 5.5A(f); PHIPA",
+          "nature": "required-change",
+          "severity": "medium"
+        },
+        "termsOfUse": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "The data was collected outside PHIPA. Please attach the terms people accepted, and point to the clause that allows its use for research.",
+          "citation": "TCPS 2, Art. 5.5A(f); PIPEDA",
+          "nature": "question"
+        }
       },
       "linkage": {
         "jcr:primaryType": "sch:Topic",
@@ -2827,7 +2919,22 @@
           "/Schemas/retrospectiveStudy/v1/identifiability/linkageRisk",
           "/Schemas/retrospectiveStudy/v1/identifiability/reidentification",
           "/Schemas/retrospectiveStudy/v1/protocol"
-        ]
+        ],
+        "plan": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please describe the linkage: which datasets, who performs it, on which identifiers, and when the linking file is destroyed.",
+          "citation": "TCPS 2, Art. 5.7",
+          "nature": "required-change",
+          "severity": "medium"
+        },
+        "reidentification": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please assess how likely re-identification is once the datasets are linked, and the safeguards proportionate to it.",
+          "citation": "TCPS 2, Art. 5.7",
+          "nature": "question"
+        }
       },
       "indigenous": {
         "jcr:primaryType": "sch:Topic",
@@ -2839,7 +2946,15 @@
           "/Schemas/retrospectiveStudy/v1/sensitivity/community/covered",
           "/Schemas/retrospectiveStudy/v1/sensitivity/community/engaged",
           "/Schemas/retrospectiveStudy/v1/sensitivity/community/engagedOutcome"
-        ]
+        ],
+        "engagement": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "The data may be identifiable as coming from a First Nations, Inuit or Métis community. Please describe the engagement with the community, or explain why it is not needed.",
+          "citation": "TCPS 2, Art. 9.22",
+          "nature": "required-change",
+          "severity": "major"
+        }
       },
       "sensitive": {
         "jcr:primaryType": "sch:Topic",
@@ -2851,7 +2966,22 @@
           "/Schemas/retrospectiveStudy/v1/sensitivity/input",
           "/Schemas/retrospectiveStudy/v1/sensitivity/inputOutcome",
           "/Schemas/retrospectiveStudy/v1/protocol"
-        ]
+        ],
+        "categories": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please review the sensitive categories against the data the study uses, tick those that apply, and reconsider the harm a breach could do.",
+          "citation": "TCPS 2, Art. 5.5A; Ch. 4",
+          "nature": "required-change",
+          "severity": "medium"
+        },
+        "safeguards": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please describe any additional safeguards for the vulnerable groups in the cohort.",
+          "citation": "TCPS 2, Ch. 4",
+          "nature": "question"
+        }
       },
       "transfer": {
         "jcr:primaryType": "sch:Topic",
@@ -2866,7 +2996,22 @@
           "/Schemas/retrospectiveStudy/v1/digital/ai/used",
           "/Schemas/retrospectiveStudy/v1/digital/ai/where",
           "/Schemas/retrospectiveStudy/v1/dsa"
-        ]
+        ],
+        "destinations": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please name every party, service or tool that receives the data (including transcription, statistical consultants and AI tools), where each is hosted, and the safeguard for each.",
+          "citation": "TCPS 2, Art. 5.3",
+          "nature": "required-change",
+          "severity": "medium"
+        },
+        "assessments": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "The data leaves UHN systems. Please say whether a privacy impact assessment and a threat risk assessment have been requested.",
+          "citation": "TCPS 2, Art. 5.3; UHN Policy 1.40.028",
+          "nature": "question"
+        }
       },
       "safeguards": {
         "jcr:primaryType": "sch:Topic",
@@ -2882,7 +3027,22 @@
           "/Schemas/retrospectiveStudy/v1/handling/storage/breachHarm",
           "/Schemas/retrospectiveStudy/v1/handling/storage/pia",
           "/Schemas/retrospectiveStudy/v1/handling/storage/disclosure"
-        ]
+        ],
+        "retention": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please state how long the data is kept, where, and how it is destroyed at the end.",
+          "citation": "TCPS 2, Art. 5.3; UHN Policy 1.30.007",
+          "nature": "required-change",
+          "severity": "minor"
+        },
+        "access": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please say who has access to the study data, and how that access is controlled.",
+          "citation": "TCPS 2, Art. 5.3",
+          "nature": "question"
+        }
       },
       "rigour": {
         "jcr:primaryType": "sch:Topic",
@@ -2897,7 +3057,21 @@
           "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusions",
           "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusionsWhy",
           "/Schemas/retrospectiveStudy/v1/protocol"
-        ]
+        ],
+        "criteria": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please explain how the inclusion and exclusion criteria suit the research question.",
+          "citation": "TCPS 2, Art. 2.7",
+          "nature": "question"
+        },
+        "analysis": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Consider describing how missing or incomplete data are handled in the analysis.",
+          "citation": "TCPS 2, Art. 2.7",
+          "nature": "suggestion"
+        }
       },
       "equity": {
         "jcr:primaryType": "sch:Topic",
@@ -2908,7 +3082,21 @@
           "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusions",
           "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusionsWhy",
           "/Schemas/retrospectiveStudy/v1/sensitivity/equity"
-        ]
+        ],
+        "exclusions": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please explain why any groups are left out (for example by language, age or sex), and what this means for who the results apply to.",
+          "citation": "TCPS 2, Art. 4.1",
+          "nature": "question"
+        },
+        "makeUp": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Consider reporting the cohort's make-up, so readers can judge who the results apply to.",
+          "citation": "TCPS 2, Art. 4.7",
+          "nature": "suggestion"
+        }
       },
       "reporting": {
         "jcr:primaryType": "sch:Topic",
@@ -2918,7 +3106,15 @@
         "jcr:reference:sources": [
           "/Schemas/retrospectiveStudy/v1/handling/results/reporting",
           "/Schemas/retrospectiveStudy/v1/handling/results/threshold"
-        ]
+        ],
+        "smallCells": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please state the smallest cell size reported, and how smaller cells are suppressed or merged.",
+          "citation": "TCPS 2, Art. 5.3",
+          "nature": "required-change",
+          "severity": "minor"
+        }
       },
       "incidental": {
         "jcr:primaryType": "sch:Topic",
@@ -2928,7 +3124,14 @@
         "jcr:reference:sources": [
           "/Schemas/retrospectiveStudy/v1/handling/results/actionable",
           "/Schemas/retrospectiveStudy/v1/handling/results/incidental"
-        ]
+        ],
+        "plan": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please describe what happens if a clinically actionable finding comes up while records are reviewed.",
+          "citation": "TCPS 2, Art. 3.4",
+          "nature": "question"
+        }
       },
       "terminology": {
         "jcr:primaryType": "sch:Topic",
@@ -2939,7 +3142,14 @@
           "/Schemas/retrospectiveStudy/v1/team/glossary",
           "/Schemas/retrospectiveStudy/v1/classification/design",
           "/Schemas/retrospectiveStudy/v1/protocol"
-        ]
+        ],
+        "terms": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please use terms as TCPS 2 defines them (such as anonymous, de-identified and coded), and describe the population and analyses by what they are.",
+          "citation": "TCPS 2, Ch. 5 §A",
+          "nature": "suggestion"
+        }
       },
       "conflict": {
         "jcr:primaryType": "sch:Topic",
@@ -2951,7 +3161,22 @@
           "/Schemas/retrospectiveStudy/v1/team/conflictDetails",
           "/Schemas/retrospectiveStudy/v1/team/rmp",
           "/Schemas/retrospectiveStudy/v1/study/sponsor"
-        ]
+        ],
+        "declare": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please declare the team's relationship with the sponsor or vendor (funding, and any consulting, advisory or equity ties) and describe how the conflict is managed.",
+          "citation": "TCPS 2, Art. 7.4",
+          "nature": "required-change",
+          "severity": "major"
+        },
+        "control": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please state who controls the analysis, the interpretation and the decision to publish.",
+          "citation": "TCPS 2, Art. 7.4",
+          "nature": "question"
+        }
       },
       "dateRange": {
         "jcr:primaryType": "sch:Topic",
@@ -2962,7 +3187,14 @@
           "/Schemas/retrospectiveStudy/v1/classification/cohort/startDate",
           "/Schemas/retrospectiveStudy/v1/classification/cohort/endDate",
           "/Schemas/retrospectiveStudy/v1/classification/cohort/dateRationale"
-        ]
+        ],
+        "endDate": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "The collection period reaches into the recent past. Please explain why consent cannot be sought from people seen recently, or move the end date back.",
+          "citation": "TCPS 2, Art. 5.5A(c)",
+          "nature": "question"
+        }
       },
       "ai": {
         "jcr:primaryType": "sch:Topic",
@@ -2977,7 +3209,21 @@
           "/Schemas/retrospectiveStudy/v1/digital/ai/phase",
           "/Schemas/retrospectiveStudy/v1/digital/ai/governance",
           "/Schemas/retrospectiveStudy/v1/protocol"
-        ]
+        ],
+        "training": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please confirm whether study data or annotations are used to train or refine an AI model, by the team or a vendor.",
+          "citation": "UHN AI Hub guidance",
+          "nature": "question"
+        },
+        "intake": {
+          "jcr:primaryType": "nt:unstructured",
+          "sling:resourceType": "sch/StandardQuestion",
+          "text": "Please confirm the AI tool has been through the AI Hub intake.",
+          "citation": "UHN AI Hub guidance",
+          "nature": "question"
+        }
       }
     },
     "digitalReview": {
