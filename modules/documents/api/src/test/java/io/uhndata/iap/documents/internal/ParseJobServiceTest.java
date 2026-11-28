@@ -19,7 +19,6 @@ package io.uhndata.iap.documents.internal;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -244,7 +243,7 @@ class ParseJobServiceTest
         final ParseJobService built = new ParseJobService()
         {
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 return ParseJobService.SHARED_DOCS_VARIABLE.equals(name) ? volumeVariable : null;
             }
@@ -262,9 +261,7 @@ class ParseJobServiceTest
     private static void inject(final ParseJobService target, final String name, final Object value)
         throws Exception
     {
-        final Field reference = ParseJobService.class.getDeclaredField(name);
-        reference.setAccessible(true);
-        reference.set(target, value);
+        TestJobs.inject(target, name, value);
     }
 
     private static ByteArrayInputStream bytes(final String text)

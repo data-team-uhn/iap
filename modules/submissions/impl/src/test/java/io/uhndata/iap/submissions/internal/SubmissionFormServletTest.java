@@ -67,6 +67,7 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
@@ -74,6 +75,7 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.internal.describers.ApprovalRequirementDescriber;
 import io.uhndata.iap.submissions.internal.describers.DocumentRequirementDescriber;
 import io.uhndata.iap.submissions.internal.describers.FormRequirementDescriber;
@@ -148,7 +150,8 @@ class SubmissionFormServletTest
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
             Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, DocumentVersion.class,
-            File.class, Review.class, Submission.class);
+            File.class, Review.class, Submission.class, ValidationRequirement.class,
+            ClassificationRequirement.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         PropertyTagging.installIn(this.context);
@@ -273,6 +276,22 @@ class SubmissionFormServletTest
         assertEquals("multiple-days", offered.getJsonObject(1).getString("label"));
     }
 
+    // The same items a model reading the documents is offered, so the submitter can confirm its pick
+    @Test
+    void offersTheItemsAQuestionTakesItsAnswersFrom() throws IOException
+    {
+        this.context.create().resource("/Durations/half", Map.of("label", "Half day"));
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/duration", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How long?", "dataType", "text",
+            "optionsFrom", "/Durations"));
+
+        final JsonArray offered = item(requirement(form(REQUESTER), DETAILS), "duration").getJsonArray("options");
+
+        assertEquals(1, offered.size());
+        assertEquals("/Durations/half", offered.getJsonObject(0).getString("value"));
+        assertEquals("Half day", offered.getJsonObject(0).getString("label"));
+    }
+
     @Test
     void omitsABoundThatIsNotFinite() throws IOException
     {
@@ -311,6 +330,21 @@ class SubmissionFormServletTest
         this.hidden.add(APPROVAL);
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
+    }
+
+    // Nothing the submitter does could complete them, so they would only show as unfinished
+    @Test
+    void leavesOutTheChecksAReadingMakes() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/is_note", Map.of(
+            TYPE, ValidationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Is it a note",
+            "document", "doctorsNote"));
+        this.context.create().resource(VERSION_PATH + "/kind", Map.of(
+            TYPE, ClassificationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Kind of leave",
+            "document", "doctorsNote"));
+
+        assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+            names(form(REQUESTER).getJsonArray("requirements")));
     }
 
     @Test

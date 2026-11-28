@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -35,11 +36,16 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.schemas.models.FormItem;
+import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
 
@@ -62,6 +68,12 @@ public class Submission extends Entity
 
     /** The {@code lifecycle} tag a submission carries once the reviewers have accepted it. */
     public static final String APPROVED_TAG = "approved";
+
+    /** How far reading answers out of the documents has got: {@link #READING_STATUS}, done or failed. */
+    public static final String EXTRACTION_STATUS_PROPERTY = "extractionStatus";
+
+    /** The {@link #EXTRACTION_STATUS_PROPERTY} while a reading of the documents is going on. */
+    public static final String READING_STATUS = "running";
 
     @OSGiService
     private ConditionEvaluator conditionEvaluator;
@@ -134,6 +146,21 @@ public class Submission extends Entity
     }
 
     /**
+     * Returns what a model decided about an upload for one requirement.
+     *
+     * @param requirement the validation requirement to look up
+     * @return the validation, or {@code null} while the model has not been asked
+     */
+    @Nullable
+    public Validation findValidation(@NotNull final ValidationRequirement requirement)
+    {
+        return this.getChildren(Validation.RESOURCE_TYPE, Validation.class).stream()
+            .filter(validation -> validation.isAbout(requirement))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
      * The documents of this submission, including the empty ones nothing has been uploaded into.
      *
      * @return the documents; empty if there are none
@@ -191,6 +218,20 @@ public class Submission extends Entity
     }
 
     /**
+     * The tasks still waiting on someone, across every workflow running over this submission.
+     *
+     * @return the open tasks, by workflow and then in stored order; empty if none waits
+     */
+    @NotNull
+    public List<TaskInstance> getOpenTasks()
+    {
+        return getWorkflowInstances().stream()
+            .flatMap(instance -> instance.getTaskInstances().stream())
+            .filter(task -> TaskInstance.OPEN_STATUS.equals(task.getStatus()))
+            .toList();
+    }
+
+    /**
      * Whether this submission has been approved: it carries the {@code approved} lifecycle tag itself.
      *
      * @return {@code true} if approved; {@code false} also when the tags service is unavailable
@@ -211,6 +252,17 @@ public class Submission extends Entity
     {
         final Taggable tags = this.as(Taggable.class);
         return tags != null && tags.hasOwnTag(DRAFT_TAG);
+    }
+
+    /**
+     * Whether a reading of this submission's documents is going on. The reading writes what it finds onto the
+     * answers and reads the latest uploads, so neither may change under it.
+     *
+     * @return {@code true} while the reading status is {@link #READING_STATUS}
+     */
+    public boolean isBeingRead()
+    {
+        return READING_STATUS.equals(this.get(EXTRACTION_STATUS_PROPERTY, String.class));
     }
 
     /**
@@ -261,6 +313,40 @@ public class Submission extends Entity
     public boolean isApplicable(@NotNull final Conditionable item)
     {
         return this.conditionEvaluator == null || this.conditionEvaluator.applies(item, this);
+    }
+
+    /**
+     * Returns the questions one form requirement asks now, chosen by name, in schema order. A requirement, section
+     * or question whose condition does not apply is left out.
+     *
+     * @param name the requirement's node name, or its full path
+     * @return its questions, empty when it does not apply, is not a form, or does not exist
+     */
+    @NotNull
+    public List<Question> getQuestions(@Nullable final String name)
+    {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        return this.getSchemaVersion().getRequirements().stream()
+            .filter(requirement -> name.equals(requirement.getName()) || name.equals(requirement.getPath()))
+            .filter(FormRequirement.class::isInstance)
+            .filter(this::isApplicable)
+            .flatMap(form -> ((FormRequirement) form).getChildren().stream())
+            .flatMap(this::getApplicableQuestions)
+            .collect(Collectors.toList());
+    }
+
+    private Stream<Question> getApplicableQuestions(final FormItem item)
+    {
+        if (!this.isApplicable(item)) {
+            return Stream.empty();
+        }
+        if (item instanceof final Question question) {
+            return Stream.of(question);
+        }
+        // Section is the only other item type; a new one fails here rather than being skipped unseen
+        return ((Section) item).getChildren().stream().flatMap(this::getApplicableQuestions);
     }
 
     /**

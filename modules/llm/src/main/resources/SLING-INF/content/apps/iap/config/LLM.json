@@ -1,5 +1,5 @@
 {
   "jcr:primaryType": "llm:Configuration",
   "activeProvider": "prompter",
-  "activeModel": "Qwen3.8-27B"
+  "activeModel": "DeepSeek-V4-Flash-0731"
 }

@@ -104,6 +104,8 @@ export interface DocumentRequirement extends Requirement {
   templateName?: string;
   // The documents attached for it; empty when none is
   attached: AttachedDocument[];
+  // A warning about reading the newest upload, such as that it is too long for the model; absent when there is none
+  readingNotice?: string;
 }
 
 // A requirement somebody else grants, with where it stands.
@@ -155,6 +157,15 @@ export function isDocumentRequirement(requirement: Requirement): requirement is 
 
 export function isApprovalRequirement(requirement: Requirement): requirement is ApprovalRequirement {
   return requirement.type === APPROVAL_REQUIREMENT_TYPE;
+}
+
+// The `extractionStatus` of a submission whose documents are being read for answers
+export const READING_STATUS = "running";
+
+// Whether the submission's documents are being read for answers, from its `extractionStatus`. Until the
+// reading ends, the submitter cannot change the answers and the request is not ready to send.
+export function isBeingRead(extractionStatus: unknown): boolean {
+  return extractionStatus === READING_STATUS;
 }
 
 // What an empty document slot says. An optional one says so, or it reads as a gap.

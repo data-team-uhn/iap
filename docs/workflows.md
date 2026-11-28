@@ -143,6 +143,12 @@ by hand.
   finishes there, retiring the host's tags that share any of its categories. Elsewhere
   in a process, the `addTag` and `removeTag` service tasks do the same job.
 
+A service task's configuration reaches the stored node through the `properties` list of
+its vocabulary entry, `ServiceTask.json`: each line maps an `iap:` attribute to an
+activity property, and a trailing `[]` makes it a list, written comma-separated. A
+handler parameter with no line there is dropped when the diagram is parsed, and nothing
+reports it, so a new parameter needs a new line.
+
 ### The vocabulary
 
 `/WorkflowTypes` is the translation table between BPMN and the repository. Each
@@ -354,7 +360,9 @@ tags placed on the host itself, never inherited or computed ones.
 
 `checkValid` asks every `ValidityCheck` (`io.uhndata.iap.workflows.spi`) that applies to
 the target what would stop it moving on, and refuses with all of it at once. Activating
-or trialling a workflow version runs it, and so does publishing a schema version. The
+or trialling a workflow version runs it, and so does publishing a schema version. Placed
+right after the task that sends a request, it refuses to send one whose document is
+still being read (see [extraction.md](extraction.md)). The
 workflow checks require exactly one start event, and of a system workflow a
 `targetResourceType`, a named message start and no user task. A module protects what it
 adds by registering another check.
@@ -918,6 +926,12 @@ starts with its parts and marks. Detaching removes every version of a document a
 leaves it empty as its requirement's part, and the detach workflow marks the submission
 again.
 
+`recordSuggestionDistances` belongs in a submission's own workflow, right after the task
+the submitter completes to send the request, and after the `checkValid` that refuses to
+send it while a document is read. It measures each answer, as it was sent,
+against the newest suggestion a reading made for it, once (see
+[extraction.md](extraction.md), "When the submitter acts on it").
+
 ## Content workflows: the part that persists
 
 A content workflow outlives the request, because the next thing to happen is a person
@@ -1096,6 +1110,18 @@ each completed on its own.
   content workflows and no system workflow of its own takes messages only at its tasks.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
+- **A failed step undoes the whole walk.** A walk is one commit, so a handler that
+  throws reverts everything the walk wrote before it. An `ErrorBoundaryEvent` is
+  imported but never fires: nothing catches a step's failure and carries on. A handler
+  that must keep earlier work records the failure itself and returns normally.
+- **`startWorkflow` quietly starts nothing.** When its `workflowFrom` chain leads
+  nowhere, or not to a workflow version, the step succeeds and no workflow runs, since
+  an entity whose data names no workflow simply has none. A caller that needs one to run
+  checks the chain itself first.
+- **A running walk cannot be stopped.** The engine has no way to cancel a walk in
+  progress; it ends when its last step returns. So long work, such as a model call,
+  runs outside any walk: the extraction module calls the model in background jobs, which
+  a Stop interrupts, and saves each result through a short system workflow.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem recorded; a guard is written as a `cond:condition` in the
   arc's `extensionElements`.

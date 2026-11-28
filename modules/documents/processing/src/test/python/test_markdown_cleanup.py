@@ -72,6 +72,38 @@ class TestCleanMarkdown:
         assert once == "Calcium & Vitamin D"
         assert mc.clean_markdown(once) == once
 
+    def test_table_padding_dropped(self):
+        table = (
+            "| Visit       | Day     |\n"
+            "|-------------|---------|\n"
+            "| Screening   | -28     |"
+        )
+        assert mc.clean_markdown(table) == "| Visit | Day |\n|---|---|\n| Screening | -28 |"
+
+    def test_table_padding_dropped_twice_changes_nothing(self):
+        once = mc.clean_markdown("| A    | B    |\n|:-----|-----:|\n| 1    | 2    |")
+        assert once == "| A | B |\n|:---|---:|\n| 1 | 2 |"
+        assert mc.clean_markdown(once) == once
+
+
+class TestCompactTableRow:
+    def test_text_outside_a_table_keeps_its_spaces(self):
+        assert mc.compact_table_row("Dose  of   10 mg ----") == "Dose  of   10 mg ----"
+
+    def test_indented_row_is_compacted(self):
+        assert mc.compact_table_row("  | a   | b   |  ") == " | a | b |"
+
+    def test_dashes_in_a_cell_are_kept(self):
+        assert mc.compact_table_row("| range | 1 ---- 5 |") == "| range | 1 ---- 5 |"
+
+    def test_a_dash_cell_row_is_left_as_it_is(self):
+        assert mc.compact_table_row("| - | - |") == "| - | - |"
+
+    def test_a_long_dash_run_is_handled_in_linear_time(self):
+        # A fill line of dashes followed by text must not make the divider check backtrack
+        row = "| " + "-" * 40000 + " | Notes |"
+        assert mc.compact_table_row(row) == row
+
 
 class TestLeadingLineNumbers:
     def test_long_consecutive_run_stripped(self):

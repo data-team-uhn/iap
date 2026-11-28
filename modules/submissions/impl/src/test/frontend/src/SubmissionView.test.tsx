@@ -286,6 +286,7 @@ function renderAt(path: string) {
 
 describe("SubmissionView", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -692,6 +693,9 @@ describe("SubmissionView", () => {
     // A request with a part that still lacks something
     const INCOMPLETE = { ...DEEP_SUBMISSION, aggregatedTags: [ "incomplete" ] };
 
+    // A request whose document is being read for answers
+    const READING = { ...DEEP_SUBMISSION, extractionStatus: "running" };
+
     // A form asking one question, which is all that stands between the request and sending it
     const DETAILS: FormRequirement = {
       name: "details", path: "/Schemas/ClinicalTrial/1.0/details", type: FORM_REQUIREMENT_TYPE, label: "Request details",
@@ -704,11 +708,22 @@ describe("SubmissionView", () => {
 
     // What the page reads: the submission's serializations, the form, the tag definitions, and the
     // workflow, parked on the step until it is completed. `submission` says what the request reads as at
-    // each moment. A save is answered once `save` settles, and then calls `onSaved`. Completing the step
-    // is answered once `completion` settles.
-    function withATaskWaiting({ completion = Promise.resolve(), save = Promise.resolve(), onSaved, submission, form }: {
+    // each moment, and a read of the whole of it waits for `deepRead`. A save is answered once `save`
+    // settles, and then calls `onSaved`. Completing the step is answered once `completion` settles, and a
+    // stop by `stop`.
+    function withATaskWaiting({
+      completion = Promise.resolve(),
+      save = Promise.resolve(),
+      stop = () => jsonResponse({}),
+      deepRead = () => Promise.resolve(),
+      onSaved,
+      submission,
+      form,
+    }: {
       completion?: Promise<void>;
       save?: Promise<void>;
+      stop?: () => Response | Promise<Response>;
+      deepRead?: () => Promise<void>;
       onSaved?: () => void;
       submission?: () => unknown;
       form?: SubmissionForm;
@@ -725,15 +740,30 @@ describe("SubmissionView", () => {
             return jsonResponse({});
           });
         }
+        if (request.url.endsWith(".stopProcessing.json")) {
+          return stop();
+        }
         if (request.url.includes("wf:instances")) {
           return jsonResponse(done ? {} : WAITING);
         }
-        return pageOf(submission?.() ?? DEEP_SUBMISSION, form ?? EMPTY_FORM)(request);
+        const answer = () => pageOf(submission?.() ?? DEEP_SUBMISSION, form ?? EMPTY_FORM)(request)
+          ?? jsonResponse({}, 404);
+        return request.url.endsWith(".deep.json") ? deepRead().then(answer) : answer();
       });
     }
 
     const completed = (fetchMock: ReturnType<typeof withATaskWaiting>) =>
       fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".complete.json"));
+
+    const stopped = (fetchMock: ReturnType<typeof withATaskWaiting>) =>
+      fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".stopProcessing.json"));
+
+    // How many times the page read the submission through the given selectors, such as `deep`
+    const countReads = (fetchMock: ReturnType<typeof withATaskWaiting>, selectors: string) =>
+      fetchMock.mock.calls.filter(([ url ]) => url === `/Submissions/demo-1.${selectors}.json`).length;
+
+    // The page checks again this long after each check while a document is read
+    const RECHECK_MILLISECONDS = 3000;
 
     // A request that lacks its one answer until the save of that answer is answered
     function completedBy(save: Promise<void>) {
@@ -754,6 +784,132 @@ describe("SubmissionView", () => {
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findByText("Answer everything this request asks for first.")).toBeInTheDocument();
+    });
+
+    it("holds the step back while the document is being read", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => READING }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("Wait until the document has been read.")).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+    });
+
+    // While a document is read, Stop is the one control left on
+    it("offers Stop only while a document is being read, and turns everything else off then", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => READING }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("button", { name: "Stop reading" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "View" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+    });
+
+    it("keeps Stop off when nothing is being read", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting());
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Stop reading" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+    });
+
+    it("stops the reading, then turns the rest back on", async () => {
+      let reading = true;
+      const fetchMock = withATaskWaiting({
+        submission: () => (reading ? READING : DEEP_SUBMISSION),
+        stop: () => {
+          reading = false;
+          return jsonResponse({});
+        },
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1");
+      await userEvent.click(await screen.findByRole("button", { name: "Stop reading" }));
+
+      expect(stopped(fetchMock)).toHaveLength(1);
+      await waitFor(() => expect(screen.getByRole("button", { name: "Stop reading" })).toBeDisabled());
+      expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+    });
+
+    it("says why a stop was refused", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting({
+        submission: () => READING,
+        stop: () => Promise.resolve({ ok: false, status: 403, url: "/Submissions/demo-1.stopProcessing.json",
+          json: () => Promise.resolve({ error: "Only the submitter may stop the reading" }) } as unknown as Response),
+      }));
+
+      renderAt("/Submissions/demo-1");
+      await userEvent.click(await screen.findByRole("button", { name: "Stop reading" }));
+
+      expect(await screen.findByText("Only the submitter may stop the reading")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Stop reading" })).toBeEnabled();
+    });
+
+    // The reading adds suggestions to the questions, so an answer saved meanwhile could clash with it
+    it("hides the questions until the document has been read, then shows what it filled in", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      await loadAnswerComponents();
+      let reading = true;
+      vi.stubGlobal("fetch", withATaskWaiting(
+        { form: ONE_QUESTION, submission: () => (reading ? READING : DEEP_SUBMISSION) }));
+
+      renderAt("/Submissions/demo-1.edit");
+      expect(await screen.findByText("The answers are shown once the document has been read.")).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Why\?/)).toBeNull();
+      reading = false;
+      await act(() => vi.advanceTimersByTimeAsync(RECHECK_MILLISECONDS));
+
+      expect(await screen.findByLabelText(/Why\?/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: SEND_LABEL })).toBeEnabled();
+    });
+
+    // The whole submission, with its schema, is too heavy to read every few seconds
+    it("checks only the submission's own node while the document is read", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const fetchMock = withATaskWaiting({ submission: () => READING });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Stop reading" })).toBeEnabled());
+      const deepReads = countReads(fetchMock, "deep");
+      const checks = countReads(fetchMock, "0");
+      await act(() => vi.advanceTimersByTimeAsync(RECHECK_MILLISECONDS));
+      await act(() => vi.advanceTimersByTimeAsync(RECHECK_MILLISECONDS));
+
+      expect(countReads(fetchMock, "0")).toBe(checks + 2);
+      expect(countReads(fetchMock, "deep")).toBe(deepReads);
+    });
+
+    it("reads the whole submission once when the reading ends, however slow that read is", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      let reading = true;
+      const slowRead = Promise.withResolvers<undefined>();
+      const fetchMock = withATaskWaiting({
+        submission: () => (reading ? READING : DEEP_SUBMISSION),
+        deepRead: () => (reading ? Promise.resolve() : slowRead.promise),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Stop reading" })).toBeEnabled());
+      const deepReads = countReads(fetchMock, "deep");
+      reading = false;
+      for (let check = 0; check < 4; check++) {
+        await act(() => vi.advanceTimersByTimeAsync(RECHECK_MILLISECONDS));
+      }
+
+      expect(countReads(fetchMock, "deep")).toBe(deepReads + 1);
+      expect(screen.getByRole("button", { name: "Stop reading" })).toBeEnabled();
+      await act(async () => {
+        slowRead.resolve(undefined);
+        await slowRead.promise;
+      });
+      await waitFor(() => expect(screen.getByRole("button", { name: "Stop reading" })).toBeDisabled());
     });
 
     it("refuses the step while the request is still missing something", async () => {

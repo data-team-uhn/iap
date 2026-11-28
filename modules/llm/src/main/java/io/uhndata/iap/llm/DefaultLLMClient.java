@@ -61,17 +61,17 @@ public abstract class DefaultLLMClient implements LLMClient
 
     @Override
     @NotNull
-    public String chat(@Nullable final String systemPrompt, @NotNull final List<LLMMessage> messages,
+    public LLMReply chatWithDetails(@Nullable final String systemPrompt, @NotNull final List<LLMMessage> messages,
         @Nullable final LLMRequestOptions options) throws IOException
     {
         final String stage = options == null ? "none" : String.valueOf(options.getResponseSchemaName());
         final long promptChars = countCharacters(systemPrompt, messages);
         final long startedAt = System.nanoTime();
         try {
-            final String reply = doChat(systemPrompt, messages, options);
+            final LLMReply reply = doChat(systemPrompt, messages, options);
             LOGGER.info("LLM call done: stage={} promptChars={} maxOutputTokens={} ms={} replyChars={}",
                 stage, promptChars, options == null ? null : options.getMaxOutputTokens(),
-                millisecondsSince(startedAt), reply.length());
+                millisecondsSince(startedAt), reply.text().length());
             return reply;
         } catch (final IOException e) {
             LOGGER.warn("LLM call failed: stage={} promptChars={} ms={} reason={}",
@@ -137,10 +137,10 @@ public abstract class DefaultLLMClient implements LLMClient
      * @param systemPrompt the optional system prompt (may be {@code null} or blank)
      * @param messages the conversation turns
      * @param options per-call overrides, or {@code null} to use the active model's settings unchanged
-     * @return the assistant's reply
+     * @return the assistant's reply, and what is known of the model that wrote it
      * @throws IOException on configuration, network or API errors
      */
     @NotNull
-    protected abstract String doChat(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages,
+    protected abstract LLMReply doChat(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages,
         @Nullable LLMRequestOptions options) throws IOException;
 }

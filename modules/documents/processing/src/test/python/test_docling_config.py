@@ -35,16 +35,17 @@ import importlib.util
 
 import pytest
 
-pytest.importorskip("docling", reason="docling not installed; option names unverifiable")
-
-import docling_config  # noqa: E402
-from docling.datamodel.pipeline_options import (  # noqa: E402
+import docling_config
+from docling.datamodel.pipeline_options import (
     HeadingHierarchyOptions,
     PdfPipelineOptions,
     TableFormerMode,
     TableStructureOptions,
 )
-from docling.datamodel.settings import settings  # noqa: E402
+from docling.datamodel.settings import settings
+
+# Without docling these names come from the conftest stand-in, which checks nothing
+pytestmark = pytest.mark.requires_docling
 
 
 class TestPipelineOptionNames:

@@ -53,6 +53,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -120,7 +121,7 @@ class SaveAnswersHandlerTest
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, Question.class, Answer.class, Submission.class,
-            Activity.class);
+            Activity.class, Extraction.class);
         final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenAnswer(call -> {
             final String name = ((Content) call.getArgument(0)).getName();
@@ -304,6 +305,18 @@ class SaveAnswersHandlerTest
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
 
         assertTrue(refusal.getMessage().contains("can no longer be changed"));
+    }
+
+    // The page turns its controls off while a document is read; a stale tab must not change what is being read
+    @Test
+    void refusesWhileADocumentIsRead()
+    {
+        modify(this.target, Submission.EXTRACTION_STATUS_PROPERTY, Submission.READING_STATUS);
+
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
+            () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
+
+        assertEquals("Wait until the document has been read", refusal.getMessage());
     }
 
     @Test

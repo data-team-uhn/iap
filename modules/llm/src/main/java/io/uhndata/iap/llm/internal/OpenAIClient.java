@@ -19,7 +19,6 @@ package io.uhndata.iap.llm.internal;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,15 +32,12 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.http.client.HttpClient;
 import dev.langchain4j.http.client.HttpClientBuilder;
 import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import io.uhndata.iap.errortracking.api.ErrorContext;
@@ -51,6 +47,7 @@ import io.uhndata.iap.llm.LLMCallGate;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMMessage;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
 
@@ -160,24 +157,16 @@ public class OpenAIClient extends DefaultLLMClient
     }
 
     @Override
-    protected String doChat(final String systemPrompt, final List<LLMMessage> messages,
+    protected LLMReply doChat(final String systemPrompt, final List<LLMMessage> messages,
         final LLMRequestOptions options) throws IOException
     {
         try {
             final LLMSettings settings = getConfigurationService().getActiveSettings();
             final ChatRequest request = ChatRequest.builder()
-                .messages(toChatMessages(systemPrompt, messages))
+                .messages(LangChainMessages.buildMessages(systemPrompt, messages))
                 .parameters(requestParameters(settings, options))
                 .build();
-            final String reply = ask(settings, request);
-            if (reply == null) {
-                // LangChain4j leaves the text null when the provider answered with empty content, which a
-                // reasoning model that spends its whole budget before saying anything visible does. This
-                // method is declared @NotNull, so the caller is entitled to assume it never sees one.
-                throw new IOException("The LLM returned an empty answer; the model may have reached its "
-                    + "output-token limit before producing any visible content");
-            }
-            return reply;
+            return LangChainMessages.readReply(settings.getModelId(), ask(settings, request));
         } catch (final IOException e) {
             ErrorLogger.logError(e, ErrorContext.of(OpenAIClient.class, "doChat"));
             throw e;
@@ -197,10 +186,10 @@ public class OpenAIClient extends DefaultLLMClient
      *
      * @param settings the active settings
      * @param request what to send
-     * @return what the model answered, {@code null} when it answered with empty content
+     * @return what the model answered, whose text is {@code null} when it answered with empty content
      * @throws IOException if no slot came free in time
      */
-    private String ask(final LLMSettings settings, final ChatRequest request) throws IOException
+    private ChatResponse ask(final LLMSettings settings, final ChatRequest request) throws IOException
     {
         final long queuedAt = System.nanoTime();
         final LLMCallGate.Permit permit =
@@ -210,10 +199,10 @@ public class OpenAIClient extends DefaultLLMClient
         final long waitedMs = millisecondsSince(queuedAt);
         try (permit) {
             final long startedAt = System.nanoTime();
-            final String reply = modelFor(settings).chat(request).aiMessage().text();
-            LOGGER.info("LLM request served: model={} gateWaitMs={} callMs={}", settings.getModelId(), waitedMs,
-                millisecondsSince(startedAt));
-            return reply;
+            final ChatResponse response = modelFor(settings).chat(request);
+            LOGGER.info("LLM request served: model={} servedModel={} gateWaitMs={} callMs={}", settings.getModelId(),
+                response.modelName(), waitedMs, millisecondsSince(startedAt));
+            return response;
         }
     }
 
@@ -408,30 +397,6 @@ public class OpenAIClient extends DefaultLLMClient
         } catch (final JsonProcessingException e) {
             throw new IllegalArgumentException("The response schema is not valid JSON: " + e.getMessage(), e);
         }
-    }
-
-    private static List<ChatMessage> toChatMessages(final String systemPrompt, final List<LLMMessage> messages)
-    {
-        final List<ChatMessage> turns = new ArrayList<>();
-        if (StringUtils.isNotBlank(systemPrompt)) {
-            turns.add(SystemMessage.from(systemPrompt));
-        }
-        for (final LLMMessage message : messages) {
-            turns.add(toChatMessage(message));
-        }
-        return turns;
-    }
-
-    private static ChatMessage toChatMessage(final LLMMessage message)
-    {
-        final String role = message.getRole();
-        if ("assistant".equalsIgnoreCase(role)) {
-            return AiMessage.from(message.getContent());
-        }
-        if ("system".equalsIgnoreCase(role)) {
-            return SystemMessage.from(message.getContent());
-        }
-        return UserMessage.from(message.getContent());
     }
 
     /**

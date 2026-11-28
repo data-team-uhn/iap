@@ -72,14 +72,24 @@ POST /parse?path=/shared-docs/.../file.pdf
 ```
 
 `path` is required and is resolved against `IAP_SHARED_DOCS` (`resolve_parse_path`); the
-request body is ignored. The daemon also serves `GET /health`, and `POST /shutdown` when
-started with `--enable-shutdown`.
+request body is ignored. The daemon also serves `GET /health`, `POST /shutdown` when
+started with `--enable-shutdown`, and `POST /cancel?job_id=...` to stop a background
+parse:
 
-`/parse` and `/shutdown` change state, so both refuse any request carrying an `Origin`
-header — nothing that legitimately drives the daemon is a web page, and loopback binding is
-no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN` additionally
-requires it as a bearer token on those two endpoints. `GET /health` stays open so container
-probes need no credential.
+| Where the parse is | What a stop does |
+|---|---|
+| Not started, or waiting for the parse slot | Never converts |
+| Running LibreOffice | Skips the Docling conversion once LibreOffice is done |
+| Converting a PDF | Stops at the next check (every `ABANDON_POLL_SECONDS`), once the page batches already running finish |
+| Converting a DOC or DOCX | Runs to the end |
+
+A parse stopped before its callback goes out sends none.
+
+`/parse`, `/cancel` and `/shutdown` change state, so they refuse any request carrying an
+`Origin` header: nothing that legitimately drives the daemon is a web page, and loopback
+binding is no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN`
+also requires it as a bearer token on those endpoints. `GET /health` stays open so
+container probes need no credential.
 
 **Set the token for anything but a bare `python docling_daemon.py` on your own machine.** In a
 container the entrypoint has to bind `0.0.0.0`, because Docker forwards a published port no
@@ -115,7 +125,9 @@ calls the daemon — its callback endpoint, which reads the same JWT variable, i
 `/system/documents/parseCallback` in `modules/documents/api`.
 
 Background parses run one at a time: the PDF worker pool is sized for a single conversion,
-so extra requests queue rather than each taking a thread. A shutdown drains them — parses
+so extra requests queue rather than each taking a thread. The outcome is sent from a
+separate thread, so the next parse starts while the caller records the last one, or while
+delivery waits out a caller that is down. A shutdown drains them — parses
 already running get up to a minute to deliver their callback, and ones still queued are
 failed to the caller — so no job is left waiting on a callback that will never arrive.
 
@@ -125,7 +137,7 @@ failed to the caller — so no job is left waiting on a callback that will never
 
 | Module | Role |
 |---|---|
-| `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `GET /health`, `POST /shutdown` |
+| `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `POST /cancel?job_id=...`, `GET /health`, `POST /shutdown` |
 | `parse_callbacks.py` | Authenticated, retried delivery of async parse outcomes to the configured callback URL |
 | `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → bookmark heading levels → write `{stem}.md` |
 | `libreoffice_convert.py` | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |
@@ -134,7 +146,7 @@ failed to the caller — so no job is left waiting on a callback that will never
 | `docling_docx_parser.py` | DOCX → Markdown (Docling; no page markers) |
 | `docling_batch_sizing.py` | Worker-count / page-batch sizing from RAM + cores |
 | `docling_config.py` / `docling_error_detection.py` | Shared Docling pipeline options; parse-failure detection |
-| `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks (idempotent). Called **once per document**, by the converter only |
+| `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks, drop table padding (idempotent). Called **once per document**, by the converter only |
 | `markdown_markers.py` | The `<!-- page: N -->` format, the ATX heading rules, the accepted suffixes, and the `len//4` token estimate |
 | `heading_levels.py` | `correct_heading_levels` — set the assembled Markdown's heading levels from the PDF's bookmarks |
 | `pdf_bookmarks.py` | PDF bookmark extraction (pypdf) |

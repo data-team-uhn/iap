@@ -18,13 +18,13 @@
 package io.uhndata.iap.documents.internal;
 
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -40,9 +40,12 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -63,6 +66,21 @@ class StaleParseJobSweeperTest
     private static final String TARGET = "/Submissions/ab/cd/ef/aRequest/d1/v1/file";
 
     private static final String STAGED = "/shared-docs/x/proposal.pdf";
+
+    /** A staging folder the parse service cannot remove, as when a worker still holds a file in it. */
+    private static final String UNREMOVABLE_STAGED = "/shared-docs/busy/proposal.pdf";
+
+    /** Minutes past the default thirty a job may go unanswered, or a settled record is kept. */
+    private static final int PAST_THE_MAX_AGE = 45;
+
+    /** Minutes well inside the thirty a job may go unanswered. */
+    private static final int WITHIN_THE_MAX_AGE = 5;
+
+    /** Minutes past the two a settled outcome is left alone, and inside the max age. */
+    private static final int PAST_THE_RETRY = 5;
+
+    /** Minutes past the day a record is kept for a folder that cannot be removed. */
+    private static final int PAST_THE_FOLDER_LIMIT = 25 * 60;
 
     private final SlingContext context = new SlingContext();
 
@@ -91,7 +109,7 @@ class StaleParseJobSweeperTest
     @Test
     void givesUpOnAJobTheDaemonNeverAnsweredFor()
     {
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
 
         this.sweeper.run();
 
@@ -100,7 +118,7 @@ class StaleParseJobSweeperTest
         assertEquals(1, this.handed.size());
         assertEquals(OLD_JOB, this.handed.get(0).jobId());
         assertEquals(TARGET, this.handed.get(0).target());
-        assertTrue(!this.handed.get(0).succeeded());
+        assertFalse(this.handed.get(0).succeeded());
         assertTrue(this.handed.get(0).error().contains("No outcome arrived within 30 minutes"),
             this.handed.get(0).error());
     }
@@ -109,7 +127,7 @@ class StaleParseJobSweeperTest
     @Test
     void takesTheStagingFolderOffTheVolumeWithIt()
     {
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
 
         this.sweeper.run();
 
@@ -120,8 +138,8 @@ class StaleParseJobSweeperTest
     @Test
     void givesUpOnAJobThatNeverLeftTheQueueEither()
     {
-        final Resource job = job(OLD_JOB, ParseJob.STATUS_QUEUED, null, TARGET);
-        edit(job).put(ParseJob.PN_CREATED, minutesAgo(45));
+        final Resource job = createJob(OLD_JOB, ParseJob.STATUS_QUEUED, null, TARGET);
+        edit(job).put(ParseJob.PN_CREATED, minutesAgo(PAST_THE_MAX_AGE));
 
         this.sweeper.run();
 
@@ -131,7 +149,7 @@ class StaleParseJobSweeperTest
     @Test
     void leavesAJobThatIsStillWithinItsTime()
     {
-        job(YOUNG_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(5), TARGET);
+        createJob(YOUNG_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(WITHIN_THE_MAX_AGE), TARGET);
 
         this.sweeper.run();
 
@@ -143,7 +161,7 @@ class StaleParseJobSweeperTest
     @Test
     void leavesAJobThatAlreadyEnded()
     {
-        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(45), TARGET);
+        final Resource job = createJob(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(PAST_THE_MAX_AGE), TARGET);
         edit(job).put(ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/x/proposal.md" });
 
         this.sweeper.run();
@@ -156,7 +174,7 @@ class StaleParseJobSweeperTest
     @Test
     void leavesAJobWithNoTimestampsAtAll()
     {
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, null, TARGET);
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, null, TARGET);
 
         this.sweeper.run();
 
@@ -167,7 +185,7 @@ class StaleParseJobSweeperTest
     @Test
     void givesUpOnAPollOnlyJobWithoutHandingItToAnybody()
     {
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), null);
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), null);
 
         this.sweeper.run();
 
@@ -178,13 +196,12 @@ class StaleParseJobSweeperTest
         assertTrue(this.handed.isEmpty());
     }
 
-    // A job queued with no target is nobody's to hand over, so its record is kept for polling - and was kept for
-    // good, with its staging folder, because nothing deleted it and this sweep only looked at unfinished jobs
+    // A job queued with no target is nobody's to hand over, so its record is kept for polling, then dropped here
+    // with its staging folder
     @Test
     void dropsTheRecordOfASettledJobNobodyCameBackFor()
     {
-        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(90), null);
-        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(45));
+        createSettledJob(OLD_JOB, ParseJob.STATUS_COMPLETED, PAST_THE_MAX_AGE, null);
 
         this.sweeper.run();
 
@@ -192,12 +209,11 @@ class StaleParseJobSweeperTest
         assertEquals(List.of(STAGED), this.discarded, "and the volume goes with it");
     }
 
-    // The same for a job whose handler refused the outcome: its record stays behind and nothing retries it
+    // The same for a job whose handler refused the outcome on every sweep: once its record is old enough, it goes
     @Test
     void dropsTheRecordOfASettledJobNoHandlerTook()
     {
-        final Resource job = job(OLD_JOB, ParseJob.STATUS_FAILED, minutesAgo(90), TARGET);
-        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(45));
+        createSettledJob(OLD_JOB, ParseJob.STATUS_FAILED, PAST_THE_MAX_AGE, TARGET);
 
         this.sweeper.run();
 
@@ -209,8 +225,7 @@ class StaleParseJobSweeperTest
     @Test
     void keepsTheRecordOfAJobThatSettledRecently()
     {
-        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(90), null);
-        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(5));
+        createSettledJob(OLD_JOB, ParseJob.STATUS_COMPLETED, PAST_THE_RETRY, null);
 
         this.sweeper.run();
 
@@ -218,14 +233,201 @@ class StaleParseJobSweeperTest
         assertTrue(this.discarded.isEmpty());
     }
 
+    // A handler may refuse only for now, such as for a file whose upload was not committed yet
+    @Test
+    void offersAnUntakenOutcomeAgain()
+    {
+        createSettledJob(OLD_JOB, ParseJob.STATUS_FAILED, PAST_THE_RETRY, TARGET);
+
+        this.sweeper.run();
+
+        assertEquals(1, this.handed.size());
+        assertTrue(this.handed.get(0).offeredAgain());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)), "taken this time");
+        assertTrue(this.discarded.isEmpty(), "the handler clears the folder once it reads the parse in");
+    }
+
+    // The request that settled it may still be handing it over
+    @Test
+    void leavesAnOutcomeThatSettledMomentsAgo()
+    {
+        createSettledJob(OLD_JOB, ParseJob.STATUS_COMPLETED, 0, TARGET);
+
+        this.sweeper.run();
+
+        assertTrue(this.handed.isEmpty());
+    }
+
+    // A folder a worker still holds open is retried on the next sweep, and only the record names it
+    @Test
+    void keepsTheRecordOfAFolderItCouldNotRemove()
+    {
+        final Resource job = createSettledJob(OLD_JOB, ParseJob.STATUS_COMPLETED, PAST_THE_MAX_AGE, null);
+        edit(job).put(ParseJob.PN_PATH, UNREMOVABLE_STAGED);
+
+        this.sweeper.run();
+
+        assertNotNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
+    }
+
+    // After a day something other than a worker holds the folder, and keeping the record would keep it for good
+    @Test
+    void dropsTheRecordOfAFolderItCouldNotRemoveForADay()
+    {
+        final Resource job = createSettledJob(OLD_JOB, ParseJob.STATUS_COMPLETED, PAST_THE_FOLDER_LIMIT, null);
+        edit(job).put(ParseJob.PN_PATH, UNREMOVABLE_STAGED);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+
+            Mockito.verify(recorder).logProblem(Mockito.any(), Mockito.any());
+            Mockito.verifyNoMoreInteractions(recorder);
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
+    }
+
+    @Test
+    void reportsAnOutcomeNobodyTook()
+    {
+        edit(createSettledJob(OLD_JOB, ParseJob.STATUS_FAILED, PAST_THE_MAX_AGE, TARGET))
+            .put(ParseJob.PN_ERROR, "No pages");
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        Mockito.verify(recorder).logProblem(Mockito.any(), Mockito.any());
+    }
+
+    // A stopped parse is meant to go untaken: its file stopped waiting for it, so dropping it is no fault
+    @Test
+    void doesNotReportAStoppedOutcome()
+    {
+        edit(createSettledJob(OLD_JOB, ParseJob.STATUS_FAILED, PAST_THE_MAX_AGE, TARGET))
+            .put(ParseJob.PN_ERROR, ParseOutcome.STOPPED_ERROR);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        Mockito.verifyNoInteractions(recorder);
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
+    }
+
+    // Only polled, so nothing waits on it and dropping it is no fault
+    @Test
+    void doesNotReportARecordWithoutATarget()
+    {
+        createSettledJob(OLD_JOB, ParseJob.STATUS_COMPLETED, PAST_THE_MAX_AGE, null);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        Mockito.verifyNoInteractions(recorder);
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
+    }
+
+    @Test
+    void reportsEveryForgottenOutcomeWhenADeletedRecordCannotBeRead() throws Exception
+    {
+        for (final String jobId : List.of(OLD_JOB, YOUNG_JOB)) {
+            createSettledJob(jobId, ParseJob.STATUS_FAILED, PAST_THE_MAX_AGE, TARGET);
+        }
+        this.context.resourceResolver().commit();
+        useSession(unreadableOnceDeleted(this.context.resourceResolver()));
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        Mockito.verify(recorder, Mockito.times(2)).logProblem(Mockito.any(), Mockito.any());
+        assertFalse(this.context.resourceResolver().getResource(ParseJob.JOBS_PATH).hasChildren());
+    }
+
+    // The engine walk that asked for the stop failed and was rolled back, so the file still waits on the job
+    @Test
+    void handsAStoppedParseToAFileStillWaitingOnIt()
+    {
+        edit(createSettledJob(OLD_JOB, ParseJob.STATUS_FAILED, PAST_THE_RETRY, TARGET))
+            .put(ParseJob.PN_ERROR, ParseOutcome.STOPPED_ERROR);
+
+        this.sweeper.run();
+
+        assertEquals(1, this.handed.size());
+        assertEquals(TARGET, this.handed.get(0).target());
+        assertFalse(this.handed.get(0).succeeded());
+        assertEquals(ParseOutcome.STOPPED_ERROR, this.handed.get(0).error());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)), "taken");
+    }
+
+    // The sweep keeps using the same session, so one failed delete must not fail the deletes after it
+    @Test
+    void dropsTheNextRecordAfterOneItCannotDelete() throws Exception
+    {
+        for (final String jobId : List.of(OLD_JOB, YOUNG_JOB)) {
+            createSettledJob(jobId, ParseJob.STATUS_FAILED, PAST_THE_RETRY, TARGET);
+        }
+        this.context.resourceResolver().commit();
+        useSession(refusingTheFirstCommit(this.context.resourceResolver()));
+
+        this.sweeper.run();
+
+        assertEquals(2, this.handed.size());
+        assertEquals(List.of(OLD_JOB), getJobsLeft(), "only the record that could not be deleted is left");
+    }
+
+    @Test
+    void dropsTheNextForgottenRecordAfterOneItCannotDelete() throws Exception
+    {
+        for (final String jobId : List.of(OLD_JOB, YOUNG_JOB)) {
+            createSettledJob(jobId, ParseJob.STATUS_COMPLETED, PAST_THE_MAX_AGE, null);
+        }
+        this.context.resourceResolver().commit();
+        useSession(refusingTheFirstCommit(this.context.resourceResolver()));
+
+        this.sweeper.run();
+
+        assertEquals(List.of(OLD_JOB), getJobsLeft(), "only the record that could not be deleted is left");
+        assertFalse(this.context.resourceResolver().hasChanges(), "the failed delete is not left pending");
+    }
+
+    @Test
+    void failsTheNextLostJobAfterOneItCannotFail() throws Exception
+    {
+        for (final String jobId : List.of(OLD_JOB, YOUNG_JOB)) {
+            createJob(jobId, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
+        }
+        this.context.resourceResolver().commit();
+        useSession(refusingTheFirstCommit(this.context.resourceResolver()));
+
+        this.sweeper.run();
+
+        assertEquals(List.of(YOUNG_JOB), this.handed.stream().map(ParseOutcome::jobId).toList());
+        assertFalse(this.context.resourceResolver().hasChanges(), "the failed write is not left pending");
+    }
+
     @Test
     void survivesARecordItCannotDrop() throws Exception
     {
-        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(90), null);
-        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(45));
+        createSettledJob(OLD_JOB, ParseJob.STATUS_COMPLETED, PAST_THE_MAX_AGE, null);
         this.context.resourceResolver().commit();
-        set(this.sweeper, "resolverFactory",
-            TestResolverFactory.serving(refusingCommit(this.context.resourceResolver())));
+        useSession(refusingCommit(this.context.resourceResolver()));
 
         this.sweeper.run();
 
@@ -235,8 +437,8 @@ class StaleParseJobSweeperTest
     @Test
     void sweepsEveryStaleJobInOnePass()
     {
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
-        job(YOUNG_JOB, ParseJob.STATUS_QUEUED, minutesAgo(90), TARGET);
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
+        createJob(YOUNG_JOB, ParseJob.STATUS_QUEUED, minutesAgo(2 * PAST_THE_MAX_AGE), TARGET);
 
         this.sweeper.run();
 
@@ -257,7 +459,7 @@ class StaleParseJobSweeperTest
     @Test
     void survivesAStorageItCannotOpen() throws Exception
     {
-        set(this.sweeper, "resolverFactory", TestResolverFactory.withoutServiceUser());
+        TestJobs.inject(this.sweeper, "resolverFactory", TestResolverFactory.withoutServiceUser());
 
         this.sweeper.run();
 
@@ -267,9 +469,8 @@ class StaleParseJobSweeperTest
     @Test
     void survivesAJobNodeItCannotWrite() throws Exception
     {
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
-        set(this.sweeper, "resolverFactory",
-            TestResolverFactory.serving(unmodifiable(this.context.resourceResolver())));
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
+        useSession(unmodifiable(this.context.resourceResolver()));
 
         this.sweeper.run();
 
@@ -280,9 +481,8 @@ class StaleParseJobSweeperTest
     @Test
     void survivesACommitThatIsRefused() throws Exception
     {
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
-        set(this.sweeper, "resolverFactory",
-            TestResolverFactory.serving(refusingCommit(this.context.resourceResolver())));
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
+        useSession(refusingCommit(this.context.resourceResolver()));
 
         this.sweeper.run();
 
@@ -294,7 +494,7 @@ class StaleParseJobSweeperTest
     void honoursAConfiguredMaximumAge()
     {
         this.sweeper.activate(Map.of(StaleParseJobSweeper.MAX_AGE_PROPERTY, "120"));
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
 
         this.sweeper.run();
 
@@ -305,7 +505,7 @@ class StaleParseJobSweeperTest
     void fallsBackToTheDefaultForAnUnusableMaximumAge()
     {
         this.sweeper.activate(Map.of(StaleParseJobSweeper.MAX_AGE_PROPERTY, "half an hour"));
-        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
+        createJob(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(PAST_THE_MAX_AGE), TARGET);
 
         this.sweeper.run();
 
@@ -316,26 +516,38 @@ class StaleParseJobSweeperTest
     void fallsBackToTheDefaultForAMaximumAgeOfZero()
     {
         this.sweeper.activate(Map.of(StaleParseJobSweeper.MAX_AGE_PROPERTY, "0"));
-        job(YOUNG_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(5), TARGET);
+        createJob(YOUNG_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(WITHIN_THE_MAX_AGE), TARGET);
 
         this.sweeper.run();
 
         assertTrue(this.handed.isEmpty(), "zero would give up on everything the moment it was queued");
     }
 
-    private Resource job(final String jobId, final String status, final Calendar started, final String target)
+    /** A job still waiting for its outcome, dispatched at {@code started}, or never when that is {@code null}. */
+    private Resource createJob(final String jobId, final String status, final Calendar started, final String target)
     {
-        final Map<String, Object> properties = new HashMap<>();
-        properties.put(ParseJob.PN_JOB_ID, jobId);
-        properties.put(ParseJob.PN_STATUS, status);
-        properties.put(ParseJob.PN_PATH, STAGED);
+        final Resource job = TestJobs.createJob(this.context, jobId, status, STAGED, target);
         if (started != null) {
-            properties.put(ParseJob.PN_STARTED, started);
+            edit(job).put(ParseJob.PN_STARTED, started);
         }
-        if (target != null) {
-            properties.put(ParseJob.PN_TARGET, target);
-        }
-        return this.context.create().resource(ParseJob.nodePath(jobId), properties);
+        return job;
+    }
+
+    /** A job that got its outcome some minutes ago. */
+    private Resource createSettledJob(final String jobId, final String status, final int finishedMinutesAgo,
+        final String target)
+    {
+        final Resource job = TestJobs.createJob(this.context, jobId, status, STAGED, target);
+        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(finishedMinutesAgo));
+        return job;
+    }
+
+    private List<String> getJobsLeft()
+    {
+        final List<String> left = new ArrayList<>();
+        this.context.resourceResolver().getResource(ParseJob.JOBS_PATH).getChildren()
+            .forEach(job -> left.add(job.getName()));
+        return left;
     }
 
     private static ModifiableValueMap edit(final Resource resource)
@@ -357,10 +569,15 @@ class StaleParseJobSweeperTest
     private StaleParseJobSweeper sweeperFor(final ResourceResolver resolver) throws Exception
     {
         final StaleParseJobSweeper built = new StaleParseJobSweeper();
-        set(built, "resolverFactory", TestResolverFactory.serving(resolver));
-        set(built, "outcomes", this.dispatcher);
-        set(built, "parseService", new RecordingParseService(this.discarded));
+        TestJobs.inject(built, "resolverFactory", TestResolverFactory.serving(resolver));
+        TestJobs.inject(built, "outcomes", this.dispatcher);
+        TestJobs.inject(built, "parseService", new RecordingParseService(this.discarded));
         return built;
+    }
+
+    private void useSession(final ResourceResolver resolver) throws ReflectiveOperationException
+    {
+        TestJobs.inject(this.sweeper, "resolverFactory", TestResolverFactory.serving(resolver));
     }
 
     /** A session whose job nodes refuse to be changed. */
@@ -386,13 +603,48 @@ class StaleParseJobSweeperTest
                 Mockito.doReturn(children).when(spy).getChildren();
                 return spy;
             }
+        };
+    }
+
+    /** A session whose job nodes cannot be read once deleted, as in JCR; the mock session still reads them. */
+    private static ResourceResolver unreadableOnceDeleted(final ResourceResolver resolver)
+    {
+        final Set<String> deleted = new HashSet<>();
+        return new ResourceResolverWrapper(resolver)
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                final Resource resource = super.getResource(path);
+                if (resource == null || !ParseJob.JOBS_PATH.equals(path)) {
+                    return resource;
+                }
+                final List<Resource> children = new ArrayList<>();
+                resource.getChildren().forEach(child -> children.add(unreadableOnceDeleted(child, deleted)));
+                final Resource spy = Mockito.spy(resource);
+                Mockito.doReturn(children).when(spy).getChildren();
+                return spy;
+            }
 
             @Override
-            public void close()
+            public void delete(final Resource resource) throws PersistenceException
             {
-                // The context owns this session
+                deleted.add(resource.getPath());
+                super.delete(resource);
             }
         };
+    }
+
+    private static Resource unreadableOnceDeleted(final Resource resource, final Set<String> deleted)
+    {
+        final Resource spy = Mockito.spy(resource);
+        Mockito.doAnswer(invocation -> {
+            if (deleted.contains(resource.getPath())) {
+                throw new IllegalArgumentException("The node at " + resource.getPath() + " was removed");
+            }
+            return resource.getValueMap();
+        }).when(spy).getValueMap();
+        return spy;
     }
 
     /** A session that will not commit. */
@@ -405,20 +657,36 @@ class StaleParseJobSweeperTest
             {
                 throw new PersistenceException("the repository said no");
             }
-
-            @Override
-            public void close()
-            {
-                // The context owns this session
-            }
         };
     }
 
-    private static void set(final Object target, final String field, final Object value) throws Exception
+    /** A session that refuses its first commit, and keeps that change pending until reverted, as Oak does. */
+    private static ResourceResolver refusingTheFirstCommit(final ResourceResolver resolver)
     {
-        final Field declared = StaleParseJobSweeper.class.getDeclaredField(field);
-        declared.setAccessible(true);
-        declared.set(target, value);
+        return new ResourceResolverWrapper(resolver)
+        {
+            private boolean refused;
+
+            private boolean pending;
+
+            @Override
+            public void commit() throws PersistenceException
+            {
+                if (!this.refused || this.pending) {
+                    this.refused = true;
+                    this.pending = true;
+                    throw new PersistenceException("the repository said no");
+                }
+                super.commit();
+            }
+
+            @Override
+            public void revert()
+            {
+                this.pending = false;
+                super.revert();
+            }
+        };
     }
 
     /** Records what it was asked to take off the volume; a sweep must not need a real one. */
@@ -450,9 +718,10 @@ class StaleParseJobSweeperTest
         }
 
         @Override
-        public void discardStaging(final String stagedPath)
+        public boolean discardStaging(final String stagedPath)
         {
             this.discarded.add(stagedPath);
+            return !UNREMOVABLE_STAGED.equals(stagedPath);
         }
     }
 }

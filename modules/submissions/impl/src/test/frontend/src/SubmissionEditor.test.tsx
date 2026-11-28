@@ -333,6 +333,24 @@ describe("SubmissionEditor", () => {
       expect(screen.queryByText("Nothing attached yet")).toBeNull();
     });
 
+    it("warns when the model cannot read the upload", async () => {
+      const notice = "This document is too long for the model to read. Nothing will be suggested from it.";
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ], readingNotice: notice })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(notice);
+    });
+
+    it("warns about nothing when the model can read the upload", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      await screen.findByRole("link", { name: "note.pdf" });
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
     it("names an attachment with no file yet without linking it", async () => {
       serving(asked({ attached: [ { title: "note.pdf" } ] }));
 
@@ -408,6 +426,17 @@ describe("SubmissionEditor", () => {
       expect((body.get("file") as File).name).toBe("note-v2.pdf");
       // From the form read after the upload
       expect(await screen.findByRole("link", { name: "note-v2.pdf" })).toBeInTheDocument();
+    });
+
+    // Only the questions wait for the reading; a file changed meanwhile would not be the one read
+    it("keeps the documents in sight while a document is read, but takes no file", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} reading />);
+
+      expect(await screen.findByLabelText(/Upload a new version/)).toBeDisabled();
+      expect(screen.getByRole("link", { name: "note.pdf" })).toBeInTheDocument();
+      expect(screen.queryByText("The answers are shown once the document has been read.")).toBeNull();
     });
 
     it("does not offer a new version for a request that can no longer be changed", async () => {

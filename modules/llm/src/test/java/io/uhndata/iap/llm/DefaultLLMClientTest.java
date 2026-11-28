@@ -50,13 +50,13 @@ class DefaultLLMClientTest
         private LLMRequestOptions options;
 
         @Override
-        protected String doChat(final String system, final List<LLMMessage> conversation,
+        protected LLMReply doChat(final String system, final List<LLMMessage> conversation,
             final LLMRequestOptions requestOptions)
         {
             this.systemPrompt = system;
             this.messages = conversation;
             this.options = requestOptions;
-            return "reply";
+            return new LLMReply("reply", "a-model", "a-model-2026-11", "fp_1");
         }
 
         LLMConfigurationService configurationService()
@@ -94,6 +94,21 @@ class DefaultLLMClientTest
 
         assertSame(options, this.client.options);
         assertSame(conversation, this.client.messages);
+    }
+
+    @Test
+    void saysWhichModelAnswered() throws IOException
+    {
+        assertEquals(new LLMReply("reply", "a-model", "a-model-2026-11", "fp_1"),
+            this.client.chatWithDetails("Be brief", List.of(new LLMMessage("user", "Hello")), null));
+    }
+
+    @Test
+    void givesTheTextOfTheReplyToACallerThatNeedsNothingElse() throws IOException
+    {
+        final LLMClient detailed = (system, conversation, requestOptions) -> new LLMReply("reply", "a", "b", "c");
+
+        assertEquals("reply", detailed.chat(null, List.of(new LLMMessage("user", "Hello")), null));
     }
 
     @Test

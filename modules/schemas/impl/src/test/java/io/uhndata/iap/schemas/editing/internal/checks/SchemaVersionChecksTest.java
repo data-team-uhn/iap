@@ -51,71 +51,66 @@ class SchemaVersionChecksTest
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private final List<ValidityCheck> checks = List.of(new QuestionBoundsCheck(), new QuestionPatternCheck(),
-        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck());
+        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck(),
+        new DocumentReferencesCheck());
 
     private SchemaFixture fixture;
 
     private Resource schema;
+
+    private Resource draft;
 
     @BeforeEach
     void setUp() throws PersistenceException
     {
         this.fixture = new SchemaFixture(this.context);
         this.schema = this.fixture.schema("study");
+        this.draft = this.fixture.version(this.schema, "v1", "draft");
     }
 
     @Test
-    void applyToSchemaVersionsOnly() throws PersistenceException
+    void applyToSchemaVersionsOnly()
     {
-        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
-
-        assertTrue(this.checks.stream().allMatch(check -> check.appliesTo(draft)));
+        assertTrue(this.checks.stream().allMatch(check -> check.appliesTo(this.draft)));
         assertTrue(this.checks.stream().noneMatch(check -> check.appliesTo(this.schema)));
     }
 
     @Test
     void letsADraftThatPassesTheChecksGoOn() throws PersistenceException
     {
-        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
-        this.fixture.create(draft.getPath(), "form", "sch:FormRequirement", Map.of("label", "Form"));
-        this.fixture.create(draft.getPath() + "/form", "age", "sch:Question", Map.of("text", "Age",
+        final Resource form = createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form"));
+        createPart(form, "age", "sch:Question", Map.of("text", "Age",
             "dataType", "long", "minAnswers", 1L, "maxAnswers", 1L, "minValue", 0.0d, "maxValue", 120.0d,
             "pattern", "[0-9]+"));
 
-        assertEquals("", problems(draft));
+        assertEquals("", getProblems());
     }
 
     @Test
     void reportsEverythingThatStopsADraftFromBeingPublished() throws PersistenceException
     {
-        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
-        final ResourceResolver resolver = this.context.resourceResolver();
-        final Resource form = resolver.create(draft, "form", Map.of("jcr:primaryType", "sch:FormRequirement",
-            "label", "Form"));
-        final Resource counts = resolver.create(form, "counts", Map.of("jcr:primaryType", "sch:Question",
+        final Resource form = createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form"));
+        final Resource counts = createPart(form, "counts", "sch:Question", Map.of(
             "text", "Counts", "minAnswers", 3L, "maxAnswers", 2L, "minValue", 5.0d, "maxValue", 1.0d,
             "pattern", "(unclosed", "optionsFrom", "/Vocabularies/counts"));
-        resolver.create(counts, "a", Map.of("jcr:primaryType", "sch:AnswerOption", "value", "same"));
-        resolver.create(counts, "b", Map.of("jcr:primaryType", "sch:AnswerOption", "value", "same"));
-        resolver.create(counts, "c", Map.of("jcr:primaryType", "sch:AnswerOption", "value", " "));
-        final Resource section = resolver.create(form, "section", Map.of("jcr:primaryType", "sch:Section",
-            "title", "Details"));
-        condition(resolver, section, "sometimes", Map.of("source", "answer", "value", new String[] { "form/gone" },
+        createPart(counts, "a", "sch:AnswerOption", Map.of("value", "same"));
+        createPart(counts, "b", "sch:AnswerOption", Map.of("value", "same"));
+        createPart(counts, "c", "sch:AnswerOption", Map.of("value", " "));
+        final Resource section = createPart(form, "section", "sch:Section", Map.of("title", "Details"));
+        createCondition(section, "sometimes", Map.of("source", "answer", "value", new String[] { "form/gone" },
             "aggregate", "median"));
-        final Resource outside = resolver.create(this.fixture.version(this.schema, "v0", "retired"), "q",
-            Map.of("jcr:primaryType", "sch:Question", "text", "Elsewhere"));
-        resolver.commit();
-        final String elsewhere = outside.getValueMap().get("jcr:uuid", String.class);
-        final Resource requirement = resolver.create(draft, "docs", Map.of("jcr:primaryType",
-            "sch:DocumentRequirement", "label", "Documents"));
-        condition(resolver, requirement, "equals", Map.of("source", "answer", "value", new String[] { elsewhere }));
-        final Resource approval = resolver.create(draft, "approval", Map.of("jcr:primaryType",
-            "sch:ApprovalRequirement", "label", "Approval"));
-        condition(resolver, approval, "equals",
+        final Resource outside = createPart(this.fixture.version(this.schema, "v0", "retired"), "q",
+            "sch:Question", Map.of("text", "Elsewhere"));
+        final String elsewhere = getIdentifier(outside);
+        final Resource requirement = createPart(this.draft, "docs", "sch:DocumentRequirement",
+            Map.of("label", "Documents"));
+        createCondition(requirement, "equals", Map.of("source", "answer", "value", new String[] { elsewhere }));
+        final Resource approval = createPart(this.draft, "approval", "sch:ApprovalRequirement",
+            Map.of("label", "Approval"));
+        createCondition(approval, "equals",
             Map.of("source", "answer", "value", new String[] { "00000000-0000-0000-0000-000000000000" }));
-        resolver.commit();
 
-        final String message = problems(draft);
+        final String message = getProblems();
         assertTrue(message.contains("\"Counts\" asks for at least 3 answers but allows at most 2"), message);
         assertTrue(message.contains("\"Counts\" has a smallest accepted value above its largest"), message);
         assertTrue(message.contains("\"Counts\" has a pattern that is not a valid regular expression"), message);
@@ -131,61 +126,151 @@ class SchemaVersionChecksTest
         assertTrue(message.contains("\"Approval\" has a condition on a question"), message);
     }
 
+    // A decision names a question just as an answer does, by path or by identifier
     @Test
     void acceptsConditionsOnQuestionsOfTheSameVersion() throws PersistenceException
     {
-        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
-        final ResourceResolver resolver = this.context.resourceResolver();
-        final Resource form = resolver.create(draft, "form", Map.of("jcr:primaryType", "sch:FormRequirement",
-            "label", "Form"));
-        final Resource question = resolver.create(form, "consent", Map.of("jcr:primaryType", "sch:Question",
+        final Resource form = createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form"));
+        final Resource question = createPart(form, "consent", "sch:Question", Map.of(
             "text", "Consent?", "dataType", "boolean", "maxAnswers", 0L, "minAnswers", 4L));
-        resolver.commit();
-        final String uuid = question.getValueMap().get("jcr:uuid", String.class);
-        final Resource byPath = resolver.create(form, "byPath", Map.of("jcr:primaryType", "sch:Section",
-            "title", "By path"));
-        condition(resolver, byPath, "equals", Map.of("source", "answer", "value", new String[] { "form/consent" },
-            "aggregate", "count"));
-        final Resource byUuid = resolver.create(form, "byUuid", Map.of("jcr:primaryType", "sch:Section",
-            "title", "By identifier"));
-        condition(resolver, byUuid, "is not empty", Map.of("source", "answer", "value", new String[] { uuid }));
-        final Resource onTags = resolver.create(form, "onTags", Map.of("jcr:primaryType", "sch:Section",
-            "title", "Tags"));
-        condition(resolver, onTags, "includes", Map.of("source", "tags"));
-        resolver.commit();
+        final String uuid = getIdentifier(question);
+        createCondition(createSection(form, "byPath"), "equals",
+            Map.of("source", "answer", "value", new String[] { "form/consent" }, "aggregate", "count"));
+        createCondition(createSection(form, "byUuid"), "is not empty",
+            Map.of("source", "answer", "value", new String[] { uuid }));
+        createCondition(createSection(form, "onTags"), "includes", Map.of("source", "tags"));
+        createCondition(createSection(form, "decidedByPath"), "equals",
+            Map.of("source", "decision", "value", new String[] { "form/consent" }));
+        createCondition(createSection(form, "decidedByUuid"), "equals",
+            Map.of("source", "decision", "value", new String[] { uuid }));
 
-        assertEquals("", problems(draft));
+        assertEquals("", getProblems());
+    }
+
+    // Published, the upload would never be checked and the form never read, with nothing to say why
+    @Test
+    void reportsADocumentTheVersionLacks() throws PersistenceException
+    {
+        createPart(this.draft, "proposal", "sch:DocumentRequirement", Map.of("label", "Proposal"));
+        createPart(this.draft, "is_proposal", "sch:ValidationRequirement", Map.of("label", "Is it a proposal",
+            "prompt", "Decide whether it is a proposal.", "document", "proposal"));
+        createPart(this.draft, "is_consent", "sch:ValidationRequirement", Map.of("label", "Is it a consent",
+            "prompt", "Decide whether it is a consent form.", "document", "consnet"));
+        createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form",
+            "documents", new String[] { "proposal", "protocol" }));
+
+        final String message = getProblems();
+        assertTrue(message.contains("\"Is it a consent\" reads the document \"consnet\", which is not in this version"),
+            message);
+        assertTrue(message.contains("\"Form\" reads the document \"protocol\", which is not in this version"),
+            message);
+        assertFalse(message.contains("\"proposal\""), message);
+    }
+
+    // Never parsed, the document gives the step nothing to read, for every submission of the version
+    @Test
+    void reportsADocumentThatIsNeverParsed() throws PersistenceException
+    {
+        createPart(this.draft, "consent", "sch:DocumentRequirement", Map.of("label", "Consent",
+            "skipParsing", true));
+        createPart(this.draft, "is_consent", "sch:ValidationRequirement", Map.of("label", "Is it a consent",
+            "prompt", "Decide whether it is a consent form.", "document", "consent"));
+
+        assertEquals("\"Is it a consent\" reads the document \"consent\", which is never parsed", getProblems());
+    }
+
+    // The condition would never be true, so what it guards would never apply
+    @Test
+    void reportsAConditionOnAMisnamedValidation() throws PersistenceException
+    {
+        final Resource form = createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form"));
+        createCondition(form, "equals", Map.of("source", "validation", "value", new String[] { "is_propsal" }));
+
+        assertEquals("\"Form\" has a condition on a validation that is not in this version", getProblems());
+    }
+
+    @Test
+    void reportsAConditionOnARequirementThatIsNoValidation() throws PersistenceException
+    {
+        createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form"));
+        createCondition(createSection(this.draft, "category"), "equals",
+            Map.of("source", "validation", "value", new String[] { "form" }));
+
+        assertEquals("\"category\" has a condition on a validation that is not in this version", getProblems());
+    }
+
+    @Test
+    void reportsAValidationConditionNamingNothing() throws PersistenceException
+    {
+        createCondition(createSection(this.draft, "unnamed"), "equals",
+            Map.of("source", "validation", "value", new String[0]));
+
+        assertEquals("\"unnamed\" has a condition on a validation that is not in this version", getProblems());
+    }
+
+    @Test
+    void reportsADecisionOnAQuestionTheVersionLacks() throws PersistenceException
+    {
+        createCondition(createSection(this.draft, "routed"), "equals",
+            Map.of("source", "decision", "value", new String[] { "form/gone" }));
+
+        assertEquals("\"routed\" has a condition on a question that is not in this version", getProblems());
+    }
+
+    @Test
+    void acceptsAConditionOnAValidationOfTheVersion() throws PersistenceException
+    {
+        createPart(this.draft, "proposal", "sch:DocumentRequirement", Map.of("label", "Proposal"));
+        createPart(this.draft, "is_proposal", "sch:ValidationRequirement", Map.of("label", "Is it a proposal",
+            "prompt", "Decide whether it is a proposal.", "document", "proposal"));
+        final Resource form = createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form"));
+        createCondition(form, "equals", Map.of("source", "validation", "value", new String[] { "is_proposal" }));
+
+        assertEquals("", getProblems());
     }
 
     @Test
     void namesAnUntitledItemByItsPath() throws PersistenceException
     {
-        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
-        final ResourceResolver resolver = this.context.resourceResolver();
-        final Resource form = resolver.create(draft, "form", Map.of("jcr:primaryType", "sch:FormRequirement",
-            "label", "Form"));
-        final Resource section = resolver.create(form, "nameless", Map.of("jcr:primaryType", "sch:Section",
-            "title", " "));
-        condition(resolver, section, "equals", Map.of("source", "answer", "value", new String[0]));
-        resolver.commit();
+        final Resource form = createPart(this.draft, "form", "sch:FormRequirement", Map.of("label", "Form"));
+        final Resource section = createPart(form, "nameless", "sch:Section", Map.of("title", " "));
+        createCondition(section, "equals", Map.of("source", "answer", "value", new String[0]));
 
-        final String message = problems(draft);
+        final String message = getProblems();
         assertTrue(message.contains("form/nameless has a condition on a question"), message);
         assertFalse(message.contains("comparing"));
     }
 
-    private String problems(final Resource version)
+    private String getProblems()
     {
-        return String.join("; ", this.checks.stream().flatMap(check -> check.check(version).stream()).toList());
+        return String.join("; ", this.checks.stream().flatMap(check -> check.check(this.draft).stream()).toList());
     }
 
-    private static void condition(final ResourceResolver resolver, final Resource on, final String comparator,
-        final Map<String, Object> operandA) throws PersistenceException
+    private Resource createPart(final Resource parent, final String name, final String primaryType,
+        final Map<String, Object> properties) throws PersistenceException
     {
+        return this.fixture.create(parent.getPath(), name, primaryType, properties);
+    }
+
+    private Resource createSection(final Resource parent, final String title) throws PersistenceException
+    {
+        return createPart(parent, title, "sch:Section", Map.of("title", title));
+    }
+
+    private static String getIdentifier(final Resource node)
+    {
+        return node.getValueMap().get("jcr:uuid", String.class);
+    }
+
+    private void createCondition(final Resource on, final String comparator, final Map<String, Object> operandA)
+        throws PersistenceException
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
         final Resource condition = resolver.create(on, "cond:condition",
             Map.of("jcr:primaryType", "cond:SingleCondition", "comparator", comparator));
         final Map<String, Object> operand = new HashMap<>(operandA);
         operand.put("jcr:primaryType", "cond:ConditionOperand");
         resolver.create(condition, "operandA", operand);
+        resolver.commit();
     }
 }

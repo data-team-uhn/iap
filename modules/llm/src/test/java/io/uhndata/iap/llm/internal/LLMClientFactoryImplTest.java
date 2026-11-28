@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMMessage;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
 
@@ -65,10 +66,10 @@ class LLMClientFactoryImplTest
         }
 
         @Override
-        public String chat(final String systemPrompt, final List<LLMMessage> messages,
+        public LLMReply chatWithDetails(final String systemPrompt, final List<LLMMessage> messages,
             final LLMRequestOptions options)
         {
-            return this.reply;
+            return new LLMReply(this.reply, null, null, null);
         }
     }
 

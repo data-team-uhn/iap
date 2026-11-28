@@ -17,10 +17,8 @@
 
 """The daemon's HTTP plumbing and request guards, with no Docling import anywhere.
 
-Kept out of :mod:`docling_daemon` so it stays importable without Docling. The daemon's own
-test module skips itself wherever Docling is missing, including CI, which would leave these
-checks -- the only thing between an unauthenticated caller and the worker pool -- untested.
-``test_daemon_utils.py`` runs everywhere.
+Kept out of :mod:`docling_daemon` so it stays importable without Docling, and so
+``test_daemon_utils.py`` can test these checks on their own.
 
 What is here: the bearer-token secret, the guard refusing browser-originated and
 unauthenticated requests to the mutating endpoints, the request-body drain with its size cap,

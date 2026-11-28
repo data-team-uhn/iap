@@ -91,6 +91,8 @@ mismatched is not comparable and fails closed with a warning.
 | `tags` | the enclosing entity's effective tags — `tags` + `aggregatedTags` + `inheritedTags`; `value` ignored |
 | `property` | the enclosing entity's property named by `value` — e.g. `status`, `jcr:createdBy` |
 | `ownProperty` | the property named by `value`, read on the content the condition is evaluated on rather than on its enclosing entity — e.g. a question's `optionsFrom` |
+| `decision` | the submitter's answer to the question named by `value` (named as for `answer`), or else the newest suggestion a reading made; workflow steps only, since form conditions use `answer`; served by the submissions module |
+| `validation` | what a model decided about an upload for the validation requirement named by `value`: `yes`, `no` or `unsure`; empty until the model is asked; served by the submissions module |
 
 `answer` has two details worth knowing. The question is identified by UUID or by a path
 **within the schema version the submission answers** (e.g. `form/age`), so questions
@@ -119,6 +121,13 @@ depends on it: every name an `answer` operand may give what the content holds, t
 operands elsewhere in its entity that use one of them, and the part each such condition
 is on. The schema editor refuses to remove a question other parts' conditions depend on
 this way.
+
+A `validation` operand names its `sch:ValidationRequirement` by path within the schema
+version the submission answers, such as `is_proposal`, the same way an `answer` path
+does. The outcome is read off the newest run of the submission's `sub:Validation`: a yes
+or no below the requirement's `confidenceThreshold` reads as `unsure` (see
+[schemas.md](schemas.md)). It holds the model's verdict on an upload before any person
+has looked at it.
 
 ### Aggregators
 

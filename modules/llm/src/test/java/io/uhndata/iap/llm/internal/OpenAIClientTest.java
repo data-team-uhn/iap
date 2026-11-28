@@ -39,8 +39,12 @@ import org.junit.jupiter.api.Test;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.ChatResponseMetadata;
 import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMMessage;
+import io.uhndata.iap.llm.LLMReply;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
 import io.uhndata.iap.llm.LLMSettings.ModelSettings;
@@ -65,6 +69,11 @@ class OpenAIClientTest
     private static final String MODEL = "model-a";
 
     private static final String REPLY = "Hello there";
+
+    /** What the provider says answered, more exact than the name the call asked for. */
+    private static final String SERVED_MODEL = "model-a-2026-11-01";
+
+    private static final String FINGERPRINT = "fp_42";
 
     private static final String SCHEMA = "{\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\"}},"
         + "\"required\":[\"ok\"],\"count\":3,\"ratio\":1.5,\"nested\":[1,\"two\",true,false,null]}";
@@ -135,6 +144,8 @@ class OpenAIClientTest
         final String body;
         if (this.status == 200) {
             body = Json.createObjectBuilder()
+                .add("model", SERVED_MODEL)
+                .add("system_fingerprint", FINGERPRINT)
                 .add("choices", Json.createArrayBuilder()
                     .add(Json.createObjectBuilder()
                         .add("message", Json.createObjectBuilder().add("role", "assistant")
@@ -182,6 +193,23 @@ class OpenAIClientTest
     private static String say(final OpenAIClient client) throws IOException
     {
         return client.chat(null, List.of(new LLMMessage("user", HELLO)), null);
+    }
+
+    @Test
+    void saysWhichModelWasAskedForAndWhichAnswered() throws IOException
+    {
+        assertEquals(new LLMReply(REPLY, MODEL, SERVED_MODEL, FINGERPRINT),
+            client().chatWithDetails(null, List.of(new LLMMessage("user", HELLO)), null));
+    }
+
+    // Only an OpenAI-compatible reply carries a fingerprint
+    @Test
+    void findsNoFingerprintInAReplyThatHasNone() throws IOException
+    {
+        final ChatResponse response = ChatResponse.builder().aiMessage(AiMessage.from(REPLY))
+            .metadata(ChatResponseMetadata.builder().modelName(SERVED_MODEL).build()).build();
+
+        assertEquals(new LLMReply(REPLY, MODEL, SERVED_MODEL, null), LangChainMessages.readReply(MODEL, response));
     }
 
     @Test

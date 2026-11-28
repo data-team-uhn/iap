@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { indexQuestions } from "@iap/schemas/schemaVersionTreeModel";
@@ -27,26 +27,29 @@ const question = (name: string, optionsFrom?: string) => ({
   "sling:resourceSuperType": "sch/FormItem", "jcr:uuid": name, ...optionsFrom ? { optionsFrom } : {},
 });
 
-const version = {
+const createVersion = (questions: Record<string, object>) => ({
   "@path": "/Schemas/s/v1",
   "form": {
     "@path": "/Schemas/s/v1/form", "sling:resourceType": "sch/FormRequirement",
-    "sling:resourceSuperType": "sch/Requirement",
-    "kind": question("kind", "/Categories"), "again": question("again", "/Categories"),
-    "broken": question("broken", "/Broken"), "gone": question("gone", "/Gone"), "plain": question("plain"),
+    "sling:resourceSuperType": "sch/Requirement", ...questions,
   },
-};
+});
+
+const version = createVersion({
+  "kind": question("kind", "/Categories"), "again": question("again", "/Categories"),
+  "broken": question("broken", "/Broken"), "gone": question("gone", "/Gone"), "plain": question("plain"),
+});
 
 describe("useOptionsFrom", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("loads the items each path gives once, and none where they cannot be read", async () => {
+  it("asks the server for each path's options once, and gives none where they cannot be read", async () => {
     const fetch = stubFetch(({ url }) => {
-      if (url.startsWith("/Gone")) {
+      if (url.includes("/gone.")) {
         return Promise.reject(new TypeError("offline"));
       }
-      return url.startsWith("/Categories")
-        ? jsonResponse({ "@path": "/Categories", "retro": { "@path": "/Categories/retro", "label": "Retrospective" } })
+      return url.includes("/kind.") || url.includes("/again.")
+        ? jsonResponse({ status: "ok", options: [ { value: "/Categories/retro", label: "Retrospective", description: "" } ] })
         : jsonResponse({}, 404);
     });
 
@@ -55,10 +58,28 @@ describe("useOptionsFrom", () => {
     await waitFor(() => expect(result.current).toEqual({
       "/Broken": [], "/Categories": [ { value: "/Categories/retro", label: "Retrospective" } ], "/Gone": [],
     }));
-    expect(fetch.mock.calls.filter(([ url ]) => url === "/Categories.deep.simple.json")).toHaveLength(1);
+    expect(fetch.mock.calls.filter(([ url ]) => /\/(kind|again)\.offeredOptions\.json$/.test(url))).toHaveLength(1);
     unmount();
+  });
 
-    // Unmounted before the items arrive, it sets nothing
-    renderHook(() => useOptionsFrom(indexQuestions(version))).unmount();
+  it("keeps the options of the questions now shown when an older answer arrives late", async () => {
+    let answerLate: () => void = () => undefined;
+    const body = { status: "ok", options: [ { value: "/Choices/a", label: "A", description: "" } ] };
+    const response = { ok: true, status: 200, url: "", json: () => Promise.resolve(body) } as unknown as Response;
+    vi.stubGlobal("fetch", vi.fn((url: string) => url.includes("/kind.")
+      ? new Promise<Response>(resolve => {
+        answerLate = () => resolve(response);
+      })
+      : Promise.resolve(response)));
+    const expected = { "/Other": [ { value: "/Choices/a", label: "A" } ] };
+
+    const { result, rerender } = renderHook(({ shown }) => useOptionsFrom(indexQuestions(shown)),
+      { initialProps: { shown: createVersion({ "kind": question("kind", "/Categories") }) } });
+    rerender({ shown: createVersion({ "other": question("other", "/Other") }) });
+    await waitFor(() => expect(result.current).toEqual(expected));
+    answerLate();
+    await act(() => new Promise(resolve => setTimeout(resolve, 0)));
+
+    expect(result.current).toEqual(expected);
   });
 });

@@ -14,14 +14,16 @@ version. Once a version is published, only its wording can change.
 /Schemas                         sch:SchemasHomepage
 └── clinicalStudy                sch:Schema           title
     └── v1                       sch:SchemaVersion    version, description, workflow → wf:WorkflowVersion
-        ├── basics               sch:FormRequirement  label
+        ├── basics               sch:FormRequirement  label, documents, template
         │   ├── design           sch:Section          title
         │   │   └── arms         sch:Question         text, dataType, minAnswers, maxAnswers, …
         │   │       └── placebo  sch:AnswerOption     value, label
         │   └── cond:condition   (when this requirement applies)
-        ├── consent              sch:DocumentRequirement  required, acceptedFileTypes, template
+        ├── consent              sch:DocumentRequirement  required, skipParsing, acceptedFileTypes, template
         ├── protocol             sch:DocumentRequirement
         │   └── funding          sch:SectionRequirement   label, required, headings, locationPrompt
+        ├── is_proposal          sch:ValidationRequirement      prompt, document, confidenceThreshold, template
+        ├── study_kind           sch:ClassificationRequirement  …, question → sch:Question (e.g. basics/kind)
         └── reb                  sch:ApprovalRequirement  approverGroup
             └── privacy          sch:Topic            text, description, assessmentPrompt, sources
 ```
@@ -43,6 +45,50 @@ for, `sources` names the requirements and questions that bear on it, and
 `assessmentPrompt` is what the AI is asked. Each review, and the AI's screening,
 assesses every topic on its own.
 
+### Decisions about an upload
+
+Two requirements ask a model about an uploaded document before anything else is read
+out of it. Both name the document requirement whose upload is read (`document`), what
+to ask (`prompt`), how sure the answer must be (`confidenceThreshold`, default 0.7), and
+optional reference text (a `template` or `template.md` child). They share the abstract
+`sch:DecisionRequirement`.
+
+| Type | Asks | The answer is saved as |
+|---|---|---|
+| `sch:ValidationRequirement` | Is the upload what the request needs, e.g. a research proposal? | a `sub:Validation` on the submission; the submitter never answers it |
+| `sch:ClassificationRequirement` | Which kind of request is it? | a suggestion on the answer to the question it references (`question`), which the submitter confirms |
+
+Each validation reads one document: the proposal has its own, the consent form its own,
+each with its own prompt and template. Once the uploads are parsed, the decisions are
+made one document at a time, in the order of the document requirements: the document's
+validation, then its classification. A sure `no` stops there. The document
+requirement's `label` goes into what the submitter is told, so it is written to fit
+"Unable to identify the <label>", "The <label> is missing, please upload it" and "The
+<label> could not be read, please try again", such as "research proposal".
+
+The classification's question is an ordinary question in a form requirement, so the form
+shows it like any other. A reference to a question of the same version still points at
+the right question when the version is copied.
+
+### What a model reads for a form
+
+A form requirement names the documents whose uploads a model reads to answer its
+questions (`documents`, the names of document requirements, in the order they are
+sent). It may carry reference text the model is shown with the questions, such as where
+a protocol usually states its sample size (a `template` or `template.md` child, as the
+decisions have). A form that names no documents is not read: its questions are left to
+the submitter.
+
+| Form | `documents` | What the model reads |
+|---|---|---|
+| Study details | `["proposal"]` | the proposal |
+| Clinical trial | `["proposal", "consent"]` | both, joined, each under its own heading |
+| Category | none | nothing: the classification fills its question |
+
+Only the questions with an `extractionPrompt` are asked, and only while the form
+applies, so a form whose condition reads the confirmed category is read only for that
+category. See [extraction.md](extraction.md).
+
 ### Questions
 
 | Property | Notes |
@@ -53,7 +99,7 @@ assesses every topic on its own.
 | `minValue`, `maxValue` | Bounds for numeric answers. |
 | `pattern`, `patternMessage` | A regular expression every text value must match in full, and what the submitter is told when one does not. |
 | `optionsFrom` | A content path whose items are the options, instead of child options. |
-| `purpose`, `extractionPrompt`, `responseShape` | What answer extraction needs. |
+| `purpose`, `extractionPrompt` | What answer extraction needs. |
 
 A question with `sch:AnswerOption` children is answered only with their values. The
 **value** is what an answer stores and what a condition compares against, so changing it
@@ -165,8 +211,8 @@ accepted. The updates of a published version list only its wording.
 While a version is a **draft**, its parts and answer options can change: a question's
 `dataType`, answer counts, bounds, pattern and `optionsFrom`, what a document
 requirement accepts and whether it is required, who approves an approval, an option's
-`value`, and all of their wording. No workflow edits a question's `displayMode` or
-`responseShape`, or a section requirement's `headings` or `locationPrompt`. Which fields
+`value`, and all of their wording. No workflow edits a question's `displayMode`, or a
+section requirement's `headings` or `locationPrompt`. Which fields
 a question offers follows its `dataType`: bounds only for numbers, a pattern only for
 text, and a field that stops applying when the `dataType` changes is removed.
 
@@ -206,8 +252,13 @@ condition node types may be written. The editor builds it with the conditions mo
 `ConditionDialog` (see [conditions.md](conditions.md)). A condition compares something
 with values of its type: the answer to a question of the version, the submission's tags,
 or one of the submission's properties. It names a question by its `jcr:uuid`. A question
-taking its options from elsewhere (`optionsFrom`) offers the items there, by their
-titles or labels, loaded once for the version.
+taking its options from elsewhere (`optionsFrom`) offers the options
+`Question.getOfferedOptions` gives, read once for the version from
+`<question>.offeredOptions.json` (`OfferedOptionsServlet`). The submitter's form, the
+save check that a value is one the question offers, and a model reading the documents
+all use the same list, so a condition compares with values an answer can really hold.
+For a catalogue such as `/Categories`, that is its live leaves; for a plain folder, its
+labeled leaves.
 
 A question either lists its options or takes them from elsewhere, as `optionsFrom`, but
 not both. `createSchemaPart` adds no option to a question with an `optionsFrom`: its
@@ -242,13 +293,14 @@ the update workflow that would run, so no editor keeps a list of its own. A vers
 A draft is **published** only when nothing in it would break once it is frozen: answer
 counts and value bounds that are not reversed, patterns that compile, option values that
 are present and unique, no question that both lists options and takes them from
-elsewhere, and conditions that use known comparators and aggregators on questions of
-this same version. Every problem is reported at once. Each rule is a `ValidityCheck`
-service (`io.uhndata.iap.workflows.spi`) that applies to schema versions, and publishing
-runs every one that applies, so a module that adds parts to a schema can add the checks
-they need. Activating a version retires the one that was active, in the same run, so one
-version at a time takes new submissions. Those already filed against the retired one
-carry on.
+elsewhere, conditions that use known comparators and aggregators on questions and
+validations of this same version, and validations, classifications and forms that read
+only documents this version asks for and parses. Every problem is reported at once. Each
+rule is a `ValidityCheck` service (`io.uhndata.iap.workflows.spi`) that applies to
+schema versions, and publishing runs every one that applies, so a module that adds parts
+to a schema can add the checks they need. Activating a version retires the one that was
+active, in the same run, so one version at a time takes new submissions. Those already
+filed against the retired one carry on.
 
 **Discarding** goes through the deletion service, into the archive: anything something
 else refers to, such as a version that submissions or a category point at, is refused,

@@ -207,18 +207,19 @@ public class FormRequirementDescriber implements RequirementDescriber
     }
 
     /**
-     * The answers a question offers, as the editor shows them. They are stated even when empty, for a question
-     * answered freely.
+     * The answers a question offers, as the editor shows them: the same list a model reading the documents is
+     * offered, whether the question lists its options or takes them from a catalogue. They are stated even when
+     * empty, for a question answered freely.
      *
      * @param question the question
-     * @return its options, in stored order; empty if it offers none
+     * @return its options, in the order {@link Question#getOfferedOptions()} gives; empty if it offers none
      */
     private static JsonArrayBuilder options(final Question question)
     {
         final JsonArrayBuilder options = Json.createArrayBuilder();
-        question.getOptions().forEach(option -> options.add(Json.createObjectBuilder()
-            .add(VALUE_KEY, option.getValue())
-            .add(FormKeys.LABEL_KEY, option.getLabel())));
+        question.getOfferedOptions().forEach(option -> options.add(Json.createObjectBuilder()
+            .add(VALUE_KEY, option.value())
+            .add(FormKeys.LABEL_KEY, option.label())));
         return options;
     }
 
