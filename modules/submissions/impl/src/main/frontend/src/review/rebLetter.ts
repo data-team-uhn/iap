@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { SEVERITIES, type ReviewNote } from "./reviewData";
+import { NATURE_NAMES, SEVERITIES, type ReviewNote } from "./reviewData";
 import { UHN_LOGO } from "./uhnLogo";
 
 // PRETOTYPE. A reviewer's letter to the study team, drawn from the issues they raised, which stay what the letter
@@ -44,7 +44,8 @@ export interface LetterInput {
 export interface LetterPoint {
   id: string;
   number: number;
-  severity: string;
+  // What it is, said before it: a required change's severity, or "Suggestion" or "Question"
+  label: string;
   about: string;
   text: string;
   quote?: string;
@@ -72,9 +73,12 @@ export interface DraftedLetter {
   signatories?: { heading: string; lines: string[] }[];
 }
 
-const SEVERITY_NAMES: Record<string, string> = {
-  critical: "Critical", major: "Major", medium: "Medium", minor: "Minor", suggestion: "Suggestion",
-};
+const SEVERITY_NAMES: Record<string, string> = { critical: "Critical", major: "Major", medium: "Medium", minor: "Minor" };
+
+// Under a heading, the required changes, most serious first, then the questions, then the suggestions
+const ORDER = [ ...SEVERITIES, "question", "suggestion" ];
+const placeOf = (issue: ReviewNote) => (issue.nature === "question" || issue.nature === "suggestion" ? issue.nature
+  : issue.severity ?? "medium");
 
 // What an issue is about, leading into it: a question already ends a sentence
 export function leadIn(where: string): string {
@@ -96,8 +100,10 @@ function pointsOf(sections: { heading: string; issues: ReviewNote[] }[], about: 
   let number = 1;
   return sections.map(section => ({
     heading: section.heading,
-    points: SEVERITIES.flatMap(severity => section.issues.filter(one => (one.severity ?? "medium") === severity))
-      .map(issue => ({ id: issue.id, number: number++, severity: SEVERITY_NAMES[issue.severity ?? "medium"],
+    points: ORDER.flatMap(place => section.issues.filter(one => placeOf(one) === place))
+      .map(issue => ({ id: issue.id, number: number++,
+        label: issue.nature === "question" || issue.nature === "suggestion" ? NATURE_NAMES[issue.nature]
+          : SEVERITY_NAMES[issue.severity ?? "medium"],
         about: about(issue), text: issue.text, quote: issue.passage?.quote })),
   })).filter(section => section.points.length > 0);
 }
@@ -176,7 +182,7 @@ export function draftLetter(input: LetterInput): DraftedLetter {
 }
 
 // A point as the letter says it
-export const pointText = (point: LetterPoint) => `${point.number}. (${point.severity}) ${leadIn(point.about)}${point.text}`;
+export const pointText = (point: LetterPoint) => `${point.number}. (${point.label}) ${leadIn(point.about)}${point.text}`;
 
 // The letter as text, as it is sent and kept with the decision
 export function letterText(letter: DraftedLetter): string {

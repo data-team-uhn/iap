@@ -25,7 +25,7 @@ import { chipStyle } from "@iap/frontend-commons/chipStyle";
 import { loadTagDefinitions, type TagDefinition } from "@iap/tags/tagDefinitions";
 
 import NoteKindIcon from "./noteIcons";
-import { kindInfo, SEVERITIES, type NoteKind, type Topic } from "./reviewData";
+import { kindInfo, NATURE_NAMES, NATURES, SEVERITIES, type Nature, type NoteKind, type Topic } from "./reviewData";
 
 // A chip for a kind of note chosen, styled as a tag of its colour is: a soft tint, a readable shade of the colour for
 // the text, a border mixing the two; kept under the pointer. Outlined like an unchosen one, so it keeps its size.
@@ -35,35 +35,45 @@ export function kindChip(theme: Theme, mark: PassageKind) {
   return { ...style, border: undefined, borderColor: border, "&:hover": { backgroundColor: style?.backgroundColor } };
 }
 
+// What an issue's text says, by its type
+export const ISSUE_PROMPTS: Record<Nature, string> = { "required-change": "What the study team needs to change",
+  suggestion: "What the study team could consider", question: "What you want the study team to answer" };
+
 // What a reviewer can write themselves
 export const WRITTEN: NoteKind[] = [ "issue", "discussion", "note" ];
 
 // The risks the reviewer's groups weigh, in the schema's order, which an issue can be filed under; and every risk, to
 // name one that is not theirs
-export const ReviewerTopics = createContext<{ mine: Topic[]; all: Map<string, Topic> }>({ mine: [], all: new Map() });
+// PRETOTYPE: and what a new issue is unless the reviewer says otherwise, as their group usually asks
+export const ReviewerTopics = createContext<{ mine: Topic[]; all: Map<string, Topic>; nature?: Nature }>(
+  { mine: [], all: new Map() });
 
-// PRETOTYPE. Writing a note: which kind, for an issue how serious and under which risk, and what it says. The risk
-// is chosen for the reviewer when only one of theirs draws on what the note is about.
-export default function Composer({ kinds, initialKind, initialText = "", initialSeverity, initialTopic, about = [],
-  saveLabel = "Add", onSave, onCancel }: {
+// PRETOTYPE. Writing a note: which kind, for an issue its type, how serious a required change is, and under which
+// risk, and what it says. The risk is chosen for the reviewer when only one of theirs draws on what the note is about.
+export default function Composer({ kinds, initialKind, initialText = "", initialSeverity, initialNature, initialTopic,
+  about = [], saveLabel = "Add", onSave, onCancel }: {
   // The kinds to choose between; none for a reply
   kinds: NoteKind[];
   initialKind?: NoteKind;
   initialText?: string;
   initialSeverity?: string;
+  // The issue's type to start with; the reviewer group's usual one if absent
+  initialNature?: Nature;
   // The risk to start with, by path; empty for none
   initialTopic?: string;
   // What the note is about: questions and documents, by schema path
   about?: string[];
   saveLabel?: string;
-  // The topic is empty for none, and undefined unless the note is an issue
-  onSave: (kind: NoteKind, text: string, severity?: string, topic?: string) => Promise<void>;
+  // The topic is empty for none, and undefined unless the note is an issue, as its type is; the severity is undefined
+  // unless it is a required change
+  onSave: (kind: NoteKind, text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
   onCancel: () => void;
 }) {
   const [ kind, setKind ] = useState<NoteKind>(initialKind ?? kinds.at(0) ?? "discussion");
   const [ text, setText ] = useState(initialText);
   const [ severity, setSeverity ] = useState(initialSeverity ?? "medium");
-  const { mine, all } = useContext(ReviewerTopics);
+  const { mine, all, nature: usual = "required-change" } = useContext(ReviewerTopics);
+  const [ nature, setNature ] = useState<Nature>(initialNature ?? usual);
   const fitting = mine.filter(topic => topic.sources.some(source => about.includes(source)));
   const [ topic, setTopic ] = useState(initialTopic ?? (fitting.length === 1 ? fitting[0].path : ""));
   // Those drawing on what the note is about first; and the one it starts with, even when not the reviewer's own
@@ -86,7 +96,9 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
     }
     setSaving(true);
     try {
-      await onSave(kind, text.trim(), kind === "issue" ? severity : undefined, kind === "issue" ? topic : undefined);
+      const issue = kind === "issue";
+      await onSave(kind, text.trim(), issue && nature === "required-change" ? severity : undefined,
+        issue ? topic : undefined, issue ? nature : undefined);
     } finally {
       setSaving(false);
     }
@@ -117,13 +129,22 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
       {kind === "issue" && (
         <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
           <TextField
-            select size="small" label="Severity" value={severity} onChange={event => setSeverity(event.target.value)}
-            sx={{ width: 150 }}
+            select size="small" label="Type" value={nature} onChange={event => setNature(event.target.value as Nature)}
+            sx={{ width: 170 }}
           >
-            {SEVERITIES.map(one => (
-              <MenuItem key={one} value={one}>{severities.find(tag => tag.name === one)?.label ?? one}</MenuItem>
-            ))}
+            {NATURES.map(one => <MenuItem key={one} value={one}>{NATURE_NAMES[one]}</MenuItem>)}
           </TextField>
+          {/* Only a required change is as serious as its severity */}
+          {nature === "required-change" && (
+            <TextField
+              select size="small" label="Severity" value={severity} onChange={event => setSeverity(event.target.value)}
+              sx={{ width: 150 }}
+            >
+              {SEVERITIES.map(one => (
+                <MenuItem key={one} value={one}>{severities.find(tag => tag.name === one)?.label ?? one}</MenuItem>
+              ))}
+            </TextField>
+          )}
           <TextField
             select size="small" label="Topic" value={topic} onChange={event => setTopic(event.target.value)}
             sx={{ flex: 1, minWidth: 200 }}
@@ -139,7 +160,7 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
       )}
       <TextField
         inputRef={field} multiline minRows={2} maxRows={8} fullWidth size="small" value={text}
-        placeholder={kinds.length === 0 ? "Your reply" : kind === "issue" ? "What the study team needs to address"
+        placeholder={kinds.length === 0 ? "Your reply" : kind === "issue" ? ISSUE_PROMPTS[nature]
           : kind === "discussion" ? "What you want to ask or tell the other reviewers" : "A note only you will see"}
         onChange={event => setText(event.target.value)}
         onKeyDown={event => {

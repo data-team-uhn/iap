@@ -37,11 +37,11 @@ import useColumnVisibility from "@iap/frontend-commons/entityGrid/useColumnVisib
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import TagChip from "@iap/tags/TagChip";
 
-import Composer from "./Composer";
+import Composer, { ISSUE_PROMPTS } from "./Composer";
 import { SentLock, Thread } from "./NoteCard";
 import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
-import { SEVERITIES, type ReviewNote } from "./reviewData";
+import { NATURE_NAMES, NATURES, SEVERITIES, type Nature, type ReviewNote } from "./reviewData";
 
 
 interface IssueRow {
@@ -49,6 +49,7 @@ interface IssueRow {
   // Whether it is one of the AI's open concerns rather than the reviewer's issue
   ai: boolean;
   severity: string;
+  nature: Nature;
   risk: string;
   about: string;
   text: string;
@@ -71,8 +72,18 @@ export function cardOf<Row extends GridValidRowModel>(row: Row, columns: CardCol
   return <EntityListItem row={row} columns={columns as unknown as EntityGridColumn[]} />;
 }
 
+// How serious an issue is, for a required change, or as the AI said of a concern
+const severityOf = (row: IssueRow) => (row.ai ? row.issue.severity
+  : row.nature === "required-change" ? row.severity : undefined);
+// What an issue is, said beside how serious; an AI concern only when the AI said it is a suggestion
+const kindShown = (row: IssueRow) => (!row.ai || row.issue.nature === "suggestion" ? row.nature : undefined);
+const rank = (severity: string) => {
+  const at = SEVERITIES.indexOf(severity as typeof SEVERITIES[number]);
+  return at < 0 ? SEVERITIES.length : at;
+};
+
 const SEVERITY_NAMES: Record<string, string> = {
-  critical: "Critical", major: "Major", medium: "Medium", minor: "Minor", suggestion: "Suggestion",
+  critical: "Critical", major: "Major", medium: "Medium", minor: "Minor",
 };
 
 // PRETOTYPE. All of the reviewer's issues in one sortable grid, as they would list them in a spreadsheet: how serious,
@@ -83,13 +94,13 @@ const SEVERITY_NAMES: Record<string, string> = {
 // dismissed.
 export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss,
   onRemove, onReply, onEditReply, onRemoveReply, compact = false, keepRisk = false, fitRows = compact, sayEmpty = true,
-  adding = false, defaultRisk = "", onAdd, onAddingDone }: {
+  adding = false, defaultRisk = "", defaultNature = "required-change", onAdd, onAddingDone }: {
   issues: ReviewNote[];
   concerns?: ReviewNote[];
   // The risks issues can be filed under, by path
   risks: { path: string; label: string }[];
   about: (note: ReviewNote) => string;
-  onChange: (issue: ReviewNote, text: string, severity: string, topic: string) => Promise<void>;
+  onChange: (issue: ReviewNote, text: string, severity: string, topic: string, nature: Nature) => Promise<void>;
   onShow?: (issue: ReviewNote) => void;
   onMakeIssue?: (concern: ReviewNote) => Promise<void>;
   onDismiss?: (concern: ReviewNote) => Promise<void>;
@@ -108,15 +119,18 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   // A new issue being written, in a row of its own pinned at the top: saved under the risk chosen in it, or given up
   adding?: boolean;
   defaultRisk?: string;
-  onAdd?: (text: string, severity: string, topic: string) => Promise<void>;
+  // PRETOTYPE: what a new issue is unless the reviewer says otherwise, as their group usually asks
+  defaultNature?: Nature;
+  onAdd?: (text: string, severity: string, topic: string, nature: Nature) => Promise<void>;
   onAddingDone?: () => void;
 }) {
   const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
     id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
+    nature: issue.nature ?? (issue.kind === "aiIssue" ? "required-change" : defaultNature),
     risk: risks.some(risk => risk.path === issue.topicPath) ? issue.topicPath ?? "" : "",
     about: about(issue), text: issue.text, replies: issue.replies.length,
     created: issue.created ? new Date(issue.created) : undefined, issue,
-  })), [ issues, concerns, risks, about ]);
+  })), [ issues, concerns, risks, about, defaultNature ]);
   // A single click starts changing a cell, as in a spreadsheet, and leaves any other cell being changed
   const [ cellModes, setCellModes ] = useState<GridCellModesModel>({});
   const startEditing = useCallback((params: GridCellParams, event: MouseEvent) => {
@@ -163,7 +177,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   const [ savingCard, setSavingCard ] = useState(false);
   const canChange = (row: IssueRow) => !row.ai && row.id !== DRAFT && !row.issue.sent;
   const changeOnCard = (row: IssueRow) =>
-    setOnCard({ id: row.id, draft: { severity: row.severity, risk: row.risk, text: row.text } });
+    setOnCard({ id: row.id, draft: { severity: row.severity, nature: row.nature, risk: row.risk, text: row.text } });
   // The columns the reviewer chose, in this browser; the thread's toggle is never one, nor, under one risk, the risk
   const [ chosenColumns, chooseColumns ] = useColumnVisibility("review/issues");
   const forced: GridColumnVisibilityModel = { [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false,
@@ -220,13 +234,30 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     {
       field: "severity", headerName: "Severity", width: 130, editable: true, type: "singleSelect",
       // How serious leads the card
-      cardSlot: "title", cardValue: row => <TagChip tags={[ row.severity ]} category="severity" />,
+      cardSlot: "title", cardValue: row => (
+        <Stack direction="row" sx={{ gap: 0.75, flexWrap: "wrap" }}>
+          {severityOf(row) && <TagChip tags={[ severityOf(row) ?? "" ]} category="severity" />}
+          {kindShown(row) && <TagChip tags={[ row.nature ]} category="issue-kind" />}
+        </Stack>
+      ),
       valueOptions: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
       renderEditCell: params => <ChoiceEdit {...params} />,
-      // By how serious, not by name
-      sortComparator: (a: string, b: string) =>
-        SEVERITIES.indexOf(a as typeof SEVERITIES[number]) - SEVERITIES.indexOf(b as typeof SEVERITIES[number]),
-      renderCell: ({ value }) => <TagChip tags={[ String(value) ]} category="severity" />,
+      // By how serious, not by name; what has no severity, as a question or a suggestion, after
+      valueGetter: (_value: string, row: IssueRow) => severityOf(row) ?? "",
+      sortComparator: (a: string, b: string) => rank(a) - rank(b),
+      renderCell: ({ row }) => {
+        const severity = severityOf(row);
+        return severity && <TagChip tags={[ severity ]} category="severity" />;
+      },
+    },
+    {
+      // PRETOTYPE: a question, or a change the study team must make; changed in its cell as the severity is
+      field: "nature", headerName: "Type", width: 160, editable: true, type: "singleSelect",
+      valueOptions: NATURES.map(value => ({ value, label: NATURE_NAMES[value] })),
+      renderEditCell: params => <ChoiceEdit {...params} />,
+      renderCell: ({ row }) => kindShown(row) && <TagChip tags={[ row.nature ]} category="issue-kind" />,
+      // On a card, beside how serious
+      cardSlot: "omit",
     },
     {
       field: "risk", headerName: "Risk", width: 160, editable: true, type: "singleSelect",
@@ -295,11 +326,12 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   ];
 
   // The new issue's row: what it is, about nothing on the page, and its text, with saving and giving up as its actions
-  const [ draft, setDraft ] = useState({ severity: "medium", risk: defaultRisk, text: "" });
+  const [ draft, setDraft ] = useState<Draft>({ severity: "medium", nature: defaultNature, risk: defaultRisk,
+    text: "" });
   const [ saving, setSaving ] = useState(false);
   const known = useRef<Set<string>>(undefined);
   const stopAdding = () => {
-    setDraft({ severity: "medium", risk: defaultRisk, text: "" });
+    setDraft({ severity: "medium", nature: defaultNature, risk: defaultRisk, text: "" });
     onAddingDone?.();
   };
   const save = async () => {
@@ -309,7 +341,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     setSaving(true);
     try {
       known.current = new Set(rows.map(row => row.id));
-      await onAdd(draft.text.trim(), draft.severity, draft.risk);
+      await onAdd(draft.text.trim(), draft.severity, draft.risk, draft.nature);
       stopAdding();
     } finally {
       setSaving(false);
@@ -327,11 +359,13 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
         "nearest");
     }
   }, [ rows ]);
-  const draftRow: IssueRow = { id: DRAFT, ai: false, severity: draft.severity, risk: draft.risk, about: "",
+  const draftRow: IssueRow = { id: DRAFT, ai: false, severity: draft.severity, nature: draft.nature, risk: draft.risk,
+    about: "",
     text: draft.text, replies: 0, created: undefined, issue: DRAFT_NOTE };
   // The new issue's cells read it from one place, since the grid redraws a cell only when its own value changes
   const drafting = { draft, setDraft, save, stop: stopAdding, saving,
     severities: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
+    natures: NATURES.map(value => ({ value, label: NATURE_NAMES[value] })),
     risks: [ { value: "", label: "Other" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ] };
   const draftCell = (field: string) => <DraftCell field={field} />;
   const saveCard = async () => {
@@ -341,9 +375,9 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     }
     setSavingCard(true);
     try {
-      const { text, severity, risk } = onCard.draft;
-      if (text.trim() !== row.text || severity !== row.severity || risk !== row.risk) {
-        await onChange(row.issue, text.trim(), severity, risk);
+      const { text, severity, nature, risk } = onCard.draft;
+      if (text.trim() !== row.text || severity !== row.severity || nature !== row.nature || risk !== row.risk) {
+        await onChange(row.issue, text.trim(), severity, risk, nature);
         changed.current = row.id;
       }
       setOnCard(undefined);
@@ -413,7 +447,9 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
             autoHeight={fitRows} getRowHeight={() => "auto"}
             // The AI's concerns are greyed, and are not changed in place: they become issues first
             // The new issue's row has its own editors, which the grid's must not take over
-            isCellEditable={({ row }: { row: IssueRow }) => canChange(row)}
+            // Only a required change is as serious as its severity
+            isCellEditable={({ row, field }: { row: IssueRow; field: string }) => canChange(row)
+              && (field !== "severity" || row.nature === "required-change")}
             getDetailPanelContent={cards ? undefined : thread} getDetailPanelHeight={() => "auto"}
             detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
             columnVisibilityModel={visibility} onColumnVisibilityModelChange={choose}
@@ -425,8 +461,9 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
               if (!next.text.trim()) {
                 return before;
               }
-              if (next.text !== before.text || next.severity !== before.severity || next.risk !== before.risk) {
-                await onChange(next.issue, next.text.trim(), next.severity, next.risk);
+              if (next.text !== before.text || next.severity !== before.severity || next.nature !== before.nature
+                || next.risk !== before.risk) {
+                await onChange(next.issue, next.text.trim(), next.severity, next.risk, next.nature);
                 // Saved, it may have moved with the sorting: it pulses where it lands
                 changed.current = next.id;
               }
@@ -573,9 +610,10 @@ function DraftSelect({ label, value, options, onChange }: {
 
 // The new issue's text, written in its cell as a changed one is: Enter keeps it, Shift and Enter starts a new line,
 // Escape gives it up
-function DraftText({ value, label = "The new issue", onChange, onSave, onCancel }: {
+function DraftText({ value, label = "The new issue", placeholder, onChange, onSave, onCancel }: {
   value: string;
   label?: string;
+  placeholder: string;
   onChange: (value: string) => void;
   onSave: () => Promise<void>;
   onCancel: () => void;
@@ -586,7 +624,7 @@ function DraftText({ value, label = "The new issue", onChange, onSave, onCancel 
   }, []);
   return (
     <InputBase
-      multiline fullWidth inputRef={input} value={value} placeholder="What the study team needs to address"
+      multiline fullWidth inputRef={input} value={value} placeholder={placeholder}
       onChange={event => onChange(event.target.value)}
       onKeyDown={event => {
         event.stopPropagation();
@@ -605,6 +643,7 @@ function DraftText({ value, label = "The new issue", onChange, onSave, onCancel 
 
 interface Draft {
   severity: string;
+  nature: Nature;
   risk: string;
   text: string;
 }
@@ -616,6 +655,7 @@ const Drafting = createContext<{
   stop: () => void;
   saving: boolean;
   severities: { value: string; label: string }[];
+  natures: { value: string; label: string }[];
   risks: { value: string; label: string }[];
 } | undefined>(undefined);
 
@@ -628,14 +668,18 @@ function DraftCell({ field }: { field: string }) {
   const { draft, setDraft, save, stop, saving } = drafting;
   switch (field) {
     case "severity":
-      return <DraftSelect label="Severity" value={draft.severity} options={drafting.severities}
-        onChange={severity => setDraft({ ...draft, severity })} />;
+      return draft.nature === "required-change" && <DraftSelect label="Severity" value={draft.severity}
+        options={drafting.severities} onChange={severity => setDraft({ ...draft, severity })} />;
+    case "nature":
+      return <DraftSelect label="Type" value={draft.nature} options={drafting.natures}
+        onChange={nature => setDraft({ ...draft, nature: nature as Nature })} />;
     case "risk":
       return <DraftSelect label="Risk" value={draft.risk} options={drafting.risks}
         onChange={risk => setDraft({ ...draft, risk })} />;
     case "text":
       return (
-        <DraftText value={draft.text} onChange={text => setDraft({ ...draft, text })} onSave={save} onCancel={stop} />
+        <DraftText value={draft.text} placeholder={ISSUE_PROMPTS[draft.nature]}
+          onChange={text => setDraft({ ...draft, text })} onSave={save} onCancel={stop} />
       );
     case "created":
       return new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -671,9 +715,15 @@ function CardEditor({ draft, onChange, onSave, onCancel, saving, withRisk, label
   return (
     <Stack spacing={1} sx={{ py: 1, width: "100%" }}>
       <Stack direction="row" sx={{ gap: 1.5 }}>
+        {draft.nature === "required-change" && (
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <DraftSelect label="Severity" value={draft.severity} options={drafting.severities}
+              onChange={severity => onChange({ ...draft, severity })} />
+          </Box>
+        )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <DraftSelect label="Severity" value={draft.severity} options={drafting.severities}
-            onChange={severity => onChange({ ...draft, severity })} />
+          <DraftSelect label="Type" value={draft.nature} options={drafting.natures}
+            onChange={nature => onChange({ ...draft, nature: nature as Nature })} />
         </Box>
         {withRisk && (
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -683,8 +733,8 @@ function CardEditor({ draft, onChange, onSave, onCancel, saving, withRisk, label
         )}
       </Stack>
       <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, px: 1, py: 0.5 }}>
-        <DraftText value={draft.text} label={label} onChange={text => onChange({ ...draft, text })} onSave={onSave}
-          onCancel={onCancel} />
+        <DraftText value={draft.text} label={label} placeholder={ISSUE_PROMPTS[draft.nature]}
+          onChange={text => onChange({ ...draft, text })} onSave={onSave} onCancel={onCancel} />
       </Box>
       <Stack direction="row" sx={{ gap: 1, justifyContent: "flex-end" }}>
         <Button size="small" onClick={onCancel}>Cancel</Button>

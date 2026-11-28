@@ -48,7 +48,7 @@ import Composer, { WRITTEN } from "./Composer";
 import NoteCard, { DraftHeading, NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { GroupChip } from "./people";
 import { groupShortName, isChanged, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData,
-  type ReviewGroup, type ReviewNote } from "./reviewData";
+  type Nature, type ReviewGroup, type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
 
 // How wide the form must be for a question's notes to go beside it, as a document's are beside its pages, rather
@@ -118,11 +118,11 @@ export function noteWrites(note: ReviewNote, actions: ReviewActions) {
     onReply: (text: string) => actions.write({ replyTo: note.id, text }),
     onEditReply: (reply: string, text: string) => actions.write({ edit: reply, text }),
     onRemoveReply: (reply: string) => actions.write({ remove: reply }),
-    onEdit: (text: string, severity?: string, topic?: string) => actions.write({ edit: note.id, text,
-      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} }),
+    onEdit: (text: string, severity?: string, topic?: string, nature?: Nature) => actions.write({ edit: note.id, text,
+      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {}, ...nature ? { nature } : {} }),
     onRemove: () => actions.write({ remove: note.id }),
-    onMakeIssue: (text: string, severity?: string, topic?: string) =>
-      raiseAsIssue(actions.write, note, text, severity, topic),
+    onMakeIssue: (text: string, severity?: string, topic?: string, nature?: Nature) =>
+      raiseAsIssue(actions.write, note, text, severity, topic, nature),
     onDismiss: () => actions.write({ dismiss: note.id }),
     write: actions.write,
     onShowNote: actions.show,
@@ -291,9 +291,9 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               <Composer
                 kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
                 onCancel={() => setWriting(false)}
-                onSave={async (kind, text, severity, topic) => {
+                onSave={async (kind, text, severity, topic, nature) => {
                   await actions.write({ kind, text, subjects: [ answer.uuid ], ...severity ? { severity } : {},
-                    ...topic ? { topic } : {} });
+                    ...topic ? { topic } : {}, ...nature ? { nature } : {} });
                   setWriting(false);
                 }}
               />
@@ -641,9 +641,9 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 <Composer
                   kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
                   onCancel={onDraftDone}
-                  onSave={async (kind, text, severity, topic) => {
+                  onSave={async (kind, text, severity, topic, nature) => {
                     await actions.write({ kind, text, subjects: answer ? [ answer.uuid ] : [],
-                      ...severity ? { severity } : {}, ...topic ? { topic } : {} });
+                      ...severity ? { severity } : {}, ...topic ? { topic } : {}, ...nature ? { nature } : {} });
                     onDraftDone();
                   }}
                 />

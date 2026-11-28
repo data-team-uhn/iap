@@ -80,7 +80,7 @@ export default function AiGrid({ risks, grouped, settled, fitRows = false, about
       ...[ ...risk.aiOpen, ...settled ? risk.aiSettled : [] ].map(note => ({
         id: note.id, path: [ label, note.id ],
         kind: kindOf(note),
-        risk: label, severity: note.severity ?? "medium", about: about(note),
+        risk: label, severity: note.severity ?? (note.nature === "suggestion" ? "" : "medium"), about: about(note),
         finding: note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text, note,
       })),
     ];
@@ -113,12 +113,12 @@ export default function AiGrid({ risks, grouped, settled, fitRows = false, about
       cardSlot: "title",
       cardValue: row => (
         <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
-          {row.severity && <TagChip tags={[ row.severity ]} category="severity" />}
+          <Severity row={row} />
           <Typography variant="caption" sx={{ color: "text.secondary" }}>{KIND_NAMES[row.kind]}</Typography>
         </Stack>
       ),
       sortComparator: (a: string, b: string) => rank(a) - rank(b),
-      renderCell: ({ row }) => (row.severity ? <TagChip tags={[ row.severity ]} category="severity" /> : null),
+      renderCell: ({ row }) => <Severity row={row} />,
     },
     ...grouped ? [] : [ {
       field: "kind", headerName: "Finding", width: 110,
@@ -214,6 +214,14 @@ export default function AiGrid({ risks, grouped, settled, fitRows = false, about
       />
     </Box>
   );
+}
+
+// How serious a finding is, as the AI said, or that it is only a suggestion
+function Severity({ row }: { row: AiRow }) {
+  if (row.severity) {
+    return <TagChip tags={[ row.severity ]} category="severity" />;
+  }
+  return row.note?.nature === "suggestion" ? <TagChip tags={[ "suggestion" ]} category="issue-kind" /> : null;
 }
 
 function rank(severity: string): number {

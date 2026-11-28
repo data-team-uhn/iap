@@ -82,17 +82,20 @@ import { ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentChangeCount from "./DocumentChangeCount";
 import DocumentReview from "./DocumentReview";
+import EmailPreview from "./EmailPreview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
 import { SentLetter } from "./LetterDialog";
 import LetterPage from "./LetterPage";
 import NoteKindIcon, { KindCount } from "./noteIcons";
+import { emailText, issuesEmail } from "./notifyEmail";
 import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter, letterText } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { answersIn, changedAnswers, comparisonFor, groupShortName, isMine, kindInfo, NOTE_KINDS, notesAbout,
-  parseGroups, parseReview, parseTopics, raiseAsIssue, resubmittedAt, sentBackCopy, shortDate, withAnswerChanges,
+  defaultNature, parseGroups, parseReview, parseTopics, raiseAsIssue, resubmittedAt, sentBackCopy, shortDate,
+  withAnswerChanges, withNatures,
   withDone, withSent, keptVersions, asOfVersion,
   type NoteKind, type ReviewData, type ReviewedDocument, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
@@ -479,11 +482,15 @@ export default function ReviewScreen({ path }: { path: string }) {
   const comparing = (document: ReviewedDocument) => viewed ? undefined : comparisonFor(document, kept);
   const sentBackAt = sentBack?.at;
   // What the AI read for each answer is shown as its source or a contradiction, or not at all
+  // PRETOTYPE: the groups consulting for the approving ones, asking questions rather than requiring changes
+  const consultingGroups = useMemo(() => new Set((loaded?.approvals ?? [])
+    .filter(approval => approval.consulting === true).map(approval => text(approval.approverGroup))), [ loaded ]);
   const data: ReviewData | undefined = useMemo(() => loaded && me
-    ? withAnswerChanges({ ...withDone(withSent(withSources(parseReview(loaded.submission, schema, me, topics),
-      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items))))),
+    ? withAnswerChanges({ ...withNatures(withDone(withSent(withSources(
+      parseReview(loaded.submission, schema, me, topics),
+      loaded.form.requirements.filter(isFormRequirement).flatMap(one => questions(one.items))))), consultingGroups),
     before: copy && answersIn(copy, schema), changesShown: showChanges }, sentBackAt)
-    : undefined, [ loaded, schema, me, topics, copy, sentBackAt, showChanges ]);
+    : undefined, [ loaded, schema, me, topics, copy, sentBackAt, showChanges, consultingGroups ]);
   // PRETOTYPE: the questions whose answers changed since the submission was last sent back
   const changed = data ? changedAnswers(data) : new Set<string>();
   // What the pages and their notes show: what is done with only when the reviewer asks
@@ -588,9 +595,16 @@ export default function ReviewScreen({ path }: { path: string }) {
   // The reviewer group the reviewer reviews this submission for
   const myGroup = (loaded?.approvals ?? []).map(approval => text(approval.approverGroup))
     .find(group => myGroups.includes(group));
+  // PRETOTYPE: whether the reviewer's group consults for the approving ones, and so what their new issues are unless
+  // they say otherwise
+  const consulting = consultingGroups.has(myGroup ?? "");
+  // The risks, and the type a new issue has unless the reviewer says otherwise, for the note editors
+  const topicsWritten = useMemo(() => ({ ...reviewerTopics, nature: defaultNature(consulting) }),
+    [ reviewerTopics, consulting ]);
   const actions: ReviewActions = useMemo(() => ({
     write: async fields => {
-      await writeComment(doFetch, path, fields.kind === "issue" && myGroup ? { ...fields, group: myGroup } : fields);
+      await writeComment(doFetch, path, fields.kind === "issue" ? { ...myGroup ? { group: myGroup } : {},
+        nature: defaultNature(consulting), ...fields } : fields);
       // A new note of a kind the reviewer hides shows that kind again, rather than vanishing as it is added
       const written = WRITTEN.find(kind => kind === fields.kind);
       if (written) {
@@ -599,7 +613,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       load();
     },
     show: id => showNote.current?.(id),
-  }), [ doFetch, path, load, myGroup ]);
+  }), [ doFetch, path, load, myGroup, consulting ]);
   // PRETOTYPE: an older version is only read, nothing written in it
   const pageActions = useMemo(() => viewed ? { ...actions, readOnly: true } : actions, [ actions, viewed ]);
   // PRETOTYPE: a form's questions with their answers in the version being read
@@ -975,13 +989,15 @@ export default function ReviewScreen({ path }: { path: string }) {
       openIssue(note);
     },
     consider: (topic, considered) => actions.write(considered ? { consider: topic } : { unconsider: topic }),
-    makeIssue: (note, said, severity, topic) => raiseAsIssue(actions.write, note, said, severity, topic),
+    makeIssue: (note, said, severity, topic, nature) =>
+      raiseAsIssue(actions.write, note, said, severity, topic, nature),
     dismiss: note => actions.write({ dismiss: note.id }),
     undismiss: note => actions.write({ undismiss: note.id }),
-    addIssue: (topic, said, severity) => actions.write({ kind: "issue", text: said, ...severity ? { severity } : {},
-      ...topic ? { topic } : {} }),
-    editIssue: (note, said, severity, topic) => actions.write({ edit: note.id, text: said,
-      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} }),
+    defaultNature: defaultNature(consulting),
+    addIssue: (topic, said, severity, nature) => actions.write({ kind: "issue", text: said,
+      ...severity ? { severity } : {}, ...topic ? { topic } : {}, ...nature ? { nature } : {} }),
+    editIssue: (note, said, severity, topic, nature) => actions.write({ edit: note.id, text: said,
+      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {}, ...nature ? { nature } : {} }),
     removeIssue: note => actions.write({ remove: note.id }),
     reply: (note, said) => actions.write({ replyTo: note.id, text: said }),
     editReply: (reply, said) => actions.write({ edit: reply, text: said }),
@@ -992,8 +1008,11 @@ export default function ReviewScreen({ path }: { path: string }) {
   // A suggestion can go with an approval; anything more serious needs changes first
   // Resolved issues are asked no more: the letter, the escalation and what holds Approve back are the open ones
   const openIssues = myIssues.filter(note => !note.done);
-  const blocking = openIssues.filter(note => note.severity !== "suggestion");
-  const suggestions = openIssues.filter(note => note.severity === "suggestion");
+  // PRETOTYPE: what holds approving back is a change still required; a suggestion goes with the approval; a question
+  // does not hold it back, but one never sent is said
+  const blocking = openIssues.filter(note => note.nature === "required-change");
+  const suggestions = openIssues.filter(note => note.nature === "suggestion");
+  const unsentQuestions = openIssues.filter(note => note.nature === "question" && !note.sent);
   const letterInput = { title: text(submission.title), identifier: text(submission.identifier),
     pi: text(submission.pi), about, issues: openIssues,
     risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
@@ -1012,11 +1031,19 @@ export default function ReviewScreen({ path }: { path: string }) {
   // What the reviewer last decided, said once it is with someone else, or when it comes back after changes
   const decidedOn = data.decided
     && new Date(data.decided.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  // PRETOTYPE: the REB writes a letter asking for changes; the other groups write to the study team with their
+  // questions and changes, in an email from the platform; a group consulting for the approving ones finishes its
+  // review rather than approving
+  const lettered = letterInput.template !== undefined;
+  const wrote = lettered ? "You requested changes" : "You wrote to the study team";
   const decided = !data.decided ? undefined
-    : data.decided.outcome === "approved" ? `You approved this on ${decidedOn}.`
+    : data.decided.outcome === "approved"
+      ? `${consulting ? "You finished your review" : "You approved this"} on ${decidedOn}.`
       : data.decided.outcome === "rejected" ? `You rejected this on ${decidedOn}.`
-        : waiting ? `You requested changes on ${decidedOn}, and the study team has answered.`
-          : `You requested changes on ${decidedOn}. It's with the study team now.`;
+        : waiting ? `${wrote} on ${decidedOn}, and the study team has answered.`
+          : `${wrote} on ${decidedOn}. It's with the study team now.`;
+  const email = issuesEmail({ review: myGroupLabel, identifier: text(submission.identifier),
+    title: text(submission.title), pi: text(submission.pi), issues: openIssues, about });
   const lastLetter = data.letters.at(-1);
   const reviewActions = {
     waiting,
@@ -1026,10 +1053,14 @@ export default function ReviewScreen({ path }: { path: string }) {
     // Asking for changes shows what the study team will read before it is sent: the REB's Letter of Review, or the
     // other groups' issues as a letter of their own
     send: () => setDialog("changes"),
+    sendLabel: lettered ? "Request changes" : "Send to the study team",
+    sendBlocked: openIssues.length === 0 ? "You have no open issues to send" : undefined,
+    approveLabel: consulting ? "Finish my review" : "Approve",
     approve: () => setDialog("approve"),
     approveBlocked: !waiting ? "Your review is not waiting on a decision now"
       : blocking.length > 0
-        ? `Request changes for your ${blocking.length === 1 ? "issue" : `${blocking.length} issues`} first`
+        ? `${lettered ? "Request changes for" : "Send the study team"} your ${blocking.length === 1
+          ? "required change" : `${blocking.length} required changes`} first`
         : undefined,
     board: myGroups.includes("reb-reviewers") ? () => setDialog("board") : undefined,
     // PRETOTYPE: decided on the latest version only
@@ -1233,7 +1264,7 @@ export default function ReviewScreen({ path }: { path: string }) {
 
   const reviewPanel = (
     <GroupLabels.Provider value={groupLabels}>
-      <ReviewerTopics.Provider value={reviewerTopics}>
+      <ReviewerTopics.Provider value={topicsWritten}>
         <ReviewPanel
           risks={risks} unfiled={unfiled} issueCount={myIssues.length} group={myGroupName}
           others={othersRaised} about={about}
@@ -1529,7 +1560,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             room there or under them. A form gets more room around its questions than a document, whose viewer brings
             its own */}
           <GroupLabels.Provider value={groupLabels}>
-            <ReviewerTopics.Provider value={reviewerTopics}>
+            <ReviewerTopics.Provider value={topicsWritten}>
               {/* The page, with tags on its edges folding the panels beside it away, or bringing them back */}
               {/* Not where the review spread over the whole workspace is laid, which covers the contents too */}
               <Box sx={{ position: full ? "static" : "relative", flex: 1, minWidth: 0, width: "100%", display: "flex" }}>
@@ -1655,24 +1686,27 @@ export default function ReviewScreen({ path }: { path: string }) {
                   {dialog === "changes" && (
                     // What is sent, as the study team will read it, before it is
                     <ConfirmActionDialog
-                      title="Request changes?" confirmLabel="Send" workingLabel="Sending…" width="md"
-                      onConfirm={() => sendLetter(letterText(letter))} onClose={() => setDialog(undefined)}
+                      title={lettered ? "Request changes?" : "Send to the study team?"} confirmLabel="Send"
+                      workingLabel="Sending…" width="md" onClose={() => setDialog(undefined)}
+                      onConfirm={() => sendLetter(lettered ? letterText(letter) : emailText(email))}
                     >
                       <DialogContentText sx={{ mb: 2 }}>
-                        {"The study team will get this letter. It pauses the clock until they answer, and your issues "
-                          + "in it can't be changed after, only replied to."}
+                        {`The study team will get this ${lettered ? "letter" : "email"}. It pauses the clock until they `
+                          + "answer, and your issues in it can't be changed after, only replied to."}
                       </DialogContentText>
-                      <LetterPage letter={letter} />
+                      {lettered ? <LetterPage letter={letter} /> : <EmailPreview email={email} />}
                     </ConfirmActionDialog>
                   )}
                   {dialog === "approve" && (
                     <ConfirmActionDialog
-                      title={`Approve ${text(submission.identifier)}?`} confirmLabel="Approve" workingLabel="Approving…"
+                      title={consulting ? `Finish your review of ${text(submission.identifier)}?`
+                        : `Approve ${text(submission.identifier)}?`}
+                      confirmLabel={consulting ? "Finish" : "Approve"} workingLabel={consulting ? "Finishing…" : "Approving…"}
                       onConfirm={() => decide("approved", suggestions.length > 0
                         ? approvalLetter({ ...letterInput, issues: suggestions }) : undefined)}
                       onClose={() => setDialog(undefined)}
                     >
-                      {unconsidered + aiOpen + contradicted === 0 ? (
+                      {unconsidered + aiOpen + contradicted + unsentQuestions.length === 0 ? (
                         <DialogContentText sx={{ mb: 1 }}>
                           Every risk is marked as considered, and nothing the AI raised is still open.
                         </DialogContentText>
@@ -1687,6 +1721,8 @@ export default function ReviewScreen({ path }: { path: string }) {
                               made into issues or dismissed.</li>}
                             {contradicted > 0 && <li>{contradicted === 1 ? "1 AI-found mismatch"
                               : `${contradicted} AI-found mismatches`} between the answers and the protocol.</li>}
+                            {unsentQuestions.length > 0 && <li>{unsentQuestions.length === 1 ? "1 question"
+                              : `${unsentQuestions.length} questions`} you haven&apos;t sent to the study team.</li>}
                           </Box>
                         </>
                       )}
@@ -1696,7 +1732,9 @@ export default function ReviewScreen({ path }: { path: string }) {
                           the study team with the approval.
                         </DialogContentText>
                       )}
-                      <DialogContentText>An approval cannot be taken back.</DialogContentText>
+                      <DialogContentText>
+                        {consulting ? "Finishing your review cannot be taken back." : "An approval cannot be taken back."}
+                      </DialogContentText>
                     </ConfirmActionDialog>
                   )}
                   {dialog === "board" && (

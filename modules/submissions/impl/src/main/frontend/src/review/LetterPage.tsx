@@ -67,7 +67,7 @@ export default function LetterPage({ letter, selected, onSelect }: {
             >
               <Box component="span" sx={{ flexShrink: 0, minWidth: 20 }}>{point.number}.</Box>
               <span>
-                ({point.severity}) {point.about && <i>{point.about}{/[?.!]$/.test(point.about) ? " " : ". "}</i>}
+                ({point.label}) {point.about && <i>{point.about}{/[?.!]$/.test(point.about) ? " " : ". "}</i>}
                 {point.text}
                 {point.quote && (
                   <Box component="span" sx={{ display: "block", mt: 0.5, color: "grey.700" }}>

@@ -29,7 +29,7 @@ import Composer from "./Composer";
 import NoteKindIcon from "./noteIcons";
 import { GroupChip, GroupLabels, PersonName } from "./people";
 import RemoveButton from "./RemoveButton";
-import { kindInfo, type ReviewNote } from "./reviewData";
+import { kindInfo, severityShown, type Nature, type ReviewNote } from "./reviewData";
 
 import type { Message } from "./reviewModel";
 
@@ -138,7 +138,10 @@ function Chips({ note }: { note: ReviewNote }) {
   return (
     <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
       {group && <Field label="Raised by" chip><GroupChip label={group} mine={note.kind === "issue"} /></Field>}
-      {note.severity && <Field label="Severity" chip><TagChip tags={[ note.severity ]} category="severity" /></Field>}
+      {severityShown(note) && (
+        <Field label="Severity" chip><TagChip tags={[ severityShown(note) ?? "" ]} category="severity" /></Field>
+      )}
+      {note.nature && <Field label="Type" chip><TagChip tags={[ note.nature ]} category="issue-kind" /></Field>}
     </Box>
   );
 }
@@ -217,9 +220,9 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   // The extracted answer as the question's options call it
   answerLabel?: string;
   onReply?: (text: string) => Promise<void>;
-  onEdit?: (text: string, severity?: string, topic?: string) => Promise<void>;
+  onEdit?: (text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
   onRemove?: () => Promise<void>;
-  onMakeIssue?: (text: string, severity?: string, topic?: string) => Promise<void>;
+  onMakeIssue?: (text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
   onDismiss?: () => Promise<void>;
   // Changing or removing one of the reader's own replies, by its path
   onEditReply?: (reply: string, text: string) => Promise<void>;
@@ -250,11 +253,11 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   if (isEditing && onEdit) {
     return (
       <Composer
-        kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity}
+        kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity} initialNature={note.nature}
         initialTopic={note.topicPath ?? ""} saveLabel="Save"
         onCancel={() => setEditing(false)}
-        onSave={async (_kind, text, severity, topic) => {
-          await onEdit(text, severity, topic);
+        onSave={async (_kind, text, severity, topic, nature) => {
+          await onEdit(text, severity, topic, nature);
           setEditing(false);
         }}
       />
@@ -274,9 +277,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       <Composer
         kinds={[ "issue" ]} initialText={initialText} about={note.question ? [ note.question ] : []}
         initialSeverity={note.severity} initialTopic={note.topicPath} saveLabel="Add issue"
+        initialNature={note.nature === "suggestion" ? "suggestion" : undefined}
         onCancel={() => setAdopting(false)}
-        onSave={async (_kind, text, severity, topic) => {
-          await onMakeIssue(text, severity, topic);
+        onSave={async (_kind, text, severity, topic, nature) => {
+          await onMakeIssue(text, severity, topic, nature);
           setAdopting(false);
         }}
       />

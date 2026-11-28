@@ -52,7 +52,7 @@ import LetterPage from "./LetterPage";
 import { SentLock, Thread } from "./NoteCard";
 import NoteKindIcon, { KindCount } from "./noteIcons";
 import RemoveButton from "./RemoveButton";
-import { SEVERITIES, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
+import { severityShown, SEVERITIES, type Nature, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
 import { PanelBody } from "./sidePanel";
 
 import type { DraftedLetter } from "./rebLetter";
@@ -90,11 +90,13 @@ export interface OthersRaised {
 export interface ReviewDoing {
   open: (note: ReviewNote) => void;
   consider: (topic: string, considered: boolean) => Promise<void>;
-  makeIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
+  makeIssue: (note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
   dismiss: (note: ReviewNote) => Promise<void>;
   undismiss: (note: ReviewNote) => Promise<void>;
-  addIssue: (topic: string | undefined, text: string, severity?: string) => Promise<void>;
-  editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
+  addIssue: (topic: string | undefined, text: string, severity?: string, nature?: Nature) => Promise<void>;
+  editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature) => Promise<void>;
+  // PRETOTYPE: what the reviewer's new issues are unless they say otherwise, as their group usually asks
+  defaultNature: Nature;
   removeIssue: (note: ReviewNote) => Promise<void>;
   reply: (note: ReviewNote, text: string) => Promise<void>;
   editReply: (reply: string, text: string) => Promise<void>;
@@ -113,6 +115,12 @@ export interface DecisionActions {
   send: () => void;
   approve: () => void;
   approveBlocked?: string;
+  // PRETOTYPE: what asking the study team is called, a request for changes or a message, and deciding, approving or,
+  // for a group consulting for the approving ones, finishing its review
+  sendLabel: string;
+  // Why there is nothing to send, as when every issue is resolved
+  sendBlocked?: string;
+  approveLabel: string;
   board?: () => void;
   // PRETOTYPE: why no decision can be taken from here now, as while reading an older version
   blocked?: string;
@@ -129,8 +137,12 @@ interface ReviewProps {
   doing: ReviewDoing;
 }
 
-const bySeverity = (notes: ReviewNote[]) =>
-  SEVERITIES.flatMap(severity => notes.filter(note => (note.severity ?? "medium") === severity));
+// Most serious first; what has no severity, as a question or a suggestion, after
+const rankOf = (note: ReviewNote) => {
+  const at = SEVERITIES.indexOf(severityShown(note) as typeof SEVERITIES[number]);
+  return at < 0 ? SEVERITIES.length : at;
+};
+const bySeverity = (notes: ReviewNote[]) => notes.toSorted((one, other) => rankOf(one) - rankOf(other));
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -883,9 +895,10 @@ function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false
       about={about} onShow={onShow}
       onRemove={issue => doing.removeIssue(issue)} onReply={(issue, text) => doing.reply(issue, text)}
       onEditReply={(reply, text) => doing.editReply(reply, text)} onRemoveReply={reply => doing.removeReply(reply)}
-      onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
-      adding={adding} defaultRisk={defaultRisk} onAddingDone={() => setAdding(false)}
-      onAdd={(text, severity, topic) => doing.addIssue(topic || undefined, text, severity)}
+      onChange={(issue, text, severity, topic, nature) => doing.editIssue(issue, text, severity, topic, nature)}
+      adding={adding} defaultRisk={defaultRisk} defaultNature={doing.defaultNature}
+      onAddingDone={() => setAdding(false)}
+      onAdd={(text, severity, topic, nature) => doing.addIssue(topic || undefined, text, severity, nature)}
     />
   );
   return (
@@ -1018,7 +1031,8 @@ function Rows({ children }: { children: ReactNode }) {
 function RowHead({ note, about, tools }: { note: ReviewNote; about: (note: ReviewNote) => string; tools?: ReactNode }) {
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 26 }}>
-      {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+      {severityShown(note) && <TagChip tags={[ severityShown(note) ?? "" ]} category="severity" />}
+      {note.nature === "suggestion" && <TagChip tags={[ "suggestion" ]} category="issue-kind" />}
       <Typography variant="caption" sx={{ flex: 1, minWidth: 0, color: "text.secondary", fontStyle: "italic",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {about(note)}
@@ -1050,9 +1064,10 @@ function AiRow({ note, topic, dense, about, doing, onShow }: {
           <Composer
             kinds={[ "issue" ]} initialText={note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text}
             initialSeverity={note.severity} initialTopic={note.topicPath ?? topic} saveLabel="Add issue"
+            initialNature={note.nature === "suggestion" ? "suggestion" : undefined}
             onCancel={() => setAdopting(false)}
-            onSave={async (_kind, text, severity, chosen) => {
-              await doing.makeIssue(note, text, severity, chosen);
+            onSave={async (_kind, text, severity, chosen, nature) => {
+              await doing.makeIssue(note, text, severity, chosen, nature);
               setAdopting(false);
             }}
           />
@@ -1088,11 +1103,11 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
     return (
       <Box sx={{ py: 1 }}>
         <Composer
-          kinds={[ "issue" ]} initialText={issue.text} initialSeverity={issue.severity}
+          kinds={[ "issue" ]} initialText={issue.text} initialSeverity={issue.severity} initialNature={issue.nature}
           initialTopic={issue.topicPath ?? ""} saveLabel="Save"
           onCancel={() => setEditing(false)}
-          onSave={async (_kind, text, severity, topic) => {
-            await doing.editIssue(issue, text, severity, topic);
+          onSave={async (_kind, text, severity, topic, nature) => {
+            await doing.editIssue(issue, text, severity, topic, nature);
             setEditing(false);
           }}
         />
@@ -1156,7 +1171,8 @@ function Settled({ note, dense, doing, onShow }: {
   return (
     <Box sx={{ opacity: 0.75, py: 1 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
-        {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+        {severityShown(note) && <TagChip tags={[ severityShown(note) ?? "" ]} category="severity" />}
+        {note.nature === "suggestion" && <TagChip tags={[ "suggestion" ]} category="issue-kind" />}
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           {dismissed ? "Dismissed" : "Made into an issue"}
         </Typography>
@@ -1257,17 +1273,19 @@ function Decision({ decision, wide = false }: {
       sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: wide ? { sm: "center" } : undefined }}>
       {decision.decided ? <Decided decision={decision} wide={wide} /> : wide && <Box sx={{ flex: 1 }} />}
       {wide && board}
-      {held(
-        <Button variant="outlined" size="small" fullWidth={!wide} startIcon={<ForwardToInboxOutlined />}
-          disabled={Boolean(decision.blocked)} onClick={decision.send}>
-          Request changes
-        </Button>,
-      )}
+      <Tooltip disableInteractive title={decision.blocked ?? decision.sendBlocked ?? ""}>
+        <span>
+          <Button variant="outlined" size="small" fullWidth={!wide} startIcon={<ForwardToInboxOutlined />}
+            disabled={Boolean(decision.blocked ?? decision.sendBlocked)} onClick={decision.send}>
+            {decision.sendLabel}
+          </Button>
+        </span>
+      </Tooltip>
       <Tooltip disableInteractive title={decision.blocked ?? decision.approveBlocked ?? ""}>
         <span>
           <Button variant="contained" size="small" fullWidth={!wide} startIcon={<TaskAltOutlined />}
             disabled={Boolean(decision.blocked ?? decision.approveBlocked)} onClick={decision.approve}>
-            Approve
+            {decision.approveLabel}
           </Button>
         </span>
       </Tooltip>

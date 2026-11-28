@@ -30,6 +30,7 @@ import EditOutlined from "@mui/icons-material/EditOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import FactCheckOutlined from "@mui/icons-material/FactCheckOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
+import HelpOutlineOutlined from "@mui/icons-material/HelpOutlineOutlined";
 import HighlightOffOutlined from "@mui/icons-material/HighlightOffOutlined";
 import HourglassEmptyOutlined from "@mui/icons-material/HourglassEmptyOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
@@ -60,6 +61,7 @@ const TAG_ICONS: Record<string, ReactElement | undefined> = {
   ErrorOutlineOutlined: <ErrorOutlineOutlined />,
   FactCheckOutlined: <FactCheckOutlined />,
   GroupsOutlined: <GroupsOutlined />,
+  HelpOutlineOutlined: <HelpOutlineOutlined />,
   HighlightOffOutlined: <HighlightOffOutlined />,
   HourglassEmptyOutlined: <HourglassEmptyOutlined />,
   InfoOutlined: <InfoOutlined />,

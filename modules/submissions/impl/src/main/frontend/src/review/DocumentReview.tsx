@@ -111,10 +111,11 @@ export default function DocumentReview({ document, data, shown, selected, onSele
           <Composer
             kinds={WRITTEN} initialKind="issue" about={[ data.partOf.get(document.uuid) ?? "" ]}
             onCancel={() => setDraft(undefined)}
-            onSave={async (kind, text, severity, topic) => {
+            onSave={async (kind, text, severity, topic, nature) => {
               await actions.write({ kind, text, subjects: [ document.uuid ], ...draft === "document" ? {} : {
                 source: document.version, quote: draft.quote, prefix: draft.before, suffix: draft.after,
-                page: String(draft.start.page) }, ...severity ? { severity } : {}, ...topic ? { topic } : {} });
+                page: String(draft.start.page) }, ...severity ? { severity } : {}, ...topic ? { topic } : {},
+              ...nature ? { nature } : {} });
               setDraft(undefined);
             }}
           />

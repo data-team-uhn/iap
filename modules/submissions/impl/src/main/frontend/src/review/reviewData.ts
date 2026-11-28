@@ -59,7 +59,20 @@ export function kindInfo(kind: NoteKind): NoteKindInfo {
   return NOTE_KINDS.find(info => info.kind === kind) ?? NOTE_KINDS[0];
 }
 
-export const SEVERITIES = [ "critical", "major", "medium", "minor", "suggestion" ] as const;
+// How serious a required change is
+export const SEVERITIES = [ "critical", "major", "medium", "minor" ] as const;
+
+// PRETOTYPE: what an issue asks of the study team, by its tag: a change they must make, one they may make, or an
+// answer. Only a required change is as serious as its severity
+export const NATURES = [ "required-change", "suggestion", "question" ] as const;
+export type Nature = typeof NATURES[number];
+export const NATURE_NAMES: Record<Nature, string> = { "required-change": "Required change", suggestion: "Suggestion",
+  question: "Question" };
+
+// How serious an issue is, where it says: a required change's, or what the AI said of a concern
+export function severityShown(note: Pick<ReviewNote, "severity" | "nature">): string | undefined {
+  return note.nature === undefined || note.nature === "required-change" ? note.severity : undefined;
+}
 
 export interface Passage {
   // The document revision quoted, by UUID
@@ -82,6 +95,8 @@ export interface ReviewNote {
   passage?: Passage;
   replies: Message[];
   severity?: string;
+  // PRETOTYPE: for an issue, whether it is a question or a required change
+  nature?: Nature;
   // An AI comment the reviewer settled: the issue they made of it, by path, or "dismissed"
   settled?: string;
   // A note raised as an issue: the issues made of it, by path, with who raised each, by principal name, and whether
@@ -232,6 +247,23 @@ function severityOf(node: Node): string | undefined {
   return tags.find(tag => (SEVERITIES as readonly string[]).includes(tag));
 }
 
+function natureOf(node: Node): Nature | undefined {
+  const tags = Array.isArray(node.tags) ? node.tags.map(String) : [];
+  return NATURES.find(nature => tags.includes(nature));
+}
+
+// PRETOTYPE: the nature an issue has when its reviewer did not say: a question for the groups consulting for the
+// approving ones, a required change for those approving
+export function defaultNature(consulting: boolean): Nature {
+  return consulting ? "question" : "required-change";
+}
+
+// PRETOTYPE: every issue with its nature, its group's default where its reviewer did not say
+export function withNatures(data: ReviewData, consultingGroups: Set<string>): ReviewData {
+  return { ...data, notes: data.notes.map(note => (note.kind === "issue" || note.kind === "otherIssue") && !note.nature
+    ? { ...note, nature: defaultNature(consultingGroups.has(note.group ?? "")) } : note) };
+}
+
 // A risk a reviewer group weighs, under the group's approval: the schema parts it draws on, relative to the schema
 export interface Topic {
   path: string;
@@ -257,6 +289,7 @@ function comment(node: Node, kind: NoteKind, me: string, topic?: Node, topics?: 
     passage: passageOf(node),
     replies: replies(node, me),
     severity: severityOf(node),
+    nature: natureOf(node),
     topic: (topic ? text(topic.text) : topics?.get(topicPath)?.label ?? "") || undefined,
     topicPath: topicPath || undefined,
     suggestion: text(node.suggestion) || undefined,
@@ -419,13 +452,15 @@ export function notesAbout(notes: ReviewNote[], uuids: string[]): ReviewNote[] {
 // A short label for reviewer groups on a chip
 // An issue for the study team written from an AI pre-review note: about the same answers and documents, on the
 // same passage, as the reviewer worded it
-export function issueFrom(note: ReviewNote, text: string, severity?: string, topic?: string)
+export function issueFrom(note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature)
   : Record<string, string | string[]> {
   const passage = note.passage;
   return {
     // A note to self gives way to the issue made of it, so the issue does not point back at it
     kind: "issue", text, ...note.kind === "note" ? {} : { from: note.id }, subjects: note.subjects,
     ...severity ? { severity } : {},
+    // The type the reviewer chose; what the AI said is a suggestion stays one unless they chose
+    ...nature ? { nature } : note.kind === "aiIssue" && note.nature === "suggestion" ? { nature: "suggestion" } : {},
     ...topic ? { topic } : {},
     ...passage ? {
       quote: passage.quote,
@@ -445,8 +480,8 @@ export function groupShortName(label: string): string {
 // Makes an issue of a note: of an AI comment, which it settles; of a discussion entry, which stays and says so; or
 // of a note to self, which it replaces
 export async function raiseAsIssue(write: (fields: Record<string, string | string[]>) => Promise<void>,
-  note: ReviewNote, text: string, severity?: string, topic?: string): Promise<void> {
-  await write(issueFrom(note, text, severity, topic));
+  note: ReviewNote, text: string, severity?: string, topic?: string, nature?: Nature): Promise<void> {
+  await write(issueFrom(note, text, severity, topic, nature));
   if (note.kind === "note") {
     await write({ remove: note.id });
   }
