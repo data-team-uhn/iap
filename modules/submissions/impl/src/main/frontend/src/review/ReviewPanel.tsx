@@ -31,6 +31,7 @@ import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ForwardToInboxOutlined from "@mui/icons-material/ForwardToInboxOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import LibraryBooksOutlined from "@mui/icons-material/LibraryBooksOutlined";
 import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
@@ -50,6 +51,7 @@ import AiGrid from "./AiGrid";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import LetterPage from "./LetterPage";
+import LibraryGrid, { libraryRows } from "./LibraryGrid";
 import { SentLock, Thread } from "./NoteCard";
 import NoteKindIcon, { KindCount } from "./noteIcons";
 import PolicyLine from "./PolicyLine";
@@ -201,7 +203,9 @@ export default function ReviewPanel(props: ReviewProps & {
   // The risk opened or, laid out wide, the page chosen, kept from one layout to the other, and from one visit to the
   // next; one no longer there, such as a risk the schema dropped, is forgotten
   const [ stored, setStored ] = useStoredSetting<string | null>(props.storedAs, null, isEntry);
-  const known = [ AI_TAB, ALL_ISSUES, UNFILED, ...letter ? [ LETTER ] : [], ...risks.map(one => one.topic.path) ];
+  const library = hasLibrary(risks);
+  const known = [ AI_TAB, ALL_ISSUES, UNFILED, ...letter ? [ LETTER ] : [], ...library ? [ LIBRARY ] : [],
+    ...risks.map(one => one.topic.path) ];
   const chosen = stored !== null && known.includes(stored) ? stored : undefined;
   const setChosen = (entry: string | undefined) => setStored(entry ?? null);
   // A mark followed opens the risk the review lists it under, or, under none, the issues filed under none or the AI
@@ -210,6 +214,17 @@ export default function ReviewPanel(props: ReviewProps & {
   const entryHolding = (id: string) => risks.find(risk => [ ...risk.aiOpen, ...risk.aiSettled, ...risk.issues,
     ...risk.mismatches.map(one => one.evidence) ].some(note => note.id === id))?.topic.path
     ?? (props.unfiled.some(note => note.id === id) ? UNFILED : AI_TAB);
+  // A note pointed out where the review lists it, once it is there
+  const pulseNote = (id: string) => {
+    const escaped = CSS.escape(id);
+    pulseWhenThere(() => document.querySelector<HTMLElement>(
+      `[data-review-panel] [data-note="${escaped}"], [data-review-panel] [role="row"][data-id="${escaped}"]`), "center");
+  };
+  // PRETOTYPE: from the issue library to what raised one of its questions, the AI's finding or the reviewer's issue
+  const openNote = (id: string) => {
+    setChosen(entryHolding(id));
+    pulseNote(id);
+  };
   const [ revealed, setRevealed ] = useState(reveal);
   // With the letter open, a mark followed is pointed out in the letter and beside it instead
   const [ letterPick, setLetterPick ] = useState<{ id: string; at: number }>();
@@ -268,7 +283,7 @@ export default function ReviewPanel(props: ReviewProps & {
         </Tooltip>
       </Stack>}
       {wide ? <WideReview {...props} chosen={chosen} onChosen={setChosen} row={!compact} roomy={full}
-        onShow={show} letterPick={letterPick} /> : (
+        onShow={show} letterPick={letterPick} onOpenNote={openNote} /> : (
       // An open entry's name stays at the top, which the fade would hide
         <PanelBody fadeTop={chosen === undefined}>
           {/* The entries the whole review lists, unfolding in place */}
@@ -295,6 +310,17 @@ export default function ReviewPanel(props: ReviewProps & {
               <Box sx={{ px: 1.5, pb: 1.5 }}><AllIssues {...props} fitRows onShow={show} /></Box>
             )}
           </Box>
+          {library && (
+            <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === LIBRARY) }}>
+              <PanelEntry open={chosen === LIBRARY} onClick={() => setChosen(chosen === LIBRARY ? undefined : LIBRARY)}
+                icon={<LibraryBooksOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />}>
+                <LibraryName {...props} />
+              </PanelEntry>
+              {chosen === LIBRARY && (
+                <Box sx={{ px: 1.5, pb: 1.5 }}><IssueLibrary {...props} fitRows onOpenNote={openNote} /></Box>
+              )}
+            </Box>
+          )}
           {letter && (
             <Box sx={{ borderTop: 1, borderColor: "divider", ...openSx(chosen === LETTER) }}>
               <PanelEntry open={chosen === LETTER} onClick={() => setChosen(chosen === LETTER ? undefined : LETTER)}
@@ -534,6 +560,7 @@ function WideReview(props: ReviewProps & {
   onListFolded: (folded: boolean) => void;
   onFull: (full: boolean) => void;
   onCheckLetter?: () => void;
+  onOpenNote: (id: string) => void;
 }) {
   const { risks, doing, row, onShow, letter } = props;
   // PRETOTYPE: laid out side by side, the contents can be folded away, to give its page the room, as for the letter
@@ -587,6 +614,11 @@ function WideReview(props: ReviewProps & {
       <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
         Your issues ({props.issueCount})
       </Typography>
+    </>
+  ) : chosen === LIBRARY ? (
+    <>
+      <LibraryBooksOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />
+      <LibraryName {...props} />
     </>
   ) : (
     <>
@@ -657,6 +689,12 @@ function WideReview(props: ReviewProps & {
                 Your issues ({props.issueCount})
               </Typography>
             </ButtonBase>
+            {hasLibrary(risks) && (
+              <ButtonBase ref={chosenRef(LIBRARY)} onClick={() => setChosen(LIBRARY)} sx={entrySx(LIBRARY)}>
+                <LibraryBooksOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />
+                <LibraryName {...props} />
+              </ButtonBase>
+            )}
             {letter && (
               <ButtonBase ref={chosenRef(LETTER)} onClick={() => setChosen(LETTER)} sx={entrySx(LETTER)}>
                 <ForwardToInboxOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />
@@ -713,6 +751,13 @@ function WideReview(props: ReviewProps & {
             <Typography variant="h6" component="h3" sx={{ flex: 1, color: "issue.main" }}>Your issues</Typography>
           </>} />
         )}
+        {chosen === LIBRARY && (
+          <IssueLibrary {...props} trailing={trail} onOpenNote={props.onOpenNote} heading={<>
+            {crumb}
+            <LibraryBooksOutlined sx={{ color: "primary.main" }} />
+            <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Issue library</Typography>
+          </>} />
+        )}
         {chosen === LETTER && letter && (
           <LetterView {...props} letter={letter} onShow={onShow} pick={props.letterPick} lead={crumb} trail={trail}
             onCheckLetter={folded && !props.roomy ? undefined : props.onCheckLetter} />
@@ -735,9 +780,54 @@ function WideReview(props: ReviewProps & {
 
 const UNFILED = "unfiled";
 const LETTER = "letter";
+const isFlag = (value: unknown): value is boolean => typeof value === "boolean";
 const isEntry = (value: unknown): value is string | null => typeof value === "string" || value === null;
 const ALL_ISSUES = "all";
 const AI_TAB = "ai";
+const LIBRARY = "library";
+
+// PRETOTYPE: whether the reviewer's risks have standard questions, as only the REB's do so far
+const hasLibrary = (risks: RiskReview[]) => risks.some(one => (one.topic.standards?.length ?? 0) > 0);
+
+// The issue library's entry, counting the standard questions nobody has raised yet
+function LibraryName({ risks, unfiled }: ReviewProps) {
+  const open = libraryRows(risks, [ ...risks.flatMap(one => one.issues), ...unfiled ])
+    .filter(row => row.status === "open").length;
+  return (
+    <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
+      Issue library ({open})
+    </Typography>
+  );
+}
+
+// PRETOTYPE: the REB's issue library, every standard question of the reviewer's risks, those nobody has raised first
+function IssueLibrary({ risks, unfiled, doing, heading, trailing, onOpenNote, fitRows = false }: ReviewProps & {
+  // Where what raised a question is listed in the review
+  onOpenNote: (id: string) => void;
+  heading?: ReactNode;
+  trailing?: ReactNode;
+  fitRows?: boolean;
+}) {
+  const [ withRaised, setWithRaised ] = useStoredSetting("iap.review.libraryShowRaised", false, isFlag);
+  const rows = libraryRows(risks, [ ...risks.flatMap(one => one.issues), ...unfiled ]);
+  const grid = (
+    <LibraryGrid rows={withRaised ? rows : rows.filter(row => row.status === "open")} fitRows={fitRows} doing={doing}
+      onOpen={onOpenNote} />
+  );
+  return (
+    <Stack spacing={fitRows ? 1 : 2} sx={fitRows ? undefined : { height: "100%", minHeight: 360 }}>
+      <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, flexWrap: "wrap" }}>
+        {heading}
+        <FormControlLabel label="Show raised"
+          control={<Switch size={fitRows ? "small" : "medium"} checked={withRaised}
+            onChange={event => setWithRaised(event.target.checked)} />} />
+        {trailing}
+      </Stack>
+      {fitRows ? grid : <Box sx={{ flex: 1, minHeight: 0 }}>{grid}</Box>}
+    </Stack>
+  );
+}
+
 // Before the risks, what they are, how many are ticked off as considered, and what ticking one off means
 function RisksLabel({ risks, group, lettered = false, dense = false }: {
   risks: RiskReview[];
