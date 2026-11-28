@@ -179,6 +179,9 @@ function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => v
 const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind).filter(kind => kind !== "otherIssue");
 // The kinds always shown, which the reviewer cannot turn off: none, every kind toggled as the reviewer chooses
 const ALWAYS: NoteKind[] = [];
+// PRETOTYPE: what the page marks while the review is open: what the review lists, the AI's concerns, the answers the
+// protocol contradicts, and the reviewer's own issues
+const REVIEW_MARKS = new Set<NoteKind>([ "aiIssue", "contradiction", "issue" ]);
 
 // What the filters' counts take in, not only the part being read, as their numbers alone may suggest
 const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
@@ -311,6 +314,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ loaded, setLoaded ] = useState<Loaded>();
   const [ error, setError ] = useState<string>();
   const [ selected, setSelected ] = useState<string>();
+  // PRETOTYPE: a mark followed while the review is open, for the review to show where it lists it
+  const [ revealed, setRevealed ] = useState<{ id: string; at: number }>();
   const [ shown, setShown ] = useState(storedKinds);
   // Whether notes dismissed, resolved or addressed by an issue are shown, faded, rather than left out
   const [ showDone, setShowDone ] = useStoredSetting("iap.review.showDone", false, isFlag);
@@ -978,6 +983,19 @@ export default function ReviewScreen({ path }: { path: string }) {
     considered: data.considered.has(topic.path),
   }));
   const unfiled = myIssues.filter(note => !reviewerTopics.mine.some(topic => topic.path === note.topicPath));
+  // PRETOTYPE: while the review is open, the page marks only what it lists, and a mark followed leads there
+  const reviewing = sideTab === "review";
+  const inReview = new Set([ ...risks.flatMap(risk => [ ...risk.aiOpen, ...risk.issues,
+    ...risk.mismatches.map(one => one.evidence) ]), ...unfiled ].map(note => note.id));
+  const shownData = viewData ?? data;
+  const pageData = reviewing ? { ...shownData, notes: shownData.notes.filter(note => inReview.has(note.id)) }
+    : shownData;
+  const pageShown = reviewing ? REVIEW_MARKS : showing;
+  const follow = (id: string | undefined) => {
+    if (reviewing && id) {
+      setRevealed({ id, at: Date.now() });
+    }
+  };
   const wholeKinds = ([ "discussion", "note" ] as const).filter(kind => shown.has(kind));
   // What other reviewers raised, by group, and how much of it on what this reviewer also reviews
   const othersRaised: OthersRaised[] = [ ...Map.groupBy(data.notes.filter(note => note.kind === "otherIssue"),
@@ -1148,9 +1166,12 @@ export default function ReviewScreen({ path }: { path: string }) {
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <SearchContext.Provider value={searchContext}>
               <FormReview
-                items={answered(requirement.items)} data={viewData ?? data} groups={focused ? othersGroups : groups}
-                myGroups={myGroups} shown={showing} onEvidence={openEvidence} actions={pageActions}
-                selected={paneMark.id} onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))}
+                items={answered(requirement.items)} data={pageData} groups={focused ? othersGroups : groups}
+                myGroups={myGroups} shown={pageShown} onEvidence={openEvidence} actions={pageActions}
+                selected={paneMark.id} onSelect={id => {
+                  setPaneMark(currentMark => ({ ...currentMark, id }));
+                  follow(id);
+                }}
                 heading={heading} notesSlot={isActive ? notesSlot : null} formLabel={requirement.label}
               />
             </SearchContext.Provider>
@@ -1160,11 +1181,14 @@ export default function ReviewScreen({ path }: { path: string }) {
           <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <DocumentReview
               key={requirement.name}
-              document={document} data={viewData ?? data} shown={showing} selected={paneMark.id}
+              document={document} data={pageData} shown={pageShown} selected={paneMark.id}
               compareWith={comparing(document)} hideChanges={!showChanges}
               onHideChanges={hidden => setShowChanges(!hidden)}
               onChangeCount={count => countChanges(document.uuid, count)}
-              onSelect={id => setPaneMark(currentMark => ({ ...currentMark, id }))} page={paneMark.page}
+              onSelect={id => {
+                setPaneMark(currentMark => ({ ...currentMark, id }));
+                follow(id);
+              }} page={paneMark.page}
               actions={pageActions} questionLabel={questionLabel}
               search={isActive ? { query: terms, ...documentStep } : QUIET_SEARCH}
               onSearch={isActive ? setDocumentFound : ignore}
@@ -1273,7 +1297,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       <ReviewerTopics.Provider value={topicsWritten}>
         <ReviewPanel
           risks={risks} unfiled={unfiled} issueCount={myIssues.length} group={myGroupName}
-          others={othersRaised} about={about}
+          others={othersRaised} about={about} reveal={revealed}
           doing={{ ...doing, decision: reviewActions }}
           full={reviewFull} onFull={spreadReview} headed={reviewFull || narrow}
           letter={letterInput.template ? { draft: letter, send: () => setDialog("changes"),

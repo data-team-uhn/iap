@@ -51,6 +51,7 @@ import IssuesGrid from "./IssuesGrid";
 import LetterPage from "./LetterPage";
 import { SentLock, Thread } from "./NoteCard";
 import NoteKindIcon, { KindCount } from "./noteIcons";
+import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
 import { severityShown, SEVERITIES, type Nature, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
 import { PanelBody } from "./sidePanel";
@@ -177,10 +178,31 @@ export default function ReviewPanel(props: ReviewProps & {
   // PRETOTYPE: the REB's Letter of Review, drawn from the reviewer's issues, an entry of the review of its own; none
   // for the groups that send their issues without one
   letter?: LetterWriting;
+  // PRETOTYPE: what a mark on the page led to, by note path, to open where the review lists it and point it out
+  reveal?: { id: string; at: number };
 }) {
-  const { risks, doing, full, onFull, letter } = props;
+  const { risks, doing, full, onFull, letter, reveal } = props;
   // The risk opened or, laid out wide, the page chosen, kept from one layout to the other
   const [ chosen, setChosen ] = useState<string>();
+  // A mark followed opens the risk the review lists it under, or, under none, the issues filed under none or the AI
+  // pre-review; set as the mark is followed, as React adjusts state to a prop
+  const [ revealed, setRevealed ] = useState(reveal);
+  if (reveal !== revealed) {
+    setRevealed(reveal);
+    if (reveal) {
+      const holds = (risk: RiskReview) => [ ...risk.aiOpen, ...risk.issues,
+        ...risk.mismatches.map(one => one.evidence) ].some(note => note.id === reveal.id);
+      setChosen(risks.find(holds)?.topic.path
+        ?? (props.unfiled.some(note => note.id === reveal.id) ? UNFILED : AI_TAB));
+    }
+  }
+  useEffect(() => {
+    if (reveal) {
+      const id = CSS.escape(reveal.id);
+      pulseWhenThere(() => document.querySelector<HTMLElement>(
+        `[data-review-panel] [data-note="${id}"], [data-review-panel] [role="row"][data-id="${id}"]`), "center");
+    }
+  }, [ reveal ]);
   const [ root, setRoot ] = useState<HTMLDivElement | null>(null);
   const compact = useNarrowerThan(root, WIDE);
   const wide = full || !compact;
@@ -196,7 +218,7 @@ export default function ReviewPanel(props: ReviewProps & {
   };
 
   return (
-    <Box ref={setRoot} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <Box ref={setRoot} data-review-panel sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       {(props.headed ?? true) && <Stack direction="row" sx={{ alignItems: "center", gap: 2, pl: 1.5, pr: 0.5, py: 1,
         ...wide ? { borderBottom: 1, borderColor: "divider" } : {} }}>
         {/* Over the workspace, where the tabs naming it are hidden */}
@@ -813,7 +835,8 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
       {risk.mismatches.length > 0 && (
         <Section title="AI-found mismatches with the protocol" dense={dense}>
           {risk.mismatches.map(mismatch => (
-            <Stack key={mismatch.evidence.id} direction="row" sx={{ gap: 0.75, alignItems: "flex-start" }}>
+            <Stack key={mismatch.evidence.id} data-note={mismatch.evidence.id} direction="row"
+              sx={{ gap: 0.75, alignItems: "flex-start" }}>
               <NoteKindIcon kind="contradiction" sx={{ fontSize: "1rem", color: "warning.main", mt: 0.25 }} />
               <Typography variant={dense ? "caption" : "body2"}>
                 {mismatch.question} The form says {mismatch.answer}; the protocol says {mismatch.protocol}.{" "}
@@ -1057,7 +1080,7 @@ function AiRow({ note, topic, dense, about, doing, onShow }: {
 }) {
   const [ adopting, setAdopting ] = useState(false);
   return (
-    <Box sx={{ py: 1 }}>
+    <Box data-note={note.id} sx={{ py: 1 }}>
       <RowHead note={note} about={about} />
       {adopting ? (
         <Box sx={{ mt: 0.5 }}>
