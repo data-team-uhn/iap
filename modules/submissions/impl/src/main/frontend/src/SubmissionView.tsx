@@ -49,6 +49,7 @@ import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
 import ApprovalState from "./ApprovalState";
+import ReadingBanner from "./ReadingBanner";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type DocumentRequirement,
@@ -58,7 +59,8 @@ import {
   isApprovalRequirement,
   isBeingRead,
   isDocumentRequirement,
-  toFileUrl
+  toFileUrl,
+  toTitle,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
@@ -179,7 +181,7 @@ function asForm(node: Record<string, unknown>): SubmissionForm {
 function RequirementHeading({ requirement }: { requirement: Requirement }) {
   return (
     <>
-      <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+      <Typography variant="subtitle1">{toTitle(requirement.label || requirement.name)}</Typography>
       {requirement.description
         ? <Typography variant="description">{requirement.description}</Typography>
         : null}
@@ -332,6 +334,7 @@ const INCOMPLETE_REASON = "Answer everything this request asks for first.";
 
 const READING_REASON = "Wait until the document has been read.";
 
+
 // How often to fetch the submission again while a document is being read, to see when the reading ends
 const READING_RECHECK_MILLISECONDS = 3000;
 
@@ -341,6 +344,11 @@ function isReading(submission: SerializedNode | undefined): boolean {
 }
 
 // Why the submission is not ready for its next step, or nothing when it is
+// Whether a reading of the documents was ever asked for, so there is something to say about it
+function isReadingAsked(submission: SerializedNode | undefined): boolean {
+  return typeof submission?.extractionStatus === "string";
+}
+
 function whyNotReady(submission: SerializedNode | undefined): string | undefined {
   if (isReading(submission)) {
     return READING_REASON;
@@ -542,6 +550,7 @@ function SubmissionView() {
     return (
       <Stack spacing={2}>
         {header}
+        {isReadingAsked(submission) && <ReadingBanner path={path} reloads={reloads} onChanged={readAgain} />}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
         <SubmissionEditor key={path} path={path} queueSave={queue} reading={reading} onChanged={readAgain} />
@@ -574,6 +583,7 @@ function SubmissionView() {
   return (
     <Stack spacing={2}>
       {header}
+      {isReadingAsked(submission) && <ReadingBanner path={path} reloads={reloads} onChanged={readAgain} />}
       <Box>
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>

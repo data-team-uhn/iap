@@ -850,6 +850,16 @@ describe("SubmissionView", () => {
       expect(screen.getByRole("button", { name: "Stop reading" })).toBeEnabled();
     });
 
+    it("says where reading the document got to, in both modes", async () => {
+      const read = { ...DEEP_SUBMISSION, extractionStatus: "done" };
+      const form = { ...ONE_QUESTION, readsDocuments: true, extraction: { status: "done" as const } };
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => read, form }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText(/Answers were read from your document/)).toBeInTheDocument();
+    });
+
     // The reading adds suggestions to the questions, so an answer saved meanwhile could clash with it
     it("hides the questions until the document has been read, then shows what it filled in", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });

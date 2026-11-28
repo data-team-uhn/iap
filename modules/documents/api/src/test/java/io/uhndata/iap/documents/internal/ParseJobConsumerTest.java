@@ -121,7 +121,7 @@ class ParseJobConsumerTest
         assertNull(properties.get(ParseJob.PN_FINISHED, Calendar.class));
         // No callback parameter: the daemon knows on its own where to POST the outcome
         assertEquals(DaemonConnection.DEFAULT_URL + "/parse?path=%2Fshared-docs%2Fproposal.pdf"
-            + "&job_id=" + JOB_ID,
+            + "&job_id=" + JOB_ID + "&max_bytes=1000&max_pages=20&max_expanded_bytes=3000",
             this.sentRequest.uri().toString());
         assertEquals(Duration.ofSeconds(DaemonConnection.DEFAULT_RESPONSE_TIMEOUT_SECONDS),
             this.sentRequest.timeout().orElseThrow());
@@ -598,6 +598,9 @@ class ParseJobConsumerTest
     {
         TestJobs.inject(target, "resolverFactory", factory);
         TestJobs.inject(target, "outcomes", this.dispatcher);
+        final ConfiguredDocumentLimits limits = new ConfiguredDocumentLimits();
+        limits.activate(ConfiguredDocumentLimitsTest.mockConfiguration(1000, 20, 3000));
+        TestJobs.inject(target, "limits", limits);
     }
 
     @Test

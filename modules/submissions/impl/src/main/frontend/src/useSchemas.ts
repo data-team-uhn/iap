@@ -22,7 +22,9 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
-import { type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
+import {
+  CATEGORIES_URL, type SchemaChoice, SCHEMAS_URL, submissionChoices,
+} from "./schemaModel";
 
 export interface SchemasOnOffer {
   /** What may be picked; empty until the read has settled, and when it failed. */
@@ -35,7 +37,8 @@ export interface SchemasOnOffer {
 
 /**
  * The schemas open for submissions, read once when the caller mounts. A schema retired after the read
- * is refused by the server when the submission is raised.
+ * is refused by the server when the submission is raised. The top categories are offered first, then the
+ * open schemas no category offers. When the categories cannot be read, the open schemas are offered as they are.
  *
  * @returns what may be picked, and how the read went
  */
@@ -47,21 +50,21 @@ export function useSchemas(): SchemasOnOffer {
 
   useEffect(() => {
     let cancelled = false;
-    doFetch(SCHEMAS_URL)
-      .then(response => {
-        if (!response.ok) {
-          throw new RequestError(response.status);
+    const readTree = (url: string) => doFetch(url).then(response => {
+      if (!response.ok) {
+        throw new RequestError(response.status);
+      }
+      return readJson<unknown>(response).then(body => {
+        if (typeof body !== "object" || body === null) {
+          throw new SyntaxError(`${url} is not a node`);
         }
-        return readJson<unknown>(response).then(body => {
-          if (typeof body !== "object" || body === null) {
-            throw new SyntaxError("The list of schemas is not a node");
-          }
-          return body as SerializedNode;
-        });
-      })
-      .then(tree => {
+        return body as SerializedNode;
+      });
+    });
+    Promise.all([ readTree(SCHEMAS_URL), readTree(CATEGORIES_URL).catch(() => ({})) ])
+      .then(([ schemas, categories ]) => {
         if (!cancelled) {
-          setChoices(schemaChoices(tree));
+          setChoices(submissionChoices(categories, schemas));
         }
       })
       .catch((failure: unknown) => {

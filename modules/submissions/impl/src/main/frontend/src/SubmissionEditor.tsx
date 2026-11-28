@@ -26,6 +26,8 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 
+import { areDocumentsSent, getStartingStep, getStep } from "./intake";
+import IntakeSteps from "./IntakeSteps";
 import {
   getRequirementComponent,
   type FieldState,
@@ -36,8 +38,11 @@ import {
   type FormQuestion,
   type SubmissionForm,
   fetchForm,
+  isDocumentRequirement,
   isFormRequirement,
+  reviewExtraction,
   saveAnswer,
+  toTitle,
 } from "./submissionForm";
 
 registerBuiltinRequirementComponents();
@@ -87,6 +92,8 @@ function SubmissionEditor({ path, queueSave, reading = false, onChanged }: {
 }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
+  // The step the submitter moved to, absent until they move: the form then says where to start
+  const [ step, setStep ] = useState<number>();
   // The save state of each field, by question path; absent until the field is first saved
   const [ states, setStates ] = useState<Record<string, FieldState | undefined>>({});
   // The token of the newest read of the form. Answers finished in quick succession each read the form
@@ -132,6 +139,19 @@ function SubmissionEditor({ path, queueSave, reading = false, onChanged }: {
       .catch((e: unknown) => setError(messageOf(e)));
   }, [ doFetch, path, reload, queueSave, onChanged ]);
 
+  // A note about the quotes changes no answer, so only the form is read again to show it
+  const rejectEvidence = useCallback((question: FormQuestion, rejected: boolean) => {
+    const token = latestFormRead.current + 1;
+    latestFormRead.current = token;
+    queueSave(() => reviewExtraction(doFetch, path, question.path, rejected))
+      .then(
+        () => reload(token),
+        (e: unknown) => setStates(current => (
+          { ...current, [question.path]: { state: "failed", error: messageOf(e) } })),
+      )
+      .catch((e: unknown) => setError(messageOf(e)));
+  }, [ doFetch, path, reload, queueSave ]);
+
   // Reads the form again after a requirement's component changed the submission, such as by
   // attaching a file
   const changed = useCallback(() => {
@@ -159,6 +179,37 @@ function SubmissionEditor({ path, queueSave, reading = false, onChanged }: {
     return <CircularProgress aria-label="Loading the request" />;
   }
 
+  // A request whose documents a model reads is filled in by steps, while it can still be changed
+  const inSteps = form.readsDocuments === true && form.editable;
+  const shownStep = step ?? getStartingStep(form);
+  const panels = form.requirements
+    .filter(requirement => !inSteps || getStep(requirement) === shownStep)
+    .map(requirement => (
+      <Panel
+        key={requirement.name}
+        title={toTitle(requirement.label || requirement.name)}
+        subtitle={isFormRequirement(requirement) && requirement.extracted
+          ? [ requirement.description, "Filled in from your uploaded document. Check each answer." ]
+            .filter(Boolean).join(" ")
+          : requirement.description}
+      >
+        <ErrorBoundary fallback={CANNOT_COMPLETE_HERE}>
+          <RequirementBody
+            path={path}
+            requirement={requirement}
+            disabled={!form.editable || reading
+              || (inSteps && isDocumentRequirement(requirement) && areDocumentsSent(form))}
+            reading={reading}
+            states={states}
+            onAnswered={answered}
+            onRejectEvidence={rejectEvidence}
+            queueSave={queueSave}
+            onChanged={changed}
+          />
+        </ErrorBoundary>
+      </Panel>
+    ));
+
   return (
     <Stack spacing={2}>
       <Typography variant="h5">{form.title}</Typography>
@@ -167,22 +218,13 @@ function SubmissionEditor({ path, queueSave, reading = false, onChanged }: {
           This request can no longer be changed. It is shown as it was submitted.
         </Alert>
       ) }
-      { form.requirements.map(requirement => (
-        <Panel key={requirement.name} title={requirement.label || requirement.name} subtitle={requirement.description}>
-          <ErrorBoundary fallback={CANNOT_COMPLETE_HERE}>
-            <RequirementBody
-              path={path}
-              requirement={requirement}
-              disabled={!form.editable || reading}
-              reading={reading}
-              states={states}
-              onAnswered={answered}
-              queueSave={queueSave}
-              onChanged={changed}
-            />
-          </ErrorBoundary>
-        </Panel>
-      )) }
+      { inSteps
+        ? (
+          <IntakeSteps path={path} form={form} step={shownStep} reading={reading} onStep={setStep} onChanged={changed}>
+            {panels}
+          </IntakeSteps>
+        )
+        : panels }
       { form.requirements.length === 0 && (
         <Typography variant="placeholder">This request asks nothing yet.</Typography>
       ) }

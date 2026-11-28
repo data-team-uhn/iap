@@ -57,6 +57,18 @@ interface IapShellConfig {
   frameBottom: Partial<BarConfig>;
 }
 
+declare module "@mui/material/Button" {
+  interface ButtonPropsColorOverrides {
+    assistant: true;
+  }
+}
+
+declare module "@mui/material/IconButton" {
+  interface IconButtonPropsColorOverrides {
+    assistant: true;
+  }
+}
+
 declare module "@mui/material/styles" {
   interface Theme {
     iapShell?: Partial<IapShellConfig>;
