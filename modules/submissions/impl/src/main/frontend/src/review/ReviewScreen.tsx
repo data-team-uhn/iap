@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
@@ -186,16 +186,11 @@ const NOTES_TAB = new Set<NoteKind>([ "evidence", "otherIssue", "discussion", "n
 
 // What the filters' counts take in, not only the part being read, as their numbers alone may suggest
 const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
-// The filters, by what they show: what the AI found, the issues that go to the study team, and the comments that
-// stay among reviewers or with the reader. Each group named once, so its kinds can go by shorter names; the tooltip
-// gives each kind's full one
-const FILTER_GROUPS: { label: string; kinds: NoteKind[] }[] = [
-  { label: "AI findings", kinds: [ "evidence" ] },
-  { label: "Issues", kinds: [ "otherIssue" ] },
-  { label: "Comments", kinds: [ "discussion", "note" ] },
-];
-const SHORT_LABELS: Partial<Record<NoteKind, string>> = { evidence: "Linked answers", contradiction: "Mismatches",
-  aiIssue: "Pre-review", issue: "Yours", otherIssue: "Others'", discussion: "Discussion" };
+// The filters, in one row, by how often they are wanted, other groups' issues last as they start hidden; each named so it
+// stands alone, the AI's saying so in words as everything of its making must, the tooltip giving each kind's full name
+const FILTERS: NoteKind[] = [ "evidence", "discussion", "note", "otherIssue" ];
+const SHORT_LABELS: Partial<Record<NoteKind, string>> = { evidence: "AI linked answers", discussion: "Discussion",
+  otherIssue: "Others' issues" };
 
 // Which of two parts shown one above the other
 type Pane = "top" | "bottom";
@@ -1279,30 +1274,22 @@ export default function ReviewScreen({ path }: { path: string }) {
       : { bgcolor: on ? "action.focus" : "action.hover" },
     "&.Mui-focusVisible": { outline: 2, outlineColor: "primary.main" } });
   const noteFilters = (
-    <Box role="group" aria-label="Which notes to show, in the whole submission"
-      sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: 1, rowGap: 0.75,
-        alignItems: "baseline", flexShrink: 0,
+    <Stack direction="row" role="group" aria-label="Which notes to show, in the whole submission"
+      sx={{ flexWrap: "wrap", gap: 0.5, flexShrink: 0,
         ...narrow ? {} : { px: 1.5, pt: 1.25, pb: 1, borderBottom: 1, borderColor: "divider" } }}>
-      {FILTER_GROUPS.map(group => (
-        <Fragment key={group.label}>
-          <Typography variant="caption" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>{group.label}</Typography>
-          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.5 }}>
-            {group.kinds.filter(kind => !ALWAYS.includes(kind)).map(kind => {
-              const info = kindInfo(kind);
-              const on = shown.has(kind);
-              return (
-                <Tooltip key={kind} describeChild disableInteractive title={`${info.label}. ${COUNTED_ACROSS}`}>
-                  <ButtonBase aria-pressed={on} onClick={() => toggleKind(kind)} sx={toggleSx(on, info.mark)}>
-                    <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
-                    {SHORT_LABELS[kind] ?? info.label} ({kindCount(kind)})
-                  </ButtonBase>
-                </Tooltip>
-              );
-            })}
-          </Stack>
-        </Fragment>
-      ))}
-    </Box>
+      {FILTERS.filter(kind => !ALWAYS.includes(kind)).map(kind => {
+        const info = kindInfo(kind);
+        const on = shown.has(kind);
+        return (
+          <Tooltip key={kind} describeChild disableInteractive title={`${info.label}. ${COUNTED_ACROSS}`}>
+            <ButtonBase aria-pressed={on} onClick={() => toggleKind(kind)} sx={toggleSx(on, info.mark)}>
+              <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem", ...on ? {} : { opacity: 0.6 } }} />
+              {SHORT_LABELS[kind] ?? info.label} ({kindCount(kind)})
+            </ButtonBase>
+          </Tooltip>
+        );
+      })}
+    </Stack>
   );
   // The notes done with on the part worked in, hidden unless the reviewer asks: said at the foot of its notes, where
   // they would be, and shown or hidden from there
