@@ -830,6 +830,12 @@ export default function ReviewScreen({ path }: { path: string }) {
 
   // PRETOTYPE: on a submission answered since it was sent back, which version is read, by the day it came back
   const backAt = loaded && sentBack ? resubmittedAt(loaded.submission) : undefined;
+  // PRETOTYPE: a newer version that came in after another group sent the submission back, while the reviewer's own
+  // review started on the earlier one
+  const lastKept = versions.at(-1);
+  const newerSince = lastKept && backAt && !myGroups.includes(lastKept.group)
+    && Date.parse(backAt) > Date.parse(lastKept.at) ? { at: backAt, sentBack: lastKept.at, group: lastKept.group }
+    : undefined;
   const version = backAt && sentBack && Date.parse(backAt) > Date.parse(sentBack.at)
     ? `Version of ${shortDate(backAt)}` : undefined;
   // PRETOTYPE: the versions the reviewer can read, newest first: the latest, then each kept as it was sent back
@@ -1473,6 +1479,15 @@ export default function ReviewScreen({ path }: { path: string }) {
           the others, scrolling on its own; on a narrow one, the page or the review, chosen above them, with which notes
           are shown along the page */}
       <Stack sx={{ gap: 1.5, height: { md: PANEL_HEIGHT } }}>
+        {/* PRETOTYPE: the review of another group than the one that sent the submission back started on the version
+          before; a newer one came in since. Said only, for now: the review is of the latest version */}
+        {!viewed && newerSince && (
+          <Alert severity="info" icon={<HistoryOutlined />} sx={{ py: 0, alignItems: "center", flexShrink: 0 }}>
+            {`A newer version came in on ${shortDate(newerSince.at)}, after ${groupLabels.get(newerSince.group)
+              ?? "a reviewer group"} sent it back on ${shortDate(newerSince.sentBack)}. Your review started on the `
+              + "earlier version."}
+          </Alert>
+        )}
         {/* PRETOTYPE: an older version read instead of the latest says so, and leads back to it */}
         {viewed && (
           <Alert severity="info" icon={<HistoryOutlined />} sx={{ py: 0, alignItems: "center", flexShrink: 0 }}
@@ -1715,7 +1730,9 @@ export default function ReviewScreen({ path }: { path: string }) {
                           <DialogContentText>Still open in your review</DialogContentText>
                           <Box component="ul" sx={{ mt: 0.5, mb: 1, pl: 3, color: "text.secondary" }}>
                             {unconsidered > 0 && (
-                              <li>{`${unconsidered} of your ${risks.length} risks aren't marked as considered.`}</li>
+                              <li>{risks.length === 1 ? "Your risk isn't marked as considered."
+                                : `${unconsidered} of your ${risks.length} risks ${unconsidered === 1 ? "isn't" : "aren't"} `
+                                  + "marked as considered."}</li>
                             )}
                             {aiOpen > 0 && <li>{aiOpen === 1 ? "1 concern" : `${aiOpen} concerns`} the AI raised, not
                               made into issues or dismissed.</li>}
