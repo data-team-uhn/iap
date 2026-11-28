@@ -16,13 +16,15 @@
  * limitations under the License.
  */
 
-import { createElement, useState } from "react";
+import { createElement, useContext, useEffect, useRef, useState } from "react";
 
-import { Box, CircularProgress, Typography } from "@mui/material";
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
+import { Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
 import { useAnswerComponents } from "./answers";
 import { questionLabel } from "./answers/label";
+import { type FindingFocus, FindingFocusContext, FindingSeverity, FindingText } from "./PreSendDialog";
 import SaveStatus, { type SaveState } from "./SaveStatus";
 
 import type { FormQuestion } from "./submissionForm";
@@ -68,6 +70,24 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     }
   };
 
+  // PRETOTYPE: the AI finding the team came to fix, when it is about this question
+  const focus = useContext(FindingFocusContext);
+  const pointed = focus?.question === question.path ? focus : undefined;
+  const here = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pointed) {
+      return undefined;
+    }
+    // Again once the form around it has settled, since the parts loading after it move it down
+    const show = () => here.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    const soon = setTimeout(show, 300);
+    const settled = setTimeout(show, 1500);
+    return () => {
+      clearTimeout(soon);
+      clearTimeout(settled);
+    };
+  }, [ pointed ]);
+
   if (!ready) {
     // Not the "cannot be answered here" message below. Until the components have loaded, none is
     // registered, and the question may yet have one.
@@ -93,23 +113,46 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
   }
 
   return (
-    <Box
-      sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
-      onFocusCapture={() => setFocused(true)}
-      onBlurCapture={() => setFocused(false)}
-    >
-      {/* react-hooks/static-components refuses <Answer/> for a component chosen during render */}
-      <Box sx={{ flexGrow: 1 }}>
-        {createElement(Answer, {
-          question,
-          values: draft,
-          disabled: Boolean(disabled),
-          onChange: setDraft,
-          onAnswered: submit,
-        })}
+    <Box ref={here} sx={{ scrollMarginTop: theme => `calc(var(--iap-frame-top, 0px) + ${theme.spacing(2)})` }}>
+      {pointed && <FindingCallout focus={pointed} />}
+      <Box
+        sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
+        onFocusCapture={() => setFocused(true)}
+        onBlurCapture={() => setFocused(false)}
+      >
+        {/* react-hooks/static-components refuses <Answer/> for a component chosen during render */}
+        <Box sx={{ flexGrow: 1 }}>
+          {createElement(Answer, {
+            question,
+            values: draft,
+            disabled: Boolean(disabled),
+            onChange: setDraft,
+            onAnswered: submit,
+          })}
+        </Box>
+        <Box sx={{ pt: 2 }}><SaveStatus state={state} error={error} /></Box>
       </Box>
-      <Box sx={{ pt: 2 }}><SaveStatus state={state} error={error} /></Box>
     </Box>
+  );
+}
+
+// PRETOTYPE: the AI finding the team came to fix, above the question it is about
+function FindingCallout({ focus }: { focus: FindingFocus }) {
+  return (
+    <Stack spacing={1} sx={{ mb: 1.5, p: 1.5, borderRadius: 1, bgcolor: "action.hover",
+      borderInlineStart: "3px solid", borderInlineStartColor: "assistant.main" }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+        <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
+        <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium", flex: 1 }}>
+          The AI pre-review
+        </Typography>
+        <FindingSeverity severity={focus.finding.severity} />
+      </Stack>
+      <FindingText finding={focus.finding} />
+      <Box>
+        <Button size="small" onClick={focus.onBack}>Back to the findings</Button>
+      </Box>
+    </Stack>
   );
 }
 

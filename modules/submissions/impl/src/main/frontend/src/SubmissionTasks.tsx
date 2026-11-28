@@ -38,12 +38,15 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // submission. It starts once the saves before it have settled, and a save asked for meanwhile waits
 // for it. It first calls `checkReady`. When that rejects, nothing is completed, and the reader is told
 // why. `readinessNote`, when given, says what still stands between the submission and its next step.
-function SubmissionTasks({ path, readinessNote, queue, checkReady, onCompleted }: {
+// PRETOTYPE: `intercept`, when given, is handed the click instead, with the way to complete the task, for the page to
+// show something first.
+function SubmissionTasks({ path, readinessNote, queue, checkReady, onCompleted, intercept }: {
   path: string;
   readinessNote?: string;
   queue: Enqueue;
   checkReady?: () => Promise<void>;
   onCompleted?: () => void;
+  intercept?: (task: SubmissionTask, complete: () => void) => void;
 }) {
   const { tasks, reload } = useSubmissionTasks(path);
   const doFetch = useAuthenticatedFetch();
@@ -75,7 +78,7 @@ function SubmissionTasks({ path, readinessNote, queue, checkReady, onCompleted }
           variant="contained"
           startIcon={<SendOutlinedIcon />}
           disabled={working}
-          onClick={() => complete(task)}
+          onClick={() => (intercept ? intercept(task, () => complete(task)) : complete(task))}
         >
           {task.label}
         </Button>

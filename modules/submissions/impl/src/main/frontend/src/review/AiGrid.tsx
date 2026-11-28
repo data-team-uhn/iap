@@ -31,6 +31,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import { CARDS_BELOW, type CardColumn, WhereLink, cardOf } from "./IssuesGrid";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
+import TeamAnswer from "./TeamAnswer";
 
 import type { RiskReview } from "./ReviewPanel";
 
@@ -138,7 +139,16 @@ export default function AiGrid({ risks, grouped, settled, fitRows = false, about
     {
       field: "finding", headerName: "What the AI says", flex: 1, minWidth: 240, cardSlot: "body",
       renderCell: ({ row }) => (
-        <Box sx={{ whiteSpace: "pre-wrap", ...row.kind === "risk" ? { color: "text.secondary" } : {} }}>{row.finding}</Box>
+        <Box sx={{ py: 0.25 }}>
+          <Box sx={{ whiteSpace: "pre-wrap", ...row.kind === "risk" ? { color: "text.secondary" } : {} }}>{row.finding}</Box>
+          {row.note && <TeamAnswer note={row.note} />}
+        </Box>
+      ),
+      cardValue: row => (
+        <Box>
+          <Box sx={{ whiteSpace: "pre-wrap" }}>{row.finding}</Box>
+          {row.note && <TeamAnswer note={row.note} />}
+        </Box>
       ),
     },
     {

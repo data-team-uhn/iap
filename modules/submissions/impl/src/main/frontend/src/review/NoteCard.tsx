@@ -30,6 +30,7 @@ import NoteKindIcon from "./noteIcons";
 import { GroupChip, GroupLabels, PersonName } from "./people";
 import RemoveButton from "./RemoveButton";
 import { kindInfo, severityShown, type Nature, type ReviewNote } from "./reviewData";
+import TeamAnswer from "./TeamAnswer";
 
 import type { Message } from "./reviewModel";
 
@@ -332,6 +333,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           <Field label="Suggestion">{note.suggestion}</Field>
         </Box>
       )}
+      <TeamAnswer note={note} />
       <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
       {/* An issue and the note it was made of each lead to the other */}
       {note.raisedAs?.map(issue => (

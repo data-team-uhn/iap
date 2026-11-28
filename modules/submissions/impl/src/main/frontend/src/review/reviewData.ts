@@ -130,6 +130,8 @@ export interface ReviewNote {
   answerChanged?: boolean;
   // PRETOTYPE: one of the reader's issues that went to the study team with a letter, when it went; it stays as sent
   sent?: string;
+  // PRETOTYPE: an AI pre-review comment the study team answered before sending, with why they left it as it is
+  teamResponse?: string;
 }
 
 export interface ReviewedAnswer {
@@ -355,7 +357,11 @@ export function parseReview(submission: Node, schema: string, me: string, topics
         const comments = childrenOf(assessment, "sub:Comment");
         comments.filter(one => Array.isArray(one.dismissedBy) && one.dismissedBy.includes(me))
           .forEach(one => settled.set(text(one["@path"]), "dismissed"));
-        notes.push(...comments.map(one => comment(one, "aiIssue", me, topic)));
+        notes.push(...comments.map(one => {
+          const note = comment(one, "aiIssue", me, topic);
+          const response = note.replies.find(reply => reply.path.endsWith("/response"));
+          return { ...note, replies: note.replies.filter(reply => reply !== response), teamResponse: response?.text };
+        }));
       }
       aiSummary = text(node.summary) || undefined;
     } else if (type === "sub/Review") {

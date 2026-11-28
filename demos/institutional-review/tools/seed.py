@@ -229,13 +229,13 @@ def sent_at(setting, now):
 
 
 def rounds(setting, now):
-    """When a study's AI pre-review was read, and, for one sent back, when the REB sent it back and when its team
+    """When a study's AI pre-review was read, before the team sent it, and, for one sent back, when the REB sent it back and when its team
     answered: days apart, so the versions it went through are told apart by their day."""
     sent = sent_at(setting, now)
     sent_back = now - datetime.timedelta(days=setting["paused"]) if setting.get("paused") \
         else sent + datetime.timedelta(days=max(1, setting["age"] // 4))
     answered = min(sent + datetime.timedelta(days=max(2, setting["age"] * 3 // 5)), now - datetime.timedelta(days=1))
-    return {"read": sent + datetime.timedelta(hours=1), "sent_back": sent_back, "answered": answered}
+    return {"read": sent - datetime.timedelta(hours=2), "sent_back": sent_back, "answered": answered}
 
 
 def pdf_from_html(body, title, out):
@@ -414,7 +414,9 @@ def add_comment(admin, node, comment, author, answers, documents, tags=None, whe
         create(admin, f"{node}/context", context_fields(documents["protocol"][1], comment["quote"], comment.get("page")))
 
 
-def add_screening(admin, path, study, schema, answers, documents, when=None):
+def add_screening(admin, path, study, schema, answers, documents, when=None, fixed=()):
+    """The AI pre-review, without the comments named in `fixed` by how they start, which the team fixed before the
+    AI read the submission again. A comment keeps its number either way."""
     screening = study["screening"]
     node = f"{path}/screening"
     create(admin, node, {"jcr:primaryType": "sub:Screening", "summary": screening["summary"]})
@@ -424,7 +426,67 @@ def add_screening(admin, path, study, schema, answers, documents, when=None):
         create(admin, here, {"jcr:primaryType": "sub:Assessment", "topic": topic, "topic@TypeHint": "Reference",
                              "summary": assessment["summary"]})
         for index, comment in enumerate(assessment["comments"]):
-            add_comment(admin, f"{here}/comment{index}", comment, ASSISTANT, answers, documents, when=when)
+            if not any(comment["text"].startswith(start) for start in fixed):
+                add_comment(admin, f"{here}/comment{index}", comment, ASSISTANT, answers, documents, when=when)
+
+
+# PRETOTYPE: what each study team did with the AI pre-review before sending, finding by finding, named by its risk and
+# how its text starts: changed the answers it is about, so that the AI's second read no longer finds it, or said why
+# they leave it as it is. The others they left.
+TEAM_ANSWERS = {
+    "NCT05018104": [
+        {"risk": "reb/reporting", "starts": "Cohort characteristics",
+         "change": {"handling/results/reporting": "suppressed", "handling/results/threshold": 5}},
+        {"risk": "reb/identifiability", "starts": "The operation is exported",
+         "response": "The database lead screens the operation text before export, and only the surgery group leaves "
+                     "REDCap in the analysis dataset. The free text never leaves the hospital."},
+    ],
+    "NCT07430618": [
+        {"risk": "reb/classification", "starts": "The original purpose",
+         "change": {"classification/sources/originalPurpose": "administration"}},
+        {"risk": "reb/rigour", "starts": "As written, the formula",
+         "response": "Weight change is follow-up minus baseline over baseline, so a loss comes out negative in the "
+                     "analysis. The results will report loss as a positive percentage, and the next protocol version "
+                     "will say so."},
+        {"risk": "reb/equity", "starts": "Paying users",
+         "response": "Agreed. Table 1 gives age and sex, and the discussion presents the cohort as self-selected paying "
+                     "users of a commercial program."},
+    ],
+}
+
+# PRETOTYPE: studies also filed as a draft the AI has read, not sent, for the study team's side of the AI pre-review
+DRAFTS = ["NCT06561217"]
+
+def fix_for_ai(researcher, path, plan):
+    """The answers the study team changed after the AI's first read, through the real workflow. Returns how the
+    findings they fixed start, for the second read to leave out."""
+    for one in plan:
+        if "change" in one:
+            researcher.post(f"{path}.save.json", answer_payload(one["change"]))
+    return [one["starts"] for one in plan if "change" in one]
+
+
+def respond_to_ai(researcher, path, study, plan):
+    """The study team's responses to the findings they leave as they are, through the real workflow."""
+    for one in plan:
+        if "response" not in one:
+            continue
+        approval, topic = one["risk"].split("/")
+        assessment = next(a for a in study["screening"]["assessments"]
+                          if a["approval"] == approval and a["topic"] == topic)
+        index = next(i for i, c in enumerate(assessment["comments"]) if c["text"].startswith(one["starts"]))
+        researcher.post(f"{path}.aiResponse.json",
+                        {"comment": f"{path}/screening/{approval}-{topic}/comment{index}", "text": one["response"]})
+
+
+def file_draft(researcher, admin, content, schema, nct):
+    """A study the AI has read and the team has not sent yet."""
+    study = json.loads((content / "content" / f"{nct}.json").read_text())
+    path = file_study(researcher, admin, content, study)
+    answers, documents = submission_parts(admin, path, schema)
+    add_extractions(admin, study, answers, documents)
+    add_screening(admin, path, study, schema, answers, documents)
+    print(nct, path, "draft")
 
 
 # The reviewer group each reviewer reviews for, kept on their review so other reviewers can say whose issues they read
@@ -551,6 +613,8 @@ def main():
     parser.add_argument("--content", default=str(pathlib.Path(__file__).resolve().parent.parent / "seed"))
     parser.add_argument("--only", nargs="*")
     parser.add_argument("--clear", action="store_true", help="delete every submission first, to start over")
+    parser.add_argument("--drafts", action="store_true",
+                        help="only file the drafts the AI has read, leaving every other study as it is")
     parser.add_argument("--resubmit", action="store_true",
                         help="only put the studies in RESUBMITTED, already seeded and in review, through their round")
     args = parser.parse_args()
@@ -562,6 +626,10 @@ def main():
     researcher = Instance(args.url, "researcher")
     now = datetime.datetime.now().astimezone()
     schema = schema_parts(admin)
+    if args.drafts:
+        for nct in DRAFTS:
+            file_draft(researcher, admin, content, schema, nct)
+        return 0
     if args.resubmit:
         for nct, plan in RESUBMITTED.items():
             study = json.loads((content / "content" / f"{nct}.json").read_text())
@@ -577,11 +645,16 @@ def main():
             continue
         study = json.loads((content / "content" / f"{nct}.json").read_text())
         path = file_study(researcher, admin, content, study)
-        send(researcher, admin, path)
-        answers, documents = submission_parts(admin, path, schema)
         when = rounds(setting, now)
+        # The AI reads it before the team sends it; what they fix, its second read no longer finds, and they answer
+        # what they leave
+        plan = TEAM_ANSWERS.get(nct, [])
+        fixed = fix_for_ai(researcher, path, plan)
+        answers, documents = submission_parts(admin, path, schema)
         add_extractions(admin, study, answers, documents, when["read"])
-        add_screening(admin, path, study, schema, answers, documents, when["read"])
+        add_screening(admin, path, study, schema, answers, documents, when["read"], fixed)
+        respond_to_ai(researcher, path, study, plan)
+        send(researcher, admin, path)
         open_review(admin, path, schema, "reb-reviewer", "reb")
         if nct in SENT_BACK:
             send_back(admin, path, answers, documents, SENT_BACK[nct], args.url, when["sent_back"])
@@ -595,6 +668,9 @@ def main():
         open_review(admin, path, schema, "rqi-reviewer", "rqi")
         add_issues(args.url, path, ISSUES.get(nct, []))
         print(nct, path, admin.get(f"{path}.json").get("identifier"))
+    for nct in DRAFTS:
+        if not args.only or nct in args.only:
+            file_draft(researcher, admin, content, schema, nct)
 
 
 if __name__ == "__main__":
