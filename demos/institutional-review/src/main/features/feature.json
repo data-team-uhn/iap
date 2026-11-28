@@ -36,7 +36,9 @@
         "set properties on authorizable(reb-reviewer) \n set displayName{String} to \"Sam Okafor\" \n end",
         "set properties on authorizable(reb-reviewer-2) \n set displayName{String} to \"Jordan Lee\" \n end",
         "set properties on authorizable(digital-reviewer) \n set displayName{String} to \"Priya Nair\" \n end",
-        "set properties on authorizable(rqi-reviewer) \n set displayName{String} to \"Lina Haddad\" \n end"
+        "set properties on authorizable(rqi-reviewer) \n set displayName{String} to \"Lina Haddad\" \n end",
+        // PRETOTYPE: the policies reviews cite, such as TCPS 2, kept as files everyone signed in can read
+        "create path /Policies(sling:Folder) \n set ACL for everyone \n allow jcr:read on /Policies \n end"
       ]
     }
   }

@@ -38,7 +38,7 @@ import tempfile
 
 import requests
 
-from standard_questions import SCHEMA as SCHEMA_PATH, citation_of, match
+from standard_questions import SCHEMA as SCHEMA_PATH, citation_of, match, upload_policies
 
 SCHEMA = "/Schemas/retrospectiveStudy/v1"
 ASSISTANT = "iap-assistant"
@@ -634,6 +634,7 @@ def main():
     researcher = Instance(args.url, "researcher")
     now = datetime.datetime.now().astimezone()
     schema = schema_parts(admin)
+    upload_policies(args.url)
     if args.drafts:
         for nct in DRAFTS:
             file_draft(researcher, admin, content, schema, nct)

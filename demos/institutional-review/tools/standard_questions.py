@@ -258,6 +258,32 @@ def link_screenings(url):
     print(f"{linked} AI findings linked")
 
 
+# The policy documents reviews cite, by the name each is kept under, and where the official copy is downloaded from
+POLICIES = {"tcps2-2022-en.pdf": "https://srcr.canada.ca/documents/tcps2-2022-en.pdf"}
+
+
+def upload_policies(url):
+    """The policy documents reviews cite, as files under /Policies, which everyone signed in can read: each one the
+    instance does not have yet is downloaded from its official source and put there. The folder is made at startup on
+    a fresh instance; it is made here too for one started before it was."""
+    session = requests.Session()
+    session.auth = ("admin", "admin")
+    if session.get(f"{url}/Policies.json").status_code == 404:
+        session.post(f"{url}/bin/cpm/nodes/node.create.json/",
+                     data={"name": "Policies", "type": "sling:Folder"}).raise_for_status()
+        session.post(f"{url}/Policies.modifyAce.json",
+                     data={"principalId": "everyone", "privilege@jcr:read": "granted"}).raise_for_status()
+    for name, source in POLICIES.items():
+        if session.get(f"{url}/Policies/{name}.json").status_code != 404:
+            continue
+        download = requests.get(source, timeout=120)
+        download.raise_for_status()
+        if not download.content.startswith(b"%PDF"):
+            raise SystemExit(f"{source} did not give a PDF")
+        session.post(f"{url}/Policies", files={name: (name, download.content, "application/pdf")}).raise_for_status()
+        print("downloaded and uploaded", name)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url")
@@ -266,6 +292,7 @@ def main():
     write_schema_file()
     print(f"{sum(len(entries) for entries in STANDARDS.values())} standard questions written to {SCHEMA_FILE.name}")
     if args.url:
+        upload_policies(args.url)
         write_live(args.url)
         print("and onto", args.url)
         if args.screenings:

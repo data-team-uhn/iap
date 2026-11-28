@@ -54,6 +54,7 @@ import LetterPage from "./LetterPage";
 import LibraryGrid, { libraryRows } from "./LibraryGrid";
 import { SentLock, Thread } from "./NoteCard";
 import NoteKindIcon, { KindCount } from "./noteIcons";
+import PolicyCitation from "./PolicyCitation";
 import PolicyLine from "./PolicyLine";
 import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
@@ -1170,7 +1171,7 @@ function StandardQuestions({ risk, dense, doing }: { risk: RiskReview; dense: bo
                   </Typography>
                   {entry.citation && (
                     <Typography variant="caption" component="div" sx={{ color: "text.secondary", mt: 0.25 }}>
-                      Policy: {entry.citation}
+                      Policy: <PolicyCitation citation={entry.citation} />
                     </Typography>
                   )}
                   <Links>

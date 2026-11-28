@@ -23,6 +23,7 @@ import { useContext } from "react";
 import { Typography } from "@mui/material";
 
 import { ReviewerTopics } from "./Composer";
+import PolicyCitation from "./PolicyCitation";
 
 import type { ReviewNote } from "./reviewData";
 
@@ -35,7 +36,7 @@ export default function PolicyLine({ note, dense = false }: { note: ReviewNote; 
   }
   return (
     <Typography variant="caption" component="div" sx={{ color: "text.secondary", mt: dense ? 0.25 : 0.5 }}>
-      {note.citation && <>Policy: {note.citation}</>}
+      {note.citation && <>Policy: <PolicyCitation citation={note.citation} /></>}
       {note.citation && outside && " · "}
       {outside && <i>Not one of the REB&apos;s standard questions</i>}
     </Typography>

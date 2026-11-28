@@ -34,6 +34,7 @@ import TagChip from "@iap/tags/TagChip";
 import Composer from "./Composer";
 import { CARDS_BELOW, type CardColumn, cardOf } from "./IssuesGrid";
 import NoteKindIcon from "./noteIcons";
+import PolicyCitation from "./PolicyCitation";
 import { SEVERITIES, type StandardQuestion } from "./reviewData";
 
 import type { ReviewDoing, RiskReview } from "./ReviewPanel";
@@ -124,7 +125,9 @@ export default function LibraryGrid({ rows, fitRows = false, doing, onOpen }: {
       renderCell: ({ row }) => <Kind entry={row.entry} />, cardValue: row => <Kind entry={row.entry} /> },
     { field: "text", headerName: "Question", flex: 1, minWidth: 240, cardSlot: "body" as const,
       renderCell: ({ row }) => <Box sx={{ whiteSpace: "pre-wrap" }}>{row.text}</Box> },
-    { field: "citation", headerName: "Policy", width: 160, cardSlot: "caption" as const },
+    { field: "citation", headerName: "Policy", width: 160, cardSlot: "caption" as const,
+      renderCell: ({ row }) => <PolicyCitation citation={row.citation} />,
+      cardValue: row => <PolicyCitation citation={row.citation} /> },
     { field: "status", headerName: "In this review", width: 180, cardSlot: "actions" as const,
       valueFormatter: (value: Status) => STATUS_NAMES[value],
       sortComparator: (one: Status, other: Status) => STATUSES.indexOf(one) - STATUSES.indexOf(other),
