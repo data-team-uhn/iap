@@ -24,12 +24,13 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, ButtonBase, IconButton, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
+import { getCutShortStyle } from "@iap/frontend-commons/cutShortStyle";
 import { TEXT_ENTRY } from "@iap/frontend-commons/textEntry";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 import { useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 import { capitalize } from "@iap/frontend-commons/words";
 
-import { getCutShortStyle, getFailedColour, getPassageCardStyle, getPassageDetailsStyle, getPassageLayerStyle } from "./passageStyles";
+import { getFailedColour, getPassageCardStyle, getPassageDetailsStyle, getPassageLayerStyle } from "./passageStyles";
 import { describePages, type MarkName, type PassageNote } from "./pdfViewerModel";
 
 import type { MarkKind } from "./marksModel";
