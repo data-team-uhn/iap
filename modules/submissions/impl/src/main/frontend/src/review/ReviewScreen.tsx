@@ -1590,7 +1590,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               {/* The page, with tags on its edges folding the panels beside it away, or bringing them back */}
               {/* Not where the review spread over the whole workspace is laid, which covers the contents too */}
               <Box sx={{ position: full ? "static" : "relative", flex: 1, minWidth: 0, width: "100%", display: "flex" }}>
-                {!narrow && railOpen && !full && foldButton("left", () => setRailOpen(false), "Fold the contents away",
+                {!narrow && railOpen && !full && foldButton("left", () => setRailOpen(false), "Fold the submission contents away",
                   { left: -FOLD_SIZE / 2 })}
                 <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%",
                   ...narrow ? {} : { p: 0, height: "100%", display: "flex", flexDirection: "column",

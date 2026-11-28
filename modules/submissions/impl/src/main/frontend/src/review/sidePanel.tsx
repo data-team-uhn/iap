@@ -72,7 +72,7 @@ export function FoldButton({ side, label, place, onClick }: {
   onClick: () => void;
 }) {
   return (
-    <Tooltip title="Fold away" placement={side === "left" ? "right" : "left"} disableInteractive>
+    <Tooltip title={label} placement={side === "left" ? "right" : "left"} disableInteractive>
       <ButtonBase aria-label={label} onClick={onClick}
         sx={theme => ({ position: "absolute", top: 10, zIndex: 3, ...place, width: FOLD_SIZE, height: FOLD_SIZE,
           borderRadius: "50%", bgcolor: "background.paper", color: "text.secondary", border: 1, borderColor: "divider",
