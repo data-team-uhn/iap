@@ -29,10 +29,12 @@ const lines = (all: string[]) => all.map(line => <Box component="span" key={line
 
 // PRETOTYPE. A letter to the study team as it will print: a white page in either colour scheme, as a document's are,
 // in the template's fonts. Its points are the reviewer's issues, which a click selects, the one selected tinted.
-export default function LetterPage({ letter, selected, onSelect }: {
+export default function LetterPage({ letter, selected, onSelect, onRemarks }: {
   letter: DraftedLetter;
   selected?: string;
   onSelect?: (issue: string) => void;
+  // PRETOTYPE: leads from the reviewer's own paragraphs to where they write them
+  onRemarks?: () => void;
 }) {
   return (
     <Box sx={theme => ({ bgcolor: "common.white", color: "common.black", boxShadow: theme.shadows[2],
@@ -86,6 +88,18 @@ export default function LetterPage({ letter, selected, onSelect }: {
           ))}
         </Box>
       ))}
+      {letter.remarks.length > 0 && (
+        <ButtonBase
+          disabled={!onRemarks} onClick={onRemarks}
+          sx={theme => ({ display: "block", width: "100%", textAlign: "start", font: "inherit", mx: -1, px: 1,
+            pt: 0.5, mb: 1.5, borderRadius: 1, "& p:last-of-type": { mb: 0.5 },
+            "&:hover": { bgcolor: theme.alpha(theme.palette.primary.main, 0.06) } })}
+        >
+          {letter.remarks.map(paragraph => (
+            <Box key={paragraph} component="p" sx={{ whiteSpace: "pre-wrap" }}>{paragraph}</Box>
+          ))}
+        </ButtonBase>
+      )}
       {letter.closing.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
       <p>{lines(letter.signature)}</p>
       {letter.signatories?.map(one => (

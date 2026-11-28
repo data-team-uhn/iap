@@ -196,6 +196,8 @@ export interface ReviewData {
   // The reviewer's latest decision, and the letters that came with their decisions, latest last
   decided?: Decided;
   letters: Letter[];
+  // PRETOTYPE: what the reviewer adds to their letter after its points
+  letterRemarks?: string;
 }
 
 export interface Decided {
@@ -331,6 +333,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   let considered = new Set<string>();
   let decided: Decided | undefined;
   const letters: Letter[] = [];
+  let letterRemarks: string | undefined;
   for (const node of Object.values(submission).filter(isNode)) {
     const type = node["sling:resourceType"];
     if (type === "sub/Answer") {
@@ -387,6 +390,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       // What the reviewer wrote with a decision is their letter, not an issue
       const comments = childrenOf(node, "sub:Comment").filter(one => !text(one.decision));
       if (node.reviewer === me) {
+        letterRemarks = text(node.letterRemarks) || letterRemarks;
         const outcome = (Array.isArray(node.tags) ? node.tags.map(String) : []).find(tag => DECISIONS.includes(tag));
         const at = text(node.decidedAt) || text(node["jcr:lastModified"]);
         if (outcome && (!decided || Date.parse(at) > Date.parse(decided.at))) {
@@ -418,7 +422,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   const settledAi = notes.filter(isSettled).map(note => withRaised({ ...note, settled: settled.get(note.id) }));
   const shown = notes.filter(note => !isSettled(note)).map(withRaised);
   return { answers, documents, notes: shown, settledAi, partOf, aiSummary,
-    assessments, considered, decided, letters: letters.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)) };
+    assessments, considered, decided, letters: letters.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
+    letterRemarks };
 }
 
 // The risks each approval lists, by path

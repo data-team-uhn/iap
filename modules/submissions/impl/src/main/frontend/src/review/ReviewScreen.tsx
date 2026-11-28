@@ -957,7 +957,13 @@ export default function ReviewScreen({ path }: { path: string }) {
     }
     load();
   };
-  const sendLetter = (letter: string) => decide("changes-requested", letter);
+  // PRETOTYPE: what the reviewer added after the points went with this letter; the next round's starts without it
+  const sendLetter = async (letter: string) => {
+    await decide("changes-requested", letter);
+    if (data?.letterRemarks) {
+      await actions.write({ letterRemarks: "" });
+    }
+  };
   // The reviewer's group, as its approval calls it
   const myGroupLabel = (loaded?.form.requirements ?? []).filter(isApprovalRequirement)
     .find(one => myGroups.includes(one.approverGroup))?.label ?? "";
@@ -1061,6 +1067,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   const suggestions = openIssues.filter(note => note.nature === "suggestion");
   const unsentQuestions = openIssues.filter(note => note.nature === "question" && !note.sent);
   const letterInput = { title: text(submission.title), identifier: text(submission.identifier),
+    remarks: data.letterRemarks,
     pi: text(submission.pi), about, issues: openIssues,
     risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
     // The letter says "the … review", which some groups' names already end with
@@ -1332,7 +1339,8 @@ export default function ReviewScreen({ path }: { path: string }) {
           doing={{ ...doing, decision: reviewActions }}
           full={reviewFull} onFull={spreadReview} headed={reviewFull || narrow}
           letter={letterInput.template ? { draft: letter, send: () => setDialog("changes"),
-            sendBlocked: reviewActions.blocked ?? (waiting ? undefined : "Your review is not waiting on a decision now") }
+            sendBlocked: reviewActions.blocked ?? (waiting ? undefined : "Your review is not waiting on a decision now"),
+            remarks: data.letterRemarks ?? "", onRemarks: remarks => actions.write({ letterRemarks: remarks }) }
             : undefined}
         />
       </ReviewerTopics.Provider>

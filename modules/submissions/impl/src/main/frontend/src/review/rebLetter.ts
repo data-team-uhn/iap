@@ -38,6 +38,8 @@ export interface LetterInput {
   // The template the reviewer's approval names, and the template's section an issue goes under, if it says
   template?: string;
   sectionOf?: (issue: ReviewNote) => string | undefined;
+  // PRETOTYPE: what the reviewer adds after the points, in their own words, paragraphs apart by blank lines
+  remarks?: string;
 }
 
 // A point of the letter: an issue, numbered through the letter
@@ -69,6 +71,8 @@ export interface DraftedLetter {
   re: string[];
   opening: string[];
   sections: LetterSection[];
+  // PRETOTYPE: the reviewer's own paragraphs after the points
+  remarks: string[];
   closing: string[];
   signature: string[];
   // Who the letter is sent for, by role, under the signature
@@ -110,6 +114,9 @@ function pointsOf(sections: { heading: string; issues: ReviewNote[] }[], about: 
   })).filter(section => section.points.length > 0);
 }
 
+// The reviewer's own words as paragraphs, a blank line between two
+export const remarksOf = (remarks = ""): string[] => remarks.split(/\n\s*\n/).map(one => one.trim()).filter(Boolean);
+
 export function draftLetter(input: LetterInput): DraftedLetter {
   const { title, identifier, pi, about, issues, risks, reviewer, group } = input;
   if (input.template === UHN_REB) {
@@ -137,6 +144,7 @@ export function draftLetter(input: LetterInput): DraftedLetter {
           + "may not be accepted for review.",
       ],
       sections,
+      remarks: remarksOf(input.remarks),
       closing: [
         ...sections.some(section => UHN_REB_CONSENT.includes(section.heading))
           ? [ "Reminder as you revise: Consent forms should be written at an appropriate reading level using laymen's "
@@ -178,6 +186,7 @@ export function draftLetter(input: LetterInput): DraftedLetter {
       ...risks.map(risk => ({ heading: risk.label, issues: issues.filter(issue => issue.topicPath === risk.path) })),
       { heading: "Other points", issues: issues.filter(issue => !issue.topicPath || !known.has(issue.topicPath)) },
     ], about),
+    remarks: remarksOf(input.remarks),
     closing: [],
     signature: [ "Sincerely,", reviewer, `On behalf of the ${group} review` ],
   };
@@ -194,7 +203,7 @@ export function letterText(letter: DraftedLetter): string {
     ...letter.sections.map(section => [ section.heading, ...section.points.map(point =>
       [ pointText(point), ...point.quote ? [ `   The protocol says: "${point.quote}"` ] : [],
         ...point.citation ? [ `   Reference: ${point.citation}` ] : [] ].join("\n")) ].join("\n\n")),
-    ...letter.closing, letter.signature.join("\n"),
+    ...letter.remarks, ...letter.closing, letter.signature.join("\n"),
     ...(letter.signatories ?? []).map(one => [ one.heading, ...one.lines ].join("\n")),
     ...letter.footer ? [ letter.footer ] : [],
   ];

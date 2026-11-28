@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
@@ -38,10 +38,11 @@ import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
   Box, Button, ButtonBase, Checkbox, FormControlLabel, IconButton, LinearProgress, Link, Stack,
-  Switch, Tooltip, Typography,
+  Switch, TextField, Tooltip, Typography,
 } from "@mui/material";
 
 import { getCutShortStyle } from "@iap/documents-pdf-viewer/passageStyles";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 import { useStoredSetting } from "@iap/frontend-commons/useStoredSetting";
@@ -57,6 +58,7 @@ import NoteKindIcon, { KindCount } from "./noteIcons";
 import PolicyCitation from "./PolicyCitation";
 import PolicyLine from "./PolicyLine";
 import { pulseWhenThere } from "./pulse";
+import { remarksOf } from "./rebLetter";
 import RemoveButton from "./RemoveButton";
 import { severityShown, SEVERITIES, type Nature, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
 import { FOLD_SIZE, FoldButton, PanelBody } from "./sidePanel";
@@ -371,6 +373,9 @@ export interface LetterWriting {
   send: () => void;
   // Why it cannot be sent now, as when the review waits on no decision
   sendBlocked?: string;
+  // PRETOTYPE: what the reviewer adds after the points, as written, and keeping what they write
+  remarks: string;
+  onRemarks: (text: string) => Promise<void>;
 }
 
 // The Letter of Review's entry: its name, and how many points it makes
@@ -432,6 +437,26 @@ function LetterView(props: ReviewProps & {
 }) {
   const { letter, doing } = props;
   const [ selected, setSelected ] = useState<string>();
+  // PRETOTYPE: the reviewer's own paragraph after the points, shown in the letter as it is typed, kept on leaving the box
+  const [ remarks, setRemarks ] = useState(letter.remarks);
+  const [ keptRemarks, setKeptRemarks ] = useState(letter.remarks);
+  if (letter.remarks !== keptRemarks) {
+    setKeptRemarks(letter.remarks);
+    setRemarks(letter.remarks);
+  }
+  const [ remarksFailed, setRemarksFailed ] = useState<string>();
+  const keepRemarks = () => {
+    if (remarks.trim() !== letter.remarks.trim()) {
+      setRemarksFailed(undefined);
+      letter.onRemarks(remarks.trim()).catch((error: unknown) => setRemarksFailed(messageOf(error)));
+    }
+  };
+  const draft = { ...letter.draft, remarks: remarksOf(remarks) };
+  const remarksField = useRef<HTMLTextAreaElement>(null);
+  const writeRemarks = () => {
+    remarksField.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    remarksField.current?.focus({ preventScroll: true });
+  };
   const [ picked, setPicked ] = useState(props.pick);
   if (props.pick !== picked) {
     setPicked(props.pick);
@@ -524,6 +549,15 @@ function LetterView(props: ReviewProps & {
               })}
             </Box>
           ))}
+          <TextField
+            inputRef={remarksField} multiline minRows={3} fullWidth size="small"
+            label="A paragraph after the points (optional)"
+            value={remarks} onChange={event => setRemarks(event.target.value)} onBlur={keepRemarks}
+            error={Boolean(remarksFailed)}
+            helperText={remarksFailed ?? "In your own words, printed after the points and before the closing. A blank "
+              + "line starts a new paragraph."}
+            sx={{ mt: 1, bgcolor: "background.paper" }}
+          />
         </Box>
         {/* On the page grey, as the document viewer shows its pages. Side by side, a pointer from the issues into it,
             as the sign-in page has between its panels, says the letter is drawn from them */}
@@ -536,8 +570,8 @@ function LetterView(props: ReviewProps & {
               bgcolor: "background.paper", transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined })} />
           )}
           <Box sx={{ p: { xs: 1, sm: 2 }, ...row ? { flex: 1, minHeight: 0, overflowY: "auto" } : {} }}>
-            <LetterPage letter={letter.draft} selected={selected}
-              onSelect={id => select(id, `review-issue-${id}`)} />
+            <LetterPage letter={draft} selected={selected}
+              onSelect={id => select(id, `review-issue-${id}`)} onRemarks={writeRemarks} />
           </Box>
         </Box>
       </Stack>

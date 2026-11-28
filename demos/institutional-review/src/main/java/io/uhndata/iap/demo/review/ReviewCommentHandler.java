@@ -57,7 +57,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * it rests on, {@code citation}, which an edit changes or, empty, removes, and the REB's standard question it was
  * raised from, {@code standard}, by path. The reviewer group the issues are raised for, {@code group}, is kept on the
  * review, and so are the risks the reviewer has considered: {@code consider} or {@code unconsider} naming one marks
- * it, or unmarks it.
+ * it, or unmarks it, and the paragraph they add to their letter after its points, {@code letterRemarks}.
  *
  * <p>The notes are kept apart from the review and the discussion, in an {@code irv:Notes} node per reviewer. They
  * are not hidden from the other reviewers by an access rule yet: the pages only show a reviewer their own.</p>
@@ -88,6 +88,8 @@ public class ReviewCommentHandler implements ServiceTaskHandler
 
     private static final String CITATION_PROPERTY = "citation";
 
+    private static final String REMARKS_PROPERTY = "letterRemarks";
+
     private static final String STANDARD_PROPERTY = "standard";
 
     @Override
@@ -101,23 +103,8 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     {
         final Resource submission = ExecutionHost.of(context);
         final String actor = context.getActor();
-        if (considering(context, submission, actor)) {
-            return;
-        }
-        final String dismissed = Payloads.text(context.getEvent(), "dismiss");
-        if (dismissed != null) {
-            dismiss(within(submission, dismissed), actor, true);
-            return;
-        }
-        final String undismissed = Payloads.text(context.getEvent(), "undismiss");
-        if (undismissed != null) {
-            dismiss(within(submission, undismissed), actor, false);
-            return;
-        }
-        final String resolved = Payloads.text(context.getEvent(), "resolve");
-        final String reopened = Payloads.text(context.getEvent(), "unresolve");
-        if (resolved != null || reopened != null) {
-            resolve(submission, resolved != null ? resolved : reopened, actor, resolved != null);
+        if (considering(context, submission, actor) || remarking(context, submission, actor)
+            || settling(context, submission, actor)) {
             return;
         }
         final String removed = Payloads.text(context.getEvent(), "remove");
@@ -159,6 +146,44 @@ public class ReviewCommentHandler implements ServiceTaskHandler
             considered.remove(unconsider);
         }
         values.put(CONSIDERED_PROPERTY, considered.toArray(String[]::new));
+        return true;
+    }
+
+    // An AI comment set aside or taken back, with dismiss or undismiss; a note resolved or reopened, with resolve or
+    // unresolve
+    private static boolean settling(final WorkflowTaskContext context, final Resource submission, final String actor)
+        throws WorkflowException
+    {
+        final String dismissed = Payloads.text(context.getEvent(), "dismiss");
+        final String undismissed = Payloads.text(context.getEvent(), "undismiss");
+        if (dismissed != null || undismissed != null) {
+            dismiss(within(submission, dismissed != null ? dismissed : undismissed), actor, dismissed != null);
+            return true;
+        }
+        final String resolved = Payloads.text(context.getEvent(), "resolve");
+        final String reopened = Payloads.text(context.getEvent(), "unresolve");
+        if (resolved != null || reopened != null) {
+            resolve(submission, resolved != null ? resolved : reopened, actor, resolved != null);
+            return true;
+        }
+        return false;
+    }
+
+    // PRETOTYPE: a paragraph the reviewer adds to their letter after its points, with letterRemarks; empty removes it.
+    // Kept on their review, made if they have none yet.
+    private static boolean remarking(final WorkflowTaskContext context, final Resource submission, final String actor)
+        throws WorkflowException, PersistenceException
+    {
+        if (!context.getEvent().getPayload().containsKey(REMARKS_PROPERTY)) {
+            return false;
+        }
+        final String remarks = Payloads.text(context.getEvent(), REMARKS_PROPERTY);
+        final ModifiableValueMap values = writable(holder(submission, ISSUE_KIND, actor));
+        if (remarks == null) {
+            values.remove(REMARKS_PROPERTY);
+        } else {
+            values.put(REMARKS_PROPERTY, remarks);
+        }
         return true;
     }
 
