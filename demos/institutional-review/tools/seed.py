@@ -131,6 +131,36 @@ ACTIVITY = {
     },
 }
 
+# What reviewers raised in their open reviews and have not sent yet, under one of their risks, by approval and topic:
+# required changes, with a severity, suggestions and questions, the last as consulting groups mostly ask.
+# (reviewer, approval/topic, nature, severity, text)
+ISSUES = {
+    "NCT05018104": [
+        ("reb-reviewer", "reb/waiver", "question", None,
+         "The waiver rests on coordinator time alone. How many patients would need contacting, and how many of them "
+         "could still be reached?"),
+        ("reb-reviewer", "reb/safeguards", "required-change", "medium",
+         "The retention period is not stated. Please give it, and say how the data is destroyed at the end."),
+        ("reb-reviewer", "reb/rigour", "suggestion", None,
+         "Consider reporting the model's calibration as well as its discrimination."),
+        ("rqi-reviewer", "rqi/gcp", "question", None,
+         "Please confirm that the principal investigator's TCPS 2 training is current, with its completion date."),
+    ],
+    "NCT07430618": [
+        ("digital-reviewer", "digitalReview/externalSoftware", "required-change", "major",
+         "The program's backend runs in Key to Health's own cloud. Please name the hosting region and confirm that a "
+         "data sharing agreement covers it."),
+        ("digital-reviewer", "digitalReview/data", "question", None,
+         "Do participants' breath recordings leave the device, and if so, in what form?"),
+        ("rqi-reviewer", "rqi/gcp", "question", None,
+         "The co-investigators' GCP training isn't listed. Who on the team has completed it?"),
+    ],
+    "NCT04088747": [
+        ("rqi-reviewer", "rqi/gcp", "question", None,
+         "Please confirm that the principal investigator's TCPS 2 training is current, with its completion date."),
+    ],
+}
+
 # How long ago each study was sent, in days, and anything else about where it stands. The order of the queue
 # (by deadline) follows from these.
 STAGES = {
@@ -398,7 +428,8 @@ def add_screening(admin, path, study, schema, answers, documents, when=None):
 
 
 # The reviewer group each reviewer reviews for, kept on their review so other reviewers can say whose issues they read
-GROUPS = {"reb-reviewer": "reb-reviewers", "reb-reviewer-2": "reb-reviewers", "digital-reviewer": "digital-reviewers"}
+GROUPS = {"reb-reviewer": "reb-reviewers", "reb-reviewer-2": "reb-reviewers", "digital-reviewer": "digital-reviewers",
+          "rqi-reviewer": "rqi-reviewers"}
 
 
 def open_review(admin, path, schema, reviewer, requirement):
@@ -484,6 +515,13 @@ def add_activity(url, path, activity):
             person(reply_user).post(f"{path}.reviewComment.json", {"replyTo": latest["@path"], "text": reply})
 
 
+def add_issues(url, path, issues):
+    for user, topic, nature, severity, text in issues:
+        Instance(url, user).post(f"{path}.reviewComment.json", {
+            "kind": "issue", "text": text, "nature": nature, "topic": f"{SCHEMA}/{topic}", "group": GROUPS[user],
+            **({"severity": severity} if severity else {})})
+
+
 _ADMIN = {}
 
 
@@ -553,6 +591,9 @@ def main():
         # Last: sending a study back pauses the clock now, and this dates everything as the stage says
         stage(admin, path, study, setting, now)
         open_review(admin, path, schema, "digital-reviewer", "digitalReview")
+        # PRETOTYPE: a group consulting for the approving ones
+        open_review(admin, path, schema, "rqi-reviewer", "rqi")
+        add_issues(args.url, path, ISSUES.get(nct, []))
         print(nct, path, admin.get(f"{path}.json").get("identifier"))
 
 

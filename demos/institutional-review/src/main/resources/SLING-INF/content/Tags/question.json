@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Question",
+  "description": "Something the reviewer asks the study team to answer or clarify.",
+  "category": [
+    "issue-kind"
+  ],
+  "color": "#2f5f96",
+  "icon": "HelpOutlineOutlined",
+  "order": 10,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

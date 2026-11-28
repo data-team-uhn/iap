@@ -3168,6 +3168,7 @@
       "label": "Laboratory Medicine",
       "description": "The Laboratory Medicine Program confirms it can extract the data asked for.",
       "approverGroup": "lmp-reviewers",
+      "consulting": true,
       "cond:condition": {
         "jcr:primaryType": "cond:SingleCondition",
         "comparator": "equals",
@@ -3206,6 +3207,7 @@
       "label": "Medical Imaging",
       "description": "The Joint Department of Medical Imaging confirms it can provide the images asked for.",
       "approverGroup": "jdmi-reviewers",
+      "consulting": true,
       "cond:condition": {
         "jcr:primaryType": "cond:SingleCondition",
         "comparator": "equals",
@@ -3267,6 +3269,7 @@
       "label": "Princess Margaret data",
       "description": "The Clinical Research Data Access Committee reviews uses of Princess Margaret oncology data.",
       "approverGroup": "crdac-reviewers",
+      "consulting": true,
       "cond:condition": {
         "jcr:primaryType": "cond:SingleCondition",
         "comparator": "equals",
@@ -3309,6 +3312,7 @@
       "label": "Research quality",
       "description": "Research Quality and Integrity checks the principal investigator's training.",
       "approverGroup": "rqi-reviewers",
+      "consulting": true,
       "gcp": {
         "jcr:primaryType": "sch:Topic",
         "text": "Investigator training",
@@ -3324,6 +3328,7 @@
       "label": "Health Professions",
       "description": "Health Professions is made aware of studies involving health professionals. Acknowledging is enough.",
       "approverGroup": "health-professions",
+      "consulting": true,
       "cond:condition": {
         "jcr:primaryType": "cond:SingleCondition",
         "comparator": "equals",

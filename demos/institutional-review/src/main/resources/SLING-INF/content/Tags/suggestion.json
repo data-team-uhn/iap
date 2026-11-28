@@ -1,13 +1,13 @@
 {
   "jcr:primaryType": "tag:Definition",
   "label": "Suggestion",
-  "description": "An idea the study team may take or leave.",
+  "description": "Something the study team may change, which does not hold the approval back.",
   "category": [
-    "severity"
+    "issue-kind"
   ],
   "color": "#1d6a3a",
   "icon": "LightbulbOutlined",
-  "order": 50,
+  "order": 15,
   "targetResourceTypes": [
     "sub/Comment"
   ]

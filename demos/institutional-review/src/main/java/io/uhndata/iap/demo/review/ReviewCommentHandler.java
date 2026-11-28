@@ -41,21 +41,21 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * PRETOTYPE. What a reviewer writes on a submission, as one event: an issue for the study team, in the reviewer's
- * open review, tagged with its {@code severity}; a message to the other reviewers, in the submission's discussion;
- * or a note to self, in the reviewer's own notes. The payload's {@code kind} says which, {@code text} what it says,
- * {@code subjects} the answers or documents it is about, by UUID, and {@code source}, {@code quote},
- * {@code prefix}, {@code suffix} and {@code page} the passage it points at, when it points at one. With
- * {@code replyTo} naming a comment, it is a reply to it instead; with {@code edit} naming one of the writer's own
- * comments, it changes that comment's text and severity; with {@code remove}, it removes it. An issue made from an
- * AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer sets it aside, and
- * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it; with
- * {@code undismiss}, the reviewer takes it back; the same goes for what the AI read of an answer that the protocol
- * contradicts. With {@code resolve}, a discussion entry, or the reviewer's own issue or note to self, is marked
- * resolved, for everyone, with who and when; {@code unresolve} reopens it. An issue is
- * filed under the risk {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. The
- * reviewer group the issues are raised for, {@code group}, is kept on the review, and so are the risks the reviewer
- * has considered: {@code consider} or {@code unconsider} naming one marks it, or unmarks it.
+ * PRETOTYPE. What a reviewer writes on a submission, as one event: an issue for the study team, in the reviewer's open
+ * review, tagged with its {@code severity} and its {@code nature}, a question or a required change; a message to the
+ * other reviewers, in the submission's discussion; or a note to self, in the reviewer's own notes. The payload's
+ * {@code kind} says which, {@code text} what it says, {@code subjects} the answers or documents it is about, by UUID,
+ * and {@code source}, {@code quote}, {@code prefix}, {@code suffix} and {@code page} the passage it points at, when it
+ * points at one. With {@code replyTo} naming a comment, it is a reply to it instead; with {@code edit} naming one of
+ * the writer's own comments, it changes that comment's text, severity and nature; with {@code remove}, it removes it.
+ * An issue made from an AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer
+ * sets it aside, and it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want
+ * it; with {@code undismiss}, the reviewer takes it back; the same goes for what the AI read of an answer that the
+ * protocol contradicts. With {@code resolve}, a discussion entry, or the reviewer's own issue or note to self, is
+ * marked resolved, for everyone, with who and when; {@code unresolve} reopens it. An issue is filed under the risk
+ * {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. The reviewer group the
+ * issues are raised for, {@code group}, is kept on the review, and so are the risks the reviewer has considered:
+ * {@code consider} or {@code unconsider} naming one marks it, or unmarks it.
  *
  * <p>The notes are kept apart from the review and the discussion, in an {@code irv:Notes} node per reviewer. They
  * are not hidden from the other reviewers by an access rule yet: the pages only show a reviewer their own.</p>
@@ -77,6 +77,10 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     private static final String TOPIC_PROPERTY = "topic";
 
     private static final String ISSUE_KIND = "issue";
+
+    private static final String SEVERITY_FIELD = "severity";
+
+    private static final String NATURE_FIELD = "nature";
 
     private static final String CONSIDERED_PROPERTY = "considered";
 
@@ -191,9 +195,11 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         throws PersistenceException, InvalidPayloadException
     {
         writable(comment).put(TEXT_PROPERTY, text);
-        final String severity = Payloads.text(context.getEvent(), "severity");
-        if (severity != null) {
-            Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tagReplacing(severity, false);
+        for (final String tagged : List.of(SEVERITY_FIELD, NATURE_FIELD)) {
+            final String tag = Payloads.text(context.getEvent(), tagged);
+            if (tag != null) {
+                Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tagReplacing(tag, false);
+            }
         }
         if (context.getEvent().getPayload().containsKey(TOPIC_PROPERTY)) {
             final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
@@ -239,9 +245,11 @@ public class ReviewCommentHandler implements ServiceTaskHandler
             properties.put(TOPIC_PROPERTY, topic(submission, topic));
         }
         final Resource comment = submission.getResourceResolver().create(holder, name("comment"), properties);
-        final String severity = Payloads.text(context.getEvent(), "severity");
-        if (ISSUE_KIND.equals(kind) && severity != null) {
-            Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tag(severity, false);
+        for (final String tagged : List.of(SEVERITY_FIELD, NATURE_FIELD)) {
+            final String tag = Payloads.text(context.getEvent(), tagged);
+            if (ISSUE_KIND.equals(kind) && tag != null) {
+                Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tag(tag, false);
+            }
         }
         passage(context, comment);
     }

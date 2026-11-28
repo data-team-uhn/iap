@@ -580,6 +580,9 @@ DIGITAL_TOPICS = [
      ["digital/ai/used", "digital/ai/details", "digital/ai/where", "digital/ai/training"]),
 ]
 
+# PRETOTYPE: the groups that consult for the approving ones, asking questions rather than requiring changes
+CONSULTING = {"lmp", "jdmi", "crdac", "rqi", "healthProfessions"}
+
 APPROVALS = [
     ("reb", "Research ethics", "reb-reviewers",
      "The Research Ethics Board reviews every study.", None, REB_TOPICS),
@@ -748,6 +751,9 @@ def build():
     for name, label, group, description, when, topics in APPROVALS:
         node = {"jcr:primaryType": "sch:ApprovalRequirement", "label": label, "description": description,
                 "approverGroup": group}
+        # PRETOTYPE: a group consulting for the approving ones rather than approving itself
+        if name in CONSULTING:
+            node["consulting"] = True
         if when:
             node["cond:condition"] = condition(when)
         for topic, text, topic_description, sources in topics:
