@@ -180,6 +180,9 @@ const ALWAYS: NoteKind[] = [];
 // PRETOTYPE: what the page marks while the review is open: what the review lists, the AI's concerns, the answers the
 // protocol contradicts, and the reviewer's own issues
 const REVIEW_MARKS = new Set<NoteKind>([ "aiIssue", "contradiction", "issue" ]);
+// PRETOTYPE: what the notes hold, the rest: what helps read the submission and what reviewers say about it, the AI's
+// linked answers, other groups' issues, the discussion and notes to self; the reviewer's own assessment is the review's
+const NOTES_TAB = new Set<NoteKind>([ "evidence", "otherIssue", "discussion", "note" ]);
 
 // What the filters' counts take in, not only the part being read, as their numbers alone may suggest
 const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
@@ -187,8 +190,8 @@ const COUNTED_ACROSS = "Counted across all the parts listed in the contents";
 // stay among reviewers or with the reader. Each group named once, so its kinds can go by shorter names; the tooltip
 // gives each kind's full one
 const FILTER_GROUPS: { label: string; kinds: NoteKind[] }[] = [
-  { label: "AI findings", kinds: [ "evidence", "contradiction", "aiIssue" ] },
-  { label: "Issues", kinds: [ "issue", "otherIssue" ] },
+  { label: "AI findings", kinds: [ "evidence" ] },
+  { label: "Issues", kinds: [ "otherIssue" ] },
   { label: "Comments", kinds: [ "discussion", "note" ] },
 ];
 const SHORT_LABELS: Partial<Record<NoteKind, string>> = { evidence: "Linked answers", contradiction: "Mismatches",
@@ -314,6 +317,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ selected, setSelected ] = useState<string>();
   // PRETOTYPE: a mark followed while the review is open, for the review to show where it lists it
   const [ revealed, setRevealed ] = useState<{ id: string; at: number }>();
+  // PRETOTYPE: an issue written from the page while the notes are shown, by what it says, to open in the review once
+  // it is read back
+  const [ pendingIssue, setPendingIssue ] = useState<{ text: string; at: number }>();
   // PRETOTYPE: the review's contents folded away, to give its page the room; beside the page, its tabs go too, its page
   // saying where it is
   const [ listFolded, setListFolded ] = useStoredSetting("iap.review.listFolded", false, isFlag);
@@ -329,8 +335,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ viewing, setViewing ] = useState<string>();
   // Going to a note by path, for the cards, set once what is shown is known
   const showNote = useRef<(id: string) => void>(undefined);
-  // What is shown: the kinds the reviewer chose, and those always shown
-  const showing = useMemo(() => new Set<NoteKind>([ ...shown, ...ALWAYS ]), [ shown ]);
+  // What is shown: the kinds the reviewer chose, and those always shown, of those the notes hold
+  const showing = useMemo(() => new Set<NoteKind>([ ...shown, ...ALWAYS ].filter(kind => NOTES_TAB.has(kind))),
+    [ shown ]);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
   // PRETOTYPE: a second part shown under the first, to compare them, with its own selected note and page; the part
   // being worked in, whose notes are listed; and how much of the height the upper one takes
@@ -617,10 +624,15 @@ export default function ReviewScreen({ path }: { path: string }) {
       if (written) {
         setShown(current => current.has(written) ? current : storeKinds(new Set([ ...current, written ])));
       }
+      // PRETOTYPE: an issue is the review's, so one written beside the notes is shown where the review lists it
+      if (fields.kind === "issue" && sideTab === "notes" && !narrow && typeof fields.text === "string") {
+        setSideTab("review");
+        setPendingIssue({ text: fields.text, at: Date.now() });
+      }
       load();
     },
     show: id => showNote.current?.(id),
-  }), [ doFetch, path, load, myGroup, consulting ]);
+  }), [ doFetch, path, load, myGroup, consulting, sideTab, narrow, setSideTab ]);
   // PRETOTYPE: an older version is only read, nothing written in it
   const pageActions = useMemo(() => viewed ? { ...actions, readOnly: true } : actions, [ actions, viewed ]);
   // PRETOTYPE: a form's questions with their answers in the version being read
@@ -985,6 +997,14 @@ export default function ReviewScreen({ path }: { path: string }) {
     considered: data.considered.has(topic.path),
   }));
   const unfiled = myIssues.filter(note => !reviewerTopics.mine.some(topic => topic.path === note.topicPath));
+  // The issue just written beside the notes, once read back, opened where the review lists it
+  if (pendingIssue) {
+    const made = myIssues.filter(note => note.text === pendingIssue.text).at(-1);
+    if (made) {
+      setPendingIssue(undefined);
+      setRevealed({ id: made.id, at: pendingIssue.at });
+    }
+  }
   // PRETOTYPE: while the review is open, the page marks only what it lists, and a mark followed leads there
   const reviewing = sideTab === "review";
   const inReview = new Set([ ...risks.flatMap(risk => [ ...risk.aiOpen, ...risk.issues,
@@ -993,6 +1013,10 @@ export default function ReviewScreen({ path }: { path: string }) {
   const pageData = reviewing ? { ...shownData, notes: shownData.notes.filter(note => inReview.has(note.id)) }
     : shownData;
   const pageShown = reviewing ? REVIEW_MARKS : showing;
+  // On a phone, where the review is not beside the page, the page has it all
+  const phoneShown = new Set([ ...showing, ...REVIEW_MARKS ]);
+  // The contents count what the page marks
+  const countedHere = (note: ReviewNote) => (reviewing ? inReview.has(note.id) : showing.has(note.kind));
   const follow = (id: string | undefined) => {
     if (reviewing && id) {
       setRevealed({ id, at: Date.now() });
@@ -1379,14 +1403,14 @@ export default function ReviewScreen({ path }: { path: string }) {
       {listed.map(requirement => (
         <MenuItem key={requirement.name} value={requirement.name}>
           {requirement.label} ({terms ? `${hitCount(requirement) ?? "…"} found`
-            : notesOf(requirement).filter(note => showing.has(note.kind)).length})
+            : notesOf(requirement).filter(countedHere).length})
         </MenuItem>
       ))}
     </TextField>
   ) : (
     <List dense disablePadding aria-label="Requirements">
       {listed.map(requirement => {
-        const counted = notesOf(requirement).filter(note => showing.has(note.kind));
+        const counted = notesOf(requirement).filter(countedHere);
         // While searching, how many times it has the terms instead, and greyed out when none
         const found = hitCount(requirement);
         return (
@@ -1619,7 +1643,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                             <FormReview
                               items={answered(current.items)} data={viewData ?? data}
                               groups={focused ? othersGroups : groups}
-                              myGroups={myGroups} shown={showing}
+                              myGroups={myGroups} shown={phoneShown}
                               onEvidence={openEvidence} actions={pageActions}
                               notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                               selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
@@ -1634,7 +1658,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                           {/* Drawn again on coming back from the review, as it cannot lay out its pages while hidden */}
                           <DocumentReview
                             key={`${current.name} ${sideTab}`}
-                            document={shownDocument} data={viewData ?? data} shown={showing} selected={mark.id}
+                            document={shownDocument} data={viewData ?? data} shown={phoneShown} selected={mark.id}
                             compareWith={comparing(shownDocument)} hideChanges={!showChanges}
                             onHideChanges={hidden => setShowChanges(!hidden)}
                             onChangeCount={count => countChanges(shownDocument.uuid, count)}
