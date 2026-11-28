@@ -1294,6 +1294,20 @@ export default function ReviewScreen({ path }: { path: string }) {
     </Typography>
   );
 
+  // PRETOTYPE: the Letter of Review beside the page, to check it against the submission: out of the whole workspace,
+  // the contents folded away, the review wide enough for the issues beside the letter, its own contents folded away
+  const checkLetter = () => {
+    if (reviewFull) {
+      spreadReview(false);
+    }
+    setRailOpen(false);
+    setSideOpen(true);
+    setSideTab("review");
+    // The room the folded contents leave counted in, about what they take open
+    setNotesWidth(Math.round(0.6 * ((workWidth ?? window.innerWidth) + (railOpen ? 190 : 0))));
+    setListFolded(true);
+  };
+
   const reviewPanel = (
     <GroupLabels.Provider value={groupLabels}>
       <ReviewerTopics.Provider value={topicsWritten}>
@@ -1301,6 +1315,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           risks={risks} unfiled={unfiled} issueCount={myIssues.length} group={myGroupName}
           others={othersRaised} about={about} reveal={revealed} storedAs={`iap.review.entry.${path}`}
           listFolded={listFolded} onListFolded={setListFolded} onFocusing={setFocusing}
+          onCheckLetter={narrow ? undefined : checkLetter}
           doing={{ ...doing, decision: reviewActions }}
           full={reviewFull} onFull={spreadReview} headed={reviewFull || narrow}
           letter={letterInput.template ? { draft: letter, send: () => setDialog("changes"),

@@ -188,6 +188,8 @@ export default function ReviewPanel(props: ReviewProps & {
   listFolded: boolean;
   onListFolded: (folded: boolean) => void;
   onFocusing?: (focusing: boolean) => void;
+  // PRETOTYPE: lays the Letter of Review out beside the page, to check it against the submission
+  onCheckLetter?: () => void;
 }) {
   const { risks, doing, full, onFull, letter, reveal, onFocusing } = props;
   // The risk opened or, laid out wide, the page chosen, kept from one layout to the other, and from one visit to the
@@ -230,10 +232,15 @@ export default function ReviewPanel(props: ReviewProps & {
     onFull(false);
     doing.open(note);
   };
-  // The letter is read over the whole workspace, where its page has room, as the entry chosen
+  // The letter is read beside the page, laid out to check it against the submission, or, where there is no room for
+  // that, over the whole workspace
   const openLetter = () => {
     setChosen(LETTER);
-    onFull(true);
+    if (props.onCheckLetter) {
+      props.onCheckLetter();
+    } else {
+      onFull(true);
+    }
   };
 
   return (
@@ -385,6 +392,8 @@ function LetterView(props: ReviewProps & {
   // What goes before its title, such as the way to bring the review contents back, and what ends its line
   lead?: ReactNode;
   trail?: ReactNode;
+  // PRETOTYPE: lays the letter out beside the page, to check it against the submission; none once it is
+  onCheckLetter?: () => void;
 }) {
   const { letter, doing } = props;
   const [ selected, setSelected ] = useState<string>();
@@ -404,6 +413,11 @@ function LetterView(props: ReviewProps & {
   const row = !useNarrowerThan(root, 960);
   const issues = new Map([ ...props.risks.flatMap(one => one.issues), ...props.unfiled ]
     .map(issue => [ issue.id, issue ]));
+  // Where an issue was raised is shown with the letter beside the page
+  const showWhere = (note: ReviewNote) => {
+    props.onCheckLetter?.();
+    doing.open(note);
+  };
   // An issue chosen, in the list or in the letter, is shown in the other, and, beside the page, on the page too
   const select = (id: string, show: string) => {
     setSelected(id);
@@ -437,6 +451,11 @@ function LetterView(props: ReviewProps & {
         Drawn from your open issues; to change what it says, change your issues here. Sending it asks the study team
         for changes, and keeps your issues as they read them.
       </Typography>
+      {props.onCheckLetter && (
+        <Box>
+          <Link component="button" variant="body2" onClick={props.onCheckLetter}>Check against the submission</Link>
+        </Box>
+      )}
       <Stack direction={row ? "row" : "column"}
         sx={{ gap: 3, alignItems: row ? "stretch" : "flex-start", ...row ? { flex: 1, minHeight: 0 } : {} }}>
         <Box sx={{ flex: row ? "2 1 0" : undefined, minWidth: row ? 300 : 0, maxWidth: row ? 560 : undefined,
@@ -463,7 +482,7 @@ function LetterView(props: ReviewProps & {
                     </Typography>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <IssueRow issue={issue} dense={false} replyable={false} about={props.about} doing={doing}
-                        onShow={props.onShow} />
+                        onShow={showWhere} />
                     </Box>
                   </Stack>
                 );
@@ -471,10 +490,20 @@ function LetterView(props: ReviewProps & {
             </Box>
           ))}
         </Box>
+        {/* On the page grey, as the document viewer shows its pages. Side by side, a pointer from the issues into it,
+            as the sign-in page has between its panels, says the letter is drawn from them */}
         <Box sx={{ flex: row ? "3 1 0" : undefined, minWidth: 0, maxWidth: row ? 880 : undefined,
-          width: row ? undefined : "100%", ...row ? { overflowY: "auto", pb: 1 } : {} }}>
-          <LetterPage letter={letter.draft} selected={selected}
-            onSelect={id => select(id, `review-issue-${id}`)} />
+          width: row ? undefined : "100%", bgcolor: "background.default", borderRadius: 1, position: "relative",
+          ...row ? { display: "flex", flexDirection: "column", minHeight: 0 } : {} }}>
+          {row && (
+            <Box aria-hidden="true" sx={theme => ({ position: "absolute", insetInlineStart: 0, top: theme.spacing(3),
+              zIndex: 1, inlineSize: 16, blockSize: 32, clipPath: "polygon(0 0, 0 100%, 100% 50%)",
+              bgcolor: "background.paper", transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined })} />
+          )}
+          <Box sx={{ p: { xs: 1, sm: 2 }, ...row ? { flex: 1, minHeight: 0, overflowY: "auto" } : {} }}>
+            <LetterPage letter={letter.draft} selected={selected}
+              onSelect={id => select(id, `review-issue-${id}`)} />
+          </Box>
         </Box>
       </Stack>
     </Stack>
@@ -496,6 +525,7 @@ function WideReview(props: ReviewProps & {
   listFolded: boolean;
   onListFolded: (folded: boolean) => void;
   onFull: (full: boolean) => void;
+  onCheckLetter?: () => void;
 }) {
   const { risks, doing, row, onShow, letter } = props;
   // PRETOTYPE: laid out side by side, the contents can be folded away, to give its page the room, as for the letter
@@ -676,7 +706,8 @@ function WideReview(props: ReviewProps & {
           </>} />
         )}
         {chosen === LETTER && letter && (
-          <LetterView {...props} letter={letter} onShow={onShow} pick={props.letterPick} lead={crumb} trail={trail} />
+          <LetterView {...props} letter={letter} onShow={onShow} pick={props.letterPick} lead={crumb} trail={trail}
+            onCheckLetter={folded && !props.roomy ? undefined : props.onCheckLetter} />
         )}
         {chosen === UNFILED && (
           // As a risk's page is: its name over its issues

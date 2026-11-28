@@ -36,6 +36,8 @@ export default function LetterPage({ letter, selected, onSelect }: {
 }) {
   return (
     <Box sx={theme => ({ bgcolor: "common.white", color: "common.black", boxShadow: theme.shadows[2],
+      // Its edge kept where it lies on white, as in the preview before sending
+      border: 1, borderColor: "divider",
       maxWidth: 816, mx: "auto", px: { xs: 3, sm: 9 }, py: { xs: 3, sm: 6 }, fontFamily: BODY_FONT,
       "& p": { m: 0, mb: 2, fontSize: "0.95rem", lineHeight: 1.45 } })}>
       {/* The logo at the top left, as wide as the template has it on the page, the address across from it */}
