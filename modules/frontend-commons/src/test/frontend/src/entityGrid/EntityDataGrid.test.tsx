@@ -114,6 +114,7 @@ registerEntityType(SLOTTED_TYPE, {
       cardValue: row => new Date(String(row.when)).toLocaleDateString(),
     },
     { field: "internal", headerName: "Internal", cardSlot: "omit" },
+    { field: "summary", headerName: "Summary", cardSlot: "body" },
     { field: "note", headerName: "Note" },
   ],
 });
@@ -888,12 +889,16 @@ describe("EntityDataGrid", () => {
       "kind": "demo",
       "when": "2026-07-02T10:00:00.000Z",
       "internal": "secret",
+      "summary": "read in full",
       "note": "a labeled row",
     }]);
 
     render(<EntityDataGrid entityType={SLOTTED_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Slotted entity")).toBeInTheDocument();
+    // A body is read in full, with no label
+    expect(screen.getByText("read in full")).toBeInTheDocument();
+    expect(screen.queryByText("Summary")).toBeNull();
     expect(screen.getByText("open").tagName).toBe("EM");
     const day = new Date("2026-07-02T10:00:00.000Z").toLocaleDateString();
     expect(screen.getByText((_, element) => element?.textContent === `demo • ${day}`)).toBeInTheDocument();

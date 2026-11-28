@@ -50,12 +50,23 @@ export function getPassageTint(theme: Theme, kind: MarkKind, strength: number): 
   return theme.alpha(getMarkColour(theme, kind, "light"), strength);
 }
 
+// PRETOTYPE: how much of a passage's colour its card and the card's heading take, testers having found the full
+// tints too loud with several cards on screen; the icon and the heading's name say the kind, and the document's
+// highlights stay as strong as they were
+const QUIET = 0.4;
+const quiet = (kind: MarkKind, strength: number) => isChangeKind(kind) ? strength : strength * QUIET;
+
+// The background a card's heading takes under the pointer or the keyboard's focus
+export function getPassageHover(theme: Theme, kind: MarkKind): string {
+  return getPassageTint(theme, kind, quiet(kind, 0.5));
+}
+
 // The card a mark is shown on: a tint of the mark's colour over the paper. It has no coloured edge, which
 // would read as the card being selected, as the outline of the one selected says. The paper under the tint
 // makes the card look the same on any background. A change's card is also outlined, since it has no tint to
 // set it apart.
 export function getPassageCardStyle(theme: Theme, kind: MarkKind, strength = 0.25) {
-  const tint = getPassageTint(theme, kind, strength);
+  const tint = getPassageTint(theme, kind, quiet(kind, strength));
   return {
     borderRadius: 1,
     ...isChangeKind(kind) ? { border: "1px solid" } : {},
@@ -68,7 +79,7 @@ export function getPassageCardStyle(theme: Theme, kind: MarkKind, strength = 0.2
 // The background of the part of a card that shows the passage: a second tint over the card's, which sets
 // the passage apart from the details under it.
 export function getPassageLayerStyle(theme: Theme, kind: MarkKind) {
-  return { bgcolor: getPassageTint(theme, kind, 0.25) };
+  return { bgcolor: getPassageTint(theme, kind, quiet(kind, 0.3)) };
 }
 
 // The style of the details a card shows under the passage, such as comments. With `lines`, they are cut

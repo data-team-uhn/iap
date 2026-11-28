@@ -75,6 +75,10 @@ export default function EntityListItem({ row, columns, config }: {
     .filter(column => column.cardSlot === "caption")
     .map(column => ({ field: column.field, node: content(column) }))
     .filter(part => part.node != null && part.node !== "");
+  const bodies = shown
+    .filter(column => column.cardSlot === "body")
+    .map(column => ({ field: column.field, node: content(column) }))
+    .filter(part => part.node != null && part.node !== "");
   let title = shown.find(column => column.cardSlot === "title");
   let details = shown.filter(column => (column.cardSlot ?? "row") === "row");
   if (!title && details.length > 0) {
@@ -95,6 +99,7 @@ export default function EntityListItem({ row, columns, config }: {
           {captions.map((part, index) => <Fragment key={part.field}>{index > 0 && " • "}{part.node}</Fragment>)}
         </Typography>
       )}
+      {bodies.map(part => <Box key={part.field} sx={{ typography: "body2" }}>{part.node}</Box>)}
       {details.map(column => {
         const value = content(column);
         return value == null || value === "" ? null : (

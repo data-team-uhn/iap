@@ -562,6 +562,14 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void reportsEditableToTheSubmitterWhileItIsBackForChanges() throws IOException
+    {
+        modify(SUBMISSION_PATH, "tags", new String[] {"changes-requested"});
+
+        assertTrue(form(REQUESTER).getBoolean("editable"));
+    }
+
+    @Test
     void passesOverAnAnswerWhoseQuestionIsGone() throws IOException
     {
         // A question removed from the schema leaves its answer behind

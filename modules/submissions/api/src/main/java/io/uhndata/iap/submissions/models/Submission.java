@@ -60,6 +60,9 @@ public class Submission extends Entity
     /** The {@code lifecycle} tag a submission carries until it is submitted. */
     public static final String DRAFT_TAG = "draft";
 
+    /** PRETOTYPE: the {@code lifecycle} tag a submission carries while it is back with its team for changes. */
+    public static final String CHANGES_REQUESTED_TAG = "changes-requested";
+
     /** The {@code lifecycle} tag a submission carries once the reviewers have accepted it. */
     public static final String APPROVED_TAG = "approved";
 
@@ -211,6 +214,19 @@ public class Submission extends Entity
     {
         final Taggable tags = this.as(Taggable.class);
         return tags != null && tags.hasOwnTag(DRAFT_TAG);
+    }
+
+    /**
+     * PRETOTYPE. Whether its submitter may change this submission: while it is a draft, and again while the reviewers
+     * have sent it back for changes, until its team sends it back to them.
+     *
+     * @return {@code true} while it is a draft or back for changes; {@code false} also when the tags service is
+     *         unavailable
+     */
+    public boolean isOpenToChanges()
+    {
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && (tags.hasOwnTag(DRAFT_TAG) || tags.hasOwnTag(CHANGES_REQUESTED_TAG));
     }
 
     /**

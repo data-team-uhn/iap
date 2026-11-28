@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -42,10 +42,14 @@ import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-co
 import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
 import { useWorkQueue } from "@iap/frontend-commons/useWorkQueue";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
+import { type AiFinding, aiPreReview } from "./aiFindings";
 import ApprovalState from "./ApprovalState";
+import PreSendDialog, { FindingFocusContext } from "./PreSendDialog";
+import ReviewScreen from "./review/ReviewScreen";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type DocumentRequirement,
@@ -61,6 +65,8 @@ import SubmissionTasks from "./SubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
+// PRETOTYPE: a reviewer works through a submission on a page of its own
+const REVIEW = ".review";
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
@@ -337,6 +343,12 @@ function whyNotReady(submission: SerializedNode | undefined): string | undefined
 // version it answers.
 function SubmissionView() {
   const location = useLocation();
+  const address = location.pathname.replace(/\.html$/, "");
+  return address.endsWith(REVIEW) ? <ReviewScreen path={address.slice(0, -REVIEW.length)} /> : <SubmissionPage />;
+}
+
+function SubmissionPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   // The page URL is the submission's repository path, with an optional `.html`. A trailing `.edit`
   // asks for the editor, and the server serves the same page for it.
@@ -414,6 +426,27 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
+  // PRETOTYPE: before a submission is first sent, the AI's findings, if it read it, come up on sending, for the team to
+  // fix, answer or leave each; one they go to fix is shown by the question it is about
+  const preReview = useMemo(() => (submission && !submission.identifier ? aiPreReview(submission) : undefined),
+    [ submission ]);
+  const [ sending, setSending ] = useState<() => void>();
+  const [ findingsOpen, setFindingsOpen ] = useState(false);
+  const [ fixing, setFixing ] = useState<string>();
+  const fixed = preReview?.findings.find(finding => finding.id === fixing);
+  const focus = useMemo(() => fixed && { finding: fixed, question: fixed.subjects.find(one => one.question)?.question,
+    onBack: () => setFindingsOpen(true) }, [ fixed ]);
+  const fix = (finding: AiFinding) => {
+    setFixing(finding.id);
+    setFindingsOpen(false);
+    if (!editing) {
+      readAgain();
+      void navigate(`${path}${EDIT}`);
+    }
+  };
+  const respond = (finding: AiFinding, text: string) => sendEvent(fetchUtil, path, "aiResponse",
+    { comment: finding.id, text }).then(readAgain);
+
   // The way back, the steps the request is waiting for, and the switch between the two modes. It is
   // shown in every state of the page. Loading and failure are where somebody most needs a way out.
   const header = (
@@ -425,6 +458,10 @@ function SubmissionView() {
           readinessNote={whyNotReady(submission)}
           queue={queue}
           checkReady={checkReady}
+          intercept={preReview?.findings.length ? (_task, complete) => {
+            setSending(() => complete);
+            setFindingsOpen(true);
+          } : undefined}
           onCompleted={() => {
             if (shownPath.current !== path) {
               return;
@@ -460,6 +497,15 @@ function SubmissionView() {
           </ToggleButton>
         </ToggleButtonGroup>
       </Stack>
+      {preReview && sending && (
+        <PreSendDialog review={preReview} open={findingsOpen} onFix={fix}
+          onRespond={respond} onClose={() => setFindingsOpen(false)}
+          onSend={() => {
+            setFindingsOpen(false);
+            setFixing(undefined);
+            sending();
+          }} />
+      )}
     </Stack>
   );
 
@@ -469,7 +515,9 @@ function SubmissionView() {
         {header}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
-        <SubmissionEditor key={path} path={path} queueSave={queue} onChanged={readAgain} />
+        <FindingFocusContext value={focus}>
+          <SubmissionEditor key={path} path={path} queueSave={queue} onChanged={readAgain} />
+        </FindingFocusContext>
       </Stack>
     );
   }

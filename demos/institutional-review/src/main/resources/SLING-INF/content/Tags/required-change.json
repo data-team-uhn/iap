@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Required change",
+  "description": "Something the study team must change in the submission before the reviewer can approve it.",
+  "category": [
+    "issue-kind"
+  ],
+  "color": "#a8402f",
+  "icon": "EditNoteOutlined",
+  "order": 20,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

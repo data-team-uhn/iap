@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/appBar/entry",
+  "ext:name": "Page tools",
+  "ext:renderURL": "asset:iap-homepage.PageToolsEntry.js",
+  "ext:appBarSection": "end",
+  "defaultOrder": 5
+}

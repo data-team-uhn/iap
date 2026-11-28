@@ -18,7 +18,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { Alert, Button, DialogActions, DialogContent, type ButtonProps } from "@mui/material";
+import { Alert, Button, DialogActions, DialogContent, type Breakpoint, type ButtonProps } from "@mui/material";
 
 import { messageOf } from "../requestFailure";
 import { useAsyncAction } from "../useAsyncAction";
@@ -41,6 +41,9 @@ interface ConfirmActionDialogProps {
   // confirm button stays disabled. Without it, every failure may be retried.
   isFinal?: (error: unknown) => boolean;
   onClose: () => void;
+  // How wide it is, as for a ResponsiveDialog; "xs" if absent, wider for something to look at before confirming, such
+  // as a preview of what is sent
+  width?: Breakpoint;
 }
 
 // A dialog that asks before running an action, and reports a failure inside itself. While the
@@ -60,6 +63,7 @@ interface ConfirmActionDialogProps {
 function ConfirmActionDialog(
   {
     title, children, confirmLabel, workingLabel, confirmColor, onConfirm, interceptFailure, isFinal, onClose,
+    width = "xs",
   }: ConfirmActionDialogProps,
 ) {
   const [ refused, setRefused ] = useState(false);
@@ -76,7 +80,7 @@ function ConfirmActionDialog(
   });
 
   return (
-    <ResponsiveDialog open title={title} width="xs" withCloseButton closeDisabled={working} onClose={onClose}>
+    <ResponsiveDialog open title={title} width={width} withCloseButton closeDisabled={working} onClose={onClose}>
       <DialogContent dividers>
         { children }
         { failure && <Alert severity="error" sx={{ mt: 2 }}>{failure}</Alert> }

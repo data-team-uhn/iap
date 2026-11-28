@@ -1,0 +1,648 @@
+{
+  "nct": "NCT07430618",
+  "title": "Key to Health breath biofeedback program: two-year weight loss outcomes (RWE)",
+  "answers": {
+    "study/pi": "Dr. Morgan Ellis",
+    "study/department": "Department of Medicine, Division of Endocrinology and Metabolism, with the Toronto Western Hospital Bariatric Surgery Program. Biostatistics support from the Biostatistics Research Unit.",
+    "study/summary": "Retrospective cohort of adult users of the Key to Health digital weight loss program (app plus breath acetone sensor) who started between Nov 2018 and Apr 2023. We look at how much weight users lost at 12, 24, 52 and 104 weeks, and whether the loss lasted to 2 years. The company exports de-identified data from its backend database; we do the analysis at UHN using an MMRM, with sensitivity analyses for missing data.",
+    "study/sponsor": "industry",
+    "study/sponsorName": "Key to Health",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "cohort",
+    "classification/question": "What is the mean percentage total body weight loss at 104 weeks among adults with overweight or obesity using the Key to Health program? Secondary: weight loss at 12, 24 and 52 weeks, the share losing 5% and 10% or more, and whether breath sensor use and breath acetone levels relate to weight loss.",
+    "classification/cohort/population": "Adults 18 and over with BMI above 25 who started the Key to Health program between Nov 2018 and Apr 2023, with a valid self-reported baseline weight at onboarding and at least one weight logged afterwards.",
+    "classification/cohort/startDate": "2018-11-01",
+    "classification/cohort/endDate": "2025-04-30",
+    "classification/cohort/dateRationale": "Program starts from Nov 2018 (program launch) to Apr 2023, with data to Apr 2025 so the latest starters still have about 2 years of follow-up for the week 104 outcome.",
+    "classification/cohort/records": 12000,
+    "classification/cohort/exclusions": [
+      "age",
+      "completeness"
+    ],
+    "classification/cohort/exclusionsWhy": "Under 18 excluded because the question is about adults. Users with no weight logged after onboarding are excluded since there is nothing to measure change against. Implausible baseline weights are dropped as data errors.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": [
+      "care"
+    ],
+    "classification/sources/dataSources": [
+      "administrative"
+    ],
+    "classification/sources/sourceDetails": "Key to Health company backend database (app and connected scale weight logs, onboarding data, breath sensor readings). Not a UHN system, so no CAPCR number.",
+    "classification/sources/external": true,
+    "identifiability/arrival": "anonymized",
+    "identifiability/keyHolder": "none",
+    "identifiability/fields": "No names, emails, phone numbers or addresses. We get a study ID per user, age, sex, height, baseline weight, each weight entry with its date and whether it was manual or from the scale, breath sensor sessions with acetone level and date, and program start date. Dates are needed to build the 12/24/52/104 week windows. Age and sex are model covariates.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "The company strips direct identifiers before export. We only receive study IDs and never get the account details. Results are reported in aggregate only.",
+    "identifiability/linkage": [
+      "no"
+    ],
+    "consent/sought": "waiver",
+    "consent/priorConsent": false,
+    "consent/waiver/whyIdentifiable": "The data we get is de-identified, but users did not consent to this specific study, so we are asking for a waiver to be safe. Dates of weight entries are needed to place each weight in the right time window.",
+    "consent/waiver/welfare": "no",
+    "consent/waiver/impracticable": [
+      "cohortSize",
+      "lost"
+    ],
+    "access/custodian": "Key to Health",
+    "access/custodianApproval": "obtained",
+    "access/authority": [
+      "agreement"
+    ],
+    "sensitivity/categories": [
+      "none"
+    ],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": [
+      "no"
+    ],
+    "handling/leaving/otherUses": [
+      "none"
+    ],
+    "handling/storage/location": [
+      "server"
+    ],
+    "handling/storage/access": "Restricted folder on the UHN research shared drive. Access for the PI, the study coordinator and the biostatistician only, through a UHN AD group the PI approves. Analysis in R on UHN workstations, no copies on laptops or USB keys.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "10 years after publication",
+    "handling/storage/breachHarm": [
+      "minimal"
+    ],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": [
+      "none"
+    ],
+    "handling/results/reporting": "suppressed",
+    "handling/results/threshold": 5,
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Not expected. Data is de-identified and we have no way to contact users, so nothing is fed back to individuals.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": true,
+    "digital/externalTool/patientData": true,
+    "digital/externalTool/bigPharma": false,
+    "digital/externalTool/software": "Key to Health app and backend database",
+    "digital/externalTool/license": "Key to Health",
+    "digital/externalTool/sponsorDevice": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/input/kind": [
+      "patient"
+    ],
+    "digital/input/who": [
+      "participants"
+    ],
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2024-03-18",
+    "team/healthProfessionals": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": true,
+    "resources/staff": false,
+    "resources/extraction": false,
+    "resources/analyst": true,
+    "resources/other": "None beyond the biostatistician time, which the sponsor funds.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": true,
+    "agreements/organizations/names": "Key to Health, the company that runs the program. It holds the data, prepares the de-identified export from its backend database, and funds the biostatistician time.",
+    "agreements/organizations/accessUhnData": false,
+    "agreements/organizations/flow": "in",
+    "agreements/organizations/patientLevel": true,
+    "agreements/organizations/stores": false,
+    "agreements/organizations/funds": true,
+    "agreements/organizations/existing": false,
+    "agreements/organizations/related": "Research agreement with Key to Health covering the funding and the data transfer is being drafted with UHN Research Legal."
+  },
+  "weaknesses": [
+    "Identifiability: identifiability/arrival is 'anonymized' and keyHolder 'none', but the company keeps the account behind every study ID and the extract carries exact dates (program start, every weight entry and breath reading). It is coded, with the key held by the custodian. The extraction for identifiability/arrival flags it.",
+    "Waiver: consent/waiver/impracticable rests on cohort size and loss to follow-up, but the cohort is 'commercially active users' the company can reach in the app. Impracticability is asserted, not argued, and the waiver sits beside an 'anonymized' claim that would make it unnecessary.",
+    "Conflict of interest: study/sponsor is industry (Key to Health, whose own program is evaluated, who holds the data and funds the analyst; the protocol reads as the company's SAP), yet team/conflict is false, with no RMP and nothing on who controls analysis and publication.",
+    "Authority: access/authority is 'agreement' and custodianApproval 'obtained', but agreements/organizations/existing is false and the agreement is still being drafted. Also originalPurpose 'care' for data collected to run a commercial service (extraction flags it)."
+  ],
+  "extractions": [
+    {
+      "question": "classification/purpose",
+      "extractedAnswer": "research",
+      "quote": "This Statistical Analysis Plan (SAP) describes the planned analysis for the retrospective real-world evidence (RWE) study of the Key to Health digital weight loss program.",
+      "page": 2,
+      "confidence": 0.9,
+      "reasoning": "The protocol presents itself as a statistical analysis plan for a real-world evidence study, which is research rather than quality improvement."
+    },
+    {
+      "question": "classification/design",
+      "extractedAnswer": "cohort",
+      "quote": "The study utilizes a retrospective, observational cohort design using de-identified data from commercially active users of the Key to Health program",
+      "page": 2,
+      "confidence": 0.95,
+      "reasoning": "The design is named directly as a retrospective, observational cohort."
+    },
+    {
+      "question": "identifiability/arrival",
+      "extractedAnswer": "codedOutsideKey",
+      "quote": "de-identified data from commercially active users of the Key to Health program stored in the company’s backend database",
+      "page": 2,
+      "confidence": 0.68,
+      "reasoning": "The data is de-identified, not anonymized: it comes from live user accounts in the company's database, so the company can still link each record back to a user. That makes it coded, with the key held outside the team."
+    },
+    {
+      "question": "access/custodian",
+      "extractedAnswer": "Key to Health",
+      "quote": "users of the Key to Health program stored in the company’s backend database",
+      "page": 2,
+      "confidence": 0.86,
+      "reasoning": "The data lives in the program company's own backend database, which makes the company the custodian."
+    },
+    {
+      "question": "classification/sources/originalPurpose",
+      "extractedAnswer": [
+        "administration"
+      ],
+      "quote": "real-world evidence (RWE) study of the Key to Health digital weight loss program. The study utilizes a retrospective, observational cohort design using de-identified data from commercially active users",
+      "page": 2,
+      "confidence": 0.55,
+      "reasoning": "The records were collected by a commercial program in the course of delivering its service to paying users, which is closer to administration of a service than to clinical care. None of the options fits exactly."
+    },
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "recordsOnly",
+      "quote": "Given the observational nature of the study, results are descriptive of long-term outcomes among program users rather than representative of causal effects.",
+      "page": 2,
+      "confidence": 0.82,
+      "reasoning": "The study only analyses existing user data; nothing in the plan describes contacting users or collecting anything new."
+    },
+    {
+      "question": "classification/question",
+      "extractedAnswer": "What is the mean percentage total body weight loss at 104 weeks among users of the Key to Health program?",
+      "quote": "The primary objective is to estimate the mean percentage self-reported or connected-scale total body weight loss (TBWL%) at 104 weeks (2 years) in the population of app users",
+      "page": 2,
+      "confidence": 0.91,
+      "reasoning": "The primary objective states the question directly."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2018-11-01",
+      "quote": "Users initiated the program between November 2018 and April 2023",
+      "page": 2,
+      "confidence": 0.88,
+      "reasoning": "Program starts begin in November 2018; the first day of that month is taken as the start date."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2025-04-30",
+      "quote": "the data collection window spans from November 2018 through April 2025",
+      "page": 2,
+      "confidence": 0.87,
+      "reasoning": "Data collection runs through April 2025; the last day of that month is taken as the end date."
+    },
+    {
+      "question": "classification/cohort/dateRationale",
+      "extractedAnswer": "Program starts from November 2018 to April 2023, with data through April 2025 to allow two years of follow-up.",
+      "quote": "Users initiated the program between November 2018 and April 2023 and the data collection window spans from November 2018 through April 2025.",
+      "page": 2,
+      "confidence": 0.8,
+      "reasoning": "The two ranges together explain the dates: enrolment ends two years before the data window closes, matching the 104-week outcome."
+    },
+    {
+      "question": "classification/cohort/population",
+      "extractedAnswer": "Adults 18 and over with BMI above 25 who started the program between November 2018 and April 2023 and have a valid self-reported baseline weight.",
+      "quote": "Inclusion criteria are: (1) valid baseline self-reported weight recorded during onboarding; (2) program start date between Nov 2018 and Apr 2023; (3) age ≥18 years at baseline; and (4) BMI >25.",
+      "page": 3,
+      "confidence": 0.93,
+      "reasoning": "The inclusion criteria list the cohort definition in full."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": [
+        "age",
+        "completeness"
+      ],
+      "quote": "Exclusion criteria are: (1) invalid or biologically implausible baseline weight; and (2) no weight data recorded after the baseline date.",
+      "page": 3,
+      "confidence": 0.74,
+      "reasoning": "Users with no post-baseline weight are excluded for completeness of records, and the inclusion criteria restrict to adults."
+    },
+    {
+      "question": "digital/input/kind",
+      "extractedAnswer": [
+        "patient"
+      ],
+      "quote": "Baseline weight will be defined strictly as the self-reported weight recorded during the onboarding flow.",
+      "page": 3,
+      "confidence": 0.77,
+      "reasoning": "The study relies on personal health data (weights) entered into the external app."
+    },
+    {
+      "question": "digital/input/who",
+      "extractedAnswer": [
+        "participants"
+      ],
+      "quote": "Post-baseline weights will be defined as any weight logged by the user via the app or connected scale after the onboarding timestamp.",
+      "page": 3,
+      "confidence": 0.9,
+      "reasoning": "Weights are logged by the users themselves, in the app or through a connected scale."
+    },
+    {
+      "question": "digital/ai/used",
+      "extractedAnswer": false,
+      "quote": "Statistical analysis will be performed using R (Version 4.0 or later) or SAS.",
+      "page": 6,
+      "confidence": 0.72,
+      "reasoning": "Only standard statistical software is named, and the analysis is a prespecified mixed model; nothing points to AI tools."
+    }
+  ],
+  "screening": {
+    "summary": "A records-only cohort analysis of a company's app data, analyzed at UHN, with a careful statistical plan. The main questions are about the company's role: it sponsors the study, evaluates its own product, holds the key to the data and has no signed agreement yet, while the form declares no conflict and calls the data anonymized.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "conflict",
+        "summary": "An industry sponsor evaluating its own product, providing the data and funding the analyst, with no conflict declared.",
+        "comments": [
+          {
+            "text": "Key to Health sponsors the study, funds the biostatistician, supplies the data and runs the program being evaluated. The protocol reads as the company's own analysis plan. A favourable two-year durability result has obvious commercial value to the sponsor, yet the form says nobody on the team has a conflict and there is no relationship management plan.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Declare the relationship with Key to Health (funding, and any consulting, advisory or equity ties of team members), and state who controls the analysis, the interpretation and the decision to publish. An RMP should cover the sponsor's access to results before publication.",
+            "subjects": [
+              "team/conflict",
+              "study/sponsor",
+              "resources/funding"
+            ],
+            "quote": "This Statistical Analysis Plan (SAP) describes the planned analysis for the retrospective real-world evidence (RWE) study of the Key to Health digital weight loss program.",
+            "page": 2
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "Described as anonymized, but the company keeps the accounts behind the study IDs and the extract has exact dates.",
+        "comments": [
+          {
+            "text": "The form says the data is anonymized with no key, but the protocol says de-identified, and the records come from live accounts in the company's database. The company can link every study ID back to a named, paying user. That is coded data with the key held by the custodian, not anonymized data.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Change the arrival form to coded with the key held outside the team, and the key holder to the custodian. State that the company will not give the key to the team.",
+            "subjects": [
+              "identifiability/arrival",
+              "identifiability/keyHolder"
+            ],
+            "quote": "de-identified data from commercially active users of the Key to Health program stored in the company’s backend database",
+            "page": 2
+          },
+          {
+            "text": "The variable list asks for the calendar date of every weight entry and breath reading, plus the program start date. The analysis only needs days from program start and the cohort year, which the company could compute before export.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "Ask the company to export days since program start in place of dates, and the start year only.",
+            "subjects": [
+              "variables",
+              "identifiability/fields"
+            ],
+            "quote": "Outcomes will be categorized into time point windows of interest based on days from program start.",
+            "page": 4
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "A waiver is requested, but the impracticability argument is asserted rather than made, and it sits awkwardly with the anonymized claim.",
+        "comments": [
+          {
+            "text": "Impracticability rests on cohort size and loss to follow-up, but the cohort is commercial users whose accounts the company still holds, and many are likely still active. The company can reach them in the app or by email. A large cohort alone does not make consent impracticable, and loss to follow-up isn't argued for anyone.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Explain why the company could not notify users in the app and give them a way to opt out, or what share of accounts are closed or unreachable. If a notice is feasible, consider it with the waiver.",
+            "subjects": [
+              "consent/waiver/impracticable",
+              "consent/sought"
+            ],
+            "quote": "using de-identified data from commercially active users of the Key to Health program",
+            "page": 2
+          },
+          {
+            "text": "The waiver answer says the data is not identifiable and the waiver is requested 'to be safe'. A waiver only makes sense for identifiable data. Once the data is described as coded, the identifiability argument should say why dates (or day offsets) and the study ID are needed.",
+            "kind": "conflict",
+            "severity": "minor",
+            "subjects": [
+              "consent/waiver/whyIdentifiable",
+              "identifiability/arrival"
+            ]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "authority",
+        "summary": "The custodian is the company. The authority given is an agreement that doesn't exist yet.",
+        "comments": [
+          {
+            "text": "Access is said to rest on a data sharing agreement, with custodian approval obtained, but the agreements section says no agreement exists yet and the research agreement is still being drafted.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Give the status of the agreement and attach the custodian's written approval. The data should not be transferred until the agreement is signed.",
+            "subjects": [
+              "access/authority",
+              "access/custodianApproval",
+              "agreements/organizations/existing"
+            ]
+          },
+          {
+            "text": "Key to Health collected this data under its own terms of use and privacy policy, outside PHIPA. Whether the company may disclose it for research depends on what users accepted and on federal private-sector privacy law (PIPEDA).",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Attach the privacy policy and terms users accepted during the study period, and point to the clause that covers research use or disclosure of de-identified data.",
+            "subjects": [
+              "access/authority",
+              "classification/sources/originalPurpose"
+            ]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "classification",
+        "summary": "Research, records only, with no contact. The source is a commercial service, not clinical care.",
+        "comments": [
+          {
+            "text": "The original purpose is given as clinical care, but the data was collected by a commercial weight loss program to deliver its service to paying users. Nobody's care team recorded it.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Tick administration instead and describe the source as a commercial app in the source details.",
+            "subjects": [
+              "classification/sources/originalPurpose"
+            ]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "rigour",
+        "summary": "The analysis plan is thorough, with prespecified windows, an MMRM and MNAR and IPW sensitivity analyses. Two details need tightening.",
+        "comments": [
+          {
+            "text": "The week 104 window runs to day 788, but data ends in April 2025. Users who started after early March 2023 have that window cut short, by up to about two months for the last starters, so they're less likely to have an observed week 104 value. This links to cohort year, which is in the model.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "Either end program starts so that everyone has the full window, or say how truncated windows are handled and report how many users are affected.",
+            "subjects": [
+              "classification/cohort/dateRationale",
+              "protocol"
+            ],
+            "quote": "week 104 (target day 728; window 668–788 days)",
+            "page": 4
+          },
+          {
+            "text": "As written, the formula gives a negative number for weight loss, while the responder endpoints talk about loss of 5% or more as positive. Readers could misread the direction.",
+            "kind": "concern",
+            "severity": "suggestion",
+            "suggestion": "State the sign convention once, e.g. loss reported as a positive percentage.",
+            "subjects": [
+              "protocol"
+            ],
+            "quote": "TBWL% = (Post-baseline weight – Baseline weight) / Baseline weight × 100",
+            "page": 2
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "terminology",
+        "summary": "Trial language is used for an observational dataset.",
+        "comments": [
+          {
+            "text": "The primary population is called ITT, but it excludes every user with no weight logged after onboarding, so it's the engaged users only. Calling it ITT, and the outcomes efficacy endpoints, overstates what an observational analysis of program users can show.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "Call it the full analysis population of users with at least one follow-up weight, and report how many eligible users were excluded for having none.",
+            "subjects": [
+              "protocol",
+              "classification/design"
+            ],
+            "quote": "The primary estimand is the mean TBWL% at 104 weeks in the full analysis (ITT) population (eligible users with baseline weight and ≥1 post-baseline weight)",
+            "page": 4
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "equity",
+        "summary": "The exclusions (adults only, at least one follow-up weight) follow from the question. The cohort is self-selected: people who could pay for a commercial program and a breath sensor.",
+        "comments": [
+          {
+            "text": "Paying users of a commercial app are likely to differ from the wider population with obesity in income, age and access to a smartphone. The data has no income or ethnicity, so results can't be checked for this.",
+            "kind": "concern",
+            "severity": "suggestion",
+            "suggestion": "Report the age and sex make-up of the cohort, and state that it's a commercial, self-selected group when presenting results.",
+            "subjects": [
+              "classification/cohort/population",
+              "sensitivity/equity"
+            ],
+            "quote": "in a commercial cohort of adults with overweight or obesity",
+            "page": 2
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "dateRange",
+        "summary": "Data runs to April 2025, about 18 months ago, and users may still be active. The issue is the same as the waiver comment on reaching users, so no separate comment is needed.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "reporting",
+        "summary": "Results are aggregate with a suppression rule of 5. That covers the smaller subgroups (65 and over, by sex and weight input type, at week 104).",
+        "comments": []
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "externalSoftware",
+        "summary": "The external software is the company's app and backend, the source of the data, not a tool the team puts UHN data into. The sponsor is not on the large pharmaceutical companies list, so it needs a manual check.",
+        "comments": [
+          {
+            "text": "Key to Health is an industry sponsor outside the large pharmaceutical companies list, so it needs the manual check. The form doesn't say where the company's backend is hosted or in which country, and no web address is given.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Ask the company for its hosting location and security summary (e.g. SOC 2 or ISO 27001), and add the program's web address.",
+            "subjects": [
+              "digital/externalTool/software",
+              "digital/externalTool/url",
+              "study/sponsorName"
+            ]
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "data",
+        "summary": "Participants entered the data (weights, onboarding details, breath readings) into the app. It comes to UHN as an export, which needs a Digital Demand.",
+        "comments": [
+          {
+            "text": "The form doesn't say how the export gets from the company to the UHN research drive. No UHN Digital help is requested with the transfer. Email or a company-run file share would not be acceptable for patient-level data.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Name the transfer method, such as UHN's secure file transfer, and who at UHN receives the file.",
+            "subjects": [
+              "digital/build",
+              "digital/input/who",
+              "handling/storage/access"
+            ]
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "hosted",
+        "summary": "Storage and analysis are on the UHN research drive and workstations, with no integration and nothing leaving UHN. This looks handled.",
+        "comments": []
+      }
+    ]
+  },
+  "variableList": [
+    {
+      "field": "User study ID",
+      "source": "Key to Health backend",
+      "identifying": true,
+      "why": "Groups each user's records. The company can link it back to the account."
+    },
+    {
+      "field": "Program start date",
+      "source": "Key to Health backend",
+      "identifying": true,
+      "why": "Checks eligibility (Nov 2018 to Apr 2023) and anchors the visit windows."
+    },
+    {
+      "field": "Onboarding timestamp",
+      "source": "Key to Health backend",
+      "identifying": true,
+      "why": "Separates the baseline weight from later weights, including Day 0 entries."
+    },
+    {
+      "field": "Cohort year",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Fixed effect in the MMRM and the IPW model."
+    },
+    {
+      "field": "Age at baseline",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Eligibility (18 and over), covariate, and the under/over 65 subgroup."
+    },
+    {
+      "field": "Sex",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Covariate and subgroup."
+    },
+    {
+      "field": "Height",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Needed to compute baseline BMI."
+    },
+    {
+      "field": "Baseline self-reported weight",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Denominator for TBWL% and a covariate."
+    },
+    {
+      "field": "Baseline BMI",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Eligibility (BMI over 25) and baseline weight categories."
+    },
+    {
+      "field": "Weight entry value (lbs)",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Post-baseline weights for TBWL% and absolute change."
+    },
+    {
+      "field": "Weight entry date and time",
+      "source": "Key to Health backend",
+      "identifying": true,
+      "why": "Places each weight in the week 12, 24, 52 or 104 window."
+    },
+    {
+      "field": "Weight input type (manual or connected scale)",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Exploratory subgroup."
+    },
+    {
+      "field": "Days from program start",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Visit window assignment and closest-to-target selection."
+    },
+    {
+      "field": "Implausible weight change flag",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Excludes changes over 15% within one week."
+    },
+    {
+      "field": "Visit window",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Repeated-measures visit in the MMRM."
+    },
+    {
+      "field": "TBWL% at each visit",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Primary and secondary outcome."
+    },
+    {
+      "field": "Absolute weight change (lbs) at each visit",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Secondary outcome."
+    },
+    {
+      "field": "Responder at 5% and 10%",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Secondary responder endpoints at weeks 52 and 104."
+    },
+    {
+      "field": "Breath sensor session date and time",
+      "source": "Key to Health backend",
+      "identifying": true,
+      "why": "Device use frequency over time."
+    },
+    {
+      "field": "Breath acetone level per session",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Exploratory analysis of acetone and weight loss."
+    },
+    {
+      "field": "Breath sensor use frequency",
+      "source": "Derived",
+      "identifying": false,
+      "why": "Engagement measure for the exploratory analysis."
+    },
+    {
+      "field": "App use frequency",
+      "source": "Key to Health backend",
+      "identifying": false,
+      "why": "Program engagement measure for the exploratory analysis."
+    }
+  ],
+  "dataSharingAgreement": null
+}

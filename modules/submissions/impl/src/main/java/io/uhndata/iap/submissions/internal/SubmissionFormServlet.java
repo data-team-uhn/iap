@@ -147,7 +147,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(FormKeys.PATH_KEY, submission.getPath())
             .add(FormKeys.TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The two rules the save workflow enforces, so an editor offers editing only where a save is accepted
-            .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
+            .add("editable", submission.isOpenToChanges() && reader.equals(submission.getCreatedBy()))
             .add("requirements", requirements)
             .build();
     }

@@ -1,0 +1,234 @@
+{
+  "nct": "NCT06821139",
+  "title": "Lung-protective ventilation compliance before, during and after COVID",
+  "answers": {
+    "study/pi": "Dr. Perseus Missirlis",
+    "study/department": "Department of Anesthesia and Pain Management (Toronto General and Toronto Western operating rooms). The UHN Surgical Quality team supplies the NSQIP data.",
+    "study/summary": "Retrospective cohort of about 100,000 adult non-cardiac, non-thoracic surgeries under general anesthesia with an endotracheal tube, 2014 to 2023. We measure how often intraoperative ventilation met lung-protective criteria (average tidal volume 6-8 mL/kg ideal body weight and average PEEP at least 5), look for predictors of compliance, and use a monthly control chart to see whether COVID shifted practice and whether the shift lasted.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "cohort",
+    "classification/question": "What proportion of intubated non-cardiac surgical patients receive lung-protective ventilation, what predicts it (height, BMI, ASA, sepsis, after-hours cases and so on), and did compliance change from the pre-COVID to the COVID and post-pandemic era?",
+    "classification/cohort/population": "Adults 18 and over who had general anesthesia with an endotracheal tube for a procedure of 30 minutes or more, with a case in both the anesthesia information system (CPA) and NSQIP. Excluded: cardiac or thoracic surgery, ASA 6 organ donors, HIPEC, transplant, returns to the OR for a complication within 30 days, repeat NSQIP cases within 30 days, and cases that can't be linked between CPA and NSQIP.",
+    "classification/cohort/startDate": "2014-01-01",
+    "classification/cohort/endDate": "2023-12-31",
+    "classification/cohort/dateRationale": "Six years of pre-COVID baseline for the control chart, then the pandemic and the post-pandemic years to see whether any shift was sustained.",
+    "classification/cohort/records": 100000,
+    "classification/cohort/exclusions": ["completeness"],
+    "classification/cohort/exclusionsWhy": "Cases that can't be linked between CPA and NSQIP are dropped. CPA only has the intraoperative record, so without the NSQIP side we have no comorbidities or outcomes for the case.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care", "qi"],
+    "classification/sources/dataSources": ["emr", "registry"],
+    "classification/sources/sourceDetails": "1) Centricity Perioperative Anesthesia (CPA) data warehouse views: monitor and ventilator data, drugs, event times. 2) UHN's ACS NSQIP data from Surgical Quality, as a flat file: comorbidities, preop bloodwork, 30-day outcomes. Epic is checked only to fix linkage errors. None of these has a CAPCR number.",
+    "classification/sources/external": false,
+    "identifiability/arrival": "anonymized",
+    "identifiability/keyHolder": "none",
+    "identifiability/fields": "Name, MRN, health card number, date of birth and date of surgery are used only to match CPA cases to NSQIP cases, then deleted. The analysis file has a random study number, age, sex, height, weight, the NSQIP comorbidity and outcome fields, and averaged ventilator values. Surgery date is kept as month for the control chart and COVID era, start time for after-hours status.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "Random study number not derived from any identifier. Identifiers removed from the research dataset once linked. The NSQIP flat file is destroyed after linkage. Analysis file password protected on the UHN network drive.",
+    "identifiability/linkage": ["internal"],
+    "identifiability/linkageRisk": "The linked record is more complete than either source, but both are UHN systems and the linkage is done by the PI with a UHN Data Services analyst on a UHN computer, using name, DOB, MRN, health card number and/or date of surgery. Identifiers are deleted from the dataset right after.",
+    "consent/sought": "notApplicable",
+    "consent/priorConsent": false,
+    "access/custodian": "UHN (Data Services for CPA, Surgical Quality for NSQIP)",
+    "access/custodianApproval": "pending",
+    "access/authority": ["phipa44"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "Identifiable files: PI and the Data Services analyst only, password protected and encrypted on the PI's UHN account. De-identified analysis file: research team and statistician through their UHN logins, on the encrypted department drive.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "5 years after publication",
+    "handling/storage/breachHarm": ["reidentification"],
+    "handling/storage/pia": "notAssessed",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "suppressed",
+    "handling/results/threshold": 5,
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Not expected, this is aggregate practice data. If we find a system issue (for example default ventilator settings), it goes to the department's quality committee, not back to individual patients.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2023-05-17",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": true,
+    "resources/analyst": true,
+    "resources/other": "A Data Services analyst for the CPA query and the linkage (a few days), and statistician time for the regression models.",
+    "resources/similar": true,
+    "resources/overlap": "An earlier REB-approved study linked CPA to NSQIP the same way. Different question; we reuse the linkage method, not its dataset.",
+    "resources/collaboration": true,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "Identifiability and consent: identifiability/arrival 'anonymized', keyHolder 'none' and consent/sought 'notApplicable', echoing the protocol's Art. 3.7A argument (p. 4 and 10), while the protocol has the PI and analysts link on name, DOB, MRN and PHN and keep 'the key and raw data' (p. 11). The data is identifiable to the team, so a waiver under Art. 5.5A is needed and none is argued.",
+    "Health professionals: team/hpIdentifiable false, but the NSQIP pull includes 'attending staff surgeon' (p. 5), which is not one of the predictors, and the study is about provider practice by site and shift."
+  ],
+  "extractions": [
+    {
+      "question": "classification/design",
+      "extractedAnswer": "cohort",
+      "quote": "Our study is a retrospective cohort study investigating the correlation between hypothesized predictors of LPV compliance and actual LPV practice",
+      "page": 4,
+      "confidence": 0.95,
+      "reasoning": "The Methods section names the design directly as a retrospective cohort study."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2014-01-01",
+      "quote": "underwent a general anesthetic for any procedure at a Fraser Health Authority hospital from January 2014 – December 2023",
+      "page": 4,
+      "confidence": 0.88,
+      "reasoning": "The study population runs from January 2014; I took the first day of that month."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2023-12-31",
+      "quote": "underwent general anesthesia for non-cardiac surgery at a Fraser Health Authority institution from January 2014 – December 2023",
+      "page": 5,
+      "confidence": 0.88,
+      "reasoning": "The data collection section repeats the range ending December 2023; I took the last day of that month."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 100000,
+      "quote": "Based on historical data and the surgical volume contributing to the Fraser Health CPA system we expect there to be approximately 100,000 cases.",
+      "page": 4,
+      "confidence": 0.9,
+      "reasoning": "The protocol gives an expected case count of about 100,000, repeated in the data management plan."
+    },
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "recordsOnly",
+      "quote": "There will be no prospective recruitment or sampling of patients",
+      "page": 10,
+      "confidence": 0.9,
+      "reasoning": "The ethics section rules out recruitment; all data comes from CPA and NSQIP records."
+    },
+    {
+      "question": "identifiability/linkage",
+      "extractedAnswer": ["internal"],
+      "quote": "data obtained from CPA must be linked to patients’ NSQIP data using with their name, date of birth, medical record number (MRN, i.e. RC number)",
+      "page": 5,
+      "confidence": 0.86,
+      "reasoning": "CPA and NSQIP are both held by the health authority, so this is a linkage between two internal datasets."
+    },
+    {
+      "question": "identifiability/keyHolder",
+      "extractedAnswer": "team",
+      "quote": "Only Dr. Perseus Missirlis and Fraser Health data analysts will have access to the key and raw data",
+      "page": 11,
+      "confidence": 0.84,
+      "reasoning": "The protocol says a key exists and the PI, a study team member, has access to it along with the raw data."
+    },
+    {
+      "question": "handling/storage/retentionPeriod",
+      "extractedAnswer": "5 years after publication",
+      "quote": "Research data will be kept for 5 years post-publication",
+      "page": 11,
+      "confidence": 0.93,
+      "reasoning": "The end-of-study section states the retention period directly."
+    }
+  ],
+  "screening": {
+    "summary": "A large records-only cohort from two internal systems, with a sensible linkage plan and early removal of identifiers. The main problem is that the form treats the data as anonymized and skips consent, while the protocol has the PI linking on direct identifiers and keeping the key. The provider fields also deserve a look.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "The data is directly identifiable during extraction and linkage, and coded with a team-held key afterwards, not anonymized. A provider identifier is also pulled without being needed.",
+        "comments": [
+          {
+            "text": "The form says the data arrives anonymized with no key, but the protocol has the PI and analysts link CPA to NSQIP on name, date of birth, MRN and PHN, and keep the key and the raw data on a UHN computer. That is direct identifiers at linkage, then coded data with the key inside the team.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Answer 'Directly identifying' (or 'Coded, with the key accessible to the team') and 'The study team' as key holder, and say when the key is destroyed. Having the Data Services analyst do the linkage and hand over only coded data would let the team say the key is held outside.",
+            "subjects": ["identifiability/arrival", "identifiability/keyHolder"],
+            "quote": "Only Dr. Perseus Missirlis and Fraser Health data analysts will have access to the key and raw data",
+            "page": 11
+          },
+          {
+            "text": "The NSQIP extract includes the attending staff surgeon. It isn't one of the hypothesized predictors, and with hospital site and after-hours status in the same file it identifies individual surgeons in a study about provider practice. The form says no identifiable data about health professionals is used.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Drop the field from the extract, or keep it, answer yes to identifiable health professional data and say how results will avoid singling anyone out.",
+            "subjects": ["team/hpIdentifiable", "identifiability/fields", "variables"],
+            "quote": "hospital where procedure occurred, elective surgery status, principal anesthesia technique, surgical specialty, attending staff surgeon",
+            "page": 5
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "No consent and no waiver are requested, on the basis of TCPS 2 Art. 3.7A. That article doesn't cover secondary use of identifiable data, so a waiver under Art. 5.5A is needed.",
+        "comments": [
+          {
+            "text": "Consent is marked not applicable because the data is said not to be identifiable, and the protocol cites Art. 3.7A for not requesting a waiver. Art. 3.7A is about altering consent for research involving people, not secondary use; here identifiable records are used without consent, so each Art. 5.5A condition has to be argued.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Request a waiver. The case is a strong one: about 100,000 cases over ten years, records-only, identifiers deleted after linkage. Those points just need stating against each condition.",
+            "subjects": ["consent/sought", "protocol"],
+            "quote": "thus a waiver of consent will not be requested in accordance with article 3.7A of the Tri-Council Policy Statement",
+            "page": 10
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "linkage",
+        "summary": "Both datasets are internal, linkage is done by the PI with a Data Services analyst on a UHN computer, identifiers are deleted once linked and the NSQIP flat file is destroyed. That's proportionate for a records-only practice study, so no further comment.",
+        "comments": []
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Patient name", "source": "NSQIP and CPA", "identifying": true, "why": "Linkage only, when MRN or health card number don't match. Deleted after linkage."},
+    {"field": "MRN", "source": "NSQIP and CPA", "identifying": true, "why": "Primary linkage key between CPA and NSQIP. Deleted after linkage."},
+    {"field": "Health card number", "source": "NSQIP and CPA", "identifying": true, "why": "Second linkage key. Deleted after linkage."},
+    {"field": "Date of birth", "source": "NSQIP and CPA", "identifying": true, "why": "Confirms linkage matches. Deleted after linkage."},
+    {"field": "Date and start time of surgery", "source": "CPA", "identifying": true, "why": "Linkage, month for the control chart and COVID era, start time for after-hours status. Kept as month and after-hours flag only."},
+    {"field": "Hospital admission and discharge dates", "source": "NSQIP", "identifying": true, "why": "Length of stay. Converted to days."},
+    {"field": "Age at surgery", "source": "NSQIP", "identifying": false, "why": "Hypothesized predictor."},
+    {"field": "Sex", "source": "NSQIP", "identifying": false, "why": "Predictor, and needed for the ideal body weight formula."},
+    {"field": "Height", "source": "NSQIP", "identifying": false, "why": "Ideal body weight, which defines the tidal volume target; main hypothesized predictor."},
+    {"field": "Weight and BMI", "source": "NSQIP", "identifying": false, "why": "Obesity (BMI over 30) as a predictor."},
+    {"field": "Hospital site", "source": "NSQIP", "identifying": false, "why": "Forced into the model for face validity."},
+    {"field": "Attending staff surgeon", "source": "NSQIP", "identifying": true, "why": "Comes with the standard NSQIP extract."},
+    {"field": "Procedure code and surgical specialty", "source": "NSQIP", "identifying": false, "why": "Surgical specialty as a predictor; exclusions (cardiac, thoracic, HIPEC, transplant)."},
+    {"field": "Laparoscopic surgery", "source": "NSQIP", "identifying": false, "why": "Predictor forced into the model."},
+    {"field": "Elective or emergency, inpatient or outpatient", "source": "NSQIP", "identifying": false, "why": "Predictors."},
+    {"field": "ASA class", "source": "NSQIP", "identifying": false, "why": "Predictor; ASA 6 is an exclusion."},
+    {"field": "Comorbidities (COPD, CHF, dyspnea, functional status, ventilator dependence, sepsis, dialysis, ascites, smoking, diabetes, hypertension, disseminated cancer)", "source": "NSQIP", "identifying": false, "why": "Hypothesized predictors and cohort description."},
+    {"field": "Preoperative bloodwork and dates (sodium, BUN, creatinine, albumin, bilirubin, AST, ALP, WBC, hematocrit, platelets, INR, PTT)", "source": "NSQIP", "identifying": false, "why": "Cohort description and adjustment."},
+    {"field": "Transfusion (preoperative, intraoperative, postoperative)", "source": "NSQIP", "identifying": false, "why": "Predictor and cohort description."},
+    {"field": "Postoperative pneumonia, unplanned intubation, ventilation over 48 h, 30-day death", "source": "NSQIP", "identifying": false, "why": "Cohort description of respiratory outcomes."},
+    {"field": "Set and exhaled tidal volume (case average)", "source": "CPA", "identifying": false, "why": "Primary outcome: tidal volume per kg ideal body weight."},
+    {"field": "PEEP (case average)", "source": "CPA", "identifying": false, "why": "Primary outcome: average PEEP at least 5 cm H2O."},
+    {"field": "Respiratory rate, peak pressure, FiO2, SpO2, EtCO2, volatile agent concentration", "source": "CPA", "identifying": false, "why": "Describe ventilation; volatile thresholds define monitoring time when event texts are missing. Not used as predictors."},
+    {"field": "Heart rate and blood pressure (systolic, diastolic, mean)", "source": "CPA", "identifying": false, "why": "Describe the intraoperative course."},
+    {"field": "Neuromuscular blockade given, epidural", "source": "CPA", "identifying": false, "why": "Predictors."},
+    {"field": "Surgical incision and surgery end event times", "source": "CPA", "identifying": false, "why": "Define total surgical monitoring time and anesthesia duration."},
+    {"field": "Random study number", "source": "Assigned after linkage", "identifying": false, "why": "Replaces all identifiers in the analysis file."}
+  ],
+  "dataSharingAgreement": null
+}

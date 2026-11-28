@@ -29,8 +29,11 @@ import {
   type QuoteMatch,
 } from "./quoteMatch";
 
-// Who marked a passage: an AI assistant, or a person annotating the document.
-export const PASSAGE_KINDS = [ "assistant", "annotation" ] as const;
+// Who marked a passage: an AI assistant, or a person annotating the document. PRETOTYPE: a review's evidence,
+// issues and discussion are passages of their own kinds.
+export const PASSAGE_KINDS = [
+  "assistant", "annotation", "evidence", "issue", "otherIssue", "discussion", "draft", "warning",
+] as const;
 // What a comparison of two versions of a document found: text added or text removed.
 export const CHANGE_KINDS = [ "added", "removed" ] as const;
 export const MARK_KINDS = [ ...PASSAGE_KINDS, ...CHANGE_KINDS ] as const;
@@ -453,9 +456,13 @@ export function isLooking(places: Record<string, MarkPlace>): boolean {
 }
 
 // The marks in the order given, except that those known to have no place go last.
-export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Mark[] {
+export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>, placelessFirst = false): Mark[] {
   const isUnmarked = (mark: Mark) => isUnmarkable(places[mark.id]);
-  return [ ...marks.filter(mark => !isUnmarked(mark)), ...marks.filter(isUnmarked) ];
+  // PRETOTYPE: a mark quoting nothing, about the whole document rather than a passage, can lead instead of trailing
+  // among the passages that could not be found
+  const isPlaceless = (mark: Mark) => placelessFirst && "quote" in mark && mark.quote.trim() === "";
+  return [ ...marks.filter(isPlaceless), ...marks.filter(mark => !isUnmarked(mark) && !isPlaceless(mark)),
+    ...marks.filter(mark => isUnmarked(mark) && !isPlaceless(mark)) ];
 }
 
 // A copy of a mark's own fields in a fixed order, leaving out anything else its object carries. Equal

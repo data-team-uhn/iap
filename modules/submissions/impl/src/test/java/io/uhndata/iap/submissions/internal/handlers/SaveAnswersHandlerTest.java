@@ -307,6 +307,17 @@ class SaveAnswersHandlerTest
     }
 
     @Test
+    void savesWhileTheRequestIsBackForChanges() throws Exception
+    {
+        modify(this.target, "tags", new String[] {"changes-requested"});
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+
+        stampAnswers();
+        assertEquals(List.of("2026-10-06"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    @Test
     void refusesAQuestionThisSchemaDoesNotAsk()
     {
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,

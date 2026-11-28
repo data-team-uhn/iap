@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Fast track",
+  "description": "Reviewed ahead of the queue, with a shorter deadline.",
+  "category": [
+    "priority"
+  ],
+  "color": "#9a3412",
+  "icon": "BoltOutlined",
+  "order": 10,
+  "targetResourceTypes": [
+    "sub/Submission"
+  ]
+}

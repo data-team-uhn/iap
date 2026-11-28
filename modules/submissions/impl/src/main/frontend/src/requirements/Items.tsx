@@ -18,6 +18,7 @@
 import { Box, Stack, Typography } from "@mui/material";
 
 import AnswerField from "../AnswerField";
+import AskedBy from "../review/AskedBy";
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 
 import type { FieldState } from "../requirementComponents";
@@ -33,14 +34,17 @@ function Items({ items, disabled, states, onAnswered }: {
     <Stack spacing={2}>
       { items.map(item => isQuestion(item)
         ? (
-          <AnswerField
-            key={item.path}
-            question={item}
-            disabled={disabled}
-            state={states[item.path]?.state ?? "idle"}
-            error={states[item.path]?.error}
-            onAnswered={values => onAnswered(item, values)}
-          />
+          <Box key={item.path}>
+            <AnswerField
+              question={item}
+              disabled={disabled}
+              state={states[item.path]?.state ?? "idle"}
+              error={states[item.path]?.error}
+              onAnswered={values => onAnswered(item, values)}
+            />
+            {/* PRETOTYPE: which reviewers ask this, and why */}
+            <AskedBy question={item.path} />
+          </Box>
         )
         : (
           <Box key={item.name}>

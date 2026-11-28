@@ -1,0 +1,440 @@
+{
+  "nct": "NCT05188001",
+  "title": "Vital signs to predict troponin and MINS after noncardiac surgery",
+  "answers": {
+    "study/pi": "Dr. Su-Yin MacDonell",
+    "study/department": "Department of Anesthesia and Pain Management (Toronto General and Toronto Western). Co-investigators from UBC Statistics (longitudinal modelling), the School of Electrical Engineering and Computer Science at the University of Ottawa (machine learning) and McMaster / PHRI (MINS expertise).",
+    "study/summary": "Retrospective single-centre cohort of about 750 adults 45+ who had inpatient noncardiac surgery and were on the MINS troponin monitoring protocol, January 2020 to June 2021. We will develop and internally validate models that use intraoperative and postoperative vital signs, mainly duration and depth of hypotension, to predict daily max troponin and MINS or death on postoperative days 0 to 2. Primary analysis is a linear mixed effects model. Exploratory machine learning on the vital sign time series.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "model",
+    "classification/question": "Can the duration and degree of intraoperative and postoperative hypotension, with age, sex, emergency surgery, RCRI and postoperative GFR, predict the daily maximum troponin and the daily probability of MINS or death from POD 0 to 2? Secondary: does it matter how hypotension is defined, does intraop or postop alone suffice, do HR, SpO2 and other vitals add value, and how many hours before the lab diagnosis can the vitals predict MINS.",
+    "classification/cohort/population": "Patients aged 45 and older having inpatient noncardiac surgery at UHN who had the MINS protocol ordered for postoperative high sensitivity troponin monitoring per the CCS guidelines. First qualifying admission only.",
+    "classification/cohort/startDate": "2020-01-01",
+    "classification/cohort/endDate": "2021-06-30",
+    "classification/cohort/dateRationale": "The hsTnT MINS order set was in routine use for the whole period, so ordering is consistent. 18 months gives about 750 patients and roughly 75 events, which is what the parameter limits in the analysis plan are based on.",
+    "classification/cohort/records": 750,
+    "classification/cohort/exclusions": ["completeness"],
+    "classification/cohort/exclusionsWhy": "Patients with no intraoperative or postoperative vital signs or no postoperative troponin can't contribute to the model. We also exclude repeat surgery or readmission within 72 hours (no vitals recorded while they are outpatients) and positive troponin on POD 4, since vitals are only collected to POD 3.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care", "administration"],
+    "classification/sources/dataSources": ["emr", "administrative"],
+    "classification/sources/sourceDetails": "Epic: intraoperative anesthesia record (vitals, vasopressors, OR times), inpatient record (postop vitals, labs, medication administration, ADT and unit transfers). UHN discharge abstracts (CIHI DAD, ICD-10-CA) for preoperative comorbidities and postop PE, AF and sepsis codes. Manual chart review in Epic for items not in the extract. No CAPCR numbers, none of these is a research registry.",
+    "classification/sources/external": false,
+    "identifiability/arrival": "codedOutsideKey",
+    "identifiability/keyHolder": "custodian",
+    "identifiability/fields": "Study ID assigned by Data Services, age, sex, surgical priority, procedure code and text, ASA, anesthesia technique, surgical service, vital signs with time stamps, preop labs (NT-proBNP, Hb, creatinine/GFR, troponin), postop troponins, cardiac meds and vasopressors, comorbidity flags from discharge abstracts, disposition and unit times, outcomes. No names, health card numbers, addresses or dates of birth. Each field is justified in the attached variable list.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "Data Services assigns the study IDs and keeps the crosswalk. All time stamps are shifted so the start of surgery is 00:00 on Jan 1 2020. Age only, no DOB. Dataset kept on a UHN research server, access limited to the team.",
+    "identifiability/linkage": ["internal"],
+    "identifiability/linkageRisk": "The Epic extract, discharge abstract comorbidities and chart review data are linked on study ID and surgery date. All three are UHN sources about the same admissions, so the combined file is no more identifying than the EMR itself, and time stamps are shifted after linkage.",
+    "consent/sought": "notApplicable",
+    "consent/priorConsent": false,
+    "access/custodian": "UHN, through Data Services",
+    "access/custodianApproval": "pending",
+    "access/authority": ["phipa44"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": false,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["software"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "Only investigators named on the protocol. Project folder on the UHN research server, restricted to named UHN accounts. Removed when someone leaves the study.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "5 years after study completion or publication, whichever is later",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notAssessed",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Not expected. The data is from 2020-2021 admissions and is analyzed in aggregate. MINS status was already known to the treating teams through the troponin protocol, so there is nothing new to report back.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": true,
+    "digital/ai/details": "Exploratory machine learning (Approach II in the protocol): imputation workflows for time series, unsupervised clustering of vital sign patterns, and boosted trees, neural networks and autoencoders to predict troponin and MINS. Done by the uOttawa co-investigators with the UHN team. Research only, nothing goes into clinical use.",
+    "digital/ai/where": "local",
+    "digital/ai/training": true,
+    "digital/ai/phase": "development",
+    "digital/ai/governance": true,
+    "team/gcpDate": "2024-05-21",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi", "team"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": true,
+    "resources/analyst": false,
+    "resources/other": "Data Services extract from Epic and the discharge abstracts. Chart review and analysis are done by the team.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "Identifiability: the form says the data arrives coded with the key held by Data Services and asks for no consent (consent/sought = notApplicable), but the protocol's data dictionary (and the variable list) has MRN requested for the team's manual chart review, so the team can re-identify and the waiver conditions are never tested.",
+    "Linkage and time-shifting: the form says time stamps are shifted and nothing more identifying is created, but the protocol links the sources on study ID and full surgery date, so real surgery dates sit in the analysis dataset (identifiability/linkageRisk, identifiability/reidentification).",
+    "Data leaving UHN not declared: handling/leaving/leaves = no, agreements/involved = false and digital/ai/where = local, while the AI details and protocol put the machine learning with University of Ottawa co-investigators (and statistics with UBC), with no DSA or account arrangement described.",
+    "Sensitive categories and reporting: sensitivity/categories = none and breachHarm = minimal although the Charlson flags include AIDS/HIV, dementia and alcohol-related liver disease codes; results are aggregate with no small-cell rule (about 75 events, ICU subgroups, spaghetti plots of individual trajectories)."
+  ],
+  "extractions": [
+    {
+      "question": "study/pi",
+      "extractedAnswer": "Dr. Su-Yin MacDonell",
+      "quote": "Dr. Su-Yin MacDonell, MD, MSc, FRCPC",
+      "page": 1,
+      "confidence": 0.95,
+      "reasoning": "Listed first under Principal Investigator on the title page."
+    },
+    {
+      "question": "classification/design",
+      "extractedAnswer": "model",
+      "quote": "This is a single-center, retrospective cohort study on the development and internal validation of a prediction model.",
+      "page": 6,
+      "confidence": 0.93,
+      "reasoning": "The Methods section names the design directly as prediction model development and internal validation."
+    },
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "recordsOnly",
+      "quote": "This study involves the secondary use of existing de-identified data, and no additional data will be collected.",
+      "page": 16,
+      "confidence": 0.9,
+      "reasoning": "The risk section states secondary use only and no new collection, and nothing in the methods involves contacting patients."
+    },
+    {
+      "question": "classification/cohort/population",
+      "extractedAnswer": "Patients aged 45 and older having inpatient noncardiac surgery at UHN who had the MINS protocol ordered for postoperative high sensitivity troponin monitoring per the CCS guidelines. First qualifying admission only.",
+      "quote": "This study will include patients aged 45 years and older undergoing inpatient noncardiac surgery",
+      "page": 6,
+      "confidence": 0.92,
+      "reasoning": "The Population section gives the age, surgical and troponin protocol criteria."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2020-01-01",
+      "quote": "had MINS protocol ordered for postoperative high sensitivity troponin monitoring based on the CCS guidelines (5) from January 2020 to June 2021",
+      "page": 6,
+      "confidence": 0.88,
+      "reasoning": "The inclusion window starts in January 2020; taken as the first day of the month."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2021-06-30",
+      "quote": "from January 2020 to June 2021 (estimated sample size of 750, event rate of ~75)",
+      "page": 6,
+      "confidence": 0.86,
+      "reasoning": "The window ends in June 2021; taken as the last day of the month."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 750,
+      "quote": "estimated sample size of 750, event rate of ~75",
+      "page": 6,
+      "confidence": 0.9,
+      "reasoning": "The estimated sample size is stated with the inclusion window."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": ["completeness"],
+      "quote": "Patients will be excluded if they do not have intraoperative and postoperative vital signs, or any postoperative troponin measurements.",
+      "page": 6,
+      "confidence": 0.74,
+      "reasoning": "The non-clinical exclusion is missing vital signs or troponin records; the readmission and POD 4 exclusions follow from the data window rather than from the population."
+    },
+    {
+      "question": "classification/sources/dataSources",
+      "extractedAnswer": ["emr", "administrative"],
+      "quote": "RCRI and Charleson Comorbidity Index categories that are available to the Cerner team via CIHI with no date limit",
+      "page": 6,
+      "confidence": 0.84,
+      "reasoning": "Vitals, labs and medications come from the electronic record, and comorbidities from CIHI discharge abstract codes, which are administrative data."
+    },
+    {
+      "question": "identifiability/arrival",
+      "extractedAnswer": "codedTeamKey",
+      "quote": "MRN ID Required for manual chart review of variables that cannot be extracted automatically",
+      "page": 18,
+      "confidence": 0.81,
+      "reasoning": "The extraction carries a study ID alongside the MRN, and the MRN is requested so the team can do chart review, so the team can reach the link to identity."
+    },
+    {
+      "question": "identifiability/linkage",
+      "extractedAnswer": ["internal"],
+      "quote": "The Cerner, Surginet, and chart review data will then be linked by de-identified study ID and full surgery date.",
+      "page": 6,
+      "confidence": 0.87,
+      "reasoning": "Three internal sources (anesthesia record, inpatient record, chart review) are combined on study ID and surgery date."
+    },
+    {
+      "question": "sensitivity/categories",
+      "extractedAnswer": ["stigmatized", "cognitive"],
+      "quote": "AIDS/HIV History of acquired immunodeficiency syndrome or human immunodeficiency virus",
+      "page": 22,
+      "confidence": 0.79,
+      "reasoning": "The Charlson flags in the data dictionary include AIDS/HIV, and a dementia flag on page 20; both are collected per patient."
+    },
+    {
+      "question": "handling/storage/retentionPeriod",
+      "extractedAnswer": "5 years after study completion or publication, whichever is later",
+      "quote": "At the end of 5 years, the data will be deleted permanently in accordance to UBC IT policy.",
+      "page": 16,
+      "confidence": 0.83,
+      "reasoning": "The confidentiality section gives a five-year retention period followed by permanent deletion."
+    },
+    {
+      "question": "handling/leaving/otherUses",
+      "extractedAnswer": ["software"],
+      "quote": "The best performing workflow will be written as a function available on GitHub.",
+      "page": 14,
+      "confidence": 0.72,
+      "reasoning": "The ML aims produce a published function and a Python package, which is software development beyond the analysis itself."
+    },
+    {
+      "question": "digital/ai/used",
+      "extractedAnswer": true,
+      "quote": "we will develop and internally validate machine learning models (including boosted trees and neural networks) to predict outcomes as described above",
+      "page": 15,
+      "confidence": 0.96,
+      "reasoning": "Approach II is explicitly machine learning on the study data."
+    },
+    {
+      "question": "digital/ai/training",
+      "extractedAnswer": true,
+      "quote": "specific techniques will be explored including temporal-based resampling in the derivation set, one-class learners, and autoencoders",
+      "page": 15,
+      "confidence": 0.9,
+      "reasoning": "Models are fitted on a derivation set drawn from the study cohort, so the study's data trains them."
+    },
+    {
+      "question": "digital/ai/where",
+      "extractedAnswer": "undetermined",
+      "quote": "Assistant Professor, School of Electrical Engineering and Computer Science, University of Ottawa",
+      "page": 1,
+      "confidence": 0.55,
+      "reasoning": "The protocol does not say where the models run. The machine learning co-investigators are at the University of Ottawa, so processing outside UHN cannot be ruled out."
+    }
+  ],
+  "screening": {
+    "summary": "A well-specified prediction model study on routinely collected perioperative data, with a sound analysis plan. The main problem is the premise that the data is de-identified: the team keeps MRNs and real surgery dates, so consent cannot be marked not applicable without a waiver being argued. The form also keeps all processing inside UHN while the machine learning sits with University of Ottawa co-investigators.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "The form says the data arrives coded with the key held by Data Services. The protocol's own data dictionary puts the MRN in the extract for chart review, so the team holds identifiers.",
+        "comments": [
+          {
+            "text": "The form says the data is coded with the key held outside the team, but the extract requested in the protocol includes the MRN next to the study ID, so the team can identify every patient. That makes the data identifiable to the team, and consent can't be marked not applicable on the basis that it isn't.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Either have Data Services or a delegated chart abstractor do the chart review and release only the study ID, or declare the data as coded with the key accessible to the team and answer the waiver questions.",
+            "subjects": ["identifiability/arrival", "identifiability/keyHolder", "consent/sought", "variables"],
+            "quote": "MRN ID Required for manual chart review of variables that cannot be extracted automatically",
+            "page": 18
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "No waiver is requested because consent is marked not applicable. That rests on the de-identification claim, which the data dictionary does not support.",
+        "comments": [
+          {
+            "text": "If the REB finds the data identifiable to the team, a waiver is needed and none of its conditions has been argued yet. Impracticability in particular needs an actual argument: these are 750 surgical patients from 2020 and 2021, and many will still be UHN patients.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Complete the waiver section: why identifiable data is essential (chart review), effect on welfare, and why consent is impracticable.",
+            "subjects": ["consent/sought", "consent/waiver/impracticable"],
+            "quote": "There is no foreseeable risk of the possible disclosure of any identifiable data because the current research will involve de-identified secondary data only.",
+            "page": 16
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "linkage",
+        "summary": "Three internal UHN sources are linked, which is low risk in itself, but the linking key includes the real surgery date.",
+        "comments": [
+          {
+            "text": "The protocol links the sources on study ID and full surgery date, so the real surgery date is in the dataset the team works with. The form's answer that time stamps are shifted describes the analysis file, not the linked one, and the form doesn't say who does the linkage.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Have Data Services do the linkage and the date shift before release, so the team never holds real dates. Otherwise list the surgery date as an identifier and say when it is dropped.",
+            "subjects": ["identifiability/linkageRisk", "identifiability/reidentification", "protocol"],
+            "quote": "The Cerner, Surginet, and chart review data will then be linked by de-identified study ID and full surgery date.",
+            "page": 6
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "sensitive",
+        "summary": "The Charlson comorbidity flags bring in HIV status, dementia and alcohol-related liver disease at the patient level, none of which is declared.",
+        "comments": [
+          {
+            "text": "Sensitive categories are marked none and breach harm minimal, but the variable list collects a per-patient AIDS/HIV flag, a dementia flag and liver disease codes that include alcoholic liver disease (K70).",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Tick the stigmatized, cognitive impairment and substance use categories and revisit breach harm. Consider whether the individual flags are needed or the Charlson score alone would do for the model.",
+            "subjects": ["sensitivity/categories", "handling/storage/breachHarm", "variables"],
+            "quote": "AIDS/HIV History of acquired immunodeficiency syndrome or human immunodeficiency virus",
+            "page": 22
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "The form keeps all data and processing inside UHN, but the machine learning and part of the statistics are done by co-investigators at other universities.",
+        "comments": [
+          {
+            "text": "The machine learning is done by University of Ottawa co-investigators and the mixed models by UBC Statistics, and the protocol gives every listed investigator access to the dataset. The form says data does not leave UHN and no external organization is involved, and it doesn't explain how these people reach the data.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Say whether external co-investigators work only inside the UHN environment (UHN accounts or HPC4Health) or receive a copy. If they receive one, declare the transfer, add the agreement and answer the external organizations section.",
+            "subjects": ["handling/leaving/leaves", "agreements/involved", "digital/ai/where"],
+            "quote": "Only those listed on this protocol will have access to the de-identified dataset for the duration of this project.",
+            "page": 16
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "safeguards",
+        "summary": "Storage on a UHN server with team-only access and destruction after five years is reasonable. The protocol text still carries the previous site's arrangements.",
+        "comments": [
+          {
+            "text": "The protocol still says data is kept in a password-protected file and deleted under UBC IT policy, which doesn't match the UHN server and UHN records policy given in the form.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Update the confidentiality section of the protocol to UHN storage and the UHN Records Policy, and record how destruction will be documented.",
+            "subjects": ["handling/storage/location", "handling/storage/retention", "protocol"],
+            "quote": "At the end of 5 years, the data will be deleted permanently in accordance to UBC IT policy.",
+            "page": 16
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "reporting",
+        "summary": "Results are aggregate, but with about 75 events and planned subgroups some cells will be small, and no suppression rule is set.",
+        "comments": [
+          {
+            "text": "No small-cell rule is given. With about 75 MINS events, ICU and preoperative troponin subgroups, and spaghetti plots of individual patient trajectories planned, published figures could show single patients.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Set a suppression threshold (for example cells under 6) and say how individual trajectory plots will be handled in publications, such as showing summary bands or a random sample.",
+            "subjects": ["handling/results/reporting", "handling/results/threshold"],
+            "quote": "Spaghetti plots of the longitudinal data will be created for the outcome and vital signs variables, with lines colour-coded by troponin quantiles",
+            "page": 12
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "ai",
+        "summary": "Models are trained on the study data in the development phase, research only. Where the training runs is the open question, covered under transfer.",
+        "comments": [
+          {
+            "text": "The protocol publishes the workflow on GitHub and the visualization code as a Python package. Code is fine to share, but models trained on 750 patients can memorize individual records, so trained models and any example data shouldn't go with it.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "State that only code is published, with no data, trained models or outputs derived from patient records.",
+            "subjects": ["handling/leaving/otherUses", "digital/ai/training"],
+            "quote": "The best performing workflow will be written as a function available on GitHub.",
+            "page": 14
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "dateRange",
+        "summary": "Admissions from January 2020 to June 2021 ended more than five years ago, and the window is tied to the troponin protocol and the sample size. No concern.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "rigour",
+        "summary": "The question, cohort and variables fit the aims. The protocol limits parameters to the event count and uses patient-based repeated cross-validation, and it acknowledges that the sample is small for machine learning. No concern.",
+        "comments": []
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "ai",
+        "summary": "Machine learning trained on patient data, declared as running locally. Training on study data needs the Digital Demand and AI Hub intake.",
+        "comments": [
+          {
+            "text": "The study trains boosted trees, neural networks and autoencoders on patient data, but the form names no environment and no Digital Demand or AI Hub intake.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Name the environment (UHN research server or HPC4Health), confirm the external co-investigators work inside it, and open the Digital Demand and AI Hub intake.",
+            "subjects": ["digital/ai/where", "digital/ai/training", "digital/ai/details"]
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "hosted",
+        "summary": "A UHN-hosted service is declared with no external integration, which fits if all work stays on UHN systems.",
+        "comments": [
+          {
+            "text": "The form says a UHN-hosted service is used but doesn't name it. Accounts for the co-investigators from other universities would need to be set up.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Name the server or platform and how external co-investigators get access, for example UHN affiliate accounts.",
+            "subjects": ["digital/uhnHosted", "handling/storage/access"]
+          }
+        ]
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Study ID", "source": "Data Services", "identifying": false, "why": "Links the extract, discharge abstract and chart review records without names."},
+    {"field": "MRN", "source": "Epic", "identifying": true, "why": "Needed to find the chart for manual review of items not in the extract."},
+    {"field": "Age at surgery", "source": "Epic", "identifying": false, "why": "Cohort description and a priori predictor."},
+    {"field": "Sex", "source": "Epic", "identifying": false, "why": "Cohort description and a priori predictor."},
+    {"field": "Date and time of surgery start (enters OR)", "source": "Epic", "identifying": true, "why": "Start of the time series, and linking key with the study ID. Shifted to 00:00 Jan 1 2020 for analysis."},
+    {"field": "Time of surgery end (leaves OR)", "source": "Epic", "identifying": false, "why": "Start of the postoperative time series."},
+    {"field": "Time patient enters and leaves the room", "source": "Epic", "identifying": false, "why": "Separates preoperative, intraoperative and postoperative vitals."},
+    {"field": "Surgical priority (E0 to E4, elective)", "source": "Epic", "identifying": false, "why": "Dichotomized to emergent/urgent vs elective as a predictor."},
+    {"field": "Procedure code and procedure text", "source": "Epic", "identifying": false, "why": "Cohort description and high risk surgery for RCRI."},
+    {"field": "Surgical service", "source": "Epic", "identifying": false, "why": "Potential predictor."},
+    {"field": "ASA physical status", "source": "Epic", "identifying": false, "why": "Cohort description."},
+    {"field": "Principal anesthesia technique", "source": "Epic", "identifying": false, "why": "Cohort description."},
+    {"field": "Length of OR and estimated blood loss", "source": "Epic", "identifying": false, "why": "Potential predictors."},
+    {"field": "SBP, MAP and DBP with time stamps (day of surgery to POD 3)", "source": "Epic", "identifying": false, "why": "Main predictors: hypotension duration and depth, time series for ML."},
+    {"field": "Heart rate with time stamps", "source": "Epic", "identifying": false, "why": "Secondary predictor, time series for ML."},
+    {"field": "Respiratory rate with time stamps", "source": "Epic", "identifying": false, "why": "Cohort description and SIRS criteria."},
+    {"field": "SpO2 with time stamps, new supplementary oxygen", "source": "Epic", "identifying": false, "why": "Secondary predictor."},
+    {"field": "Intraoperative vasopressors and inotropes (phenylephrine >200 mcg, ephedrine >10 mg, norepinephrine, vasopressin, epinephrine, dobutamine, milrinone)", "source": "Epic", "identifying": false, "why": "Potential predictors and confounders."},
+    {"field": "Postoperative vasopressors and inotropes (same list)", "source": "Epic", "identifying": false, "why": "Potential predictors and confounders."},
+    {"field": "Preoperative beta blocker and ACEI/ARB use", "source": "Epic", "identifying": false, "why": "Potential confounders."},
+    {"field": "Insulin use (medium or long-acting)", "source": "Epic", "identifying": false, "why": "RCRI component."},
+    {"field": "Preoperative NT-proBNP, hemoglobin, creatinine, GFR (30 days before surgery)", "source": "Epic", "identifying": false, "why": "Cohort description and predictors (GFR is a priori)."},
+    {"field": "High sensitivity troponin values with time stamps, pre and postoperative", "source": "Epic", "identifying": false, "why": "Primary outcome and MINS definition."},
+    {"field": "Postoperative disposition and HAU, ICU, PACU start and end times", "source": "Epic", "identifying": false, "why": "Setting of each vital sign measurement."},
+    {"field": "Date and time of hospital discharge", "source": "Epic", "identifying": true, "why": "Truncation of the time series and inclusion criteria."},
+    {"field": "Readmission or repeat surgery within 3 days", "source": "Epic", "identifying": false, "why": "Exclusion criteria."},
+    {"field": "In-hospital mortality", "source": "Epic", "identifying": false, "why": "Part of the MINS or death outcome."},
+    {"field": "Cerebrovascular disease, ischemic heart disease, CHF, CKD stage 4-5 or dialysis, PVD, hypertension", "source": "Discharge abstracts (CIHI DAD)", "identifying": false, "why": "RCRI and Charlson components, cohort description."},
+    {"field": "Dementia", "source": "Discharge abstracts (CIHI DAD)", "identifying": false, "why": "Charlson component."},
+    {"field": "Chronic pulmonary, connective tissue, peptic ulcer, mild and severe liver disease, hemiplegia", "source": "Discharge abstracts (CIHI DAD)", "identifying": false, "why": "Charlson components."},
+    {"field": "Diabetes with and without complications", "source": "Discharge abstracts (CIHI DAD)", "identifying": false, "why": "Charlson component."},
+    {"field": "Localized malignancy and metastatic tumour", "source": "Discharge abstracts (CIHI DAD)", "identifying": false, "why": "Charlson components."},
+    {"field": "AIDS/HIV", "source": "Discharge abstracts (CIHI DAD)", "identifying": false, "why": "Charlson component."},
+    {"field": "RCRI and Charlson total scores", "source": "Calculated", "identifying": false, "why": "A priori predictor (RCRI) and cohort description."},
+    {"field": "PE, atrial fibrillation, sepsis, cardioversion within the MINS window", "source": "Discharge abstracts and chart review", "identifying": false, "why": "Nonischemic causes that rule out MINS."},
+    {"field": "MINS, postoperative MI, postoperative myocardial injury, time of MINS diagnosis", "source": "Chart review and calculated", "identifying": false, "why": "Secondary outcomes, adjudicated by a physician."}
+  ],
+  "dataSharingAgreement": null
+}

@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Answer the AI pre-review",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "PRETOTYPE. The study team says why they leave one of the AI pre-review's findings as it is, or takes that back.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Response written",
+      "messageName": "aiResponse",
+      "performers": ["@creator"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toWrite": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toWrite",
+        "targetRef": "write"
+      }
+    },
+    "write": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "write",
+      "label": "Write the response down",
+      "handler": "aiResponse",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Response written",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

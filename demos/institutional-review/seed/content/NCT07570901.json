@@ -1,0 +1,694 @@
+{
+  "nct": "NCT07570901",
+  "title": "Delta MELD and outcomes after liver transplant in high MELD recipients",
+  "answers": {
+    "study/pi": "Dr. Markus Selzner",
+    "study/department": "Multi-Organ Transplant Program, liver transplant, Toronto General Hospital (UHN). Department of Surgery, University of Toronto.",
+    "study/summary": "Retrospective cohort of adult liver transplant recipients at TGH with a high NaMELD at transplant, transplanted 2010 to 2025. We want to know if the change in NaMELD before transplant (delta MELD) predicts patient and graft survival, what separates futile transplants (early death) from high MELD recipients who do well, and whether a NaMELD over 30 predicts a poor outcome. Data comes from the MOT liver transplant database and Epic. No patient contact.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "cohort",
+    "classification/question": "Is the change in NaMELD before liver transplant (delta MELD) predictive of patient and graft survival in high MELD recipients? Secondary: what characterizes futile transplants, whether crossing NaMELD 30 predicts poor outcome, and whether all NaMELD components weigh equally.",
+    "classification/cohort/population": "Adults (18+) who received a liver transplant at Toronto General Hospital between January 2010 and December 2025 with a high NaMELD at transplant. Multi-organ transplants, retransplants and patients enrolled in trials of unlicensed therapies are excluded.",
+    "classification/cohort/startDate": "2010-01-01",
+    "classification/cohort/endDate": "2025-12-31",
+    "classification/cohort/dateRationale": "15 years gives us enough high MELD recipients and enough follow-up for 5 and 10 year survival. NaMELD values are reliably recorded in our database from 2010. 2025 is the last complete year.",
+    "classification/cohort/records": 900,
+    "classification/cohort/exclusions": [
+      "other"
+    ],
+    "classification/cohort/exclusionsWhy": "Patients enrolled in trials of unlicensed therapies are excluded because the investigational treatment could change graft and patient outcomes.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": [
+      "care"
+    ],
+    "classification/sources/dataSources": [
+      "emr",
+      "registry"
+    ],
+    "classification/sources/sourceDetails": "1. MOT liver transplant database (OTTR): listing date, NaMELD history, transplant and donor data, graft and patient outcomes.\n2. Epic: lab values at the follow-up timepoints, ICU stay, readmissions, date of last clinic visit.\nBoth are clinical systems, no CAPCR number.",
+    "classification/sources/external": false,
+    "identifiability/arrival": "codedOutsideKey",
+    "identifiability/keyHolder": "custodian",
+    "identifiability/fields": "MRN, only to pull and match the OTTR and Epic records, then replaced by a study ID. Dates of transplant, death, retransplant and last clinic visit, for survival times. Age at transplant, height, weight, gender, etiology of liver disease, MELD labs and follow-up labs. Donor age, height, weight, gender, donor type, cause of death, ICU stay and labs. No names, health card numbers, addresses or postal codes.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "no",
+    "identifiability/lessIdentifiableWhy": "Survival analysis needs the dates of transplant, death, retransplant and last follow-up. The MRN is only used for the extraction and is not in the analysis file.",
+    "identifiability/reidentification": "Each patient gets a study ID. The MRN to study ID log is kept by the MOT database manager, separate from the study dataset. No names or MRNs in the analysis file. Only aggregate results will be published.",
+    "identifiability/linkage": [
+      "internal"
+    ],
+    "identifiability/linkageRisk": "OTTR and Epic records are matched on MRN before the study ID is assigned. The combined file has no more identifiers than either source, and the MRN is removed after matching.",
+    "consent/sought": "waiver",
+    "consent/priorConsent": false,
+    "consent/waiver/whyIdentifiable": "We need the MRN to link listing and transplant data in OTTR to follow-up labs and outcomes in Epic, and exact dates to calculate survival. Data is coded before analysis.",
+    "consent/waiver/welfare": "no",
+    "consent/waiver/impracticable": [
+      "deceased",
+      "lost",
+      "bias"
+    ],
+    "access/custodian": "UHN Multi-Organ Transplant Program",
+    "access/custodianApproval": "self",
+    "access/authority": [
+      "phipa44"
+    ],
+    "sensitivity/categories": [
+      "none"
+    ],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": false,
+    "handling/leaving/leaves": [
+      "no"
+    ],
+    "handling/leaving/otherUses": [
+      "none"
+    ],
+    "handling/storage/location": [
+      "server"
+    ],
+    "handling/storage/access": "PI, research fellow, research analyst and research coordinator only. Restricted folder on the MOT secure network drive, UHN login, access granted by the PI. The linking log is in a separate folder that only the database manager can open.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "10 years after study completion",
+    "handling/storage/breachHarm": [
+      "reidentification"
+    ],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": [
+      "none"
+    ],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Records-only study, we don't expect any. Anything of concern would go to the PI, who is a transplant surgeon in the program.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2024-06-12",
+    "team/healthProfessionals": true,
+    "team/hpRoles": [
+      "pi",
+      "team"
+    ],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": false,
+    "resources/analyst": true,
+    "resources/similar": true,
+    "resources/overlap": "Yes. A sister study, NCT07250919, is running with the University of Jena, Germany, on the same question in their high MELD recipients. It uses the same variable list so the Toronto and Jena cohorts can be compared, and we plan a joint comparison and a combined paper.",
+    "resources/collaboration": true,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "Undeclared transfer abroad: resources/overlap describes a joint comparison and combined paper with the Jena sister study (NCT07250919), yet handling/leaving/leaves is [\"no\"], handling/leaving/otherUses is [\"none\"], agreements/involved is false and there is no DSA. Nothing says whether record-level data goes to Germany.",
+    "Sensitive category not ticked: sensitivity/categories is [\"none\"] although the variable 'Etiology of liver disease' will record alcohol-associated liver disease and hepatitis B/C; so sensitivity/input is never asked and breachHarm leaves out stigma. Extraction for sensitivity/categories disagrees.",
+    "Key custody contradicts itself: identifiability/arrival is codedOutsideKey with the custodian holding the key, but access/custodianApproval is 'self' (the team's own MOT program is the custodian). Exact event dates are kept and recognizable is 'unlikely'. Extractions for arrival and keyHolder disagree.",
+    "Weak impracticability with a recent end date: the waiver rests on recipients being deceased or lost to follow-up (and the protocol cites the US Common Rule), but the cohort runs to 2025-12-31, so recent recipients are alive and in active TGH follow-up; living donors are not addressed at all."
+  ],
+  "extractions": [
+    {
+      "question": "study/pi",
+      "extractedAnswer": "Dr. Markus Selzner",
+      "quote": "Principal Investigators: Markus Selzner, MD Multi-Organ Transplant Program, University Health Network/University of Toronto",
+      "page": 1,
+      "confidence": 0.97,
+      "reasoning": "The title page names Markus Selzner as principal investigator, with a UHN address."
+    },
+    {
+      "question": "classification/purpose",
+      "extractedAnswer": "research",
+      "quote": "To identify main risk factors for long term survival of high Sodium medical Model for End-Stage Liver Disease (NaMELD) patients and long-term graft survival after liver transplantation",
+      "page": 2,
+      "confidence": 0.9,
+      "reasoning": "The primary objective is to identify risk factors for generalizable knowledge, not to evaluate a local service, which makes this research."
+    },
+    {
+      "question": "classification/design",
+      "extractedAnswer": "cohort",
+      "quote": "Trial Design Retrospective cohort study. Trial Participants High MELD patients receiving a liver transplant.",
+      "page": 2,
+      "confidence": 0.95,
+      "reasoning": "The synopsis states the design directly as a retrospective cohort study."
+    },
+    {
+      "question": "classification/question",
+      "extractedAnswer": "Whether the change in NaMELD before liver transplantation (delta MELD) predicts post-transplant outcome in high NaMELD recipients.",
+      "quote": "Is the change of NaMeld score (delta Meld) prior to liver transplantation predictive for post-transplant outcome?",
+      "page": 3,
+      "confidence": 0.88,
+      "reasoning": "This is the first of the four study questions listed under the aim of the study, and the one the title refers to."
+    },
+    {
+      "question": "classification/cohort/population",
+      "extractedAnswer": "Adults (18 or older) who received a liver transplant at Toronto General Hospital and meet the inclusion and exclusion criteria.",
+      "quote": "Adult patients (18 years or older) who received a liver transplantation in participating hospitals (Toronto General Hospital) and satisfy the inclusion and exclusion criteria outlined below are eligible",
+      "page": 4,
+      "confidence": 0.85,
+      "reasoning": "Section 4.2 describes the participants. It does not give the NaMELD level that counts as high."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2010-01-01",
+      "quote": "Data from January 01, 2010 to December 31, 2025 will be collected from hospital specific database.",
+      "page": 4,
+      "confidence": 0.96,
+      "reasoning": "The data collection procedure gives January 1, 2010 as the start of the collection window."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2025-12-31",
+      "quote": "Data Collection Period January 01, 2010 to December 31, 2025",
+      "page": 2,
+      "confidence": 0.95,
+      "reasoning": "The synopsis gives the data collection period, ending December 31, 2025."
+    },
+    {
+      "question": "classification/cohort/dateRationale",
+      "extractedAnswer": "Recipients transplanted within the last 15 years, to allow up to 15 years of follow-up.",
+      "quote": "Eligible patients that received a liver graft within the last 15 years. Trial duration Up to 15 years Follow up.",
+      "page": 2,
+      "confidence": 0.7,
+      "reasoning": "The synopsis ties the window to 15 years of transplants and follow-up; it gives no other reason for the dates."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": [
+        "other"
+      ],
+      "quote": "Patients who are enrolled in clinical trials of other unlicensed therapy.",
+      "page": 4,
+      "confidence": 0.72,
+      "reasoning": "Age, multi-organ transplant and retransplant follow from the clinical question; trial enrolment is the one exclusion made for another reason."
+    },
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "recordsOnly",
+      "quote": "This study is a retrospective single centre cohort study in order to investigate the impact of high NaMELD on long term outcomes after liver transplantation.",
+      "page": 3,
+      "confidence": 0.9,
+      "reasoning": "The study plan is a retrospective analysis of existing data; nothing in the protocol involves contacting patients or collecting new data."
+    },
+    {
+      "question": "identifiability/arrival",
+      "extractedAnswer": "codedTeamKey",
+      "quote": "The collected data will be identified by unique study identifier only.",
+      "page": 4,
+      "confidence": 0.68,
+      "reasoning": "The data is coded with a study identifier. The protocol does not place the key with anyone outside the team, and the team's own program holds the source database."
+    },
+    {
+      "question": "identifiability/keyHolder",
+      "extractedAnswer": "team",
+      "quote": "We will create a comprehensive database to address several questions regarding the selection and outcome of liver transplantation in high NaMeld recipients",
+      "page": 3,
+      "confidence": 0.55,
+      "reasoning": "The study team builds the research database itself from its program's records, so the identifier key most likely sits with the team."
+    },
+    {
+      "question": "consent/sought",
+      "extractedAnswer": "waiver",
+      "quote": "A waiver of informed consent is requested for this study since it meets the requirements for the common rule.",
+      "page": 5,
+      "confidence": 0.97,
+      "reasoning": "The ethical considerations section requests a waiver of informed consent."
+    },
+    {
+      "question": "consent/waiver/impracticable",
+      "extractedAnswer": [
+        "deceased",
+        "lost",
+        "bias"
+      ],
+      "quote": "it would be impractical to attempt to obtain consent for this study since many of these patients may now be deceased and/or lost to follow-up. Further, the exclusion of any patients would impact the quality of the study data.",
+      "page": 5,
+      "confidence": 0.86,
+      "reasoning": "The protocol gives three reasons: patients deceased, patients lost to follow-up, and the effect of excluding patients on data quality."
+    },
+    {
+      "question": "consent/waiver/welfare",
+      "extractedAnswer": "no",
+      "quote": "Finally, the study involves minimal risk to participants, as no change to patient care is taking place.",
+      "page": 5,
+      "confidence": 0.8,
+      "reasoning": "The protocol argues minimal risk because care is unchanged, with no further mitigation described."
+    },
+    {
+      "question": "sensitivity/categories",
+      "extractedAnswer": [
+        "mentalHealth",
+        "stigmatized"
+      ],
+      "quote": "Biographic Characteristics Age at Transplant Height Weight Gender Etiology of liver Disease",
+      "page": 6,
+      "confidence": 0.6,
+      "reasoning": "Etiology of liver disease in an adult transplant cohort routinely records alcohol-associated liver disease and hepatitis B or C, which fall under substance use and stigmatized status."
+    },
+    {
+      "question": "handling/storage/retentionPeriod",
+      "extractedAnswer": "10 years after study completion",
+      "quote": "Data will be stored for ten years after study completion in accordance with requirements of the corresponding ethic committees",
+      "page": 4,
+      "confidence": 0.93,
+      "reasoning": "The data collection section states the retention period directly."
+    },
+    {
+      "question": "handling/results/reporting",
+      "extractedAnswer": "aggregate",
+      "quote": "Categorical variables will be summarized as counts and proportions and compared by Chi squared test or Fisher’s exact test as appropriate.",
+      "page": 5,
+      "confidence": 0.75,
+      "reasoning": "Results are reported as counts, proportions and survival curves; no small-cell rule is mentioned."
+    }
+  ],
+  "screening": {
+    "summary": "A records-only retrospective cohort from the MOT program's own database and Epic, under a requested waiver. The science and design hold together, but the form doesn't declare what the joint work with the Jena sister study involves, misses the sensitive categories that liver disease etiology brings, and is inconsistent about who holds the linking key. The waiver needs a stronger argument for recent recipients and for living donors.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "classification",
+        "summary": "Research on existing clinical records with no contact or new collection; the form and protocol agree. Nothing to raise.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "Coded data with a linking log, but the form contradicts itself on who can reach the key, and exact event dates are kept for a single-centre cohort.",
+        "comments": [
+          {
+            "text": "The form says the key is held outside the team, by the custodian, but also says the team is the custodian. The research analyst and coordinator are MOT program staff, the same program that holds the database and the MRN log. As described, the key is reachable by the team.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Say who exactly holds the MRN to study ID log and whether any team member can open it. If they can, change the answer to coded with the key accessible to the team.",
+            "subjects": [
+              "identifiability/arrival",
+              "identifiability/keyHolder",
+              "access/custodianApproval",
+              "handling/storage/access"
+            ],
+            "quote": "The collected data will be identified by unique study identifier only.",
+            "page": 4
+          },
+          {
+            "text": "Exact dates of transplant, death, retransplant and last clinic visit, combined with age, gender, donor type and donor cause of death, in a cohort from one named hospital, make recognition more than unlikely, particularly for living-donor and retransplant cases.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "Convert dates to days from transplant at extraction and keep only the transplant year, which still supports the survival analysis.",
+            "subjects": [
+              "identifiability/fields",
+              "identifiability/recognizable",
+              "identifiability/lessIdentifiableWhy",
+              "variables"
+            ],
+            "quote": "Overall Characteristics Date of transplant Date of Death Date of Retransplant Date of last clinical visit",
+            "page": 6
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "The waiver is asked for, but impracticability is asserted rather than shown, and it is argued only for recipients.",
+        "comments": [
+          {
+            "text": "Impracticability rests on patients being deceased or lost to follow-up, with no figures. Liver recipients stay in lifelong follow-up at TGH, so most recipients from recent years are alive and seen in clinic. The stronger argument is the one the protocol only touches: consent from survivors alone would bias a survival study, since those who died early can't consent.",
+            "kind": "concern",
+            "severity": "medium",
+            "suggestion": "Give the rough share of the cohort deceased or no longer followed, and make the survivorship bias argument explicitly under Art. 5.5A(e), rather than citing the Common Rule.",
+            "subjects": [
+              "consent/waiver/impracticable",
+              "protocol"
+            ],
+            "quote": "many of these patients may now be deceased and/or lost to follow-up",
+            "page": 5
+          },
+          {
+            "text": "Donor variables include living donors: their age, height, weight, gender and labs. Living donors are UHN patients, are alive, and are often relatives of the recipient. The waiver rationale doesn't mention them.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Say whether living donors' data is in scope. If it is, argue the waiver for them separately, or limit their data to donor type and age.",
+            "subjects": [
+              "consent/waiver/impracticable",
+              "consent/waiver/whyIdentifiable",
+              "variables"
+            ],
+            "quote": "Living Donation (1) / Heart beating donation (NDD) (2)/ Non heat beating donor (DCD)",
+            "page": 5
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "dateRange",
+        "summary": "The collection window ends on December 31, 2025, under a year before submission.",
+        "comments": [
+          {
+            "text": "Recipients transplanted in 2025 are in their first post-transplant year and in frequent contact with the program, so they could be asked. They also cannot contribute to 1, 3, 5 or 10 year survival, which the date rationale gives as the reason for the window.",
+            "kind": "concern",
+            "severity": "medium",
+            "suggestion": "End the transplant window earlier, for example December 2024, or explain what recent recipients add and why consent isn't sought from them.",
+            "subjects": [
+              "classification/cohort/endDate",
+              "classification/cohort/dateRationale"
+            ],
+            "quote": "Graft Survival at 1, 3, 5, 10 yrs Patient Survival at 1, 3, 5, 10 yrs",
+            "page": 7
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "sensitive",
+        "summary": "The form ticks no sensitive categories, but the etiology variable brings in two.",
+        "comments": [
+          {
+            "text": "Etiology of liver disease in a transplant cohort records alcohol-associated liver disease and hepatitis B and C, which are substance use and a stigmatized status. With 'None of these' ticked, the question on outside input was never asked, and breach harm leaves out stigma.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Tick mental health or substance use and stigmatized status, answer the input question, and consider coding etiology into broad groups.",
+            "subjects": [
+              "sensitivity/categories",
+              "handling/storage/breachHarm",
+              "variables"
+            ],
+            "quote": "Biographic Characteristics Age at Transplant Height Weight Gender Etiology of liver Disease",
+            "page": 6
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "The form says no data leaves UHN, but describes a joint comparison with a German site.",
+        "comments": [
+          {
+            "text": "The overlap answer describes a joint comparison of the Toronto and Jena cohorts and a combined paper with the University of Jena, yet the form says no data leaves UHN, no other use is planned, and no external organization is involved. If any record-level or coded data goes to Jena, this is a transfer outside Canada with no agreement, DSA or privacy assessment.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "State what goes to Jena: aggregate results only, or a coded dataset for pooling. If anything below aggregate, declare the transfer abroad, add the University of Jena as an external organization and attach a DSA.",
+            "subjects": [
+              "handling/leaving/leaves",
+              "handling/leaving/otherUses",
+              "agreements/involved",
+              "resources/overlap",
+              "dsa"
+            ]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "safeguards",
+        "summary": "Data on a restricted UHN network drive, kept 10 years after completion and then destroyed, in line with the protocol. Looks handled.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "reporting",
+        "summary": "Aggregate reporting, but no small-cell rule, and the planned subgroups will be small.",
+        "comments": [
+          {
+            "text": "The analysis splits high MELD recipients into those who do well and early deaths, and reports causes of death, graft loss and retransplant. In a single-centre cohort of about 900, some of those cells will be single digits.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Set a suppression threshold, for example fewer than 6, for tables and for the numbers at risk under the survival curves.",
+            "subjects": [
+              "handling/results/reporting",
+              "handling/results/threshold"
+            ],
+            "quote": "What are the characteristics of futile liver transplants in high NaMeld patients (high NaMeld recipients that do well vs early death)",
+            "page": 3
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "rigour",
+        "summary": "A clear question, but the cohort definition is loose and the analysis plan names an outcome the variables don't collect.",
+        "comments": [
+          {
+            "text": "Neither the protocol nor the form says what NaMELD counts as high, and the inclusion criteria are only registration for transplant and age. The cohort size of 900 and the comparison for the NaMELD 30 question both depend on it.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "State the NaMELD threshold for inclusion, whether lower MELD recipients are extracted as a comparison group, and that only transplanted patients are included.",
+            "subjects": [
+              "classification/cohort/population",
+              "classification/cohort/records",
+              "protocol"
+            ],
+            "quote": "Patient registered for liver transplantation. • Patients at least 18 years of age",
+            "page": 4
+          },
+          {
+            "text": "The analysis plan computes rejection-free rates, but the variable list has no rejection episodes, and the primary endpoint is patient survival.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Correct the analysis plan to patient and graft survival, or add rejection to the variable list.",
+            "subjects": [
+              "protocol",
+              "variables"
+            ],
+            "quote": "Cumulative overall rejection-free rates will be calculated by Kaplan-Meier methods",
+            "page": 4
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "terminology",
+        "summary": "The team says it checked the glossary, but the protocol borrows trial and US terms.",
+        "comments": [
+          {
+            "text": "The protocol calls the study a trial throughout and justifies the waiver against the US Common Rule. At UHN the waiver is assessed under TCPS 2 Art. 5.5A and PHIPA section 44.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Replace the trial wording with retrospective cohort study, and cite TCPS 2 and PHIPA in the ethics section.",
+            "subjects": [
+              "team/glossary",
+              "protocol"
+            ],
+            "quote": "A waiver of informed consent is requested for this study since it meets the requirements for the common rule.",
+            "page": 5
+          },
+          {
+            "text": "The protocol states it was already approved by the ethics committees of participating centres, but this is a single-centre study and this submission is the approval request.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Reword to say the study will start only after UHN REB approval.",
+            "subjects": [
+              "protocol"
+            ],
+            "quote": "This protocol was approved by the local ethic committees of participating centers. No study activities will begin until approval is obtained.",
+            "page": 5
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "hosted",
+        "summary": "Analysis runs in JMP, SPSS or R on UHN systems with data on a UHN network drive; no external tools. The only open question, the Jena collaboration, is raised under the REB transfer risk.",
+        "comments": []
+      }
+    ]
+  },
+  "variableList": [
+    {
+      "field": "MRN",
+      "source": "Epic",
+      "identifying": true,
+      "why": "Pull and match records across OTTR and Epic; kept only in the linking log."
+    },
+    {
+      "field": "Study ID",
+      "source": "Assigned by study",
+      "identifying": false,
+      "why": "Identifies each patient in the analysis file."
+    },
+    {
+      "field": "Date of transplant",
+      "source": "OTTR (MOT database)",
+      "identifying": true,
+      "why": "Start of survival time."
+    },
+    {
+      "field": "Date of death",
+      "source": "Epic",
+      "identifying": true,
+      "why": "Patient survival, the primary endpoint."
+    },
+    {
+      "field": "Date of retransplant",
+      "source": "OTTR (MOT database)",
+      "identifying": true,
+      "why": "Graft survival."
+    },
+    {
+      "field": "Date of last clinical visit",
+      "source": "Epic",
+      "identifying": true,
+      "why": "Censoring date for survival analysis."
+    },
+    {
+      "field": "Age at transplant",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Recipient risk factor."
+    },
+    {
+      "field": "Height",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Recipient risk factor (BMI)."
+    },
+    {
+      "field": "Weight",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Recipient risk factor (BMI)."
+    },
+    {
+      "field": "Gender",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Recipient risk factor."
+    },
+    {
+      "field": "Etiology of liver disease",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Underlying disease affects outcome and MELD adjustments."
+    },
+    {
+      "field": "Bilirubin, INR, creatinine, sodium at MELD timepoints",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Calculate NaMELD at listing and transplant, and delta MELD."
+    },
+    {
+      "field": "Creatinine and eGFR, D1-7, 3 and 6 months, yearly",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Post-transplant kidney function."
+    },
+    {
+      "field": "INR, D7, 3 and 6 months, yearly",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Graft function."
+    },
+    {
+      "field": "AST and ALT, D1-7, 3 and 6 months, yearly",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Graft injury and function."
+    },
+    {
+      "field": "Bilirubin, D7, 3 and 6 months, yearly",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Graft function."
+    },
+    {
+      "field": "Sodium, D7, 3 and 6 months, yearly",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Follow-up of a MELD component."
+    },
+    {
+      "field": "Alkaline phosphatase, D7, 3 and 6 months, yearly",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Biliary complications."
+    },
+    {
+      "field": "Graft survival at 1, 3, 5, 10 years",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Secondary outcome."
+    },
+    {
+      "field": "Patient survival at 1, 3, 5, 10 years",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Primary outcome."
+    },
+    {
+      "field": "Post-transplant ICU stay",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Health care use outcome."
+    },
+    {
+      "field": "Readmission within 30 days",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Short-term outcome."
+    },
+    {
+      "field": "Cause of graft loss",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Reasons for graft loss."
+    },
+    {
+      "field": "Cause of death",
+      "source": "Epic",
+      "identifying": false,
+      "why": "Reasons for death, futile transplants."
+    },
+    {
+      "field": "Donor age",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Donor risk factor."
+    },
+    {
+      "field": "Donor height and weight",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Donor risk factor."
+    },
+    {
+      "field": "Donor gender",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Donor risk factor."
+    },
+    {
+      "field": "Donor type (living, NDD, DCD)",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Donor type affects graft outcome."
+    },
+    {
+      "field": "Donor cause of death",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Donor risk factor."
+    },
+    {
+      "field": "Donor ICU stay",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Donor risk factor."
+    },
+    {
+      "field": "Donor sodium, bilirubin, AST/ALT, creatinine",
+      "source": "OTTR (MOT database)",
+      "identifying": false,
+      "why": "Donor organ quality."
+    }
+  ],
+  "dataSharingAgreement": null
+}

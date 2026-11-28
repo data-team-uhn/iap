@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Suggestion",
+  "description": "Something the study team may change, which does not hold the approval back.",
+  "category": [
+    "issue-kind"
+  ],
+  "color": "#1d6a3a",
+  "icon": "LightbulbOutlined",
+  "order": 15,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

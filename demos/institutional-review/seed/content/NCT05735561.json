@@ -1,0 +1,220 @@
+{
+  "nct": "NCT05735561",
+  "title": "Dislocation direction and AVN after ORIF of proximal humerus fracture-dislocations (PHF-D)",
+  "answers": {
+    "study/pi": "Dr. Farhad Moola",
+    "study/department": "Orthopaedic Surgery, upper extremity and trauma. Co-investigators Dr. Bertrand Perey and Dr. Justin Murphy (clinical fellow). Fracture clinic for the follow-up visits.",
+    "study/summary": "Patients who had operative fixation of a proximal humerus fracture-dislocation between January 2011 and July 2021 are grouped by dislocation direction (anterior, posterior, varus, valgus) from their injury x-rays. We compare rates of humeral head avascular necrosis (Cruess) and DASH and Constant scores between groups. Chart and x-ray review, then one clinic visit with x-rays and questionnaires for patients who agree.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "laterContact",
+    "classification/design": "cohort",
+    "classification/question": "Does the direction of a proximal humerus fracture-dislocation affect the risk of humeral head AVN after open reduction and internal fixation? Secondary: do DASH and Constant scores differ by direction?",
+    "classification/cohort/population": "Adults 18 and over who had operative fixation of a proximal humerus fracture-dislocation at UHN between January 2011 and July 2021, by one of the participating surgeons. About 70 eligible; we hope to enrol around 56, about 14 per direction group.",
+    "classification/cohort/startDate": "2011-01-01",
+    "classification/cohort/endDate": "2021-07-31",
+    "classification/cohort/dateRationale": "Ten years of cases to get enough patients in each direction group. Ending in July 2021 means everyone is at least 2 years after surgery at the visit.",
+    "classification/cohort/records": 70,
+    "classification/cohort/exclusions": ["language", "capacity", "other"],
+    "classification/cohort/exclusionsWhy": "Patients have to complete DASH and Constant, so they need to read and understand English or have an interpreter. Patients with dementia or unable to consent can't complete the PROMs. Incarcerated patients can't come to the clinic visit. Patients of non-participating surgeons are excluded because the surgeons do the follow-up assessment.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care"],
+    "classification/sources/dataSources": ["emr", "imaging"],
+    "classification/sources/sourceDetails": "UHN Epic (demographics, ASA, medical and social history, operative notes, follow-up notes) and UHN PACS for injury, post-op and follow-up radiographs. The orthopaedic OR case list 2011-2021 to find patients.",
+    "classification/sources/external": false,
+    "identifiability/arrival": "direct",
+    "identifiability/keyHolder": "team",
+    "identifiability/fields": "Name and phone number, only to call patients about the visit, kept in the separate key spreadsheet. Study ID (PHFD-001 etc.), age at injury, gender, ASA, medical and social history, side and mechanism of injury, AO/OTA class, date of surgery, anaesthesia type, additional procedures, follow-up dates, reduction quality, reoperations, AVN and union on x-ray, DASH and Constant.",
+    "identifiability/recognizable": "mitigated",
+    "identifiability/lessIdentifiable": "no",
+    "identifiability/lessIdentifiableWhy": "We need names and phone numbers to invite patients to the follow-up visit.",
+    "identifiability/reidentification": "Each participant gets a study ID. The key linking names and IDs is a separate password-protected spreadsheet that only the coordinator and the PIs can open. Only age at injury is kept, not date of birth.",
+    "identifiability/linkage": ["no"],
+    "consent/sought": "all",
+    "consent/priorConsent": true,
+    "consent/priorConsentCapcr": "PHF-D consent form v1.1, 24 January 2023 (CAPCR number to follow)",
+    "access/custodian": "UHN Health Records and JDMI",
+    "access/custodianApproval": "notRequested",
+    "access/authority": ["originalConsent"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server", "paper"],
+    "handling/storage/access": "Study data in a password-protected Excel file on a UHN network drive; the name key in a separate password-protected file. Paper CRFs and consent forms in a locked cabinet in the locked research office. The project manager authorizes access.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "10 years after the end of the study",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "possible",
+    "handling/results/incidental": "The surgeon who sees the participant reads the new x-rays and is the most responsible person. AVN or anything else found is discussed at the visit and followed up clinically.",
+    "digital/uhnHosted": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2023-02-20",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": true,
+    "resources/extraction": false,
+    "resources/analyst": false,
+    "resources/other": "Fracture clinic slots and x-rays for about 56 one-hour follow-up visits.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "classification/contact says no new collection, contact later at most, but the protocol phones every eligible patient, brings them in for a study visit, and takes new research radiographs and PROMs (p. 5): this is prospective collection.",
+    "consent/priorConsent is true with the study's own consent form v1.1 attached as the 'original' consent (and access/authority 'consent at original collection'): nobody has signed it yet, and it doesn't cover the eligibility review of all ~70 charts and the phone call, which happen before consent."
+  ],
+  "extractions": [
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "yes",
+      "quote": "patients will be asked to come into the clinic to sign the Informed Consent Form, see their treating surgeon, and complete up-to-date radiographs and patient reported outcome measures",
+      "page": 5,
+      "confidence": 0.95,
+      "reasoning": "The protocol contacts patients by phone and brings them to a study visit for new radiographs and questionnaires, which is new collection."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2011-01-01",
+      "quote": "who underwent operative fixation at Royal Columbian Hospital between January 2011 – July 2021",
+      "page": 5,
+      "confidence": 0.9,
+      "reasoning": "The retrospective cohort starts in January 2011; the first of the month is assumed."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2021-07-31",
+      "quote": "Patients who underwent operative fixation of proximal humerus fracture dislocation at Royal Columbian Hospital between January 2011 – July 2021",
+      "page": 5,
+      "confidence": 0.88,
+      "reasoning": "The inclusion criteria end the window in July 2021; the last day of the month is assumed."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 70,
+      "quote": "Out of a possible 70 participants we hope to enrol around 56",
+      "page": 7,
+      "confidence": 0.9,
+      "reasoning": "About 70 eligible patients are screened, with around 56 expected to enrol."
+    },
+    {
+      "question": "consent/priorConsent",
+      "extractedAnswer": false,
+      "quote": "This provisional consent will be obtained over the phone, in the form of a verbal agreement.",
+      "page": 5,
+      "confidence": 0.84,
+      "reasoning": "Consent is obtained by this study, by phone and then in writing at the visit. The protocol mentions no earlier consent covering this use."
+    },
+    {
+      "question": "identifiability/keyHolder",
+      "extractedAnswer": "team",
+      "quote": "There will be a separate, password protected excel spreadsheet that will house the participants name and their unique study ID.",
+      "page": 8,
+      "confidence": 0.92,
+      "reasoning": "The study team keeps the spreadsheet linking names to study IDs."
+    },
+    {
+      "question": "handling/results/actionable",
+      "extractedAnswer": "possible",
+      "quote": "As with all research that includes imaging there is a risk of incidental findings.",
+      "page": 8,
+      "confidence": 0.86,
+      "reasoning": "New radiographs are read for AVN, so clinically actionable findings are possible."
+    }
+  ],
+  "screening": {
+    "summary": "A small surgical cohort that is presented as a records review but includes a prospective study visit with new radiographs and questionnaires. The science is clear; the classification and the consent answers don't match what the protocol does.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "classification",
+        "summary": "Not records-only. The study phones patients, schedules a research visit and collects new radiographs and PROMs.",
+        "comments": [
+          {
+            "text": "The form says there is no new collection and at most later contact, but every eligible patient is called and invited to a study visit where new x-rays are taken and DASH and Constant are completed. That's prospective collection, which brings the full consent process and the visit's procedures into the review.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Answer contact as yes and describe the phone call, the visit and what is collected there.",
+            "subjects": ["classification/contact", "protocol"],
+            "quote": "patients will be asked to come into the clinic to sign the Informed Consent Form, see their treating surgeon, and complete up-to-date radiographs and patient reported outcome measures",
+            "page": 5
+          },
+          {
+            "text": "The research x-rays are an added radiation exposure for people whose treatment is finished, yet the risks section says there are no anticipated risks. It should say the dose is small and why the x-rays are needed.",
+            "kind": "concern",
+            "severity": "minor",
+            "subjects": ["protocol"],
+            "quote": "The only additional procedures that participants would need to take part in for the study are additional radiographs",
+            "page": 8
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "Consent is sought from everyone who comes in, but the form leans on that consent for steps that happen before anyone gives it.",
+        "comments": [
+          {
+            "text": "Prior consent is answered yes, and the attached form is this study's own consent, to be signed at the visit. Nobody has given it yet. The chart and x-ray review that decides eligibility for all ~70 patients, and the phone call itself, happen before any consent, so they need another basis.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Answer prior consent as no and authority accordingly. Either request a waiver limited to the eligibility review and first contact, or have each surgeon's office, as the circle of care, make the first call.",
+            "subjects": ["consent/priorConsent", "consent/priorConsentCapcr", "access/authority", "priorConsentForm"],
+            "quote": "Eligible patients will be given the option to consent to the study.",
+            "page": 5
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "incidental",
+        "summary": "Handled. The treating surgeon reads the new x-rays at the visit and discusses any AVN with the patient, so there is a clinical path for what is found.",
+        "comments": []
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Patient name", "source": "Epic", "identifying": true, "why": "Key file only, to invite patients to the visit."},
+    {"field": "Phone number", "source": "Epic", "identifying": true, "why": "Key file only, for the invitation call."},
+    {"field": "Study ID", "source": "Study", "identifying": false, "why": "Labels all study data."},
+    {"field": "Age at injury", "source": "Epic", "identifying": false, "why": "Describe the cohort."},
+    {"field": "Gender", "source": "Epic", "identifying": false, "why": "Describe the cohort."},
+    {"field": "ASA score", "source": "Epic", "identifying": false, "why": "Comorbidity at surgery."},
+    {"field": "Medical history", "source": "Epic", "identifying": false, "why": "Risk factors for AVN."},
+    {"field": "Social history (smoking, alcohol)", "source": "Epic", "identifying": false, "why": "Risk factors for AVN."},
+    {"field": "Side of injury", "source": "Epic", "identifying": false, "why": "Injury characteristics."},
+    {"field": "Mechanism of injury", "source": "Epic", "identifying": false, "why": "Injury characteristics."},
+    {"field": "AO/OTA classification", "source": "PACS", "identifying": false, "why": "Fracture pattern."},
+    {"field": "Dislocation direction", "source": "PACS", "identifying": false, "why": "Exposure: groups the cohort."},
+    {"field": "Fracture type", "source": "PACS", "identifying": false, "why": "Fracture pattern."},
+    {"field": "Date of surgery", "source": "Epic", "identifying": true, "why": "Time from surgery to the follow-up visit."},
+    {"field": "Anaesthesia type", "source": "Epic", "identifying": false, "why": "Surgical details."},
+    {"field": "Additional procedures on the injured limb", "source": "Epic", "identifying": false, "why": "Surgical details."},
+    {"field": "Treated by a participating surgeon (yes/no)", "source": "Epic", "identifying": false, "why": "Eligibility."},
+    {"field": "Follow-up period", "source": "Epic", "identifying": false, "why": "Length of follow-up."},
+    {"field": "Date of last follow-up", "source": "Epic", "identifying": true, "why": "Length of follow-up."},
+    {"field": "Quality of reduction", "source": "PACS", "identifying": false, "why": "Confounder for AVN."},
+    {"field": "Reoperations on the injured limb", "source": "Epic", "identifying": false, "why": "Secondary outcome."},
+    {"field": "AVN on follow-up radiographs (Cruess)", "source": "Study visit", "identifying": false, "why": "Primary outcome."},
+    {"field": "Fracture union", "source": "Study visit", "identifying": false, "why": "Radiographic outcome."},
+    {"field": "DASH score", "source": "Study visit", "identifying": false, "why": "Secondary outcome."},
+    {"field": "Constant score", "source": "Study visit", "identifying": false, "why": "Secondary outcome."}
+  ],
+  "dataSharingAgreement": null
+}

@@ -1,0 +1,484 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { useContext, useState, type ReactNode } from "react";
+
+import DifferenceOutlined from "@mui/icons-material/DifferenceOutlined";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import LockOutlined from "@mui/icons-material/LockOutlined";
+import { Box, Button, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
+
+import TagChip from "@iap/tags/TagChip";
+
+import Composer from "./Composer";
+import NoteKindIcon from "./noteIcons";
+import { GroupChip, GroupLabels, PersonName } from "./people";
+import PolicyLine from "./PolicyLine";
+import RemoveButton from "./RemoveButton";
+import { kindInfo, severityShown, type Nature, type ReviewNote } from "./reviewData";
+import TeamAnswer from "./TeamAnswer";
+
+import type { Message } from "./reviewModel";
+
+function when(created: string): string {
+  const date = new Date(created);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// When a note was written, to the minute, as a list of notes heads it
+function whenExactly(created: string): string {
+  const date = new Date(created);
+  return Number.isNaN(date.getTime()) ? ""
+    : date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// What a note done with is, as its heading says
+const DONE = { dismissed: "Dismissed", resolved: "Resolved", addressed: "Addressed" } as const;
+
+const BY_THE_AI = new Set<ReviewNote["kind"]>([ "aiIssue", "evidence", "contradiction" ]);
+
+// A note's heading where a list heads each note, as beside a document: what kind it is, when it was written and by
+// whom, where these say something; the AI's notes are its own and undated, and the reader's notes to self theirs
+const headingIcon = (mark: string) => ({ fontSize: "0.9rem", color: `${mark}.main`, verticalAlign: "-0.15em", mr: 0.5 });
+
+// The heading of a note being written, before it is any kind: a pencil, and what it is
+export function DraftHeading() {
+  return (
+    <Typography variant="caption" component="div">
+      <NoteKindIcon kind="draft" sx={headingIcon("draft")} />
+      <Box component="span" sx={{ color: "draft.main", fontWeight: "fontWeightBold" }}>New note</Box>
+    </Typography>
+  );
+}
+
+// PRETOTYPE. The heading of a change since the version compared with, listed among the notes
+export function ChangeHeading() {
+  return (
+    <Typography variant="caption" component="div">
+      <DifferenceOutlined sx={{ ...headingIcon("text"), color: "text.secondary" }} />
+      <Box component="span" sx={{ color: "text.secondary", fontWeight: "fontWeightBold" }}>Change</Box>
+    </Typography>
+  );
+}
+
+export function NoteHeading({ note }: { note: ReviewNote }) {
+  const info = kindInfo(note.kind);
+  const byTheAi = BY_THE_AI.has(note.kind);
+  const written = byTheAi ? "" : whenExactly(note.created);
+  // Wrapped as words are, between the date and the name, each kept whole, and each dot with what comes before it,
+  // so no line starts with one
+  const dot = "\u00a0· ";
+  return (
+    <Typography variant="caption" component="div">
+      <NoteKindIcon kind={note.kind} sx={headingIcon(info.mark)} />
+      <Box component="span" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>{info.single}</Box>
+      {written && <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}>{written}</Box></>}
+      {note.done && <>{dot}<Box component="span" sx={{ fontWeight: "fontWeightBold" }}>{DONE[note.done]}</Box></>}
+      {/* PRETOTYPE: from before the submission was last sent back, about an answer that changed since */}
+      {note.answerChanged && (
+        <>{dot}<Box component="span" sx={{ fontWeight: "fontWeightBold", whiteSpace: "nowrap" }}>Answer changed</Box></>
+      )}
+      {!byTheAi && note.kind !== "note" && (
+        <>{dot}<Box component="span" sx={{ whiteSpace: "nowrap" }}><PersonName user={note.author} /></Box></>
+      )}
+    </Typography>
+  );
+}
+
+// One of a note's fields, named before its value, "Severity: Medium", the name quieter and smaller than the value. A
+// value in words runs on after the name and wraps under it, as a paragraph would, the column being narrow
+function Field({ label, chip = false, children }: { label: string; chip?: boolean; children: ReactNode }) {
+  const name = <Box component="span" sx={{ typography: "caption", color: "text.secondary", mr: 0.75 }}>{label}:</Box>;
+  if (chip) {
+    return <Box sx={{ display: "inline-flex", alignItems: "center" }}>{name}{children}</Box>;
+  }
+  return <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{name}{children}</Typography>;
+}
+
+// Words on a note leading elsewhere, where there is somewhere to go: a question to it in the form, an issue to the
+// note it was made of, and back
+function TextLink({ text, onShow, variant = "body2" }: { text: string; onShow?: () => void;
+  variant?: "body2" | "inherit" }) {
+  return onShow ? (
+    // Underlined, as the review's tables link what an issue is about, and wrapping after its name as words do, which a
+    // button cannot: a link acting as one
+    <Link component="span" role="button" tabIndex={0} variant={variant} onClick={onShow}
+      onKeyDown={event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onShow();
+        }
+      }}
+      sx={{ cursor: "pointer" }}>
+      {text}
+    </Link>
+  ) : text;
+}
+
+// Whose group raised an issue and how serious it is, each named, on one line as far as it goes
+function Chips({ note }: { note: ReviewNote }) {
+  const labels = useContext(GroupLabels);
+  const group = note.group ? labels.get(note.group) : undefined;
+  if (!group && !note.severity) {
+    return null;
+  }
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
+      {group && <Field label="Raised by" chip><GroupChip label={group} mine={note.kind === "issue"} /></Field>}
+      {severityShown(note) && (
+        <Field label="Severity" chip><TagChip tags={[ severityShown(note) ?? "" ]} category="severity" /></Field>
+      )}
+      {note.nature && <Field label="Type" chip><TagChip tags={[ note.nature ]} category="issue-kind" /></Field>}
+    </Box>
+  );
+}
+
+// PRETOTYPE. Where changing or removing an issue would be, once it went to the study team: it stays as they read it
+export function SentLock({ sent }: { sent: string }) {
+  const on = new Date(sent).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return (
+    <Tooltip disableInteractive title={`Sent to the study team on ${on}, so it stays as they read it. Reply to it instead.`}>
+      <LockOutlined fontSize="small" aria-label={`Sent to the study team on ${on}`}
+        sx={{ color: "text.disabled", mx: 0.75, my: 0.5 }} />
+    </Tooltip>
+  );
+}
+
+// The buttons changing or removing one of the reader's own notes, at the end of the line heading it; an issue sent
+// to the study team says it stays as sent instead
+export function NoteActions({ note, onEdit, onRemove }: {
+  note: ReviewNote;
+  onEdit?: () => void;
+  onRemove?: () => Promise<void>;
+}) {
+  if (!note.mine || (!onEdit && !onRemove)) {
+    return null;
+  }
+  if (note.sent) {
+    return <Box sx={{ ml: "auto", display: "flex" }}><SentLock sent={note.sent} /></Box>;
+  }
+  return (
+    <Box sx={{ ml: "auto", display: "flex", mr: -0.75 }}>
+      {onEdit && (
+        <Tooltip title="Change">
+          <IconButton size="small" aria-label="Change" onClick={onEdit}>
+            <EditOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {onRemove && <RemoveButton what={WHAT[note.kind] ?? "note"} text={note.text} onRemove={onRemove} />}
+    </Box>
+  );
+}
+
+// What an issue was made of, as it says
+const FROM: Partial<Record<ReviewNote["kind"], string>> = { contradiction: "an AI-found mismatch",
+  aiIssue: "the AI pre-review", discussion: "a discussion message" };
+
+// What each kind of note the reviewer writes is called, where they are asked before removing one
+const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", discussion: "message", note: "note to self" };
+
+// PRETOTYPE. One note as a card: what kind it is, who wrote it and when, and what it says; for an extracted
+// answer, what the AI read and how sure it is. Discussion and issues can be answered; the reviewer's own can be
+// changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
+// or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
+export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
+  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question, formAnswer, onShowAnswer,
+  askedAs, write, onShowNote }: {
+  note: ReviewNote;
+  // For a source or a contradiction shown away from its question, as beside a document, the question it is about
+  question?: string;
+  // For a contradiction, what the form answers, as its options call it
+  formAnswer?: string;
+  // For a linked answer or a contradiction shown beside a document, going to the question in the form, which its
+  // question links to
+  onShowAnswer?: () => void;
+  // For a contradiction, the question and the form asking it, as an issue made of it names them
+  askedAs?: { question: string; form?: string };
+  // PRETOTYPE: writing what is done with it, resolving, reopening or taking back a dismissal
+  write?: (fields: Record<string, string>) => Promise<void>;
+  // Going to another note, by path: the one an issue was made of, or an issue made of this one
+  onShowNote?: (id: string) => void;
+  // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
+  // changing or removing it, which then say when it is being changed
+  headed?: boolean;
+  editing?: boolean;
+  onEditing?: (editing: boolean) => void;
+  // The extracted answer as the question's options call it
+  answerLabel?: string;
+  onReply?: (text: string) => Promise<void>;
+  onEdit?: (text: string, severity?: string, topic?: string, nature?: Nature, citation?: string) => Promise<void>;
+  onRemove?: () => Promise<void>;
+  onMakeIssue?: (text: string, severity?: string, topic?: string, nature?: Nature, citation?: string) => Promise<void>;
+  onDismiss?: () => Promise<void>;
+  // Changing or removing one of the reader's own replies, by its path
+  onEditReply?: (reply: string, text: string) => Promise<void>;
+  onRemoveReply?: (reply: string) => Promise<void>;
+  adopting?: boolean;
+  onAdopting?: (adopting: boolean) => void;
+}) {
+  const info = kindInfo(note.kind);
+  const [ replying, setReplying ] = useState(false);
+  const [ ownEditing, setOwnEditing ] = useState(false);
+  const isEditing = editing ?? ownEditing;
+  const setEditing = onEditing ?? setOwnEditing;
+  const [ ownAdopting, setOwnAdopting ] = useState(false);
+  const isAdopting = adopting ?? ownAdopting;
+  const setAdopting = onAdopting ?? setOwnAdopting;
+  // The AI's comments, the reader's notes to self and discussion entries can become issues; an entry the reader
+  // already raised is not offered again
+  const canAdopt = onMakeIssue && !note.done && (note.kind === "aiIssue" || (note.kind === "note" && note.mine)
+    || ((note.kind === "discussion" || note.kind === "contradiction") && !note.raisedByMe));
+  // A discussion entry is anyone's to resolve, an issue or a note to self its author's; the AI's comments and the
+  // contradictions are dismissed instead, for the reader alone
+  const canResolve = write && !note.done
+    && (note.kind === "discussion" || ((note.kind === "issue" || note.kind === "note") && note.mine));
+  const canDismiss = onDismiss && !note.done && (note.kind === "aiIssue" || note.kind === "contradiction");
+  const canReopen = write && note.done === "resolved" && (note.kind === "discussion" || note.mine);
+  const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue" || note.kind === "otherIssue");
+
+  if (isEditing && onEdit) {
+    return (
+      <Composer
+        kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity} initialNature={note.nature}
+        initialTopic={note.topicPath ?? ""} initialCitation={note.citation} saveLabel="Save"
+        onCancel={() => setEditing(false)}
+        onSave={async (_kind, text, severity, topic, nature, citation) => {
+          await onEdit(text, severity, topic, nature, citation);
+          setEditing(false);
+        }}
+      />
+    );
+  }
+  if (isAdopting && onMakeIssue) {
+    // A contradiction is put to the study team as the question, in its form, what each says, and where the protocol
+    // says it
+    const page = note.passage?.page;
+    const asked = askedAs ? `${askedAs.form ? `In "${askedAs.form}", ` : ""}"${askedAs.question}" is answered`
+      : "The form says";
+    const initialText = note.kind === "contradiction"
+      ? `${asked} ${formAnswer ?? ""}, but the protocol says ${answerLabel ?? note.extracted ?? ""}`
+        + `${page ? ` (page ${page})` : ""}. Please make them agree, or explain why they differ.`
+      : note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text;
+    return (
+      <Composer
+        kinds={[ "issue" ]} initialText={initialText} about={note.question ? [ note.question ] : []}
+        initialSeverity={note.severity} initialTopic={note.topicPath} saveLabel="Add issue"
+        initialNature={note.nature === "suggestion" ? "suggestion" : undefined} initialCitation={note.citation}
+        onCancel={() => setAdopting(false)}
+        onSave={async (_kind, text, severity, topic, nature, citation) => {
+          await onMakeIssue(text, severity, topic, nature, citation);
+          setAdopting(false);
+        }}
+      />
+    );
+  }
+  return (
+    <Box sx={note.done ? { opacity: 0.65 } : undefined}>
+      {/* What it is, with the tools on the same line; under it the risk it is filed under, then who wrote it, for
+          which group, and when */}
+      {/* Headed, the heading says what it is, and holds the tools */}
+      {!headed && (
+        <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 28 }}>
+          {/* What the AI says carries its mark */}
+          <NoteKindIcon kind={note.kind} sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
+          <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+            {info.single}
+          </Typography>
+          <NoteActions note={note} onEdit={onEdit && (() => setEditing(true))} onRemove={onRemove} />
+        </Stack>
+      )}
+      {/* Each field named, so the chips and the risk are not left to be guessed */}
+      <Stack sx={{ gap: 0.5, mb: 0.5 }}>
+        <Chips note={note} />
+        {note.topic && <Field label="Topic">{note.topic}</Field>}
+      </Stack>
+      {!headed && (
+        <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
+          {!BY_THE_AI.has(note.kind) && <><PersonName user={note.author} /> · </>}{when(note.created)}
+        </Typography>
+      )}
+      {/* What the AI found says only what is not in view: beside a document, whose passage shows, the question,
+          leading to it in the form, and its answer; beside the form, which shows those, neither. Then what the
+          protocol suggests, where it differs from the answer or the AI found a mismatch, and why the AI read it so */}
+      {(note.kind === "evidence" || note.kind === "contradiction") && (
+        <Stack sx={{ gap: 0.5 }}>
+          {question && <Field label="Question"><TextLink text={question} onShow={onShowAnswer} /></Field>}
+          {question && formAnswer && <Field label="Answer">{formAnswer}</Field>}
+          {(note.kind === "contradiction" || !question || (answerLabel ?? note.extracted) !== formAnswer) && (
+            <Field label="Protocol suggests"><b>{answerLabel ?? note.extracted}</b></Field>
+          )}
+          {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
+        </Stack>
+      )}
+      {note.kind !== "evidence" && note.kind !== "contradiction" && (
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
+      )}
+      {note.suggestion && (
+        <Box sx={{ mt: 0.5 }}>
+          <Field label="Suggestion">{note.suggestion}</Field>
+        </Box>
+      )}
+      <PolicyLine note={note} />
+      <TeamAnswer note={note} />
+      <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
+      {/* An issue and the note it was made of each lead to the other */}
+      {note.raisedAs?.map(issue => (
+        <Typography key={issue.id} variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+          Raised as <TextLink text="an issue" variant="inherit" onShow={onShowNote && (() => onShowNote(issue.id))} />
+          {" by "}<PersonName user={issue.author} />
+        </Typography>
+      ))}
+      {note.issuesOnAnswer?.map(issue => (
+        <Typography key={issue.id} variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+          <PersonName user={issue.author} />{" already raised "}
+          <TextLink text="an issue" variant="inherit" onShow={onShowNote && (() => onShowNote(issue.id))} />
+          {" on this answer"}
+        </Typography>
+      ))}
+      {note.from && note.fromKind && FROM[note.fromKind] && (
+        <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+          {"Raised from "}
+          <TextLink text={FROM[note.fromKind] ?? ""} variant="inherit"
+            onShow={onShowNote && (() => onShowNote(note.from ?? ""))} />
+        </Typography>
+      )}
+      {/* Done with, it says how, and what takes it back */}
+      {note.done && (
+        <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, mt: 0.5 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {note.done === "dismissed" ? "Dismissed by you"
+              : note.done === "resolved" ? <>Resolved by <PersonName user={note.resolvedBy ?? ""} /></>
+                : (note.raisedAs?.length ?? 0) > 0 ? "" : "Addressed by an issue"}
+          </Typography>
+          {write && note.done === "dismissed" && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void write({ undismiss: note.id })}>Undo</Button>
+          )}
+          {canReopen && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void write({ unresolve: note.id })}>Reopen</Button>
+          )}
+        </Stack>
+      )}
+      {(Boolean(canAnswer && !replying) || Boolean(canAdopt) || Boolean(canResolve) || Boolean(canDismiss)) && (
+        <Stack direction="row" sx={{ ml: -0.75, mt: 0.25 }}>
+          {canAnswer && !replying && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => setReplying(true)}>Reply</Button>
+          )}
+          {canAdopt && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => setAdopting(true)}>Make it an issue</Button>
+          )}
+          {canDismiss && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void onDismiss()}>Dismiss</Button>
+          )}
+          {canResolve && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void write({ resolve: note.id })}>Resolve</Button>
+          )}
+        </Stack>
+      )}
+      {canAnswer && replying && (
+        <Box sx={{ mt: 1 }}>
+          <Composer
+            kinds={[]} saveLabel="Reply" onCancel={() => setReplying(false)}
+            onSave={async (_kind, text) => {
+              await onReply(text);
+              setReplying(false);
+            }}
+          />
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// A note in brief, as a list shows one not selected: what kind it is and how serious, whose group raised an issue,
+// how many replies it has, then its own words
+export function NoteSummary({ note, headed = false }: { note: ReviewNote; headed?: boolean }) {
+  const info = kindInfo(note.kind);
+  return (
+    <Box sx={{ px: 1.5, pb: 1, ...note.done ? { opacity: 0.65 } : {} }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 24 }}>
+        {!headed && <NoteKindIcon kind={note.kind} sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />}
+        {!headed && (
+          <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+            {info.single}
+          </Typography>
+        )}
+        <Chips note={note} />
+        {note.replies.length > 0 && (
+          <Typography variant="caption" sx={{ color: "text.secondary", ml: "auto" }}>
+            {note.replies.length === 1 ? "1 reply" : `${note.replies.length} replies`}
+          </Typography>
+        )}
+      </Stack>
+      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
+    </Box>
+  );
+}
+
+// The replies to a note, under it: who wrote each and when, and what it says; the reader's own can be changed or
+// removed in place
+export function Thread({ replies, onEdit, onRemove }: {
+  replies: Message[];
+  onEdit?: (reply: string, text: string) => Promise<void>;
+  onRemove?: (reply: string) => Promise<void>;
+}) {
+  const [ editing, setEditing ] = useState<string>();
+  if (replies.length === 0) {
+    return null;
+  }
+  return (
+    <Stack spacing={1} sx={{ mt: 1, pl: 1.5, borderInlineStart: 2, borderColor: "divider" }}>
+      {replies.map(reply => (
+        <Box key={reply.path}>
+          <Stack direction="row" sx={{ alignItems: "center", minHeight: 26 }}>
+            <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
+              <PersonName user={reply.author} /> · {when(reply.created)}
+            </Typography>
+            {reply.mine && onEdit && editing !== reply.path && (
+              <Tooltip title="Change">
+                <IconButton size="small" aria-label="Change the reply" onClick={() => setEditing(reply.path)}>
+                  <EditOutlined fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {reply.mine && onRemove && (
+              <RemoveButton what="reply" text={reply.text} onRemove={() => onRemove(reply.path)} sx={{ mr: -0.75 }} />
+            )}
+          </Stack>
+          {editing === reply.path && onEdit ? (
+            <Composer
+              kinds={[]} initialText={reply.text} saveLabel="Save" onCancel={() => setEditing(undefined)}
+              onSave={async (_kind, text) => {
+                await onEdit(reply.path, text);
+                setEditing(undefined);
+              }}
+            />
+          ) : (
+            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{reply.text}</Typography>
+          )}
+        </Box>
+      ))}
+    </Stack>
+  );
+}
