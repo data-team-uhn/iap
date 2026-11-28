@@ -39,6 +39,8 @@ import {
   Typography,
 } from "@mui/material";
 
+import { getCutShortStyle } from "@iap/frontend-commons/cutShortStyle";
+
 import type { CategoryNode } from "./categoryModel";
 
 // Which way a row moves among its siblings.
@@ -180,12 +182,7 @@ function CategoryTreeItem({ node, actions, depth, onMoveUp, onMoveDown }: Catego
           secondary={node.description}
           slotProps={{
             secondary: {
-              sx: {
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              },
+              sx: getCutShortStyle(2),
             },
           }}
         />

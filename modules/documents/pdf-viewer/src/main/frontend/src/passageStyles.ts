@@ -23,11 +23,6 @@ import { isChangeKind, type MarkKind } from "./marksModel";
 
 import type { Theme } from "@mui/material/styles";
 
-// Styles that cut text short after `lines` lines.
-export function getCutShortStyle(lines: number) {
-  return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
-}
-
 // The colour of a kind of mark. A passage's is its palette colour, in the shade asked for. A change's is
 // neutral whatever its kind, since the removed and added text it shows carries the colour.
 function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "light" = "main"): string {
