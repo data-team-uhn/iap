@@ -102,7 +102,7 @@ import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type R
 import RowSplit from "./RowSplit";
 import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
-import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
+import { FOLD_SIZE, FOLDED_WIDTH, FoldButton, PANEL_HEIGHT, PanelBody } from "./sidePanel";
 import { withSources } from "./sources";
 import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser, useMyGroups } from "./useCurrentUser";
@@ -116,14 +116,12 @@ const KINDS_KEY = "iap.review.notesShown2";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const SIDE_OPEN_KEY = "iap.review.sideOpen";
 // How wide a panel folded to a rail is, as the contents and the submission under the review fold
-const FOLDED_WIDTH = 48;
 // PRETOTYPE: the review over the whole workspace is a step in the browser's history, named in the address, so Back
 // returns beside the page and a reload keeps it
 const FULL_PARAM = "view";
 const FULL_VIEW = "review";
 const fullInAddress = () => new URLSearchParams(window.location.search).get(FULL_PARAM) === FULL_VIEW;
 // How big the round buttons folding the panels away are
-const FOLD_SIZE = 24;
 const FOCUSED_KEY = "iap.review.focused";
 
 // PRETOTYPE: a form's items with the answers the data has, as those of an older version
@@ -316,6 +314,10 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ selected, setSelected ] = useState<string>();
   // PRETOTYPE: a mark followed while the review is open, for the review to show where it lists it
   const [ revealed, setRevealed ] = useState<{ id: string; at: number }>();
+  // PRETOTYPE: the review's contents folded away, to give its page the room; beside the page, its tabs go too, its page
+  // saying where it is
+  const [ listFolded, setListFolded ] = useStoredSetting("iap.review.listFolded", false, isFlag);
+  const [ focusing, setFocusing ] = useState(false);
   const [ shown, setShown ] = useState(storedKinds);
   // Whether notes dismissed, resolved or addressed by an issue are shown, faded, rather than left out
   const [ showDone, setShowDone ] = useStoredSetting("iap.review.showDone", false, isFlag);
@@ -1297,7 +1299,8 @@ export default function ReviewScreen({ path }: { path: string }) {
       <ReviewerTopics.Provider value={topicsWritten}>
         <ReviewPanel
           risks={risks} unfiled={unfiled} issueCount={myIssues.length} group={myGroupName}
-          others={othersRaised} about={about} reveal={revealed}
+          others={othersRaised} about={about} reveal={revealed} storedAs={`iap.review.entry.${path}`}
+          listFolded={listFolded} onListFolded={setListFolded} onFocusing={setFocusing}
           doing={{ ...doing, decision: reviewActions }}
           full={reviewFull} onFull={spreadReview} headed={reviewFull || narrow}
           letter={letterInput.template ? { draft: letter, send: () => setDialog("changes"),
@@ -1310,24 +1313,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   // The panel beside the page: the notes on what is read, saying how many, or the review. On a narrow
   // screen, where the notes go along the page, the choice is between the page and the review
   const tabCount = (count: string) => <Box component="span" sx={{ ml: 0.75, color: "text.secondary" }}>{count}</Box>;
-  // A round button on the edge between the page and a panel open beside it, centred on that edge, at the height of
-  // the panels' headings, folding the panel away, its chevron pointing that way; folded, the panel brings itself back
-  // from its own rail
   const foldButton = (side: "left" | "right", onClick: () => void, label: string,
-    place: Record<string, number | string>) => (
-    <Tooltip title="Fold away" placement={side === "left" ? "right" : "left"} disableInteractive>
-      <ButtonBase aria-label={label} onClick={onClick}
-        sx={theme => ({ position: "absolute", top: 10, zIndex: 3, ...place, width: FOLD_SIZE, height: FOLD_SIZE,
-          borderRadius: "50%", bgcolor: "background.paper", color: "text.secondary", border: 1, borderColor: "divider",
-          boxShadow: 1, transition: theme.transitions.create([ "background-color", "color" ]),
-          "&:hover": { bgcolor: "primary.main", color: "primary.contrastText", borderColor: "primary.main" },
-          "&.Mui-focusVisible": { outline: `2px solid ${(theme.vars ?? theme).palette.primary.main}`,
-            outlineOffset: 2 } })}>
-        {side === "left" ? <ChevronLeftOutlined sx={{ fontSize: "1.1rem" }} />
-          : <ChevronRightOutlined sx={{ fontSize: "1.1rem" }} />}
-      </ButtonBase>
-    </Tooltip>
-  );
+    place: Record<string, number | string>) => <FoldButton side={side} label={label} place={place} onClick={onClick} />;
   // Halfway between the panel's tint and the page's grey, for the tab not shown
   const halfwayTint = (theme: Theme) => {
     const { background } = (theme.vars ?? theme).palette;
@@ -1672,8 +1659,9 @@ export default function ReviewScreen({ path }: { path: string }) {
                           top: 0, right: 0, bottom: 0, left: theme => `calc(${FOLDED_WIDTH}px + ${theme.spacing(1.5)})`,
                           width: "auto", zIndex: 2, borderRadius: 1, border: 1, borderColor: "divider",
                           overflow: "hidden" } : {} }}>
-                        {/* Its tabs, after the tag folding it away, on its inner edge */}
-                        {!full && (
+                        {/* Its tabs, after the tag folding it away, on its inner edge; none while the review's
+                            contents are folded away, its page saying where it is */}
+                        {!full && !(focusing && sideTab === "review") && (
                           // With the review shown, the way to spread it over the whole workspace sits at the end of its
                           // tab, laid over it rather than in it, so the tab keeps its tint and its bar
                           <Box sx={{ pl: 0.5, bgcolor: halfwayTint, flexShrink: 0, position: "relative" }}>

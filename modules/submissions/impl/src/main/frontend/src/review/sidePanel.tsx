@@ -18,7 +18,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { Box } from "@mui/material";
+import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
+import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
+import { Box, ButtonBase, Tooltip } from "@mui/material";
 
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
@@ -53,5 +55,34 @@ export function PanelBody({ children, follow, noScrollbar, fadeTop = true }: {
       ...noScrollbar ? { scrollbarWidth: "none" } : {} }}>
       {children}
     </Box>
+  );
+}
+
+// How wide a round fold button is, and a panel folded to its rail
+export const FOLD_SIZE = 24;
+export const FOLDED_WIDTH = 48;
+
+// A round button on the edge between the page and a panel open beside it, near the top of that edge, folding the panel
+// away, its chevron pointing that way; folded, the panel brings itself back from its own rail
+export function FoldButton({ side, label, place, onClick }: {
+  side: "left" | "right";
+  label: string;
+  // Where on the edge, as absolute offsets in the panel
+  place: Record<string, number | string>;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip title="Fold away" placement={side === "left" ? "right" : "left"} disableInteractive>
+      <ButtonBase aria-label={label} onClick={onClick}
+        sx={theme => ({ position: "absolute", top: 10, zIndex: 3, ...place, width: FOLD_SIZE, height: FOLD_SIZE,
+          borderRadius: "50%", bgcolor: "background.paper", color: "text.secondary", border: 1, borderColor: "divider",
+          boxShadow: 1, transition: theme.transitions.create([ "background-color", "color" ]),
+          "&:hover": { bgcolor: "primary.main", color: "primary.contrastText", borderColor: "primary.main" },
+          "&.Mui-focusVisible": { outline: `2px solid ${(theme.vars ?? theme).palette.primary.main}`,
+            outlineOffset: 2 } })}>
+        {side === "left" ? <ChevronLeftOutlined sx={{ fontSize: "1.1rem" }} />
+          : <ChevronRightOutlined sx={{ fontSize: "1.1rem" }} />}
+      </ButtonBase>
+    </Tooltip>
   );
 }

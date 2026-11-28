@@ -43,6 +43,7 @@ import {
 import { getCutShortStyle } from "@iap/documents-pdf-viewer/passageStyles";
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
+import { useStoredSetting } from "@iap/frontend-commons/useStoredSetting";
 import TagChip from "@iap/tags/TagChip";
 
 import AiGrid from "./AiGrid";
@@ -54,7 +55,7 @@ import NoteKindIcon, { KindCount } from "./noteIcons";
 import { pulseWhenThere } from "./pulse";
 import RemoveButton from "./RemoveButton";
 import { severityShown, SEVERITIES, type Nature, type NoteKind, type ReviewNote, type Topic } from "./reviewData";
-import { PanelBody } from "./sidePanel";
+import { FOLD_SIZE, FoldButton, PanelBody } from "./sidePanel";
 
 import type { DraftedLetter } from "./rebLetter";
 
@@ -180,16 +181,32 @@ export default function ReviewPanel(props: ReviewProps & {
   letter?: LetterWriting;
   // PRETOTYPE: what a mark on the page led to, by note path, to open where the review lists it and point it out
   reveal?: { id: string; at: number };
+  // Where the entry opened is kept in the browser, for the review to open on it again, such as one per submission
+  storedAs: string;
+  // PRETOTYPE: whether the contents are folded away, laid out side by side; and whether that leaves the review beside the
+  // page saying where it is itself, for its tabs to go
+  listFolded: boolean;
+  onListFolded: (folded: boolean) => void;
+  onFocusing?: (focusing: boolean) => void;
 }) {
-  const { risks, doing, full, onFull, letter, reveal } = props;
-  // The risk opened or, laid out wide, the page chosen, kept from one layout to the other
-  const [ chosen, setChosen ] = useState<string>();
+  const { risks, doing, full, onFull, letter, reveal, onFocusing } = props;
+  // The risk opened or, laid out wide, the page chosen, kept from one layout to the other, and from one visit to the
+  // next; one no longer there, such as a risk the schema dropped, is forgotten
+  const [ stored, setStored ] = useStoredSetting<string | null>(props.storedAs, null, isEntry);
+  const known = [ AI_TAB, ALL_ISSUES, UNFILED, ...letter ? [ LETTER ] : [], ...risks.map(one => one.topic.path) ];
+  const chosen = stored !== null && known.includes(stored) ? stored : undefined;
+  const setChosen = (entry: string | undefined) => setStored(entry ?? null);
   // A mark followed opens the risk the review lists it under, or, under none, the issues filed under none or the AI
   // pre-review; set as the mark is followed, as React adjusts state to a prop
   const [ revealed, setRevealed ] = useState(reveal);
+  // With the letter open, a mark followed is pointed out in the letter and beside it instead
+  const [ letterPick, setLetterPick ] = useState<{ id: string; at: number }>();
   if (reveal !== revealed) {
     setRevealed(reveal);
-    if (reveal) {
+    if (reveal && chosen === LETTER
+      && letter?.draft.sections.some(section => section.points.some(point => point.id === reveal.id))) {
+      setLetterPick(reveal);
+    } else if (reveal) {
       const holds = (risk: RiskReview) => [ ...risk.aiOpen, ...risk.issues,
         ...risk.mismatches.map(one => one.evidence) ].some(note => note.id === reveal.id);
       setChosen(risks.find(holds)?.topic.path
@@ -206,6 +223,8 @@ export default function ReviewPanel(props: ReviewProps & {
   const [ root, setRoot ] = useState<HTMLDivElement | null>(null);
   const compact = useNarrowerThan(root, WIDE);
   const wide = full || !compact;
+  const focusing = !full && !compact && props.listFolded;
+  useEffect(() => onFocusing?.(focusing), [ focusing, onFocusing ]);
   // Showing where something was raised brings the page back beside the review
   const show = (note: ReviewNote) => {
     onFull(false);
@@ -234,7 +253,7 @@ export default function ReviewPanel(props: ReviewProps & {
         </Tooltip>
       </Stack>}
       {wide ? <WideReview {...props} chosen={chosen} onChosen={setChosen} row={!compact} roomy={full}
-        onShow={show} /> : (
+        onShow={show} letterPick={letterPick} /> : (
       // An open entry's name stays at the top, which the fade would hide
         <PanelBody fadeTop={chosen === undefined}>
           {/* The entries the whole review lists, unfolding in place */}
@@ -359,16 +378,40 @@ function LetterSummary({ letter, onOpen }: { letter: LetterWriting; onOpen: () =
 function LetterView(props: ReviewProps & {
   letter: LetterWriting;
   onShow: (note: ReviewNote) => void;
+  // Whether it has the whole workspace; beside the page, an issue chosen is also shown there
+  roomy?: boolean;
+  // A mark on the page followed to an issue in the letter
+  pick?: { id: string; at: number };
+  // What goes before its title, such as the way to bring the review contents back, and what ends its line
+  lead?: ReactNode;
+  trail?: ReactNode;
 }) {
   const { letter, doing } = props;
   const [ selected, setSelected ] = useState<string>();
+  const [ picked, setPicked ] = useState(props.pick);
+  if (props.pick !== picked) {
+    setPicked(props.pick);
+    setSelected(props.pick?.id);
+  }
+  useEffect(() => {
+    if (picked) {
+      for (const id of [ `letter-point-${picked.id}`, `review-issue-${picked.id}` ]) {
+        document.getElementById(id)?.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [ picked ]);
   const [ root, setRoot ] = useState<HTMLDivElement | null>(null);
   const row = !useNarrowerThan(root, 960);
   const issues = new Map([ ...props.risks.flatMap(one => one.issues), ...props.unfiled ]
     .map(issue => [ issue.id, issue ]));
+  // An issue chosen, in the list or in the letter, is shown in the other, and, beside the page, on the page too
   const select = (id: string, show: string) => {
     setSelected(id);
     document.getElementById(show)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const issue = issues.get(id);
+    if (!props.roomy && issue && anchored(issue)) {
+      props.onShow(issue);
+    }
   };
   const points = letter.draft.sections.flatMap(section => section.points).length;
   const send = (
@@ -381,10 +424,14 @@ function LetterView(props: ReviewProps & {
     // Side by side, the issues and the letter scroll each on their own, filling the pane
     <Stack ref={setRoot} spacing={2} sx={row ? { height: "100%", minHeight: 0 } : undefined}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-        <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Letter of Review</Typography>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1, flex: 1 }}>
+          {props.lead}
+          <Typography variant="h6" component="h3">Letter of Review</Typography>
+        </Stack>
         {letter.sendBlocked
           ? <Tooltip disableInteractive title={letter.sendBlocked}><span>{send}</span></Tooltip>
           : send}
+        {props.trail}
       </Stack>
       <Typography variant="body2" sx={{ color: "text.secondary" }}>
         Drawn from your open issues; to change what it says, change your issues here. Sending it asks the study team
@@ -415,7 +462,8 @@ function LetterView(props: ReviewProps & {
                       {point.number}.
                     </Typography>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <IssueRow issue={issue} dense={false} about={props.about} doing={doing} onShow={props.onShow} />
+                      <IssueRow issue={issue} dense={false} replyable={false} about={props.about} doing={doing}
+                        onShow={props.onShow} />
                     </Box>
                   </Stack>
                 );
@@ -444,8 +492,16 @@ function WideReview(props: ReviewProps & {
   roomy: boolean;
   onShow: (note: ReviewNote) => void;
   letter?: LetterWriting;
+  letterPick?: { id: string; at: number };
+  listFolded: boolean;
+  onListFolded: (folded: boolean) => void;
+  onFull: (full: boolean) => void;
 }) {
   const { risks, doing, row, onShow, letter } = props;
+  // PRETOTYPE: laid out side by side, the contents can be folded away, to give its page the room, as for the letter
+  // beside a document
+  const folded = row && props.listFolded;
+  const setListFolded = props.onListFolded;
   const [ sideElement, setSideElement ] = useState<HTMLDivElement | null>(null);
   const sideEdges = useScrollEdges(sideElement);
   // Whether the AI pre-review found anything: it may have failed, or the submission left it nothing to say
@@ -519,83 +575,117 @@ function WideReview(props: ReviewProps & {
         : <ArrowDownwardOutlined fontSize="small" sx={{ color: "text.secondary" }} />}
     </ButtonBase>
   );
+  // Folded, each page's title says where it is in the review, which leads back to the contents; beside the page, where
+  // the tabs go, the way over the whole workspace ends the title's line
+  const crumb = folded && (
+    <>
+      <Link component="button" variant="h6" underline="always" onClick={() => setListFolded(false)}
+        sx={{ fontWeight: "fontWeightRegular" }}>
+        Review
+      </Link>
+      <ChevronRightOutlined sx={{ color: "text.secondary" }} />
+    </>
+  );
+  const trail = folded && !props.roomy && (
+    <Tooltip disableInteractive title="Open over the whole workspace" placement="left">
+      <IconButton size="small" aria-label="Show the review over the whole workspace" onClick={() => props.onFull(true)}>
+        <OpenInFullOutlined fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  );
   return (
     <Stack direction={row ? "row" : "column"} sx={{ flex: 1, minHeight: 0 }}>
-      <Stack sx={{ width: row ? (props.roomy ? 340 : 280) : undefined, flexShrink: 0, minHeight: 0,
-        maxHeight: row ? undefined : 240 }}>
-        {pinned === "above" && pinnedEntry}
-        {/* No scrollbar between the list and the page beside it, as in the contents panel: the fade says there is more */}
-        <Box ref={setSideElement} sx={{ flex: 1, minHeight: 0, overflowY: "auto", scrollbarWidth: "none",
-          maskImage: fadeEdges(sideEdges) }}>
-          <ButtonBase ref={chosenRef(AI_TAB)} onClick={() => setChosen(AI_TAB)}
-            sx={{ ...entrySx(AI_TAB), borderTop: "none" }}>
-            <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
-            <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
-              AI pre-review ({openFindings})
-            </Typography>
-          </ButtonBase>
-          <ButtonBase ref={chosenRef(ALL_ISSUES)} onClick={() => setChosen(ALL_ISSUES)} sx={entrySx(ALL_ISSUES)}>
-            <RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />
-            <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
-              Your issues ({props.issueCount})
-            </Typography>
-          </ButtonBase>
-          {letter && (
-            <ButtonBase ref={chosenRef(LETTER)} onClick={() => setChosen(LETTER)} sx={entrySx(LETTER)}>
-              <ForwardToInboxOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />
-              <LetterName letter={letter} />
-            </ButtonBase>
+      {!folded && (
+        <Stack sx={{ width: row ? (props.roomy ? 340 : 280) : undefined, flexShrink: 0, minHeight: 0,
+          maxHeight: row ? undefined : 240, position: "relative" }}>
+          {row && (
+            <FoldButton side="left" label="Fold the review contents away" place={{ right: -FOLD_SIZE / 2 }}
+              onClick={() => setListFolded(true)} />
           )}
-          <RisksLabel risks={risks} group={props.group} lettered={Boolean(letter)} />
-          {risks.map(one => (
-            <Box key={one.topic.path} ref={chosenRef(one.topic.path)} sx={{ borderTop: 1, borderColor: "divider",
-              bgcolor: chosen === one.topic.path ? "background.paper" : undefined }}>
-              {/* Lined up with the entries over them, a tick where they have an icon, once the risk is considered */}
-              <ButtonBase onClick={() => setChosen(one.topic.path)} sx={{ ...entrySx(one.topic.path), borderTop: "none",
-                alignItems: "flex-start", bgcolor: undefined }}>
-                <Box sx={{ width: "1rem", flexShrink: 0, color: "text.secondary", mt: 0.25 }}>
-                  {one.considered && <CheckOutlined titleAccess="Considered" sx={{ fontSize: "1rem", display: "block" }} />}
-                </Box>
-                <RiskName risk={one} />
+          {pinned === "above" && pinnedEntry}
+          {/* No scrollbar between the list and the page beside it, as in the contents panel: the fade says there is more */}
+          <Box ref={setSideElement} sx={{ flex: 1, minHeight: 0, overflowY: "auto", scrollbarWidth: "none",
+            maskImage: fadeEdges(sideEdges) }}>
+            <ButtonBase ref={chosenRef(AI_TAB)} onClick={() => setChosen(AI_TAB)}
+              sx={{ ...entrySx(AI_TAB), borderTop: "none" }}>
+              <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
+              <Typography variant="body2" sx={{ color: "assistant.main", fontWeight: "fontWeightMedium" }}>
+                AI pre-review ({openFindings})
+              </Typography>
+            </ButtonBase>
+            <ButtonBase ref={chosenRef(ALL_ISSUES)} onClick={() => setChosen(ALL_ISSUES)} sx={entrySx(ALL_ISSUES)}>
+              <RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />
+              <Typography variant="body2" sx={{ color: "issue.main", fontWeight: "fontWeightMedium" }}>
+                Your issues ({props.issueCount})
+              </Typography>
+            </ButtonBase>
+            {letter && (
+              <ButtonBase ref={chosenRef(LETTER)} onClick={() => setChosen(LETTER)} sx={entrySx(LETTER)}>
+                <ForwardToInboxOutlined sx={{ fontSize: "1rem", color: "primary.main" }} />
+                <LetterName letter={letter} />
               </ButtonBase>
-            </Box>
-          ))}
-          <ButtonBase ref={chosenRef(UNFILED)} onClick={() => setChosen(UNFILED)} sx={entrySx(UNFILED)}>
-            <Box sx={{ width: "1rem", flexShrink: 0 }} />
-            <OtherName count={props.unfiled.length} />
-          </ButtonBase>
-          <Others others={props.others} doing={doing} />
-        </Box>
-        {pinned === "below" && pinnedEntry}
-      </Stack>
+            )}
+            <RisksLabel risks={risks} group={props.group} lettered={Boolean(letter)} />
+            {risks.map(one => (
+              <Box key={one.topic.path} ref={chosenRef(one.topic.path)} sx={{ borderTop: 1, borderColor: "divider",
+                bgcolor: chosen === one.topic.path ? "background.paper" : undefined }}>
+                {/* Lined up with the entries over them, a tick where they have an icon, once the risk is considered */}
+                <ButtonBase onClick={() => setChosen(one.topic.path)} sx={{ ...entrySx(one.topic.path), borderTop: "none",
+                  alignItems: "flex-start", bgcolor: undefined }}>
+                  <Box sx={{ width: "1rem", flexShrink: 0, color: "text.secondary", mt: 0.25 }}>
+                    {one.considered && <CheckOutlined titleAccess="Considered" sx={{ fontSize: "1rem", display: "block" }} />}
+                  </Box>
+                  <RiskName risk={one} />
+                </ButtonBase>
+              </Box>
+            ))}
+            <ButtonBase ref={chosenRef(UNFILED)} onClick={() => setChosen(UNFILED)} sx={entrySx(UNFILED)}>
+              <Box sx={{ width: "1rem", flexShrink: 0 }} />
+              <OtherName count={props.unfiled.length} />
+            </ButtonBase>
+            <Others others={props.others} doing={doing} />
+          </Box>
+          {pinned === "below" && pinnedEntry}
+        </Stack>
+      )}
       <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", px: { xs: 2, md: 3 }, py: 2.5, containerType: "inline-size",
         bgcolor: "background.paper" }}>
         {risk && (
           <Stack spacing={2}>
             <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
+              {crumb}
               <Typography variant="h6" component="h3" sx={{ flex: 1 }}>{risk.topic.label}</Typography>
               <ConsideredCheck labelled risk={risk} doing={doing} />
+              {trail}
             </Stack>
             <RiskDetail risk={risk} about={props.about} doing={doing} onShow={onShow} />
           </Stack>
         )}
         {chosen === AI_TAB && (
-          <AiPreReview {...props} onShow={onShow} heading={<>
+          <AiPreReview {...props} onShow={onShow} trailing={trail} heading={<>
+            {crumb}
             <AutoAwesomeOutlined sx={{ color: "assistant.main" }} />
             <Typography variant="h6" component="h3" sx={{ flex: 1, color: "assistant.main" }}>AI pre-review</Typography>
           </>} />
         )}
         {chosen === ALL_ISSUES && (
-          <AllIssues {...props} onShow={onShow} heading={<>
+          <AllIssues {...props} onShow={onShow} trailing={trail} heading={<>
+            {crumb}
             <RateReviewOutlined sx={{ color: "issue.main" }} />
             <Typography variant="h6" component="h3" sx={{ flex: 1, color: "issue.main" }}>Your issues</Typography>
           </>} />
         )}
-        {chosen === LETTER && letter && <LetterView {...props} letter={letter} onShow={onShow} />}
+        {chosen === LETTER && letter && (
+          <LetterView {...props} letter={letter} onShow={onShow} pick={props.letterPick} lead={crumb} trail={trail} />
+        )}
         {chosen === UNFILED && (
           // As a risk's page is: its name over its issues
           <Stack spacing={2}>
-            <Typography variant="h6" component="h3">Other</Typography>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
+              {crumb}
+              <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Other</Typography>
+              {trail}
+            </Stack>
             <OtherIssues {...props} onShow={onShow} />
           </Stack>
         )}
@@ -606,6 +696,7 @@ function WideReview(props: ReviewProps & {
 
 const UNFILED = "unfiled";
 const LETTER = "letter";
+const isEntry = (value: unknown): value is string | null => typeof value === "string" || value === null;
 const ALL_ISSUES = "all";
 const AI_TAB = "ai";
 
@@ -652,7 +743,9 @@ function openFindingsOf(risks: RiskReview[]): number {
 
 // Everything the AI pre-review found, in a table: filling the height beside the list, or, unfolded in the list, as
 // tall as its rows
-function AiPreReview({ risks, about, doing, onShow, heading, fitRows = false }: ReviewProps & {
+function AiPreReview({ risks, about, doing, onShow, heading, trailing, fitRows = false }: ReviewProps & {
+  // What ends the heading's line
+  trailing?: ReactNode;
   onShow: (note: ReviewNote) => void;
   heading?: ReactNode;
   fitRows?: boolean;
@@ -678,6 +771,7 @@ function AiPreReview({ risks, about, doing, onShow, heading, fitRows = false }: 
         <FormControlLabel label="Show settled"
           control={<Switch size={fitRows ? "small" : "medium"} checked={withSettled}
             onChange={event => setWithSettled(event.target.checked)} />} />
+        {trailing}
       </Stack>
       {fitRows ? grid : <Box sx={{ flex: 1, minHeight: 0 }}>{grid}</Box>}
     </Stack>
@@ -686,7 +780,9 @@ function AiPreReview({ risks, about, doing, onShow, heading, fitRows = false }: 
 
 // All the reviewer's issues, in a table: filling the height beside the list, or, unfolded in the list, as tall as its
 // rows
-function AllIssues({ risks, unfiled, about, doing, onShow, heading, fitRows = false }: ReviewProps & {
+function AllIssues({ risks, unfiled, about, doing, onShow, heading, trailing, fitRows = false }: ReviewProps & {
+  // What ends the heading's line
+  trailing?: ReactNode;
   onShow: (note: ReviewNote) => void;
   heading?: ReactNode;
   fitRows?: boolean;
@@ -696,7 +792,7 @@ function AllIssues({ risks, unfiled, about, doing, onShow, heading, fitRows = fa
       fill={!fitRows} fitRows={fitRows} dense={fitRows}
       issues={[ ...risks.flatMap(one => one.issues), ...unfiled ]}
       risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
-      about={about} doing={doing} onShow={onShow} heading={heading ?? <Box sx={{ flex: 1 }} />}
+      about={about} doing={doing} onShow={onShow} heading={heading ?? <Box sx={{ flex: 1 }} />} trailing={trailing}
     />
   );
 }
@@ -894,9 +990,11 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
 
 // The reviewer's issues as a table under a heading, with a way to add one in a row of its own at the table's top;
 // filling the height it is given, or as tall as its rows
-function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false, keepRisk = false, fill = false,
-  fitRows = compact, dense = false, about, doing, onShow }: {
+function IssueTable({ heading, trailing, note, issues, risks, defaultRisk, compact = false, keepRisk = false,
+  fill = false, fitRows = compact, dense = false, about, doing, onShow }: {
   heading: ReactNode;
+  // What ends the heading's line
+  trailing?: ReactNode;
   note?: string;
   issues: ReviewNote[];
   risks: { path: string; label: string }[];
@@ -932,6 +1030,7 @@ function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false
           onClick={() => setAdding(true)}>
           Add an issue
         </Button>
+        {trailing}
       </Stack>
       {note && <Typography variant="body2" sx={{ color: "text.secondary" }}>{note}</Typography>}
       {fill ? <Box sx={{ flex: 1, minHeight: 0 }}>{grid}</Box> : grid}
@@ -1113,9 +1212,11 @@ function AiRow({ note, topic, dense, about, doing, onShow }: {
 }
 
 // One of the reviewer's issues: changed or removed in place, or shown where it was raised
-function IssueRow({ issue, dense, about, doing, onShow }: {
+function IssueRow({ issue, dense, replyable = true, about, doing, onShow }: {
   issue: ReviewNote;
   dense: boolean;
+  // Whether it offers a reply; not beside the letter, which is drawn from what the issues say
+  replyable?: boolean;
   about: (note: ReviewNote) => string;
   doing: ReviewDoing;
   onShow: (note: ReviewNote) => void;
@@ -1173,7 +1274,7 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
             {replies === 1 ? "1 reply" : `${replies} replies`}
           </Typography>
         )}
-        {!dense && !replying && (
+        {!dense && replyable && !replying && (
           <Link component="button" variant="caption" onClick={() => setReplying(true)}>Reply</Link>
         )}
         {anchored(issue) && <Link component="button" variant="caption" onClick={() => onShow(issue)}>Show where</Link>}
