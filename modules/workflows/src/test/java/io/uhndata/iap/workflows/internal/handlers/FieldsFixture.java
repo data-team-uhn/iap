@@ -93,7 +93,7 @@ public final class FieldsFixture
         shape.setProperty("help", "What it looks like.");
         final Node shapes = shape.addNode("choices", UNSTRUCTURED);
         shapes.addNode("round", UNSTRUCTURED).setProperty("label", "Round");
-        shapes.addNode("squareChoice", UNSTRUCTURED).setProperty("value", "square");
+        shapes.addNode("square", UNSTRUCTURED);
         dependsOnShape(fields.addNode("count", UNSTRUCTURED), "round", "square");
         dependsOnShape(fields.addNode("ratio", UNSTRUCTURED), "square");
         fields.addNode("flag", UNSTRUCTURED);

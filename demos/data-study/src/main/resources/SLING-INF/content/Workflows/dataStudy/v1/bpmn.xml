@@ -35,8 +35,10 @@
       <bpmn:outgoing>toMarkSubmitted</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toMarkSubmitted" sourceRef="fillIn" targetRef="markSubmitted" />
-    <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:replaceExisting="true" iap:tag="submitted"
-                      name="Mark it as submitted">
+    <bpmn:serviceTask id="markSubmitted" name="Mark it as submitted">
+      <bpmn:extensionElements>
+        <iap:addTag tag="submitted" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMarkSubmitted</bpmn:incoming>
       <bpmn:outgoing>toRelease</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -48,8 +50,10 @@
       <bpmn:outgoing>toRecordReview</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toRecordReview" sourceRef="releaseData" targetRef="recordReview" />
-    <bpmn:serviceTask id="recordReview" name="Write the decision down"
-                      iap:handler="recordReview" iap:requirement="approval">
+    <bpmn:serviceTask id="recordReview" name="Write the decision down">
+      <bpmn:extensionElements>
+        <iap:recordReview requirement="approval" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRecordReview</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -59,7 +63,7 @@
       <bpmn:outgoing>toApproved</bpmn:outgoing>
       <bpmn:outgoing>toRejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="studyApproved">
+    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="markApproved">
       <bpmn:extensionElements>
         <sv:node xmlns:sv="http://www.jcp.org/jcr/sv/1.0" sv:name="cond:condition">
           <sv:property sv:name="jcr:primaryType" sv:type="Name">
@@ -90,12 +94,28 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="studyRejected" />
-    <bpmn:endEvent id="studyApproved" name="Data released" iap:hostTag="approved">
+    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="markRejected" />
+    <bpmn:serviceTask id="markApproved" name="Mark it as approved">
+      <bpmn:extensionElements>
+        <iap:addTag tag="approved" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toApproved</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:endEvent id="studyRejected" name="Data not released" iap:hostTag="rejected">
+      <bpmn:outgoing>approvedTagged</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="approvedTagged" sourceRef="markApproved" targetRef="studyApproved" />
+    <bpmn:serviceTask id="markRejected" name="Mark it as rejected">
+      <bpmn:extensionElements>
+        <iap:addTag tag="rejected" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRejected</bpmn:incoming>
+      <bpmn:outgoing>rejectedTagged</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="rejectedTagged" sourceRef="markRejected" targetRef="studyRejected" />
+    <bpmn:endEvent id="studyApproved" name="Data released">
+      <bpmn:incoming>approvedTagged</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="studyRejected" name="Data not released">
+      <bpmn:incoming>rejectedTagged</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="dataStudyDiagram">
@@ -124,16 +144,22 @@
           <dc:Bounds x="949" y="230" width="53" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markApprovedShape" bpmnElement="markApproved">
+        <dc:Bounds x="1060" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markRejectedShape" bpmnElement="markRejected">
+        <dc:Bounds x="1060" y="218" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="studyApprovedShape" bpmnElement="studyApproved">
-        <dc:Bounds x="1060" y="120" width="36" height="36" />
+        <dc:Bounds x="1220" y="120" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1042" y="163" width="73" height="14" />
+          <dc:Bounds x="1202" y="163" width="73" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="studyRejectedShape" bpmnElement="studyRejected">
-        <dc:Bounds x="1060" y="240" width="36" height="36" />
+        <dc:Bounds x="1220" y="240" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1034" y="283" width="89" height="14" />
+          <dc:Bounds x="1194" y="283" width="89" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toFillInEdge" bpmnElement="toFillIn">
@@ -167,6 +193,14 @@
         <di:waypoint x="1030" y="198" />
         <di:waypoint x="1030" y="258" />
         <di:waypoint x="1060" y="258" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="approvedTaggedEdge" bpmnElement="approvedTagged">
+        <di:waypoint x="1160" y="138" />
+        <di:waypoint x="1220" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="rejectedTaggedEdge" bpmnElement="rejectedTagged">
+        <di:waypoint x="1160" y="258" />
+        <di:waypoint x="1220" y="258" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

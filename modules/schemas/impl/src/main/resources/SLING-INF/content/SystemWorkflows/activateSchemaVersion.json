@@ -54,7 +54,7 @@
       "elementId": "check",
       "label": "Check it can be published",
       "handler": "checkValid",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CheckValid",
       "toRetire": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toRetire",
@@ -66,7 +66,7 @@
       "elementId": "retire",
       "label": "Retire the version this one replaces",
       "handler": "retireActiveVersions",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/RetireActiveVersions",
       "toMarkActive": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMarkActive",
@@ -80,7 +80,7 @@
       "handler": "addTag",
       "tag": "active",
       "replaceExisting": true,
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/AddTag",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

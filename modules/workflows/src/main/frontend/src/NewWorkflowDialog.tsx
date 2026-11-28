@@ -18,12 +18,10 @@
 
 import { useState } from "react";
 
-import { Alert, Button, DialogActions, DialogContent, MenuItem, Stack, TextField } from "@mui/material";
+import { MenuItem, TextField } from "@mui/material";
 
-import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import FormDialog from "@iap/frontend-commons/components/FormDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { messageOf } from "@iap/frontend-commons/requestFailure";
-import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
 import { createWorkflow } from "./workflowWrites";
 
@@ -53,7 +51,6 @@ function NewWorkflowDialog({ homepages, preselected, onClose, onCreated }: NewWo
   const firstDiscovered = homepages[0]?.path ?? "";
   const [ homepage, setHomepage ] = useState(preselected ?? firstDiscovered);
   const fetchUtil = useAuthenticatedFetch();
-  const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onClose });
 
   const valid = title.trim() !== "" && version.trim() !== "" && homepage !== "";
 
@@ -66,61 +63,45 @@ function NewWorkflowDialog({ homepages, preselected, onClose, onCreated }: NewWo
     }).then(onCreated);
 
   return (
-    <ResponsiveDialog
-      open
-      title="New workflow"
-      width="sm"
-      withCloseButton
-      closeDisabled={working}
-      onClose={onClose}
-    >
-      <DialogContent dividers>
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField
-            label="Title"
-            required
-            fullWidth
-            value={title}
-            onChange={event => setTitle(event.target.value)}
-          />
-          <TextField
-            label="Version"
-            required
-            fullWidth
-            value={version}
-            onChange={event => setVersion(event.target.value)}
-            placeholder="e.g. 1.0"
-            helperText="The label of the first version, which is created as a draft"
-          />
-          <TextField
-            label="Description"
-            fullWidth
-            multiline
-            rows={2}
-            value={description}
-            onChange={event => setDescription(event.target.value)}
-          />
-          { homepages.length > 1 && (
-            <TextField
-              label="Stored in"
-              select
-              fullWidth
-              value={homepage}
-              onChange={event => setHomepage(event.target.value)}
-            >
-              { homepages.map(option => (
-                <MenuItem key={option.path} value={option.path}>{option.title}</MenuItem>
-              )) }
-            </TextField>
-          )}
-          { failure && <Alert severity="error">{failure}</Alert> }
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" onClick={() => run(save)} disabled={working || !valid}>Create</Button>
-      </DialogActions>
-    </ResponsiveDialog>
+    <FormDialog title="New workflow" submitLabel="Create" valid={valid} onSubmit={save} onClose={onClose}>
+      <TextField
+        label="Title"
+        required
+        fullWidth
+        value={title}
+        onChange={event => setTitle(event.target.value)}
+      />
+      <TextField
+        label="Version"
+        required
+        fullWidth
+        value={version}
+        onChange={event => setVersion(event.target.value)}
+        placeholder="e.g. 1.0"
+        helperText="The label of the first version, which is created as a draft"
+      />
+      <TextField
+        label="Description"
+        fullWidth
+        multiline
+        rows={2}
+        value={description}
+        onChange={event => setDescription(event.target.value)}
+      />
+      { homepages.length > 1 && (
+        <TextField
+          label="Stored in"
+          select
+          fullWidth
+          value={homepage}
+          onChange={event => setHomepage(event.target.value)}
+        >
+          { homepages.map(option => (
+            <MenuItem key={option.path} value={option.path}>{option.title}</MenuItem>
+          )) }
+        </TextField>
+      )}
+    </FormDialog>
   );
 }
 

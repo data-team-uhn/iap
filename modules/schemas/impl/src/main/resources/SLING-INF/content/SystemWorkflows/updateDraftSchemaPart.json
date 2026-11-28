@@ -124,7 +124,7 @@
         "aiCheckPrompt": { "jcr:primaryType": "nt:unstructured", "label": "AI check prompt", "multiline": true },
         "approverGroup": { "jcr:primaryType": "nt:unstructured", "label": "Approver group" }
       },
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UpdateContent",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

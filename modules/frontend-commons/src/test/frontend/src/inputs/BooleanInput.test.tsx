@@ -75,6 +75,7 @@ describe("BooleanInput", () => {
     renderInput({ readOnly: true, values: [ "false" ], falseLabel: "Disabled" });
 
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(screen.getByText("Notify: Disabled")).toBeInTheDocument();
+    expect(screen.getByText("Notify")).toBeInTheDocument();
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
   });
 });

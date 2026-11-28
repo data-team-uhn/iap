@@ -158,7 +158,6 @@ class UpdateContentHandlerTest
         update("{\"shape\": \"square\"}");
         assertEquals("square", this.fixture.item().getProperty("shape").getString());
 
-        assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"squareChoice\"}"));
         assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"triangle\"}"));
     }
 

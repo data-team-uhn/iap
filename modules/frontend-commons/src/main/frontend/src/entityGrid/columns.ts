@@ -31,7 +31,7 @@ export function formatDateTime(value: Date): string {
 
 // A stored timestamp as the Date a dateTime column takes; null unless it is a string or a number
 export function dateValue(value: unknown): Date | null {
-  return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
+  return (typeof value === "string" && value !== "") || typeof value === "number" ? new Date(value) : null;
 }
 
 // The date of a stored timestamp in the user's locale, without the time; undefined if there is none

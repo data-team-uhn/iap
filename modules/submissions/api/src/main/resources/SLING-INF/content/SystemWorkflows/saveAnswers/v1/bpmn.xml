@@ -31,22 +31,34 @@
       <bpmn:messageEventDefinition id="saveRequested" messageRef="saveMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toSave" sourceRef="requested" targetRef="save" />
-    <bpmn:serviceTask id="save" iap:handler="saveAnswers" name="Record the answers">
+    <bpmn:serviceTask id="save" name="Record the answers">
+      <bpmn:extensionElements>
+        <iap:saveAnswers />
+      </bpmn:extensionElements>
       <bpmn:incoming>toSave</bpmn:incoming>
       <bpmn:outgoing>toValidate</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toValidate" sourceRef="save" targetRef="validate" />
-    <bpmn:serviceTask id="validate" iap:handler="validateAnswers" name="Check that the answers are valid">
+    <bpmn:serviceTask id="validate" name="Check that the answers are valid">
+      <bpmn:extensionElements>
+        <iap:validateAnswers />
+      </bpmn:extensionElements>
       <bpmn:incoming>toValidate</bpmn:incoming>
       <bpmn:outgoing>toParts</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toParts" sourceRef="validate" targetRef="parts" />
-    <bpmn:serviceTask id="parts" iap:handler="createParts" name="Give each item asked for a part of its own">
+    <bpmn:serviceTask id="parts" name="Give each item asked for a part of its own">
+      <bpmn:extensionElements>
+        <iap:createParts />
+      </bpmn:extensionElements>
       <bpmn:incoming>toParts</bpmn:incoming>
       <bpmn:outgoing>toMark</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toMark" sourceRef="parts" targetRef="mark" />
-    <bpmn:serviceTask id="mark" iap:handler="markCompleteness" name="Record whether anything is still missing">
+    <bpmn:serviceTask id="mark" name="Record whether anything is still missing">
+      <bpmn:extensionElements>
+        <iap:markCompleteness />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMark</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

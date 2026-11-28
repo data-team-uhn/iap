@@ -21,6 +21,8 @@ import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
+import { labelOf } from "./workflowModel";
+
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Withdraws the active version without promoting another in its place, which leaves the workflow
@@ -29,7 +31,7 @@ function WorkflowVersionRetireAction({ version, workflow, reload }: WorkflowVers
   if (!offers(version, "retire")) {
     return null;
   }
-  const label = version.version || version.name;
+  const label = labelOf(version);
   return (
     <EventAction
       path={version.path}

@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link StartEventCheck}, {@link SystemWorkflowTriggerCheck}, {@link SystemWorkflowWaitCheck},
- * {@link MessageEventCheck}, {@link CatchingEventCheck} and {@link SubjectCheck}.
+ * {@link MessageEventCheck}, {@link CatchingEventCheck}, {@link SubjectCheck} and {@link InvalidVersionCheck}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -244,6 +244,32 @@ class WorkflowChecksTest
             assertTrue(check.appliesTo(version));
             assertFalse(check.appliesTo(notes));
         }
+    }
+
+    @Test
+    void acceptsAVersionWhoseLastParseReportedNoProblems()
+    {
+        assertEquals(List.of(), new InvalidVersionCheck().check(version(USER_VERSION, null)));
+    }
+
+    @Test
+    void refusesAVersionOnceForEachStoredProblem()
+    {
+        final Resource version = this.context.create().resource("/Workflows/broken/v1", Map.of(
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE,
+            WorkflowVersion.PARSE_PROBLEMS_PROPERTY, new String[] { "skipped element (a)", "unattached event (b)" }));
+
+        assertEquals(List.of("its process has a problem to fix before it can be activated: skipped element (a)",
+            "its process has a problem to fix before it can be activated: unattached event (b)"),
+            new InvalidVersionCheck().check(version));
+    }
+
+    @Test
+    void appliesToVersionsOnly()
+    {
+        assertTrue(new InvalidVersionCheck().appliesTo(version(USER_VERSION, null)));
+        assertFalse(new InvalidVersionCheck().appliesTo(this.context.create().resource("/Workflows/notes",
+            Map.of(WorkflowFixture.TYPE, "nt:unstructured"))));
     }
 
     private Resource version(final String path, final String targetType)

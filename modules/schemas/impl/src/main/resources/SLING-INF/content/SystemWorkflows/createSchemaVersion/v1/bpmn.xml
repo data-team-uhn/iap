@@ -46,22 +46,36 @@
       <bpmn:messageEventDefinition id="createVersionRequested" messageRef="createVersionMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:handler="createSchemaVersion" name="Create the version">
+    <bpmn:serviceTask id="create" name="Create the version">
+      <bpmn:extensionElements>
+        <iap:createSchemaVersion />
+      </bpmn:extensionElements>
       <bpmn:incoming>toCreate</bpmn:incoming>
       <bpmn:outgoing>toCopy</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toCopy" sourceRef="create" targetRef="copy" />
-    <bpmn:serviceTask id="copy" iap:handler="copyContent" iap:skipProperties="version" iap:sourceType="sch/SchemaVersion" name="Copy the source version, if specified">
+    <bpmn:serviceTask id="copy" name="Copy the source version, if specified">
+      <bpmn:extensionElements>
+        <iap:copyContent sourceType="sch/SchemaVersion">
+          <iap:skipProperties>version</iap:skipProperties>
+        </iap:copyContent>
+      </bpmn:extensionElements>
       <bpmn:incoming>toCopy</bpmn:incoming>
       <bpmn:outgoing>toLinkSource</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toLinkSource" sourceRef="copy" targetRef="linkSource" />
-    <bpmn:serviceTask id="linkSource" iap:handler="addLink" iap:linkType="copiedFrom" iap:to="source" name="Link the copy to the version it was copied from">
+    <bpmn:serviceTask id="linkSource" name="Link the copy to the version it was copied from">
+      <bpmn:extensionElements>
+        <iap:addLink linkType="copiedFrom" to="source" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toLinkSource</bpmn:incoming>
       <bpmn:outgoing>toMarkDraft</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toMarkDraft" sourceRef="linkSource" targetRef="markDraft" />
-    <bpmn:serviceTask id="markDraft" iap:handler="addTag" iap:replaceExisting="true" iap:tag="draft" name="Mark it as a draft">
+    <bpmn:serviceTask id="markDraft" name="Mark it as a draft">
+      <bpmn:extensionElements>
+        <iap:addTag replaceExisting="true" tag="draft" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMarkDraft</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

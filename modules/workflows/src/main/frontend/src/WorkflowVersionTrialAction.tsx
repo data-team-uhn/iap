@@ -21,6 +21,8 @@ import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
+import { labelOf } from "./workflowModel";
+
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Puts a draft on trial: the diagram is frozen, as it is for anything past drafting, but the version
@@ -29,7 +31,7 @@ function WorkflowVersionTrialAction({ version, workflow, reload }: WorkflowVersi
   if (!offers(version, "startTrial")) {
     return null;
   }
-  const label = version.version || version.name;
+  const label = labelOf(version);
   return (
     <EventAction
       path={version.path}

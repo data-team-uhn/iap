@@ -1,11 +1,17 @@
 {
   "jcr:primaryType": "wf:CatchingEventType",
   "label": "Message Boundary Event",
-  "description": "Listens, for as long as a task is open, for a named message such as a withdrawal or a cancellation.",
-  "category": ["Boundary Events"],
+  "description": "Listen for a named message while the attached task is open.",
+  "category": ["Boundary Event"],
   "priority": 10,
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
   "jcrNodeType": "wf:IntermediateCatchingEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "cancelActivity": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Cancel the task",
+    "description": "Whether the task stops when this fires (yes), or carries on while a separate path also starts (no). Default: yes.",
+    "dataType": "boolean",
+    "xmlLocation": "bpmnAttribute"
+  }
 }

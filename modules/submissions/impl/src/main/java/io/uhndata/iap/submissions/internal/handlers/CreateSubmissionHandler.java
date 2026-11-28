@@ -115,9 +115,6 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /**
      * Places the {@code draft} lifecycle tag on the submission just raised. Saving answers requires it.
      *
-     * <p>An end event would tag the workflow's target, which here is the homepage and not the submission, so the
-     * tag is placed here.</p>
-     *
      * @param submission the submission just created
      * @throws PersistenceException when the tag cannot be written
      */

@@ -18,12 +18,10 @@
 
 import { useState } from "react";
 
-import { Alert, Button, DialogActions, DialogContent, Stack, TextField } from "@mui/material";
+import { TextField } from "@mui/material";
 
-import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import FormDialog from "@iap/frontend-commons/components/FormDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { messageOf } from "@iap/frontend-commons/requestFailure";
-import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
 import { updateWorkflow } from "./workflowWrites";
 
@@ -40,45 +38,23 @@ interface WorkflowPropertiesDialogProps {
 function WorkflowPropertiesDialog({ workflow, onClose, onSaved }: WorkflowPropertiesDialogProps) {
   const [ title, setTitle ] = useState(workflow.title);
   const fetchUtil = useAuthenticatedFetch();
-  const { working, failure, run } = useAsyncAction<string>({
-    onFailure: messageOf,
-    onSuccess: () => {
-      onSaved();
-      onClose();
-    },
-  });
-
-  const save = (): Promise<void> =>
-    updateWorkflow(fetchUtil, workflow.path, { title: title.trim() });
 
   return (
-    <ResponsiveDialog
-      open
+    <FormDialog
       title="Workflow properties"
-      width="sm"
-      withCloseButton
-      closeDisabled={working}
+      submitLabel="Save"
+      valid={title.trim() !== ""}
+      onSubmit={() => updateWorkflow(fetchUtil, workflow.path, { title: title.trim() }).then(onSaved)}
       onClose={onClose}
     >
-      <DialogContent dividers>
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField
-            label="Title"
-            required
-            fullWidth
-            value={title}
-            onChange={event => setTitle(event.target.value)}
-          />
-          { failure && <Alert severity="error">{failure}</Alert> }
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" onClick={() => run(save)} disabled={working || title.trim() === ""}>
-          Save
-        </Button>
-      </DialogActions>
-    </ResponsiveDialog>
+      <TextField
+        label="Title"
+        required
+        fullWidth
+        value={title}
+        onChange={event => setTitle(event.target.value)}
+      />
+    </FormDialog>
   );
 }
 

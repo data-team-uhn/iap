@@ -39,7 +39,7 @@
       "label": "Move the option",
       "handler": "moveContent",
       "within": "sch/Question",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MoveContent",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

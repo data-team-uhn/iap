@@ -184,10 +184,10 @@ test.describe('the time off request demo', () => {
       approveRequest?: {
         performers?: string[];
         outcomeOptions?: string[];
-        approvalOverdue?: { timerDuration?: string; interrupting?: boolean };
-        approvalReminder?: { timerDuration?: string; interrupting?: boolean };
+        approvalOverdue?: { timeDuration?: string; cancelActivity?: boolean };
+        approvalReminder?: { timeDuration?: string; cancelActivity?: boolean };
       };
-      reminded?: { hostTag?: string };
+      markOverdue?: { handler?: string; tag?: string };
       requestApproved?: { messageName?: string; recipients?: string[]; template?: string; urgency?: string };
       requestRejected?: { messageName?: string; recipients?: string[]; template?: string };
       decision?: { toApproved?: { 'cond:condition'?: Record<string, unknown> } };
@@ -206,14 +206,15 @@ test.describe('the time off request demo', () => {
     expect(version.approveRequest?.outcomeOptions).toEqual([ 'approved', 'rejected' ]);
     // Two boundary events, both stored inside the activity they watch, with their durations read from BPMN's
     // `timeDuration` element
-    expect(version.approveRequest?.approvalOverdue?.timerDuration).toBe('P5D');
-    expect(version.approveRequest?.approvalOverdue?.interrupting).toBe(true);
-    // The nudge: same task, earlier, and it does not cancel the task. Only `interrupting` tells "remind them"
-    // from "give up". It arrives as a boolean, not as the string in BPMN's `cancelActivity`.
-    expect(version.approveRequest?.approvalReminder?.timerDuration).toBe('P2D');
-    expect(version.approveRequest?.approvalReminder?.interrupting).toBe(false);
-    // The end of the reminder's branch marks the request overdue; the approval task's branch carries on
-    expect(version.reminded?.hostTag).toBe('overdue');
+    expect(version.approveRequest?.approvalOverdue?.timeDuration).toBe('P5D');
+    expect(version.approveRequest?.approvalOverdue?.cancelActivity).toBe(true);
+    // The nudge: same task, earlier, and it does not cancel the task. Only `cancelActivity` tells "remind them"
+    // from "give up". It arrives as a boolean, not as the string BPMN writes.
+    expect(version.approveRequest?.approvalReminder?.timeDuration).toBe('P2D');
+    expect(version.approveRequest?.approvalReminder?.cancelActivity).toBe(false);
+    // The reminder's branch tags the request overdue; the approval task's branch carries on
+    expect(version.markOverdue?.handler).toBe('addTag');
+    expect(version.markOverdue?.tag).toBe('overdue');
     // Each decision is told to the requester by the message end event it reaches
     expect(version.requestApproved?.messageName).toBe('approved');
     expect(version.requestApproved?.recipients).toEqual([ '@creator' ]);
@@ -257,7 +258,7 @@ test.describe('the time off request demo', () => {
   });
 
   test('writes the decision down against the approval the schema asks for', async ({ request }) => {
-    // Derived from the diagram: ServiceTask.json maps iap:requirement onto the activity
+    // Derived from the diagram: RecordReview.json maps the iap:recordReview element's requirement onto the activity
     const response = await request.get('/Workflows/timeOffRequest/v1/recordReview.json', { headers: adminAuth });
 
     expect(response.ok()).toBeTruthy();

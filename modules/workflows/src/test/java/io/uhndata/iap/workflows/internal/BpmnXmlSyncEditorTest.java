@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
@@ -38,6 +39,8 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+import io.uhndata.iap.workflows.NodeTypesFixture;
+import io.uhndata.iap.workflows.VocabularyFixture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,6 +59,12 @@ class BpmnXmlSyncEditorTest
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     private static final String HASH_PROPERTY = "bpmnXmlParsedHash";
+
+    private static final String PARSE_PROBLEMS = "parseProblems";
+
+    private static final String TAGS = "tags";
+
+    private static final String INVALID = "invalid";
 
     private static final String AUTHORITATIVE = "bpmnAuthoritative";
 
@@ -91,9 +100,21 @@ class BpmnXmlSyncEditorTest
 
     private static final String FLOW_NODE_TYPE = "flowNodeType";
 
-    private static final String INTERRUPTING = "interrupting";
+    private static final String CANCEL_ACTIVITY = "cancelActivity";
 
     private static final String RESOURCE_SUPER_TYPE = "sling:resourceSuperType";
+
+    private static final String WORKFLOW_TYPES = "WorkflowTypes";
+
+    private static final String XML_CHILD_ELEMENT = "xmlChildElement";
+
+    private static final String XML_LOCATION = "xmlLocation";
+
+    private static final String TEXT = "text";
+
+    private static final String ACTIVITY = "wf:Activity";
+
+    private static final String SERVICE_TASK = "ServiceTask";
 
     private static final String PROCESS_OPEN = "  <bpmn:process id=\"process1\">\n";
 
@@ -104,6 +125,10 @@ class BpmnXmlSyncEditorTest
         + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\">\n";
 
     private static final String DEFS_CLOSE = "</bpmn:definitions>\n";
+
+    /** {@link #DEFS_OPEN} with the IAP extension namespace declared, which every {@code iap:} name needs. */
+    private static final String DEFS_OPEN_IAP = DEFS_OPEN.replace("<bpmn:definitions",
+        "<bpmn:definitions xmlns:iap=\"" + IAP_NS + "\"");
 
     private static final String START_EVENT_XML =
         DEFS_OPEN
@@ -123,19 +148,31 @@ class BpmnXmlSyncEditorTest
         + PROCESS_CLOSE
         + DEFS_CLOSE;
 
+    /** A diagram the author must fix: an arc guarded by an expression the engine cannot evaluate. */
+    private static final String GUARDED_BY_EXPRESSION_XML =
+        DEFS_OPEN
+        + PROCESS_OPEN
+        + "    <bpmn:startEvent id=\"start1\"/>\n"
+        + "    <bpmn:endEvent id=\"end1\"/>\n"
+        + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
+        + "      <bpmn:conditionExpression>${approved}</bpmn:conditionExpression>\n"
+        + "    </bpmn:sequenceFlow>\n"
+        + PROCESS_CLOSE
+        + DEFS_CLOSE;
+
     private static final String NO_PROCESS_XML =
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\"/>\n";
 
     /**
-     * Exercises: two candidates for the same element (priority ordering, matching with and without the required
-     * child), an element type with no configured candidate at all, an element type whose only candidate's required
-     * child is missing, an element missing its {@code id}, a non-BPMN-namespaced child, literal/copied property
-     * application, and every {@code SequenceFlow} branch (missing refs, unknown source, unknown target, name,
-     * condition, default).
+     * Exercises every matching branch. Two candidates share one element, for priority ordering and for matching
+     * with and without the required child. One element type has no configured candidate at all, and another's only
+     * candidate lacks its required child. There is an element missing its {@code id}, a non-BPMN-namespaced child,
+     * and literal properties and attribute parameters. Every {@code SequenceFlow} branch is there too: missing refs,
+     * unknown source, unknown target, name, condition and default.
      */
     private static final String RICH_XML =
-        DEFS_OPEN
+        DEFS_OPEN_IAP
         + PROCESS_OPEN
         + "    <other:note xmlns:other=\"urn:test\">hi</other:note>\n"
         + "    <bpmn:startEvent name=\"NoId\"/>\n"
@@ -143,8 +180,8 @@ class BpmnXmlSyncEditorTest
         + "    <bpmn:startEvent id=\"msgStart1\" name=\"MsgStart\">\n"
         + "      <bpmn:messageEventDefinition/>\n"
         + "    </bpmn:startEvent>\n"
-        + "    <bpmn:userTask id=\"task1\" name=\"Review\" priority=\"7\" assigneeExpression=\"mgr\"\n"
-        + "        async=\"TRUE\" default=\"flow2\"/>\n"
+        + "    <bpmn:userTask id=\"task1\" name=\"Review\" iap:priority=\"7\"\n"
+        + "        iap:asynchronous=\"1\" default=\"flow2\"/>\n"
         + "    <bpmn:intermediateCatchEvent id=\"ice1\">\n"
         + "      <bpmn:timerEventDefinition/>\n"
         + "    </bpmn:intermediateCatchEvent>\n"
@@ -164,20 +201,6 @@ class BpmnXmlSyncEditorTest
         + PROCESS_CLOSE
         + DEFS_CLOSE;
 
-    private final String startEventTypeId = UUID.randomUUID().toString();
-
-    private final String messageStartEventTypeId = UUID.randomUUID().toString();
-
-    private final String userTaskTypeId = UUID.randomUUID().toString();
-
-    private final String endEventTypeId = UUID.randomUUID().toString();
-
-    private final String messageIntermediateCatchEventTypeId = UUID.randomUUID().toString();
-
-    private final String timerCatchEventTypeId = UUID.randomUUID().toString();
-
-    private final String timerBoundaryEventTypeId = UUID.randomUUID().toString();
-
     private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
 
     @BeforeEach
@@ -192,20 +215,13 @@ class BpmnXmlSyncEditorTest
         ErrorLogger.unsetService(this.errors);
     }
 
-    /**
-     * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
-     * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
-     */
     @Test
     void storesAnArcLeavingABoundaryEventUnderThatEvent() throws Exception
     {
-        // "And if nobody decides in time, go here." A boundary event lives inside the activity it watches, so the
-        // arc leaving it has a source that is not a child of the version — which is where sequence flows had been
-        // looked for. The parse threw ("This builder does not exist") and, because clear() runs first, left the
-        // version with no flow nodes at all: a diagram that installed an empty workflow.
+        // "And if nobody decides in time, go here." The arc leaves an event stored inside the activity it watches,
+        // not a child of the version.
         final NodeBuilder root = richBase();
-        flowNodeType(root.child("WorkflowTypes"), "TimerBoundaryEvent", this.timerCatchEventTypeId,
-            "bpmn:boundaryEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+        timerBoundaryEvent(root);
 
         final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
             + "    <bpmn:userTask id=\"" + TASK_1 + "\" />\n"
@@ -227,7 +243,6 @@ class BpmnXmlSyncEditorTest
         // And the arc hangs off the boundary event, inside the task, not beside it
         final NodeState boundary = after.getChildNode(TASK_1).getChildNode("deadline");
         assertTrue(boundary.exists());
-        assertEquals("P5D", boundary.getString("timerDuration"));
         assertTrue(boundary.getChildNode(FLOW_1).exists(), "the arc belongs to the event it leaves");
         assertEquals(END_1, boundary.getChildNode(FLOW_1).getString("targetRef"));
         assertFalse(after.getChildNode(FLOW_1).exists(), "and not to the version");
@@ -246,8 +261,9 @@ class BpmnXmlSyncEditorTest
         assertTrue(condition.exists(), "the condition subtree should hang off the arc");
         assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
         assertEquals("equals", condition.getString("comparator"));
-        // Set from the type, since a NodeBuilder autocreates nothing
         assertEquals("cond/SingleCondition", condition.getString("sling:resourceType"));
+        // Left out of the diagram, so built from the node type's defaults
+        assertEquals("literal", condition.getChildNode("operandB").getString("source"));
 
         final NodeState operandA = condition.getChildNode("operandA");
         assertEquals("cond:ConditionOperand", operandA.getName(PRIMARY_TYPE));
@@ -259,10 +275,7 @@ class BpmnXmlSyncEditorTest
     @Test
     void buildsTheSameSubtreeAfterADiagramEditorHasSavedIt() throws Exception
     {
-        // MEASURED, not defensive: bpmn-moddle keeps a foreign element's namespace but flattens its attribute
-        // prefixes, so a diagram the editor has written back says name="..." where the hand-written one said
-        // sv:name="...". Insisting on the namespace would read the authored file and silently lose every
-        // condition in a saved one — the arc would still be derived, just unconditional.
+        // bpmn-moddle writes a saved diagram's attributes back without their prefix: name="..." for sv:name="...".
         final NodeState after = firstSave(base(), svCondition(""));
 
         final NodeState condition =
@@ -286,7 +299,7 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists());
         assertEquals(0, after.getChildNode(START_1).getChildNodeCount(1));
-        assertRecorded("extension node declares no name", START_1);
+        assertStored(after, "extension node declares no name", START_1);
     }
 
     @Test
@@ -304,14 +317,12 @@ class BpmnXmlSyncEditorTest
 
         final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
         assertEquals("equals", condition.getString("comparator"));
-        assertRecorded("extension property declares no name", START_1);
+        assertStored(after, "extension property declares no name", START_1);
     }
 
     @Test
     void leavesASystemViewPropertyWithNoValueUnset() throws Exception
     {
-        // Distinct from a property set to the empty string: the diagram said nothing, so the node type's own
-        // default stands rather than being overwritten with nothing
         final NodeState after = firstSave(base(), svExtension(
             "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
             + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
@@ -361,9 +372,8 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists(), "the flow node itself is still derived");
         assertFalse(after.getChildNode(START_1).getChildNode("cond:condition").exists());
-        Mockito.verify(this.errors).logProblem(Mockito.eq("extension node declares no primary type"),
-            Mockito.argThat(context -> START_1.equals(context.getDetails().get("element"))
-                && "cond:condition".equals(context.getDetails().get("extensionNode"))));
+        assertEquals(List.of("extension node declares no primary type (start1, extensionNode=cond:condition)"),
+            after.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
     }
 
     @Test
@@ -397,8 +407,6 @@ class BpmnXmlSyncEditorTest
     @Test
     void resolvesAMessageEventToTheNameACallerWouldSend() throws Exception
     {
-        // The engine matches an incoming event by the message's *name*; the id is a document-internal handle for
-        // pointing at it. Getting these the wrong way round gives a workflow nothing can start.
         final NodeState after = firstSave(richBase(), DEFS_OPEN
             + "  <bpmn:message id=\"saveMessage\" name=\"save\" />\n" + PROCESS_OPEN
             + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
@@ -412,8 +420,6 @@ class BpmnXmlSyncEditorTest
     @Test
     void leavesAMessageEventUnnamedWhenTheMessageItPointsAtHasNoName() throws Exception
     {
-        // The node is still derived — the diagram says there is a start event here — but nothing invents a name
-        // for it, because a guessed message name is a workflow that answers the wrong events
         final NodeState after = firstSave(richBase(), DEFS_OPEN
             + "  <bpmn:message id=\"saveMessage\" />\n" + PROCESS_OPEN
             + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
@@ -423,7 +429,7 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists());
         assertNull(after.getChildNode(START_1).getString("messageName"));
-        assertNothingRecorded();
+        assertFalse(after.hasProperty(PARSE_PROBLEMS));
     }
 
     @Test
@@ -438,17 +444,19 @@ class BpmnXmlSyncEditorTest
             + PROCESS_CLOSE + DEFS_CLOSE);
 
         assertNull(after.getChildNode(START_1).getString("messageName"));
-        assertNothingRecorded();
+        assertFalse(after.hasProperty(PARSE_PROBLEMS));
     }
 
     @Test
     void readsATimersDurationFromTheElementItIsWrittenIn() throws Exception
     {
-        // Not an attribute, so no copy rule could reach it: BPMN puts the duration in the text of a
-        // <bpmn:timeDuration> inside the timer definition
+        // BPMN puts the duration in the text of a <bpmn:timeDuration> inside the timer definition
         final NodeBuilder root = richBase();
-        flowNodeType(root.child("WorkflowTypes"), "TimerIntermediateCatchEvent", this.timerCatchEventTypeId,
-            "bpmn:intermediateCatchEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+        final NodeBuilder timer = VocabularyFixture.entry(root, "TimerIntermediateCatchEvent",
+            "bpmn:intermediateCatchEvent", "wf:IntermediateCatchingEvent", 10)
+            .setProperty(XML_CHILD_ELEMENT, "bpmn:timerEventDefinition");
+        VocabularyFixture.parameter(timer, "timeDuration", TEXT, 0, 1).setProperty(XML_LOCATION, "bpmnElement")
+            .setProperty("xmlPath", "bpmn:timerEventDefinition");
 
         final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
             + "    <bpmn:intermediateCatchEvent id=\"" + TASK_1 + "\">\n"
@@ -458,18 +466,14 @@ class BpmnXmlSyncEditorTest
             + "    </bpmn:intermediateCatchEvent>\n"
             + PROCESS_CLOSE + DEFS_CLOSE);
 
-        assertEquals("P5D", after.getChildNode(TASK_1).getString("timerDuration"));
+        assertEquals("P5D", after.getChildNode(TASK_1).getString("timeDuration"));
     }
 
     @Test
     void carriesAListAcrossAsAMultiValuedProperty() throws Exception
     {
-        // `performers` is where this matters most: the node type declares it multiple, and a workflow whose
-        // approval task named one group as a single string would admit nobody the engine expects
         final NodeBuilder root = base();
-        final NodeBuilder types = root.child("WorkflowTypes");
-        types.getChildNode("UserTask").setProperty("properties",
-            List.of("{" + IAP_NS + "}performers=performers[]"), Type.STRINGS);
+        VocabularyFixture.attributeParameter(types(root).getChildNode("UserTask"), "performers", TEXT, 0);
 
         final NodeState after = firstSave(root, withIapNs()
             + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:performers=\"approvers, @creator\" />\n"
@@ -481,33 +485,25 @@ class BpmnXmlSyncEditorTest
     }
 
     @Test
-    void readsASingleValuedRuleAsOneValueEvenWhenItLooksLikeAList() throws Exception
+    void readsASingleValuedParameterAsOneValueEvenWhenItLooksLikeAList() throws Exception
     {
-        // The reason the rule says so rather than the parser guessing: without the marker a value containing a
-        // comma is one value, and there is no way to tell "a name with a comma in it" from "two names"
         final NodeBuilder root = base();
-        final NodeBuilder types = root.child("WorkflowTypes");
-        types.getChildNode("UserTask").setProperty("properties",
-            List.of("{" + IAP_NS + "}hostTag=hostTag"), Type.STRINGS);
+        VocabularyFixture.attributeParameter(types(root).getChildNode("UserTask"), "colour", TEXT, 1);
 
         final NodeState after = firstSave(root, withIapNs()
-            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:hostTag=\"a, b\" />\n"
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:colour=\"a, b\" />\n"
             + PROCESS_CLOSE + DEFS_CLOSE);
 
-        final PropertyState hostTag = after.getChildNode(TASK_1).getProperty("hostTag");
-        assertFalse(hostTag.isArray());
-        assertEquals("a, b", hostTag.getValue(Type.STRING));
+        final PropertyState colour = after.getChildNode(TASK_1).getProperty("colour");
+        assertFalse(colour.isArray());
+        assertEquals("a, b", colour.getValue(Type.STRING));
     }
 
     @Test
     void dropsTheEmptyEntriesOfAList() throws Exception
     {
-        // A trailing separator is the commonest way a hand-edited list goes wrong, and an empty performer would
-        // be a principal nothing can match rather than a harmless blank
         final NodeBuilder root = base();
-        final NodeBuilder types = root.child("WorkflowTypes");
-        types.getChildNode("UserTask").setProperty("properties",
-            List.of("{" + IAP_NS + "}performers=performers[]"), Type.STRINGS);
+        VocabularyFixture.attributeParameter(types(root).getChildNode("UserTask"), "performers", TEXT, 0);
 
         final NodeState after = firstSave(root, withIapNs()
             + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:performers=\"approvers,,\" />\n"
@@ -518,18 +514,11 @@ class BpmnXmlSyncEditorTest
     }
 
     @Test
-    void carriesAnExtensionAttributeAcrossByNamespace() throws Exception
+    void carriesAnAttributeParameterAcrossByNamespace() throws Exception
     {
         // BPMN says nothing about which code a service task runs, so `handler` arrives as an extension attribute.
         // The vocabulary names it by namespace, which is what this proves lands.
-        final NodeBuilder root = base();
-        final NodeBuilder types = root.child("WorkflowTypes");
-        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
-        types.child("ServiceTask").setProperty("properties",
-            List.of("{" + IAP_NS + "}handler=handler"), Type.STRINGS);
-
-        final NodeState after = firstSave(root, DEFS_OPEN.replace("<bpmn:definitions",
-            "<bpmn:definitions xmlns:iap=\"" + IAP_NS + "\"") + PROCESS_OPEN
+        final NodeState after = firstSave(genericServiceTask(), withIapNs()
             + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" iap:handler=\"checkBudget\" />\n"
             + PROCESS_CLOSE + DEFS_CLOSE);
 
@@ -539,16 +528,8 @@ class BpmnXmlSyncEditorTest
     @Test
     void carriesItAcrossWhateverPrefixTheFileChose() throws Exception
     {
-        // The whole reason the rule names a namespace rather than a prefix. A diagram editor is free to
-        // renormalise `iap:` to anything on save, and a prefix-matched lookup would silently stop carrying the
-        // handler across — leaving a service task that runs nothing and a workflow that looks right.
-        final NodeBuilder root = base();
-        final NodeBuilder types = root.child("WorkflowTypes");
-        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
-        types.child("ServiceTask").setProperty("properties",
-            List.of("{" + IAP_NS + "}handler=handler"), Type.STRINGS);
-
-        final NodeState after = firstSave(root, DEFS_OPEN.replace("<bpmn:definitions",
+        // A prefix-matched lookup would miss this attribute when the editor renormalises `iap:` on save.
+        final NodeState after = firstSave(genericServiceTask(), DEFS_OPEN.replace("<bpmn:definitions",
             "<bpmn:definitions xmlns:ns7=\"" + IAP_NS + "\"") + PROCESS_OPEN
             + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" ns7:handler=\"checkBudget\" />\n"
             + PROCESS_CLOSE + DEFS_CLOSE);
@@ -557,28 +538,72 @@ class BpmnXmlSyncEditorTest
     }
 
     @Test
-    void ignoresARuleThatOpensANamespaceAndNeverClosesIt() throws Exception
+    void storesEachValueInTheTypeItWasDeclaredWith() throws Exception
     {
-        // A malformed vocabulary entry should cost one property, not throw inside somebody's commit
         final NodeBuilder root = base();
-        final NodeBuilder types = root.child("WorkflowTypes");
-        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
-        types.child("ServiceTask").setProperty("properties", List.of("{unclosed=handler"), Type.STRINGS);
+        final NodeBuilder type = VocabularyFixture.handler(root, "Escalate", "escalate");
+        VocabularyFixture.parameter(type, "urgent", "boolean", 0, 1);
+        VocabularyFixture.parameter(type, "retries", "long", 0, 1);
+        VocabularyFixture.parameter(type, "levels", "long", 0, 0);
 
-        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
-            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" handler=\"checkBudget\" />\n"
+        final NodeState after = firstSave(root, withIapNs()
+            + serviceTask(TASK_1, "<iap:escalate urgent=\"true\" retries=\"3\">"
+                + "<iap:levels>1</iap:levels><iap:levels>2</iap:levels></iap:escalate>")
             + PROCESS_CLOSE + DEFS_CLOSE);
 
-        assertTrue(after.getChildNode(TASK_1).exists(), "the node itself should still be derived");
-        assertNull(after.getChildNode(TASK_1).getString(HANDLER));
+        final NodeState task = after.getChildNode(TASK_1);
+        assertEquals(true, task.getProperty("urgent").getValue(Type.BOOLEAN));
+        assertEquals(3L, task.getProperty("retries").getValue(Type.LONG));
+        assertEquals(List.of(1L, 2L), task.getProperty("levels").getValue(Type.LONGS));
+    }
+
+    @Test
+    void letsTheEntrysFixedPropertiesWinOverAParameter() throws Exception
+    {
+        final NodeBuilder root = base();
+        final NodeBuilder type = VocabularyFixture.handler(root, "Notify", "notify");
+        type.setProperty("jcrProperties", "{\"handler\": \"notify\"}");
+        VocabularyFixture.attributeParameter(type, HANDLER, TEXT, 1);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" iap:handler=\"somethingElse\">\n"
+            + "      <bpmn:extensionElements><iap:notify/></bpmn:extensionElements>\n"
+            + "    </bpmn:serviceTask>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("notify", after.getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    @Test
+    void prefersTheEntryWhoseExtensionElementTheTaskCarries() throws Exception
+    {
+        // The task also carries an extension element that no entry names.
+        final NodeBuilder root = genericServiceTask();
+        final NodeBuilder notify = VocabularyFixture.handler(root, "Notify", "notify");
+        VocabularyFixture.parameter(notify, "urgency", TEXT, 0, 1);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + serviceTask("typed", "<iap:notify urgency=\"immediate\"/>")
+            + "    <bpmn:serviceTask id=\"other\" iap:handler=\"checkBudget\">\n"
+            + "      <bpmn:extensionElements><iap:audit/></bpmn:extensionElements>\n"
+            + "    </bpmn:serviceTask>\n"
+            + "    <bpmn:serviceTask id=\"bare\" iap:handler=\"checkBudget\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals(VocabularyFixture.id("Notify"),
+            after.getChildNode("typed").getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals("immediate", after.getChildNode("typed").getString("urgency"));
+        assertEquals(VocabularyFixture.id(SERVICE_TASK),
+            after.getChildNode("other").getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals("checkBudget", after.getChildNode("other").getString(HANDLER));
+        assertEquals(VocabularyFixture.id(SERVICE_TASK),
+            after.getChildNode("bare").getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals("checkBudget", after.getChildNode("bare").getString(HANDLER));
     }
 
     @Test
     void leavesAloneAVersionWhoseDiagramDoesNotOwnItsFlowNodes() throws Exception
     {
-        // The whole point of the flag. A version whose flow nodes were written by hand holds things no diagram
-        // expresses yet — a handler naming the code a service task runs, a multi-valued list of performers — and
-        // deriving it would quietly drop them, leaving a workflow shaped like the diagram and unable to run.
         final NodeBuilder root = base();
         version(root).removeProperty(AUTHORITATIVE);
         final NodeBuilder authored = version(root).child(TASK_1);
@@ -589,7 +614,6 @@ class BpmnXmlSyncEditorTest
             + "    <bpmn:userTask id=\"" + TASK_1 + "\" name=\"Decide\" />\n"
             + PROCESS_CLOSE + DEFS_CLOSE);
 
-        // Untouched, not merged: the authored node is exactly as authored, and nothing was derived beside it
         assertEquals("checkBudget", after.getChildNode(TASK_1).getString(HANDLER));
         assertFalse(after.hasProperty(HASH_PROPERTY),
             "a version it did not parse should carry no record of a parse");
@@ -598,8 +622,6 @@ class BpmnXmlSyncEditorTest
     @Test
     void treatsASilentVersionAsNotOwnedByItsDiagram() throws Exception
     {
-        // Absent is the same answer as false, and it has to be: every workflow that existed before the flag did
-        // was written by hand, so the safe reading of silence is the only one that does not break them all
         final NodeBuilder root = base();
         version(root).removeProperty(AUTHORITATIVE);
 
@@ -613,8 +635,6 @@ class BpmnXmlSyncEditorTest
     @Test
     void keepsTheFlowNodesOfANonAuthoritativeVersionWhenItsDiagramGoesAway() throws Exception
     {
-        // Removing the diagram from a hand-authored version says nothing about its flow nodes, which were never
-        // derived from it. Clearing them would delete a working workflow on the strength of a deleted drawing.
         final NodeBuilder root = base();
         version(root).removeProperty(AUTHORITATIVE);
         setBpmnXml(root, DEFS_OPEN + PROCESS_OPEN
@@ -676,49 +696,24 @@ class BpmnXmlSyncEditorTest
             + PROCESS_CLOSE + DEFS_CLOSE;
     }
 
-    /** {@link #DEFS_OPEN} with the IAP extension namespace declared, which extension attributes need. */
+    /** The opening of a document declaring the IAP extension namespace, up to and including its process. */
     private String withIapNs()
     {
-        return DEFS_OPEN.replace("<bpmn:definitions", "<bpmn:definitions xmlns:iap=\"" + IAP_NS + "\"")
-            + PROCESS_OPEN;
+        return DEFS_OPEN_IAP + PROCESS_OPEN;
     }
 
     private NodeBuilder base()
     {
-        final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
+        final NodeBuilder root = VocabularyFixture.repository();
 
         // The editor identifies a homepage by this declared childNodeType, which wf:WorkflowsHomepage and
         // wf:SystemWorkflowsHomepage both autocreate and protect.
         homepage(root, WORKFLOWS_PATH);
 
-        final NodeBuilder types = root.child("WorkflowTypes");
-        flowNodeType(types, "StartEvent", this.startEventTypeId, "bpmn:startEvent", null, "wf:StartEvent", 0);
-        flowNodeType(types, "UserTask", this.userTaskTypeId, "bpmn:userTask", null, "wf:Activity", 0);
-        flowNodeType(types, "EndEvent", this.endEventTypeId, "bpmn:endEvent", null, "wf:EndEvent", 0);
-
-        // A minimal node type registry backing clearFlowNodes' is-a-FlowNode/SequenceFlow checks (rep:supertypes,
-        // the full transitively-expanded list) and applySystemProperties' sling:resourceSuperType derivation
-        // (jcr:supertypes, the directly-declared one): just enough for the concrete types this test suite
-        // actually parses BPMN elements into.
-        final NodeBuilder nodeTypes = root.child("jcr:system").child("jcr:nodeTypes");
-        nodeTypes.child("wf:StartEvent")
-            .setProperty("rep:supertypes", List.of("wf:Event", "wf:FlowNode"), Type.NAMES)
-            .setProperty("jcr:supertypes", List.of("wf:Event"), Type.NAMES);
-        nodeTypes.child("wf:EndEvent")
-            .setProperty("rep:supertypes", List.of("wf:Event", "wf:FlowNode"), Type.NAMES)
-            .setProperty("jcr:supertypes", List.of("wf:Event"), Type.NAMES);
-        nodeTypes.child("wf:Activity")
-            .setProperty("rep:supertypes", List.of("wf:FlowNode"), Type.NAMES)
-            .setProperty("jcr:supertypes", List.of("wf:FlowNode"), Type.NAMES);
-        nodeTypes.child("wf:IntermediateCatchingEvent")
-            .setProperty("rep:supertypes", List.of("wf:IntermediateEvent", "wf:Event", "wf:FlowNode"), Type.NAMES)
-            .setProperty("jcr:supertypes", List.of("wf:IntermediateEvent"), Type.NAMES);
-        nodeTypes.child("wf:ExclusiveGateway")
-            .setProperty("rep:supertypes", List.of("wf:Gateway", "wf:FlowNode"), Type.NAMES)
-            .setProperty("jcr:supertypes", List.of("wf:Gateway"), Type.NAMES);
-        nodeTypes.child("wf:SequenceFlow").setProperty("jcr:supertypes", List.of("data:EntityPart"), Type.NAMES);
-        // nt:file is registered without any supertype naming a flow node, so bpmn.xml survives a reparse.
-        nodeTypes.child("nt:file").setProperty("rep:supertypes", List.of("nt:hierarchyNode"), Type.NAMES);
+        VocabularyFixture.entry(root, "StartEvent", "bpmn:startEvent", "wf:StartEvent", 0);
+        VocabularyFixture.entry(root, "UserTask", "bpmn:userTask", ACTIVITY, 0);
+        VocabularyFixture.entry(root, "EndEvent", "bpmn:endEvent", "wf:EndEvent", 0);
+        VocabularyFixture.entry(root, "SequenceFlow", "bpmn:sequenceFlow", "wf:SequenceFlow", 0);
 
         descend(root, WORKFLOWS_PATH, DEFINITION_NAME).setProperty(PRIMARY_TYPE, "wf:WorkflowDefinition", Type.NAME);
         final NodeBuilder version = version(root);
@@ -740,10 +735,10 @@ class BpmnXmlSyncEditorTest
     {
         final NodeBuilder root = base();
         final NodeBuilder types = root.child("WorkflowTypes");
-        flowNodeType(types, "MessageStartEvent", this.messageStartEventTypeId, "bpmn:startEvent",
-            "bpmn:messageEventDefinition", "wf:StartEvent", 10);
-        flowNodeType(types, "MessageIntermediateCatchEvent", this.messageIntermediateCatchEventTypeId,
-            "bpmn:intermediateCatchEvent", "bpmn:messageEventDefinition", "wf:IntermediateCatchingEvent", 10);
+        VocabularyFixture.entry(root, "MessageStartEvent", "bpmn:startEvent", "wf:StartEvent", 10)
+            .setProperty(XML_CHILD_ELEMENT, "bpmn:messageEventDefinition");
+        VocabularyFixture.entry(root, "MessageIntermediateCatchEvent", "bpmn:intermediateCatchEvent",
+            "wf:IntermediateCatchingEvent", 10).setProperty(XML_CHILD_ELEMENT, "bpmn:messageEventDefinition");
         // Collected but never matched by any element in RICH_XML: exercises an xmlElement with no namespace
         // prefix, and a candidate with no configured priority at all.
         final NodeBuilder incomplete = types.child("Incomplete");
@@ -756,26 +751,44 @@ class BpmnXmlSyncEditorTest
         userTask.setProperty("jcrProperties",
             "{\"catching\": true, \"weight\": 3, \"ratio\": 1.5, \"label\": \"ok\", \"code\": \"007\","
                 + " \"cancelled\": false, \"unset\": null}");
-        userTask.setProperty("properties",
-            List.of("priority", "assigneeExpression=assignee", "async=asynchronous", "missingAttr=ignored"),
-            Type.STRINGS);
+        VocabularyFixture.attributeParameter(userTask, "priority", TEXT, 1);
+        VocabularyFixture.attributeParameter(userTask, "asynchronous", "boolean", 1);
+        // A parameter the element does not carry, which writes nothing
+        VocabularyFixture.attributeParameter(userTask, "missingAttr", TEXT, 1);
         types.getChildNode("EndEvent").setProperty("jcrProperties", "{}");
         return root;
     }
 
-    private void flowNodeType(final NodeBuilder parent, final String name, final String uuid,
-        final String xmlElement, final String xmlChildElement, final String jcrNodeType, final long priority)
+    /** The timer boundary event entry, matched by the timer definition it carries. */
+    private NodeBuilder timerBoundaryEvent(final NodeBuilder root)
     {
-        final NodeBuilder type = parent.child(name);
-        type.setProperty(PRIMARY_TYPE, "wf:FlowNodeType", Type.NAME);
-        type.setProperty("jcr:uuid", uuid);
-        type.setProperty("label", name);
-        type.setProperty("priority", priority);
-        type.setProperty("xmlElement", xmlElement);
-        type.setProperty("jcrNodeType", jcrNodeType);
-        if (xmlChildElement != null) {
-            type.setProperty("xmlChildElement", xmlChildElement);
-        }
+        return VocabularyFixture.entry(root, "TimerBoundaryEvent", "bpmn:boundaryEvent", "wf:IntermediateCatchingEvent",
+            10).setProperty(XML_CHILD_ELEMENT, "bpmn:timerEventDefinition");
+    }
+
+    /** {@link #base()} plus the generic service task entry, whose one parameter is the handler attribute. */
+    private NodeBuilder genericServiceTask()
+    {
+        final NodeBuilder root = base();
+        final NodeBuilder type = VocabularyFixture.entry(root, SERVICE_TASK, "bpmn:serviceTask", ACTIVITY, 0);
+        VocabularyFixture.attributeParameter(type, HANDLER, TEXT, 1);
+        return root;
+    }
+
+    /** A service task written with one extension element, {@code extension}, which picks its entry. */
+    private String serviceTask(final String id, final String extension)
+    {
+        return "    <bpmn:serviceTask id=\"" + id + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        " + extension + "\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:serviceTask>\n";
+    }
+
+    /** The vocabulary root, where every {@code wf:FlowNodeType} entry a test declares lives. */
+    private NodeBuilder types(final NodeBuilder root)
+    {
+        return root.child(WORKFLOW_TYPES);
     }
 
     private NodeBuilder bpmnContent(final NodeBuilder root)
@@ -886,12 +899,12 @@ class BpmnXmlSyncEditorTest
         assertEquals("wf:StartEvent", start.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
         assertEquals("start1", start.getProperty("elementId").getValue(Type.STRING));
         assertEquals("Start", start.getProperty("label").getValue(Type.STRING));
-        assertEquals(this.startEventTypeId, start.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(VocabularyFixture.id("StartEvent"), start.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
         final NodeState task = version.getChildNode(TASK_1);
         assertTrue(task.exists());
         assertEquals("wf:Activity", task.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
-        assertEquals(this.userTaskTypeId, task.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(VocabularyFixture.id("UserTask"), task.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
         final NodeState end = version.getChildNode(END_1);
         assertTrue(end.exists());
@@ -988,7 +1001,7 @@ class BpmnXmlSyncEditorTest
     }
 
     @Test
-    void malformedBpmnXmlLeavesPreviousFlowNodesAndHashUntouched() throws Exception
+    void malformedBpmnXmlLeavesPreviousFlowNodesAndRemovesTheHash() throws Exception
     {
         final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
 
@@ -998,7 +1011,7 @@ class BpmnXmlSyncEditorTest
         final NodeState result = process(synced, after);
         final NodeState version = version(result);
 
-        assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertFalse(version.hasProperty(HASH_PROPERTY), "saving the previous diagram again parses it again");
         assertTrue(version.getChildNode(START_1).exists());
         assertTrue(version.getChildNode(TASK_1).exists());
         assertTrue(version.getChildNode(END_1).exists());
@@ -1021,7 +1034,7 @@ class BpmnXmlSyncEditorTest
             + START_EVENT_XML.substring(START_EVENT_XML.indexOf("<bpmn:definitions")));
 
         final NodeState version = version(process(synced, after));
-        assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertFalse(version.hasProperty(HASH_PROPERTY));
         assertTrue(version.getChildNode(START_1).exists());
     }
 
@@ -1181,10 +1194,119 @@ class BpmnXmlSyncEditorTest
     @Test
     void bpmnXmlWithoutAProcessElementParsesToNoFlowNodes() throws Exception
     {
-        final NodeState version = firstSave(NO_PROCESS_XML);
+        assertFalse(firstSave(NO_PROCESS_XML).getChildNode(START_1).exists());
+    }
 
-        assertEquals(sha256(NO_PROCESS_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
-        assertFalse(version.getChildNode(START_1).exists());
+    @Test
+    void bpmnXmlWithoutAProcessElementKeepsTheFlowNodesItHad() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+        final NodeBuilder after = synced.builder();
+        setBpmnXml(after, NO_PROCESS_XML);
+
+        final NodeState version = version(process(synced, after));
+
+        assertTrue(version.getChildNode(START_1).exists());
+        assertEquals(List.of("bpmnXml declares no process element"),
+            version.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
+    }
+
+    @Test
+    void aBreakingProblemMarksTheVersionInvalidAndKeepsItsOtherTags() throws Exception
+    {
+        final NodeBuilder base = base();
+        version(base).setProperty(TAGS, List.of("draft"), Type.STRINGS);
+
+        final NodeState version = firstSave(base, NO_PROCESS_XML);
+
+        assertEquals(List.of("draft", INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
+        assertEquals(List.of("bpmnXml declares no process element"),
+            version.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
+    }
+
+    @Test
+    void aProblemTheAuthorCanFixIsRecordedWithoutAdviceAndInvalidatesTheVersion() throws Exception
+    {
+        final NodeState version = firstSave(richBase(), DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"start1\"/>\n"
+            + "    <bpmn:endEvent id=\"end1\"/>\n"
+            + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
+            + "      <bpmn:conditionExpression>${approved}</bpmn:conditionExpression>\n"
+            + "    </bpmn:sequenceFlow>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals(List.of("sequence flow guard is a conditionExpression, not a cond:condition (flow1,"
+            + " conditionExpression=${approved})"), version.getProperty(PARSE_PROBLEMS).getValue(Type.STRINGS));
+        assertEquals(List.of(INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
+    }
+
+    @Test
+    void storesTheHashOfADiagramWhoseParseReportedProblems() throws Exception
+    {
+        assertEquals(sha256(GUARDED_BY_EXPRESSION_XML),
+            firstSave(GUARDED_BY_EXPRESSION_XML).getProperty(HASH_PROPERTY).getValue(Type.STRING));
+    }
+
+    @Test
+    void reparsesAnEarlierDiagramSavedAgainAfterOneWithProblems() throws Exception
+    {
+        final NodeState clean = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+        final NodeBuilder broken = clean.builder();
+        setBpmnXml(broken, GUARDED_BY_EXPRESSION_XML);
+        final NodeState withProblems = process(clean, broken);
+        final NodeBuilder reverted = withProblems.builder();
+        setBpmnXml(reverted, START_EVENT_XML);
+
+        final NodeState version = version(process(withProblems, reverted));
+
+        assertFalse(version.hasProperty(PARSE_PROBLEMS));
+        assertFalse(version.hasProperty(TAGS));
+        assertTrue(version.getChildNode(TASK_1).exists());
+    }
+
+    @Test
+    void deletingBpmnXmlClearsTheProblemsAndTheInvalidTag() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(GUARDED_BY_EXPRESSION_XML));
+        final NodeBuilder after = synced.builder();
+        version(after).getChildNode(BPMN_XML).remove();
+
+        final NodeState version = version(process(synced, after));
+
+        assertFalse(version.hasProperty(PARSE_PROBLEMS));
+        assertFalse(version.hasProperty(TAGS));
+    }
+
+    @Test
+    void aCleanParseClearsTheProblemsAndTheInvalidTagOnly() throws Exception
+    {
+        final NodeBuilder base = base();
+        version(base).setProperty(TAGS, List.of(INVALID, "draft"), Type.STRINGS);
+        version(base).setProperty(PARSE_PROBLEMS, List.of("stale"), Type.STRINGS);
+
+        final NodeState version = firstSave(base, START_EVENT_XML);
+
+        assertFalse(version.hasProperty(PARSE_PROBLEMS));
+        assertEquals(List.of("draft"), version.getProperty(TAGS).getValue(Type.STRINGS));
+    }
+
+    @Test
+    void aCleanParseRemovesTheTagsPropertyWhenInvalidWasTheOnlyTag() throws Exception
+    {
+        final NodeBuilder base = base();
+        version(base).setProperty(TAGS, List.of(INVALID), Type.STRINGS);
+
+        assertFalse(firstSave(base, START_EVENT_XML).hasProperty(TAGS));
+    }
+
+    @Test
+    void aThrownParseFailureMarksTheVersionInvalid() throws Exception
+    {
+        final NodeState version = firstSave("<not-well-formed");
+
+        assertEquals(List.of(INVALID), version.getProperty(TAGS).getValue(Type.STRINGS));
+        assertEquals(1, version.getProperty(PARSE_PROBLEMS).count());
+        assertTrue(version.getProperty(PARSE_PROBLEMS).getValue(Type.STRING, 0).contains("SAXParseException"));
     }
 
     /** A collaboration declares one process per participant; only the first is parsed, and that is reported. */
@@ -1213,18 +1335,19 @@ class BpmnXmlSyncEditorTest
         // Plain start event: the message-requiring candidate doesn't match, falls back to the plain one.
         final NodeState start = version.getChildNode(START_1);
         assertTrue(start.exists());
-        assertEquals(this.startEventTypeId, start.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(VocabularyFixture.id("StartEvent"), start.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
         // Start event with a message child: the higher-priority message candidate matches.
         final NodeState msgStart = version.getChildNode("msgStart1");
         assertTrue(msgStart.exists());
-        assertEquals(this.messageStartEventTypeId, msgStart.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(VocabularyFixture.id("MessageStartEvent"),
+            msgStart.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
-        // Copied/renamed attributes and the JSON jcrProperties, whose value types carry over as they are.
+        // Attribute parameters, stored in the types they were declared with, and the JSON jcrProperties, whose
+        // value types carry over as they are.
         final NodeState task = version.getChildNode(TASK_1);
         assertTrue(task.exists());
         assertEquals("7", task.getProperty("priority").getValue(Type.STRING));
-        assertEquals("mgr", task.getProperty("assignee").getValue(Type.STRING));
         assertEquals(true, task.getProperty("asynchronous").getValue(Type.BOOLEAN));
         assertEquals(true, task.getProperty("catching").getValue(Type.BOOLEAN));
         assertEquals(false, task.getProperty("cancelled").getValue(Type.BOOLEAN));
@@ -1234,7 +1357,7 @@ class BpmnXmlSyncEditorTest
         // element's own name wins -- as it does over any other configured property that names part of its identity.
         assertEquals("Review", task.getProperty("label").getValue(Type.STRING));
         assertEquals(TASK_1, task.getProperty("elementId").getValue(Type.STRING));
-        assertEquals(this.userTaskTypeId, task.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(VocabularyFixture.id("UserTask"), task.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
         // A quoted JSON value stays a string, even when its text would parse as a number.
         assertEquals("007", task.getProperty("code").getValue(Type.STRING));
         // A JSON null has no JCR equivalent to store, so it is reported and skipped.
@@ -1269,17 +1392,13 @@ class BpmnXmlSyncEditorTest
         assertFalse(start.getChildNode("flowGhostTarget").exists());
     }
 
-    /**
-     * Where a catching event is stored is the whole of what makes it a boundary event, so an event carrying an
-     * {@code attachedToRef} belongs inside the activity it names — not beside it, where nothing would tell it apart
-     * from a free-standing mid-process catch.
-     */
+    /** An event carrying an {@code attachedToRef} is stored inside the activity it names. */
     @Test
     void boundaryEventsAreStoredInsideTheActivityTheyWatch() throws Exception
     {
         final NodeBuilder root = richBase();
-        flowNodeType(root.child("WorkflowTypes"), "TimerBoundaryEvent", this.timerBoundaryEventTypeId,
-            "bpmn:boundaryEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+        VocabularyFixture.parameter(timerBoundaryEvent(root), CANCEL_ACTIVITY, "boolean", 0, 1)
+            .setProperty(XML_LOCATION, "bpmnAttribute");
 
         final NodeState version = firstSave(root,
             DEFS_OPEN
@@ -1311,15 +1430,16 @@ class BpmnXmlSyncEditorTest
         final NodeState deadline = task1.getChildNode("deadline");
         assertTrue(deadline.exists());
         assertEquals("wf:IntermediateCatchingEvent", deadline.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
-        assertEquals(this.timerBoundaryEventTypeId, deadline.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(VocabularyFixture.id("TimerBoundaryEvent"),
+            deadline.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
         assertEquals("deadline", deadline.getProperty("elementId").getValue(Type.STRING));
         assertEquals("wf/IntermediateEvent", deadline.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
-        assertEquals(true, deadline.getProperty(INTERRUPTING).getValue(Type.BOOLEAN));
+        assertEquals(true, deadline.getProperty(CANCEL_ACTIVITY).getValue(Type.BOOLEAN));
 
         final NodeState task2 = version.getChildNode("task2");
-        assertEquals(false, task2.getChildNode("reminder").getProperty(INTERRUPTING).getValue(Type.BOOLEAN));
+        assertEquals(false, task2.getChildNode("reminder").getProperty(CANCEL_ACTIVITY).getValue(Type.BOOLEAN));
         // No cancelActivity attribute leaves the node type's own default in place rather than guessing.
-        assertFalse(task2.getChildNode("defaulted").hasProperty(INTERRUPTING));
+        assertFalse(task2.getChildNode("defaulted").hasProperty(CANCEL_ACTIVITY));
 
         // Never stored beside the activity, whatever goes wrong.
         assertFalse(version.getChildNode("deadline").exists());
@@ -1376,8 +1496,8 @@ class BpmnXmlSyncEditorTest
     void elementsReusingAnEarlierIdAreSkipped() throws Exception
     {
         final NodeBuilder root = richBase();
-        flowNodeType(root.child("WorkflowTypes"), "TimerBoundaryEvent", this.timerBoundaryEventTypeId,
-            "bpmn:boundaryEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+        VocabularyFixture.parameter(timerBoundaryEvent(root), CANCEL_ACTIVITY, "boolean", 0, 1)
+            .setProperty(XML_LOCATION, "bpmnAttribute");
 
         final NodeState version = firstSave(root,
             DEFS_OPEN
@@ -1395,7 +1515,7 @@ class BpmnXmlSyncEditorTest
         final NodeState dup = version.getChildNode("dup");
         assertEquals("wf:Activity", dup.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
         assertEquals("TheTask", dup.getProperty("label").getValue(Type.STRING));
-        assertEquals(this.userTaskTypeId, dup.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(VocabularyFixture.id("UserTask"), dup.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
         assertEquals(0, dup.getChildNodeCount(Long.MAX_VALUE));
     }
 
@@ -1434,6 +1554,14 @@ class BpmnXmlSyncEditorTest
         assertFalse(version.getChildNode("gwNoUuid").exists());
         // The rest of the diagram still parses, and the commit still succeeds.
         assertTrue(version.getChildNode(START_1).exists());
+        // Only an administrator can complete a vocabulary entry, and the author is told so.
+        final PropertyState problems = version.getProperty(PARSE_PROBLEMS);
+        // Each element is reported for the entry that was passed over, then for finding no entry at all.
+        assertEquals(4, problems.count());
+        for (int i = 0; i < problems.count(); i++) {
+            assertTrue(problems.getValue(Type.STRING, i).endsWith(". Please contact an administrator"));
+        }
+        assertTrue(problems.getValue(Type.STRING, 0).startsWith("FlowNodeType declares no jcrNodeType ("));
     }
 
     /**
@@ -1453,6 +1581,10 @@ class BpmnXmlSyncEditorTest
         assertTrue(start.exists());
         assertEquals("Start", start.getProperty("label").getValue(Type.STRING));
         assertTrue(version.getChildNode(END_1).exists());
+        final PropertyState problems = version.getProperty(PARSE_PROBLEMS);
+        assertEquals(2, problems.count());
+        assertTrue(problems.getValue(Type.STRING, 0).endsWith(". Please contact an administrator"));
+        assertTrue(problems.getValue(Type.STRING, 1).endsWith(". Please contact an administrator"));
     }
 
     /** The engine evaluates a cond:condition; a BPMN expression is reported, and the arc made without it. */
@@ -1471,7 +1603,7 @@ class BpmnXmlSyncEditorTest
             + DEFS_CLOSE);
 
         assertTrue(version.getChildNode(START_1).getChildNode(FLOW_1).exists());
-        Mockito.verify(this.errors).logProblem(Mockito.contains("conditionExpression"), Mockito.any());
+        assertStored(version, "sequence flow guard is a conditionExpression, not a cond:condition", FLOW_1);
     }
 
     /** A guard belongs to the arc that declares it, not to whatever an extension nested further down. */
@@ -1534,40 +1666,19 @@ class BpmnXmlSyncEditorTest
         assertTrue(version.getChildNode(ONLY_START).exists());
     }
 
-    /**
-     * Exercises {@code directSupertype}'s two null-returning paths: a {@code jcrNodeType} not registered under
-     * {@code /jcr:system/jcr:nodeTypes} at all (no {@code jcr:supertypes} property to read), and one registered
-     * with an empty {@code jcr:supertypes} (property present, but its value iterator has nothing to return).
-     */
     @Test
-    void directSupertypeHandlesMissingAndEmptySupertypesProperty() throws Exception
+    void aNodeOfATypeTheRegistryDoesNotKnowGetsNoDefaults() throws Exception
     {
         final NodeBuilder root = base();
-        final NodeBuilder types = root.child("WorkflowTypes");
-        flowNodeType(types, "NoSupertypeGateway", UUID.randomUUID().toString(), "bpmn:exclusiveGateway", null,
-            "wf:NoSupertypeType", 0);
-        flowNodeType(types, "EmptySupertypeGateway", UUID.randomUUID().toString(), "bpmn:parallelGateway", null,
-            "wf:EmptySupertypeType", 0);
-        // wf:NoSupertypeType is intentionally left unregistered under jcr:nodeTypes altogether.
-        root.child("jcr:system").child("jcr:nodeTypes").child("wf:EmptySupertypeType")
-            .setProperty("jcr:supertypes", List.of(), Type.NAMES);
+        VocabularyFixture.entry(root, "UnregisteredGateway", "bpmn:exclusiveGateway", "wf:Unregistered", 0);
 
         final NodeState version = firstSave(root,
-            DEFS_OPEN
-            + PROCESS_OPEN
-            + "    <bpmn:exclusiveGateway id=\"gwNoSuper\"/>\n"
-            + "    <bpmn:parallelGateway id=\"gwEmptySuper\"/>\n"
-            + PROCESS_CLOSE
-            + DEFS_CLOSE);
+            DEFS_OPEN + PROCESS_OPEN + "    <bpmn:exclusiveGateway id=\"gateway\"/>\n" + PROCESS_CLOSE + DEFS_CLOSE);
 
-        final NodeState gwNoSuper = version.getChildNode("gwNoSuper");
-        assertTrue(gwNoSuper.exists());
-        assertEquals("wf/NoSupertypeType", gwNoSuper.getProperty("sling:resourceType").getValue(Type.STRING));
-        assertFalse(gwNoSuper.hasProperty(RESOURCE_SUPER_TYPE));
-
-        final NodeState gwEmptySuper = version.getChildNode("gwEmptySuper");
-        assertTrue(gwEmptySuper.exists());
-        assertFalse(gwEmptySuper.hasProperty(RESOURCE_SUPER_TYPE));
+        final NodeState gateway = version.getChildNode("gateway");
+        assertTrue(gateway.exists());
+        assertFalse(gateway.hasProperty("sling:resourceType"));
+        assertFalse(gateway.hasProperty("jcr:created"));
     }
 
     /**
@@ -1578,8 +1689,7 @@ class BpmnXmlSyncEditorTest
     void subtypesOfWorkflowVersionAreSyncedToo() throws Exception
     {
         final NodeBuilder root = base();
-        root.child("jcr:system").child("jcr:nodeTypes").child("x:ApprovalVersion")
-            .setProperty("rep:supertypes", List.of("wf:WorkflowVersion", "data:Entity"), Type.NAMES);
+        NodeTypesFixture.type(root, "x:ApprovalVersion", "wf:WorkflowVersion", "data:Entity");
         version(root).setProperty(PRIMARY_TYPE, "x:ApprovalVersion", Type.NAME);
         // Siblings that are not versions are walked past: one with an unrelated type, one with none at all.
         descend(root, WORKFLOWS_PATH, DEFINITION_NAME, "notAVersion")
@@ -1647,19 +1757,16 @@ class BpmnXmlSyncEditorTest
     }
 
     /**
-     * Checks that a problem was recorded about the BPMN element it concerns.
+     * Checks that a problem about the BPMN element it concerns is stored on the version.
      *
-     * @param problem the phrase it was recorded under
+     * @param version the version parsed
+     * @param problem the phrase it was reported under
      * @param element the id of the BPMN element it is about
      */
-    private void assertRecorded(final String problem, final String element)
+    private static void assertStored(final NodeState version, final String problem, final String element)
     {
-        Mockito.verify(this.errors).logProblem(Mockito.eq(problem),
-            Mockito.argThat(context -> element.equals(context.getDetails().get("element"))));
-    }
-
-    private void assertNothingRecorded()
-    {
-        Mockito.verify(this.errors, Mockito.never()).logProblem(Mockito.anyString(), Mockito.any());
+        final PropertyState problems = version.getProperty(PARSE_PROBLEMS);
+        assertTrue(problems != null && StreamSupport.stream(problems.getValue(Type.STRINGS).spliterator(), false)
+            .anyMatch(line -> line.startsWith(problem + " (" + element)), () -> String.valueOf(problems));
     }
 }

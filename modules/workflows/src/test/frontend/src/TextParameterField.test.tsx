@@ -1,0 +1,273 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { screen } from "@testing-library/react";
+
+import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
+import TextParameterField from "@iap/workflows/TextParameterField";
+
+import { renderField, STATES } from "./parameterField.fixture";
+
+describe("a parameter shown as text", () => {
+  it("names what it holds", () => {
+    renderField(TextParameterField, {}, [ "ACTIVE" ], { readOnly: true });
+
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("says so when it holds nothing", () => {
+    renderField(TextParameterField, {}, [], { readOnly: true });
+
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("―")).toBeInTheDocument();
+  });
+
+  it("lists several values under the labels the entry gives them", () => {
+    renderField(TextParameterField, { maxValues: 0, options: STATES }, [ "DRAFT", "ACTIVE" ], { readOnly: true });
+
+    expect(screen.getByText("To state")).toBeInTheDocument();
+    expect(screen.getByText("Draft, Active")).toBeInTheDocument();
+  });
+});
+
+// As many choices as asked for, valued `V0`, `V1`… and labelled `Value 0`, `Value 1`…
+const numberedChoices = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ value: `V${String(index)}`, label: `Value ${String(index)}` }));
+
+describe("a parameter taking one value", () => {
+  it("is typed into, and reports what was typed", async () => {
+    const { onChange, user } = renderField(TextParameterField, { description: "The state this move ends in" });
+
+    expect(screen.getByText("The state this move ends in")).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox"), "X");
+
+    expect(onChange).toHaveBeenCalledWith([ "X" ]);
+  });
+
+  it("hands what was typed on to be written once it is left", async () => {
+    const { onChange, onCommit, user } = renderField(TextParameterField, {}, [ "A" ]);
+
+    await user.type(screen.getByRole("textbox"), "B");
+    expect(onChange).toHaveBeenCalledWith([ "AB" ]);
+    expect(onCommit).not.toHaveBeenCalled();
+    await user.tab();
+
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith([ "AB" ]);
+  });
+
+  it("hands what was typed on to be written when Enter is pressed, and not again once it is left", async () => {
+    const { onCommit, user } = renderField(TextParameterField, {}, [ "A" ]);
+
+    await user.type(screen.getByRole("textbox"), "B{enter}");
+    await user.tab();
+
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith([ "AB" ]);
+  });
+
+  it("reports a cleared field as holding nothing at all", async () => {
+    const { onChange, user } = renderField(TextParameterField, {}, [ "A" ]);
+
+    await user.clear(screen.getByRole("textbox"));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("is marked as required when a value has to be given", () => {
+    renderField(TextParameterField, { minValues: 1 });
+
+    expect(screen.getByRole("textbox")).toBeRequired();
+  });
+});
+
+describe("a parameter with a choice of values", () => {
+  it("offers the entry's choices, and a way back to none of them", async () => {
+    const { onChange, onCommit, user } = renderField(TextParameterField, { options: STATES });
+
+    await user.click(screen.getByRole("combobox"));
+    expect(screen.getByRole("option", { name: "None" })).toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: "Active" }));
+
+    expect(onChange).toHaveBeenCalledWith([ "ACTIVE" ]);
+    expect(onCommit).toHaveBeenCalledWith([ "ACTIVE" ]);
+  });
+
+  it("lets a long list of choices be searched", async () => {
+    const { onChange, user } = renderField(TextParameterField, { options: numberedChoices(9) });
+
+    await user.type(screen.getByRole("combobox"), "Value 7");
+    expect(await listedOptions(screen.getByRole("combobox"))).toEqual([ "Value 7" ]);
+    await user.click(screen.getByRole("option", { name: "Value 7" }));
+
+    expect(onChange).toHaveBeenCalledWith([ "V7" ]);
+  });
+
+  it("keeps a list of eight choices a plain list, with a way back to none", async () => {
+    renderField(TextParameterField, { options: numberedChoices(8) });
+
+    expect(await listedOptions(screen.getByRole("combobox")))
+      .toEqual([ "None", ...numberedChoices(8).map(choice => choice.label) ]);
+  });
+
+  it("offers no way back to none when a value has to be given", async () => {
+    const { user } = renderField(TextParameterField, { options: STATES, minValues: 1 });
+
+    await user.click(screen.getByRole("combobox"));
+
+    expect(screen.queryByRole("option", { name: "None" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+  });
+
+  it("keeps showing a stored value the entry no longer offers", async () => {
+    // Dropping it silently would lose it from the diagram on the next save of anything else
+    renderField(TextParameterField, { options: STATES, minValues: 1 }, [ "RETIRED" ]);
+    expect(screen.getByRole("combobox")).toHaveTextContent("RETIRED");
+
+    expect(await listedOptions(screen.getByRole("combobox")))
+      .toEqual([ "Draft", "Active", "RETIRED" ]);
+  });
+});
+
+describe("a parameter taking several values", () => {
+  it("shows what it holds as chips, under the labels the entry gives them", () => {
+    renderField(TextParameterField, { maxValues: 0, options: STATES }, [ "DRAFT" ]);
+
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+  });
+
+  it("shows a chip per value, each still removable, and React complains about none of them", () => {
+    const complaints = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    renderField(TextParameterField, { maxValues: 0, options: STATES }, [ "DRAFT", "ACTIVE" ]);
+
+    expect(screen.getAllByRole("button", { name: /^(Draft|Active)$/ })).toHaveLength(2);
+    expect(complaints).not.toHaveBeenCalled();
+    complaints.mockRestore();
+  });
+
+  it("takes anything typed when the entry constrains nothing", async () => {
+    const { onChange, onCommit, user } = renderField(TextParameterField, { name: "performers", label: "Performers", maxValues: 0 });
+
+    await user.type(screen.getByRole("combobox"), "reviewers{enter}");
+
+    expect(onChange).toHaveBeenCalledWith([ "reviewers" ]);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith([ "reviewers" ]);
+  });
+
+  it("takes what was typed when it is left without Enter", async () => {
+    const { onChange, onCommit, user } =
+      renderField(TextParameterField, { maxValues: 0 }, [ "editors" ], { commaSeparated: true });
+
+    await user.type(screen.getByRole("combobox"), "reviewers, chairs");
+    await user.tab();
+
+    expect(onChange).toHaveBeenCalledWith([ "editors", "reviewers", "chairs" ]);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith([ "editors", "reviewers", "chairs" ]);
+  });
+
+  it("splits what was typed at its commas when the list is kept in one attribute", async () => {
+    // Joined with commas in the diagram, a comma inside one value would come back as two
+    const { onChange, user } = renderField(TextParameterField, { maxValues: 0 }, [], { commaSeparated: true });
+
+    await user.type(screen.getByRole("combobox"), "editors, reviewers{enter}");
+
+    expect(onChange).toHaveBeenCalledWith([ "editors", "reviewers" ]);
+  });
+
+  it("keeps a comma inside a value when the list is not kept in one attribute", async () => {
+    const { onChange, user } = renderField(TextParameterField, { maxValues: 0 });
+
+    await user.type(screen.getByRole("combobox"), "Smith, J{enter}");
+
+    expect(onChange).toHaveBeenCalledWith([ "Smith, J" ]);
+  });
+
+  it("says when it holds fewer values than it needs", () => {
+    renderField(TextParameterField, { minValues: 2, maxValues: 0, description: "Who decides" }, [ "editors" ]);
+
+    expect(screen.getByText("At least 2 values are needed.")).toBeInTheDocument();
+    expect(screen.queryByText("Who decides")).not.toBeInTheDocument();
+  });
+
+  it("says when it holds more values than it accepts", () => {
+    renderField(TextParameterField, { maxValues: 2 }, [ "a", "b", "c" ]);
+
+    expect(screen.getByText("At most 2 values are accepted.")).toBeInTheDocument();
+  });
+
+  it("takes nothing typed into a closed list when it is left", async () => {
+    const { onChange, onCommit, user } = renderField(TextParameterField, { maxValues: 0, options: STATES }, [ "DRAFT" ]);
+
+    await user.type(screen.getByRole("combobox"), "Act");
+    await user.tab();
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("takes only the entry's choices when it constrains them", async () => {
+    const { onChange, user } = renderField(TextParameterField, { maxValues: 0, options: STATES }, [ "DRAFT" ]);
+
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await user.click(screen.getByRole("option", { name: "Active" }));
+
+    expect(onChange).toHaveBeenCalledWith([ "DRAFT", "ACTIVE" ]);
+  });
+  it("asks for a required value once it has been left empty, and not before", async () => {
+    const { user } = renderField(TextParameterField, { minValues: 1, description: "Where it goes" }, []);
+    expect(screen.queryByText("A value is required.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("textbox"));
+    await user.tab();
+
+    expect(screen.getByText("A value is required.")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText("Where it goes")).not.toBeInTheDocument();
+  });
+
+  it("asks for nothing when it is optional and left empty", async () => {
+    const { user } = renderField(TextParameterField, { maxValues: 0 });
+
+    await user.click(screen.getByRole("combobox"));
+    await user.tab();
+
+    expect(screen.queryByText("A value is required.")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("asks for a required list once it has been left empty", async () => {
+    const { user } = renderField(TextParameterField, { minValues: 1, maxValues: 0 });
+
+    await user.click(screen.getByRole("combobox"));
+    await user.tab();
+
+    expect(screen.getByText("A value is required.")).toBeInTheDocument();
+  });
+
+  it("flags a value in a list that its type cannot store", () => {
+    renderField(TextParameterField, { dataType: "long", maxValues: 0 }, [ "1", "abc", "+3" ]);
+
+    expect(screen.getByText('"abc" is not a whole number, so it will be ignored.')).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "abc" })).toHaveClass("MuiChip-colorError");
+    expect(screen.getByRole("button", { name: "1" })).not.toHaveClass("MuiChip-colorError");
+    expect(screen.getByRole("button", { name: "+3" })).not.toHaveClass("MuiChip-colorError");
+  });
+});

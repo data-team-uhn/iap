@@ -23,15 +23,23 @@ import { render, screen } from "@testing-library/react";
 import ValueText from "@iap/frontend-commons/inputs/ValueText";
 
 describe("ValueText", () => {
-  it("shows the values by their labels", () => {
+  it("shows the values by their labels, under the label", () => {
     render(<ValueText label="Formats" values={[ "pdf", "odt" ]} choices={[ { value: "pdf", label: "PDF" } ]} />);
 
-    expect(screen.getByText("Formats: PDF, odt")).toBeInTheDocument();
+    expect(screen.getByText("Formats")).toBeInTheDocument();
+    expect(screen.getByText("PDF, odt")).toBeInTheDocument();
   });
 
   it("shows a dash for no value", () => {
     render(<ValueText label="Formats" values={[]} />);
 
-    expect(screen.getByText("Formats: ―")).toBeInTheDocument();
+    expect(screen.getByText("―")).toBeInTheDocument();
+  });
+
+  it("shows each value as code on request", () => {
+    render(<ValueText label="Identifier" values={[ "Task_1", "Task_2" ]} code />);
+
+    expect(screen.getByText("Task_1")).toHaveClass("MuiTypography-code");
+    expect(screen.getByText("Task_2")).toBeInTheDocument();
   });
 });

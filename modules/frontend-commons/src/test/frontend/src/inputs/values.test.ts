@@ -18,7 +18,7 @@
 
 // Covers reading one value from a list and back, and reporting a pick.
 
-import { changeAndCommit, fromSingle, singleValue } from "@iap/frontend-commons/inputs/values";
+import { changeAndCommit, countProblems, fromSingle, singleValue } from "@iap/frontend-commons/inputs/values";
 
 describe("values", () => {
   it("reads one value from a list, and back", () => {
@@ -37,5 +37,27 @@ describe("values", () => {
 
     expect(onChange.mock.calls).toEqual([ [ [ "a" ] ], [ [ "b" ] ] ]);
     expect(onCommit.mock.calls).toEqual([ [ [ "a" ] ] ]);
+  });
+});
+
+describe("countProblems", () => {
+  it("accepts any number by default", () => {
+    expect(countProblems(100)).toEqual([]);
+  });
+
+  it("asks for more values when a list holds fewer than its minimum", () => {
+    expect(countProblems(1, 2)).toEqual([ "At least 2 values are needed." ]);
+  });
+
+  it("asks for nothing of an empty list", () => {
+    expect(countProblems(0, 2)).toEqual([]);
+  });
+
+  it("says how many values are accepted when a list holds too many", () => {
+    expect(countProblems(3, 0, 2)).toEqual([ "At most 2 values are accepted." ]);
+  });
+
+  it("speaks of one value in the singular", () => {
+    expect(countProblems(2, 0, 1)).toEqual([ "At most 1 value is accepted." ]);
   });
 });

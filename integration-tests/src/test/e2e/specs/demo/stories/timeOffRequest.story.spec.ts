@@ -185,7 +185,7 @@ test.describe('a story: asking for time off, and getting it', () => {
       await page.getByLabel('Note').fill('Cover arranged with the rest of the team');
       await page.getByRole('button', { name: 'Record decision' }).click();
 
-      // The end event placed the approved tag, and the page shows it. The approval the schema asked
+      // The decision's tagging step placed the approved tag, and the page shows it. The approval the schema asked
       // for now names him and his note, where it said it was waiting on his team.
       await expect(page.getByText('Approved', { exact: true })).toBeVisible();
       await expect(page.getByText(/^Approved by demo-approver on /)).toBeVisible();

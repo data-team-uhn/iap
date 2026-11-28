@@ -37,7 +37,7 @@ public class CatchingEventType extends FlowNodeType
     /** The {@code sling:resourceType} of a {@code wf:CatchingEventType} node. */
     public static final String RESOURCE_TYPE = "wf/CatchingEventType";
 
-    /** The toolbar group used for Events entries that do not declare one of their own. */
+    /** The category of an entry of this kind that declares neither a category nor an xmlElement. */
     private static final String DEFAULT_CATEGORY = "Events";
 
     @Override

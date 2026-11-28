@@ -2,13 +2,17 @@
   "jcr:primaryType": "wf:CatchingEventType",
   "label": "Message Intermediate Catch Event",
   "description": "A point mid-process where the workflow waits for a named message before continuing.",
-  "category": ["Intermediate Events"],
+  "category": ["Intermediate Event"],
   "priority": 10,
   "xmlElement": "bpmn:intermediateCatchEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
   "jcrNodeType": "wf:IntermediateCatchingEvent",
-  "properties": [
-    "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
-    "{https://iap.uhndata.io/bpmn}performers=performers[]"
-  ]
+  "performers": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Performers",
+    "description": "The people or groups who can send this message. If none are chosen, no one can; \"everyone\" allows any signed-in user.",
+    "dataType": "principal",
+    "maxValues": 0,
+    "xmlLocation": "attribute"
+  }
 }

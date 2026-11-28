@@ -16,13 +16,20 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from "@mui/material/styles";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { BpmnModdle } from "bpmn-moddle";
 
-import { appTheme } from "@iap/frontend-commons/appTheme";
-import { stubFetch } from "@iap/frontend-commons/fetch.fixture";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
+import type { DiagramEditor } from "@iap/workflows/BpmnEditor";
+import panelEditsModule from "@iap/workflows/panelEdits";
 import { EMPTY_BPMN } from "@iap/workflows/workflowModel";
+import { WORKFLOW_TYPES_PATH } from "@iap/workflows/workflowTypes";
+
+import { Themed } from "./parameterField.fixture";
+import { documentedEntry, documentedParameter } from "./vocabulary.fixture";
+
+import type { Element } from "bpmn-js/lib/model/Types";
 
 // bpmn-js drives an SVG canvas that jsdom can't lay out, so both classes are stood in for. That keeps
 // these tests about the component's own behaviour -- which class it picks, what it loads, what it
@@ -31,10 +38,13 @@ const { ModelerMock, ViewerMock, instances, refuseImports } = vi.hoisted(() => {
   // What a test needs of a canvas: which class it came from, and the calls made on it
   interface Canvas {
     kind: string;
+    options: unknown;
     importXML: ReturnType<typeof vi.fn>;
     saveXML: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
-    handlers: Map<string, (event: unknown) => void>;
+    getDefinitions: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
+    handlers: Map<string, ((event: unknown) => void)[]>;
   }
   const created: Canvas[] = [];
   // What every canvas created from now on does with the diagram it is handed
@@ -44,9 +54,16 @@ const { ModelerMock, ViewerMock, instances, refuseImports } = vi.hoisted(() => {
     importXML = vi.fn(() => importFailure ? Promise.reject(importFailure) : Promise.resolve({}));
     saveXML = vi.fn().mockResolvedValue({ xml: "<saved/>" });
     destroy = vi.fn();
-    handlers = new Map<string, (event: unknown) => void>();
-    on = vi.fn((event: string, handler: (payload: unknown) => void) => this.handlers.set(event, handler));
-    off = vi.fn((event: string) => this.handlers.delete(event));
+    getDefinitions = vi.fn(() => ({}));
+    // Each event's subscribers in the order they came. A priority given ahead of a handler is dropped.
+    handlers = new Map<string, ((event: unknown) => void)[]>();
+    on = vi.fn((event: string, ...rest: unknown[]) => {
+      const handler = rest.find(argument => typeof argument === "function") as (payload: unknown) => void;
+      this.handlers.set(event, [ ...this.handlers.get(event) ?? [], handler ]);
+    });
+    off = vi.fn((event: string, handler: (payload: unknown) => void) => {
+      this.handlers.set(event, (this.handlers.get(event) ?? []).filter(subscribed => subscribed !== handler));
+    });
     get = vi.fn();
 
     constructor(public kind: string, public options: unknown) {
@@ -81,36 +98,84 @@ vi.mock("bpmn-js/lib/NavigatedViewer", () => ({ default: ViewerMock }));
 
 const VERSION_PATH = "/Workflows/review/1-0";
 const DIAGRAM = "<bpmn:definitions/>";
+const BOOLEAN_DIAGRAM = `<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="review"><bpmn:boundaryEvent id="deadline" cancelActivity="1"/></bpmn:process>
+</bpmn:definitions>`;
 
-// A server answering the version's diagram with the given status and body.
-const stubDiagram = (status = 200, body: string = DIAGRAM) => stubFetch(() => new Response(body, { status }));
+// One kind of node with one parameter, which is all it takes to tell a panel that was given the
+// vocabulary from one that was not.
+const VOCABULARY = {
+  items: {
+    Tasks: [
+      documentedEntry("ServiceTask", {
+        label: "Service task",
+        parameters: [ documentedParameter("handler", { label: "Handler", xmlLocation: "attribute" }) ],
+      }),
+    ],
+  },
+};
+
+// The vocabulary, answered with the given status
+const vocabulary = (status = 200) => ({ [`${WORKFLOW_TYPES_PATH}.doc.json`]: jsonResponse(VOCABULARY, status) });
+
+// A server answering the version's diagram with the given status and body. The vocabulary gets a status
+// of its own, so that a test can fail either request alone.
+const stubDiagram = (status = 200, body: string = DIAGRAM, vocabularyStatus = 200) =>
+  stubFetch(vocabulary(vocabularyStatus), () => new Response(body, { status }));
 
 // A server that answers the session but holds the diagram back, so that a test can decide when — and
 // whether — the request settles, and what the canvas is doing when it does.
 const deferredFetch = () => {
   let settle: (ok: boolean) => void = () => undefined;
-  stubFetch(() => new Promise<Response>((resolve, reject) => {
+  stubFetch(vocabulary(), () => new Promise<Response>((resolve, reject) => {
     settle = (ok: boolean) => ok ? resolve(new Response(DIAGRAM)) : reject(new TypeError("Failed to fetch"));
   }));
   return { settle: (ok: boolean) => settle(ok) };
 };
 
-// A serializer is handed over and taken back as the canvas comes and goes; the latest one handed over
-// is the one a page would be holding.
-type SerializerHandler = ReturnType<typeof vi.fn<(serialize: (() => Promise<string>) | null) => void>>;
+// A service task as bpmn-js hands one over, which the vocabulary above reads as its one kind of node.
+const serviceTask = (): Element => ({
+  id: "checkBudget",
+  businessObject: {
+    $type: "bpmn:serviceTask",
+    $descriptor: { ns: { prefix: "bpmn", localName: "ServiceTask" }, $pkg: { xml: { tagAlias: "lowerCase" } } },
+    name: "Check the budget",
+    $attrs: { "iap:handler": "checkBudget" },
+  },
+}) as unknown as Element;
 
-const latestSerializer = (onReady: SerializerHandler): (() => Promise<string>) => {
-  const handed = onReady.mock.calls.map(call => call[0]).filter(serialize => serialize !== null);
-  const serialize = handed.at(-1);
-  expect(serialize).toBeDefined();
-  return serialize!;
+// Selecting an element is how the panel comes to show anything at all, and therefore how what it was
+// given can be seen.
+type Subscribers = Map<string, ((event: unknown) => void)[]>;
+
+const subscribed = (canvas: { handlers: Subscribers }, event: string) => (canvas.handlers.get(event) ?? []).length > 0;
+
+const fire = (canvas: { handlers: Subscribers }, event: string, payload: unknown) =>
+  (canvas.handlers.get(event) ?? []).forEach(handler => handler(payload));
+
+const select = async (canvas: { handlers: Subscribers }, element: Element) => {
+  await waitFor(() => expect(subscribed(canvas, "selection.changed")).toBe(true));
+  act(() => fire(canvas, "selection.changed", { newSelection: [ element ] }));
 };
 
-const renderEditor = (props: Partial<Parameters<typeof BpmnEditor>[0]> = {}) => render(
-  <ThemeProvider theme={appTheme} defaultMode="light">
-    <BpmnEditor versionPath={VERSION_PATH} {...props} />
-  </ThemeProvider>
-);
+// The editor is handed over and taken back as the canvas comes and goes; the latest one handed over
+// is the one a page would be holding.
+type SerializerHandler = ReturnType<typeof vi.fn<(editor: DiagramEditor | null) => void>>;
+
+// The page is given the means to serialize
+const HANDED_OVER: unknown = expect.objectContaining({ serialize: expect.any(Function) as unknown });
+
+const latestEditor = (onReady: SerializerHandler): DiagramEditor => {
+  const handed = onReady.mock.calls.map(call => call[0]).filter(editor => editor !== null);
+  const editor = handed.at(-1);
+  expect(editor).toBeDefined();
+  return editor!;
+};
+
+const latestSerializer = (onReady: SerializerHandler): (() => Promise<string>) => latestEditor(onReady).serialize;
+
+const renderEditor = (props: Partial<Parameters<typeof BpmnEditor>[0]> = {}) =>
+  render(<BpmnEditor versionPath={VERSION_PATH} {...props} />, { wrapper: Themed });
 
 beforeEach(() => {
   instances.length = 0;
@@ -130,7 +195,7 @@ describe("BpmnEditor", () => {
     expect(instances).toHaveLength(1);
     expect(instances[0].kind).toBe("viewer");
     // The diagram is a file of its own, fetched on its own path
-    expect(fetchMock.mock.calls[0][0]).toBe(`${VERSION_PATH}/bpmn.xml`);
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain(`${VERSION_PATH}/bpmn.xml`);
   });
 
   it("uses the modeler when the diagram is to be edited", async () => {
@@ -140,6 +205,8 @@ describe("BpmnEditor", () => {
 
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
     expect(instances[0].kind).toBe("modeler");
+    // Taught the command that writes the panel's pending edits as one step to undo
+    expect(instances[0].options).toMatchObject({ additionalModules: [ panelEditsModule ] });
   });
 
   it("hands over the means to serialize what is drawn, but only when editing", async () => {
@@ -148,7 +215,7 @@ describe("BpmnEditor", () => {
 
     const { unmount } = renderEditor({ editable: true, onReady });
 
-    await waitFor(() => expect(onReady).toHaveBeenCalledWith(expect.any(Function)));
+    await waitFor(() => expect(onReady).toHaveBeenCalledWith(HANDED_OVER));
     const serialize = latestSerializer(onReady);
     await expect(serialize()).resolves.toBe("<saved/>");
 
@@ -171,7 +238,7 @@ describe("BpmnEditor", () => {
     stubDiagram();
     const onReady: SerializerHandler = vi.fn();
     renderEditor({ editable: true, onReady });
-    await waitFor(() => expect(onReady).toHaveBeenCalledWith(expect.any(Function)));
+    await waitFor(() => expect(onReady).toHaveBeenCalledWith(HANDED_OVER));
     const serialize = latestSerializer(onReady);
     instances[0].saveXML = vi.fn().mockResolvedValue({ xml: undefined });
 
@@ -183,12 +250,26 @@ describe("BpmnEditor", () => {
     const onDirtyChange = vi.fn();
     renderEditor({ editable: true, onDirtyChange });
 
-    await waitFor(() => expect(instances[0].handlers.has("commandStack.changed")).toBe(true));
+    await waitFor(() => expect(subscribed(instances[0], "commandStack.changed")).toBe(true));
     expect(onDirtyChange).not.toHaveBeenCalled();
 
-    instances[0].handlers.get("commandStack.changed")?.({});
+    fire(instances[0], "commandStack.changed", {});
 
     expect(onDirtyChange).toHaveBeenCalledWith(true);
+  });
+
+  it("says the diagram has unsaved changes as soon as something is typed into the panel", async () => {
+    // Typed but not yet written, as it stays until the field is left
+    stubDiagram();
+    const onDirtyChange = vi.fn();
+    renderEditor({ editable: true, onDirtyChange });
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
+    await select(instances[0], serviceTask());
+
+    fireEvent.change(await screen.findByLabelText(/^Handler/), { target: { value: "checkCosts" } });
+
+    expect(onDirtyChange).toHaveBeenCalledWith(true);
+    expect(instances[0].get).not.toHaveBeenCalledWith("commandStack");
   });
 
   it("does not watch for changes it could not make", async () => {
@@ -198,7 +279,7 @@ describe("BpmnEditor", () => {
     renderEditor({ onDirtyChange });
 
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
-    expect(instances[0].handlers.has("commandStack.changed")).toBe(false);
+    expect(subscribed(instances[0], "commandStack.changed")).toBe(false);
   });
 
   it("opens an empty canvas for a version with no diagram saved yet", async () => {
@@ -221,11 +302,7 @@ describe("BpmnEditor", () => {
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
 
     stubDiagram(404);
-    rerender(
-      <ThemeProvider theme={appTheme} defaultMode="light">
-        <BpmnEditor versionPath="/Workflows/timeOff/2-0" />
-      </ThemeProvider>
-    );
+    rerender(<BpmnEditor versionPath="/Workflows/timeOff/2-0" />);
 
     await waitFor(() => expect(instances[0].importXML).toHaveBeenLastCalledWith(EMPTY_BPMN));
     // The same canvas throughout: what changed is the diagram in it, not the instance
@@ -310,5 +387,94 @@ describe("BpmnEditor", () => {
     settle(false);
 
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("gives the panel the vocabulary, so a selected element's parameters can be edited", async () => {
+    stubDiagram();
+    renderEditor({ editable: true });
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
+
+    await select(instances[0], serviceTask());
+
+    // The panel knows nothing about service tasks itself, so the field comes from the fetched entry.
+    expect(await screen.findByLabelText(/^Handler/)).toHaveValue("checkBudget");
+  });
+
+  it("replaces the diagram with an error when the vocabulary cannot be loaded, and offers nothing to save", async () => {
+    stubDiagram(200, DIAGRAM, 500);
+    const onReady = vi.fn();
+    renderEditor({ editable: true, onReady });
+
+    const report = await screen.findByRole("alert");
+    expect(report).toHaveTextContent("The workflow node types could not be loaded.");
+    await waitFor(() => expect(onReady).toHaveBeenLastCalledWith(null));
+  });
+
+  it("shows the diagram with a warning when the vocabulary cannot be loaded, since viewing needs none", async () => {
+    stubDiagram(200, DIAGRAM, 500);
+    renderEditor();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The workflow node types could not be loaded.");
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
+    const canvas = (instances[0].options as { container: HTMLElement }).container;
+    await waitFor(() => expect(canvas).toHaveAttribute("aria-hidden", "false"));
+  });
+
+  it("spells out a BPMN boolean written as a digit before the canvas reads it", async () => {
+    let answer: () => void = () => undefined;
+    stubFetch(vocabulary(), () => new Promise<Response>(resolve => {
+      answer = () => resolve(new Response(BOOLEAN_DIAGRAM));
+    }));
+    renderEditor();
+    await waitFor(() => expect(instances).toHaveLength(1));
+    instances[0].get = vi.fn(() => new BpmnModdle());
+
+    answer();
+
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(expect.stringContaining('cancelActivity="true"')));
+    expect(instances[0].get).toHaveBeenCalledWith("moddle");
+  });
+
+  it("loads the diagram only into the canvas replacing the one a mode switch discards", async () => {
+    stubDiagram();
+    const { rerender } = renderEditor();
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledTimes(1));
+
+    rerender(<BpmnEditor versionPath={VERSION_PATH} editable />);
+
+    await waitFor(() => expect(instances[1].importXML).toHaveBeenCalledWith(DIAGRAM));
+    expect(instances[0].destroy).toHaveBeenCalled();
+    expect(instances[0].importXML).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("BpmnEditor layout", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const panelColumn = async () => (await screen.findByText("Please select an element.")).parentElement!.parentElement!;
+
+  it("gives the panel the canvas's height, and a scroll of its own, where it sits beside the canvas", async () => {
+    stubDiagram();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: true, media: query, addListener: vi.fn(), removeListener: vi.fn(),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    }));
+
+    renderEditor({ editable: true });
+
+    const column = await panelColumn();
+    await waitFor(() => expect(getComputedStyle(column).overflowY).toBe("auto"));
+    // The canvas's calc(100vh - 0px - 100px), at the 768px viewport jsdom has
+    expect(getComputedStyle(column).height).toBe("668px");
+    expect(instances[0].options).toMatchObject({ height: "calc(100vh - 0px - 100px)" });
+  });
+
+  it("leaves the panel to the page's scroll where it stacks under the canvas", async () => {
+    stubDiagram();
+
+    renderEditor({ editable: true });
+
+    const column = await panelColumn();
+    expect(getComputedStyle(column).overflowY).not.toBe("auto");
   });
 });

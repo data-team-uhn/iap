@@ -55,7 +55,7 @@ names the metric in `metric`, and may give a whole-number `amount` other than 1:
   "jcr:primaryType": "wf:Activity",
   "handler": "incrementMetric",
   "metric": "submittedProposals",
-  "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask"
+  "jcr:reference:flowNodeType": "/WorkflowTypes/IncrementMetric"
 }
 ```
 

@@ -30,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.InvalidStateException;
+import io.uhndata.iap.workflows.internal.checks.InvalidVersionCheck;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -101,6 +102,20 @@ class CheckValidHandlerTest
             () -> this.handler.execute(this.request(AuthoringFixture.DEFINITION)));
 
         assertEquals("timeOff is not ready yet: it is broken.", refusal.getMessage());
+    }
+
+    @Test
+    void refusesAVersionWithParseProblems() throws Exception
+    {
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", null,
+            Map.of("parseProblems", new String[] { "skipped element (a)" }));
+        checks(new InvalidVersionCheck());
+
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
+            () -> this.handler.execute(this.request(AuthoringFixture.path("2-0"))));
+
+        assertEquals("Version 2.0 is not ready yet: its process has a problem to fix before it can be activated:"
+            + " skipped element (a).", refusal.getMessage());
     }
 
     private void checks(final ValidityCheck... checks) throws ReflectiveOperationException

@@ -107,6 +107,7 @@ describe("DateInput", () => {
     const { input } = renderInput({ readOnly: true });
 
     expect(input).toBeNull();
-    expect(screen.getByText("Due: 2026-09-29")).toBeInTheDocument();
+    expect(screen.getByText("Due")).toBeInTheDocument();
+    expect(screen.getByText("2026-09-29")).toBeInTheDocument();
   });
 });

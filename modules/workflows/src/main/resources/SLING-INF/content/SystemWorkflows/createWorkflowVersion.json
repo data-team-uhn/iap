@@ -25,7 +25,7 @@
       "elementId": "create",
       "label": "Create the version",
       "handler": "createWorkflowVersion",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CreateWorkflowVersion",
       "toCopy": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toCopy",
@@ -39,7 +39,7 @@
       "handler": "copyContent",
       "sourceType": "wf/WorkflowVersion",
       "skipProperties": ["version"],
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CopyContent",
       "toMarkDraft": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMarkDraft",
@@ -53,7 +53,7 @@
       "handler": "addTag",
       "tag": "draft",
       "replaceExisting": true,
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/AddTag",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

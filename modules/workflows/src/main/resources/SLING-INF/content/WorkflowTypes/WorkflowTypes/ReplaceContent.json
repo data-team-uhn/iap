@@ -1,0 +1,30 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Replace Content",
+  "category": ["Service Task", "Content"],
+  "description": "Replaces one child of the item this step works on with the content the request gives. That is the item an earlier step created, or else the one this request is about. A request giving none removes the child.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "replaceContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"replaceContent\"}",
+  "child": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Child to replace",
+    "description": "The name of the child replaced, e.g. \"cond:condition\".",
+    "minValues": 1
+  },
+  "nodeTypes": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Node types",
+    "description": "The types of content the replacement may hold, including their subtypes.",
+    "minValues": 1,
+    "maxValues": 0
+  },
+  "subject": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Subject",
+    "description": "Which resource the handler works on: \"created\" for what the execution created, if anything, or else the event's target (the default); \"target\" for the event's target even after a creation.",
+    "xmlLocation": "attribute"
+  }
+}

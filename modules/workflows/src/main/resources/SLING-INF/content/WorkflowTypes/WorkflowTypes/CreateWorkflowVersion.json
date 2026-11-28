@@ -1,0 +1,17 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Workflow Version",
+  "category": ["Service Task", "Workflows"],
+  "description": "Opens a new version of a workflow, carrying whatever diagram the request brought. The workflow is the one an earlier step created, or else the one this request is about.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createWorkflowVersion",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createWorkflowVersion\"}",
+  "subject": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Subject",
+    "description": "Which resource the handler works on: \"created\" for what the execution created, if anything, or else the event's target (the default); \"target\" for the event's target even after a creation.",
+    "xmlLocation": "attribute"
+  }
+}

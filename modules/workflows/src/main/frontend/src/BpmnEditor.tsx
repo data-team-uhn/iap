@@ -20,16 +20,22 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css";
-import { Alert, Box, CircularProgress, Grid, Stack } from "@mui/material";
+import { Alert, Box, CircularProgress, Grid, Stack, useMediaQuery, useTheme } from "@mui/material";
 import Modeler from "bpmn-js/lib/Modeler";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { useNode } from "@iap/frontend-commons/useNode";
 
+import { spelledOutBooleans } from "./bpmnBooleans";
+import panelEditsModule from "./panelEdits";
 import PropertiesPanel from "./PropertiesPanel";
 import { BPMN_FILE, EMPTY_BPMN } from "./workflowModel";
+import { parseWorkflowTypes, WORKFLOW_TYPES_PATH } from "./workflowTypes";
 
+import type { ModdleTypes } from "./bpmnBooleans";
+import type { FlowNodeType } from "./workflowTypes";
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 
 interface BpmnEditorProps {
@@ -39,9 +45,17 @@ interface BpmnEditorProps {
   editable?: boolean;
   // Only used in edit mode.
   onDirtyChange?: (dirty: boolean) => void;
-  // Hands the page a function to serialize the current diagram.
-  onReady?: (serialize: (() => Promise<string>) | null) => void;
+  // Hands the page the means to serialize the current diagram.
+  onReady?: (editor: DiagramEditor | null) => void;
 }
+
+// What the page can ask of the canvas it is editing.
+export interface DiagramEditor {
+  serialize: () => Promise<string>;
+}
+
+// One list while the vocabulary is not there, so that the panel does not match elements again for a new empty one
+const NO_TYPES: readonly FlowNodeType[] = [];
 
 // The BPMN canvas for one workflow version, with the properties panel beside it.
 export default function BpmnEditor({ versionPath, editable = false, onDirtyChange, onReady }: BpmnEditorProps) {
@@ -54,6 +68,15 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
   // loading until the diagram for the current versionPath has been fetched — no separate flag to keep in sync.
   const [ loadedPath, setLoadedPath ] = useState<string>();
   const loading = loadedPath !== versionPath;
+  // What each element in the diagram means, and what may be edited on it. Read each time an editor opens,
+  // since the vocabulary can be edited on a running server.
+  const vocabulary = useNode(WORKFLOW_TYPES_PATH, "doc", parseWorkflowTypes);
+  const types = vocabulary.value ?? NO_TYPES;
+  const vocabularyFailure = vocabulary.loadError === undefined ? undefined
+    : `The workflow node types could not be loaded. ${vocabulary.loadError}`;
+  // The canvas's height, once measured, which the properties panel takes as its own where it sits beside it
+  const [ height, setHeight ] = useState<string>();
+  const sideBySide = useMediaQuery(useTheme().breakpoints.up("xl"));
 
   // useLayoutEffect so the container is measured before paint.
   useLayoutEffect(() => {
@@ -63,7 +86,10 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     }
     const top = Math.round(container.getBoundingClientRect().top);
     const options = { container, height: `calc(100vh - ${top}px - 100px)` };
-    const instance: BaseViewer = editable ? new Modeler(options) : new NavigatedViewer(options);
+    setHeight(options.height);
+    const instance: BaseViewer = editable
+      ? new Modeler({ ...options, additionalModules: [ panelEditsModule ] })
+      : new NavigatedViewer(options);
     setViewer(instance);
 
     return () => instance.destroy();
@@ -90,7 +116,8 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.text().then(xml => cancelled ? undefined : viewer.importXML(xml));
+        return response.text().then(xml => cancelled ? undefined
+          : viewer.importXML(spelledOutBooleans(xml, viewer.get<ModdleTypes>("moddle"))));
       })
       .then(() => {
         if (!cancelled) {
@@ -130,9 +157,9 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     if (!onReady) {
       return undefined;
     }
-    onReady(viewer && editable ? serialize : null);
+    onReady(viewer && editable && !vocabularyFailure ? { serialize } : null);
     return () => onReady(null);
-  }, [viewer, editable, serialize, onReady]);
+  }, [viewer, editable, vocabularyFailure, serialize, onReady]);
 
   // Notify the parent on every command-stack change — only the Modeler has one.
   useEffect(() => {
@@ -144,12 +171,18 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     return () => viewer.off("commandStack.changed", changed);
   }, [viewer, editable, onDirtyChange]);
 
+  // A value typed and not yet written counts as unsaved, so leaving the page asks first.
+  const drafted = useCallback(() => onDirtyChange?.(true), [onDirtyChange]);
+
   // A failure recorded against another version says nothing about this one, and is already on its way out.
-  const error = failure?.path === versionPath ? failure.message : undefined;
+  // Viewing needs no vocabulary, so without one the diagram is still shown, with a warning.
+  const error = (editable ? vocabularyFailure : undefined)
+    ?? (failure?.path === versionPath ? failure.message : undefined);
   const showDiagram = !loading && error === undefined;
 
   return (
-    <Stack>
+    <Stack spacing={2}>
+      { !editable && vocabularyFailure !== undefined && <Alert severity="warning">{vocabularyFailure}</Alert> }
       <Grid container spacing={4}>
         {/* The canvas keeps its place even while covered: bpmn-js sizes itself against the element it is
             given, so taking that element out of the layout would leave it measured against nothing */}
@@ -175,8 +208,10 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
             </Box>
           )}
         </Grid>
-        <Grid size={{ xs: 12, xl: 2 }}>
-          <PropertiesPanel viewer={viewer} readOnly={!editable} />
+        {/* Below xl the panel stacks under the canvas and the page scrolls. Beside it, the panel scrolls on its
+            own, so a long form does not push the canvas out of view */}
+        <Grid size={{ xs: 12, xl: 2 }} sx={sideBySide ? { height, overflowY: "auto" } : undefined}>
+          <PropertiesPanel viewer={viewer} types={types} readOnly={!editable} onDraft={drafted} />
         </Grid>
       </Grid>
     </Stack>

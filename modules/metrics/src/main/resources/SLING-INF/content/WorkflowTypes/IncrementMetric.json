@@ -1,0 +1,23 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Increment Metric",
+  "category": ["Service Task", "Metrics"],
+  "description": "Counts in a metric once the workflow's changes are saved.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "incrementMetric",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"incrementMetric\"}",
+  "metric": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Metric",
+    "description": "The name of the metric to count in, e.g. \"submittedProposals\". It must already be defined.",
+    "minValues": 1
+  },
+  "amount": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Amount",
+    "description": "The whole number to add. Default: 1.",
+    "dataType": "long"
+  }
+}

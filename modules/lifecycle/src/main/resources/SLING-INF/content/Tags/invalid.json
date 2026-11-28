@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Invalid",
+  "description": "The process has problems to fix before the version can be activated.",
+  "category": ["validity"],
+  "targetResourceTypes": ["wf/WorkflowVersion"],
+  "system": true,
+  "color": "#cf222e",
+  "icon": "BlockOutlined",
+  "order": 5
+}

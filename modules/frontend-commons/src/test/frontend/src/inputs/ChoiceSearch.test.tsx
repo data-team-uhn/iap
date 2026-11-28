@@ -22,23 +22,47 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import type { Choice } from "@iap/frontend-commons/inputs/choices";
 import ChoiceSearch from "@iap/frontend-commons/inputs/ChoiceSearch";
+import type { ChoiceCount } from "@iap/frontend-commons/inputs/ChoiceSearch";
 import type { ChoiceSource } from "@iap/frontend-commons/inputs/choiceSource";
+import type { ValueInputProps } from "@iap/frontend-commons/inputs/valueInput";
 import { listedOptions } from "@iap/frontend-commons/inputs/valueInput.fixture";
 import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/values";
 
 const SCHEMA_CHOICES = [ { value: "/Schemas/intake", label: "Intake" }, { value: "/Schemas/exit", label: "Exit" } ];
 const SCHEMAS: ChoiceSource = { key: "schemas", search: () => Promise.resolve(SCHEMA_CHOICES) };
 
-const renderSearch = (props: Partial<Parameters<typeof ChoiceSearch>[0]> = {}) => {
+// Searching the schemas, unless a source or a list is given
+const renderSearch = (
+  props: Partial<ValueInputProps> & { source?: ChoiceSource; choices?: Choice[] } & ChoiceCount = {}
+) => {
   const onChange = vi.fn();
   const onCommit = vi.fn();
-  render(<ChoiceSearch label="Schema" source={SCHEMAS} values={[]} onChange={onChange} onCommit={onCommit}
-    {...props} />);
+  const origin = props.choices === undefined
+    ? { source: props.source ?? SCHEMAS, choices: undefined }
+    : { source: undefined, choices: props.choices };
+  render(<ChoiceSearch label="Schema" values={[]} onChange={onChange} onCommit={onCommit} {...props} {...origin} />);
   return { onChange, onCommit, input: screen.queryByRole("combobox", { name: /Schema/ }) };
 };
 
 describe("ChoiceSearch", () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it("offers a list it is handed, without fetching", () => {
+    const { input } = renderSearch({ choices: SCHEMA_CHOICES, values: [ "/Schemas/exit" ] });
+
+    expect(input).toHaveValue("Exit");
+  });
+
+  it("lists values under their group's heading, each group together", async () => {
+    const groupOf = (value: string) => value.endsWith("exit") ? "Leaving" : "Arriving";
+    const { input } = renderSearch({
+      choices: [ ...SCHEMA_CHOICES, { value: "/Schemas/entry", label: "Entry" } ], groupOf,
+    });
+
+    expect(await listedOptions(input!)).toEqual([ "Intake", "Entry", "Exit" ]);
+    expect(screen.getByText("Arriving")).toBeInTheDocument();
+    expect(screen.getByText("Leaving")).toBeInTheDocument();
+  });
 
   it("picks one value by its label, and commits it", async () => {
     const { onChange, onCommit, input } = renderSearch();
@@ -79,6 +103,25 @@ describe("ChoiceSearch", () => {
     expect(onCommit).toHaveBeenCalledExactlyOnceWith([]);
   });
 
+  it("offers no way to clear a value that has to be given", async () => {
+    const { onChange, input } = renderSearch({ required: true, values: [ "/Schemas/intake" ] });
+    await listedOptions(input!);
+
+    fireEvent.change(input!, { target: { value: "" } });
+
+    expect(screen.queryByTitle("Clear")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalledWith([]);
+  });
+
+  it("shows no loading for an empty list it is handed", async () => {
+    const { input } = renderSearch({ choices: [] });
+
+    fireEvent.mouseDown(input!);
+
+    expect(await screen.findByText("No options")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+  });
+
   it("commits a clear by its button at once", () => {
     const { onCommit } = renderSearch({ values: [ "/Schemas/intake" ] });
 
@@ -108,7 +151,7 @@ describe("ChoiceSearch", () => {
   it("shows the labels as text when read only", async () => {
     renderSearch({ values: [ "/Schemas/intake", "/Schemas/gone" ], readOnly: true, multiple: true });
 
-    expect(await screen.findByText("Schema: Intake, /Schemas/gone")).toBeInTheDocument();
+    expect(await screen.findByText("Intake, /Schemas/gone")).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 

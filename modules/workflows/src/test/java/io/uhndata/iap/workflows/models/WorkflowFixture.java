@@ -19,7 +19,9 @@ package io.uhndata.iap.workflows.models;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -140,9 +142,35 @@ public final class WorkflowFixture
     }
 
     /**
+     * Lets a resource say which node types it is of, as one stored in a repository does: its
+     * {@code jcr:primaryType} and whatever that extends. Opt-in, since it changes what every resource adapts to
+     * {@link Node} as.
+     *
+     * @param context the Sling context to set up
+     * @param supertypes every type each node type extends, directly or not, for the node types that extend any
+     */
+    public static void answerNodeTypes(final SlingContext context, final Map<String, List<String>> supertypes)
+    {
+        context.registerAdapter(Resource.class, Node.class, (Function<Resource, Node>) resource -> {
+            final String primaryType = resource.getValueMap().get("jcr:primaryType", String.class);
+            final Node node = Mockito.mock(Node.class);
+            try {
+                Mockito.when(node.isNodeType(Mockito.anyString())).thenAnswer(invocation -> {
+                    final String wanted = invocation.getArgument(0);
+                    return primaryType != null && (wanted.equals(primaryType)
+                        || supertypes.getOrDefault(primaryType, List.of()).contains(wanted));
+                });
+            } catch (final RepositoryException e) {
+                // Cannot happen: stubbing a mock calls nothing that throws
+                throw new IllegalStateException(e);
+            }
+            return node;
+        });
+    }
+
+    /**
      * Registers the {@code Taggable} view, so a host adapts to it the way it does with the tags bundle
-     * installed. The engine replaces a host's lifecycle tag when a workflow finishes, so without this every run
-     * that reaches an end event carrying a {@code hostTag} fails on the absent tags service.
+     * installed. Without it every run that reaches an {@code addTag} task fails on the absent tags service.
      *
      * <p>The lifecycle tags the engine tests place get the categories their shipped definitions give them, so a
      * test can read back what a workflow placed and what it retired.</p>

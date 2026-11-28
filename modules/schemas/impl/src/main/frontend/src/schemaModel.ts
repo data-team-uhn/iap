@@ -17,7 +17,7 @@
  */
 
 import { childrenOf, stringsOf, textOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
-import { nextVersionLabel as labelAfter } from "@iap/frontend-commons/versionNumbers";
+import { nextVersionLabel as labelAfter, versionLabel } from "@iap/frontend-commons/versionNumbers";
 
 // Reading schemas and their versions from their JSON serialization. Where each stands is its lifecycle
 // tags. What may be done with it is the `@events` the server offers on it, and what may be edited is its
@@ -51,7 +51,7 @@ export const nameIfAny = (node?: SerializedNode): string | undefined => node && 
 
 export const titleOf = (schema: SerializedNode): string => textOf(schema, "title") ?? nameOf(schema);
 
-export const labelOf = (version: SerializedNode): string => textOf(version, "version") ?? nameOf(version);
+export const labelOf = (version: SerializedNode): string => versionLabel(version.version, nameOf(version));
 
 export const descriptionOf = (version: SerializedNode): string | undefined => textOf(version, "description");
 

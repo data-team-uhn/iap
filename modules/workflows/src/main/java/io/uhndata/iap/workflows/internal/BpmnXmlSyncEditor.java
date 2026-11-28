@@ -19,7 +19,8 @@ package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.stream.StreamSupport;
+import java.util.List;
+import java.util.Set;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -37,7 +38,12 @@ import org.xml.sax.SAXException;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.spi.TagProcessor;
+import io.uhndata.iap.utils.NodeTypeUtils;
+import io.uhndata.iap.workflows.ParseProblems;
 import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * A commit editor that keeps a {@code wf:WorkflowVersion}'s {@code wf:FlowNode}/{@code wf:SequenceFlow} children in
@@ -84,15 +90,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     /** The child node type that workflow definitions homepages store. */
     private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
 
-    private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
-
-    private static final String JCR_SYSTEM_NODE_NAME = "jcr:system";
-
-    private static final String JCR_NODE_TYPES_NODE_NAME = "jcr:nodeTypes";
-
     private static final String WORKFLOW_VERSION_TYPE = "wf:WorkflowVersion";
-
-    private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
     private static final String BPMN_XML_FILE_NAME = "bpmn.xml";
 
@@ -130,22 +128,17 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * which node it descends into, bundled together so the per-instance constructor stays within the checkstyle
      * parameter limit.
      *
-     * <p>The two roots are derived from the committed state on demand rather than passed in already resolved: this
-     * editor is created for every commit in the repository, and only the few that reach a workflow version ever need
-     * them.</p>
+     * <p>The node type registry is derived from the committed state on demand rather than passed in already
+     * resolved. This editor is created for every commit in the repository, and only the few that reach a workflow
+     * version ever need it.</p>
      *
      * @since 0.1.0
      */
     private record CommitContext(NodeState after, String author)
     {
-        NodeState workflowTypesRoot()
-        {
-            return this.after.getChildNode(WORKFLOW_TYPES_ROOT_NAME);
-        }
-
         NodeState nodeTypesRoot()
         {
-            return this.after.getChildNode(JCR_SYSTEM_NODE_NAME).getChildNode(JCR_NODE_TYPES_NODE_NAME);
+            return NodeTypeUtils.registry(this.after);
         }
     }
 
@@ -165,9 +158,9 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * Constructor for the repository root, receiving the whole commit.
      *
      * @param root the root node builder
-     * @param after the committed root node state, which {@code /WorkflowTypes} (the {@code wf:FlowNodeType}
-     *            vocabulary) and {@code /jcr:system/jcr:nodeTypes} (used to recognize workflow versions and
-     *            previously parsed flow nodes, including subtypes of either) are read from
+     * @param after the committed root node state, which the parse reads everything outside the version itself
+     *            from: the {@code wf:FlowNodeType} vocabulary, the node type registry that recognizes workflow
+     *            versions and previously parsed flow nodes, and whatever a reference parameter names
      * @param author the id of the user who made this commit, recorded as {@code jcr:createdBy} on newly parsed
      *            flow nodes/sequence flows
      */
@@ -280,6 +273,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
         }
         WorkflowDefinitionUtils.clear(this.workflowVersion, this.context.nodeTypesRoot());
         this.workflowVersion.removeProperty(PARSED_HASH_PROPERTY);
+        recordProblems(List.of());
         LOGGER.debug("Cleared flow nodes for WorkflowVersion {}: {}", this.workflowVersionPath, reason);
     }
 
@@ -297,6 +291,10 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * Reparses the diagram unless the stored hash says the stored graph already came from these exact bytes. The
      * hash is taken from the blob's stream rather than a decoded string so that a multi-megabyte diagram is never
      * held in memory whole just to find out nothing changed.
+     *
+     * <p>The hash is stored after every parse that runs to its end, problems or not, and removed when a parse
+     * throws. Writing the same bytes again changes nothing Oak can see, so this editor does not run at all. A fix to
+     * the vocabulary therefore reaches a version only when its diagram next changes.</p>
      */
     private void syncIfNeeded(final Blob bpmnXml)
     {
@@ -320,19 +318,44 @@ public class BpmnXmlSyncEditor extends DefaultEditor
                     BPMN_AUTHORITATIVE_PROPERTY);
                 return;
             }
+            final ParseProblems problems;
             try (InputStream reread = bpmnXml.getNewStream()) {
-                WorkflowDefinitionUtils.parse(reread, this.workflowVersion, this.context.workflowTypesRoot(),
-                    this.context.nodeTypesRoot(), this.context.author(), this.workflowVersionPath);
+                problems = WorkflowDefinitionUtils.parse(reread, this.workflowVersion, this.context.after(),
+                    this.context.author(), this.workflowVersionPath);
             }
+            recordProblems(problems.lines());
             this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
             LOGGER.debug("Synced flow nodes for WorkflowVersion {}", this.workflowVersionPath);
         } catch (final ParserConfigurationException | SAXException | IOException | RuntimeException e) {
             LOGGER.error("Failed to parse bpmnXml at {}: {}", this.workflowVersionPath, e.getMessage(), e);
-            // A failure rather than a problem: something threw where the translation expected to parse. The commit
-            // still succeeds, so the author is told nothing and the version keeps whatever flow nodes it had —
-            // which, for a first upload, is none at all
+            // The commit still succeeds, and the failure is the version's one problem. Its flow nodes survive only
+            // when the parse threw before clearing them.
             ErrorLogger.logError(e, ErrorContext.of(BpmnXmlSyncEditor.class, "syncFlowNodes")
                 .about(this.workflowVersionPath));
+            this.workflowVersion.removeProperty(PARSED_HASH_PROPERTY);
+            recordProblems(ParseProblems.ofFailure(this.workflowVersionPath, e).lines());
+        }
+    }
+
+    /**
+     * Stores what a parse complained about on the version, and tags it {@code invalid} exactly while that list is
+     * not empty. Other tags are left as they are.
+     */
+    private void recordProblems(final List<String> lines)
+    {
+        final Set<String> tags =
+            TagProcessor.readTags(this.workflowVersion.getNodeState(), TagManager.TAGS_PROPERTY);
+        if (lines.isEmpty()) {
+            this.workflowVersion.removeProperty(WorkflowVersion.PARSE_PROBLEMS_PROPERTY);
+            tags.remove(WorkflowVersion.INVALID_TAG);
+        } else {
+            this.workflowVersion.setProperty(WorkflowVersion.PARSE_PROBLEMS_PROPERTY, lines, Type.STRINGS);
+            tags.add(WorkflowVersion.INVALID_TAG);
+        }
+        if (tags.isEmpty()) {
+            this.workflowVersion.removeProperty(TagManager.TAGS_PROPERTY);
+        } else {
+            this.workflowVersion.setProperty(TagManager.TAGS_PROPERTY, tags, Type.STRINGS);
         }
     }
 
@@ -359,15 +382,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      */
     private boolean isWorkflowVersion(final NodeBuilder node)
     {
-        final String type = node.getName(JCR_PRIMARY_TYPE_PROPERTY);
-        if (type == null) {
-            return false;
-        }
-        if (WORKFLOW_VERSION_TYPE.equals(type)) {
-            return true;
-        }
-        return StreamSupport.stream(this.context.nodeTypesRoot().getChildNode(type)
-            .getNames(SUPERTYPES_PROPERTY).spliterator(), false)
-            .anyMatch(WORKFLOW_VERSION_TYPE::equals);
+        return NodeTypeUtils.isOrExtends(node.getName(JCR_PRIMARY_TYPE_PROPERTY), WORKFLOW_VERSION_TYPE,
+            this.context.nodeTypesRoot());
     }
 }

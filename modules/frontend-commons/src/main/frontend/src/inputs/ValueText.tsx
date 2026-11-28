@@ -16,11 +16,12 @@
  * limitations under the License.
  */
 
-// Shows the values of a field as text, where a form is read but not edited.
+// Shows the values of a field, where a form is read but not edited.
 
-import { Typography } from "@mui/material";
+import { Stack, Typography } from "@mui/material";
 
 import { type Choice, choiceLabel } from "./choices";
+import CodePill from "../components/CodePill";
 
 const NOTHING = "―";
 
@@ -29,10 +30,23 @@ interface ValueTextProps {
   values: readonly string[];
   // Each value is shown by the label of the choice holding it, or as itself when it is not one of the offered choices
   choices?: readonly Choice[];
+  // Shows each value in the code style, for an identifier
+  code?: boolean;
 }
 
-// Values shown as text after their label, as "Label: a, b", for a form that cannot be edited.
-export default function ValueText({ label, values, choices = [] }: ValueTextProps) {
+// Values shown under their label, for a form that cannot be edited.
+export default function ValueText({ label, values, choices = [], code = false }: ValueTextProps) {
   const shown = values.map(value => choiceLabel(choices, value));
-  return <Typography>{label}: {shown.length === 0 ? NOTHING : shown.join(", ")}</Typography>;
+  return (
+    <Stack>
+      <Typography variant="description">{label}</Typography>
+      {
+        shown.length === 0
+          ? <Typography variant="placeholder">{NOTHING}</Typography>
+          : code
+            ? <Stack direction="row" spacing={1}>{shown.map(value => <CodePill key={value} name={value} />)}</Stack>
+            : <Typography>{shown.join(", ")}</Typography>
+      }
+    </Stack>
+  );
 }

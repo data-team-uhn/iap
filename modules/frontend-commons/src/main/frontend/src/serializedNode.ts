@@ -67,3 +67,8 @@ export function textOf(node: SerializedNode, key: string): string | undefined {
 
 // The last segment of a path, which is the name of the node it leads to
 export const lastSegmentOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
+
+// The name a node was given before JCR escaped it, for a node named after a key such as `jcr:title`, which the
+// repository stores as `jcr%3Atitle`
+export const unescapedName = (name: string): string =>
+  name.replace(/%([0-9A-Fa-f]{2})/g, (_escape, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));

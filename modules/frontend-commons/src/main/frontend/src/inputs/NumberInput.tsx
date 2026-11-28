@@ -40,9 +40,11 @@ export default function NumberInput(props: NumberInputProps) {
   const { complete, soFar, problem } = NUMBER_KINDS[kind];
   const typed = singleValue(values).trim();
   const finished = typed === "" || complete(typed);
+  const possible = soFar(typed);
+  // Text that cannot become a number is flagged at once, so leaving the field adds nothing for it
   const { field, visit } = useFieldProps(
-    { ...props, problems: soFar(typed) ? problems : [ ...problems, problem ] },
-    finished ? [] : [ problem ]);
+    { ...props, problems: possible ? problems : [ ...problems, problem ] },
+    finished || !possible ? [] : [ problem ]);
   const finishing = useCommit({ ...props, finished }, visit);
 
   if (readOnly) {

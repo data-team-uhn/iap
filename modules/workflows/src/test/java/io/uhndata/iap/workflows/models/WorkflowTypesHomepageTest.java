@@ -107,7 +107,7 @@ class WorkflowTypesHomepageTest
     void servesTheCatalogueDespiteAMalformedEntry()
     {
         // An entry stored as a plain node carrying a vocabulary resource type gets past the mandatory properties of
-        // the real node type. It must not take the catalogue with it: the editor's toolbars are built from this
+        // the real node type. It must not take the catalogue with it: the editor reads this
         final Resource resource = this.createVocabulary();
         this.context.create().resource(PATH + "/Malformed", Map.of(TYPE, ActivityType.RESOURCE_TYPE));
         final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
@@ -117,8 +117,8 @@ class WorkflowTypesHomepageTest
         assertEquals(4, types.size());
         // Ordered by label, and the malformed entry sorts under the node name it falls back on
         assertEquals("Malformed", types.get(1).getDocumentationLabel());
-        // It lands in the group its kind implies, alongside the user task, rather than in none
-        assertEquals(2, homepage.toDocumentationJson().getJsonObject("items")
+        // With no xmlElement to name an element type, it lands under the category its kind implies, rather than none
+        assertEquals(1, homepage.toDocumentationJson().getJsonObject("items")
             .getJsonArray("Activities").size());
     }
 
@@ -207,8 +207,8 @@ class WorkflowTypesHomepageTest
     void fallsBackOnTheNodeNameWhenTheHeadingIsMissing()
     {
         // title is autocreated by the node type, but a node of another type carrying this resource type gets past
-        // that, and a deployment can delete rather than reword it; either way the catalogue the editor's toolbars
-        // are built from must still be served rather than failing on a null heading
+        // that, and a deployment can delete rather than reword it; either way the catalogue the editor reads must
+        // still be served rather than failing on a null heading
         final Resource resource = this.context.create().resource(PATH, TYPE,
             WorkflowTypesHomepage.RESOURCE_TYPE);
         final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
@@ -218,7 +218,7 @@ class WorkflowTypesHomepageTest
     }
 
     @Test
-    void servesTheCatalogueGroupedByToolbarCategory()
+    void servesTheCatalogueByElementTypeListingEachEntryOnce()
     {
         final Resource resource = this.createVocabulary();
 
@@ -226,12 +226,13 @@ class WorkflowTypesHomepageTest
 
         assertEquals("Workflow node types", json.getString("title"));
         final JsonObject items = json.getJsonObject("items");
+        // The start event's group is not a heading of its own
         assertEquals(3, items.size());
-        assertEquals(1, items.getJsonArray("Activities").size());
-        assertEquals(1, items.getJsonArray("Start Events").size());
-        assertEquals(1, items.getJsonArray("End Events").size());
+        assertEquals(1, items.getJsonArray("Start Event").size());
+        assertEquals(1, items.getJsonArray("End Event").size());
+        // The user task declares no category, so it is listed under the element type its xmlElement names
         assertEquals("bpmn:userTask",
-            items.getJsonArray("Activities").getJsonObject(0).getString("xmlElement"));
+            items.getJsonArray("User Task").getJsonObject(0).getString("xmlElement"));
     }
 
     @Test
@@ -259,11 +260,11 @@ class WorkflowTypesHomepageTest
             "xmlElement", "bpmn:userTask", "jcrNodeType", "wf:Activity"));
         this.context.create().resource(PATH + "/StartEvent", Map.of(
             TYPE, CatchingEventType.RESOURCE_TYPE, "label", "Start Event", "priority", 0L,
-            "category", new String[] {"Start Events"},
+            "category", new String[] {"Start Event", "Plain"},
             "xmlElement", "bpmn:startEvent", "jcrNodeType", "wf:StartEvent"));
         this.context.create().resource(PATH + "/EndEvent", Map.of(
             TYPE, ThrowingEventType.RESOURCE_TYPE, "label", "End Event", "priority", 0L,
-            "category", new String[] {"End Events"},
+            "category", new String[] {"End Event"},
             "xmlElement", "bpmn:endEvent", "jcrNodeType", "wf:EndEvent"));
         return resource;
     }

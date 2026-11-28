@@ -24,7 +24,7 @@ import { Autocomplete, Chip, TextField } from "@mui/material";
 
 import { type Choice, withValues } from "./choices";
 import { useFieldProps, type ValueInputProps } from "./valueInput";
-import { changeAndCommit } from "./values";
+import { changeAndCommit, countProblems } from "./values";
 import ValueText from "./ValueText";
 
 interface MultiValueInputProps extends ValueInputProps {
@@ -40,13 +40,19 @@ interface MultiValueInputProps extends ValueInputProps {
   // Whether a value's chip is marked in error
   chipError?: (value: string) => boolean;
   openOnMount?: boolean;
+  // The fewest values a list that holds any must hold, e.g. 2. An empty list is flagged only when required.
+  minValues?: number;
+  // The most values the list may hold, e.g. 3. By default, any number.
+  maxValues?: number;
 }
 
 // Several values, shown as chips, picked from a list or typed.
 export default function MultiValueInput(props: MultiValueInputProps) {
   const { label, values, choices = [], labelOf, splitTyped, chipError, openOnMount = false, disabled } = props;
   const { free = choices.length === 0, loading = false, readOnly = false } = props;
-  const { field, visit } = useFieldProps(props);
+  const { minValues, maxValues, problems = [] } = props;
+  const counted = [ ...problems, ...countProblems(values.length, minValues, maxValues) ];
+  const { field, visit } = useFieldProps({ ...props, problems: counted });
   const [ listed, setListed ] = useState(openOnMount);
   const known = useMemo(() => withValues(choices, values, labelOf), [ choices, values, labelOf ]);
   const labels = useMemo(() => new Map(known.map(choice => [ choice.value, choice.label ])), [ known ]);

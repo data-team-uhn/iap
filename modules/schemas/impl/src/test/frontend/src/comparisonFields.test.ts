@@ -57,6 +57,16 @@ describe("fieldsOfDefinitions", () => {
     expect(found[0].choices).toEqual({ double: "Decimal number", long: "long", text: "Text" });
   });
 
+  it("reads a field and a choice named after a key the repository escaped", () => {
+    const found = fieldsOfDefinitions([ { v1: { tags: [ "active" ], update: { fields: { "jcr%3Atitle": {
+      "@name": "jcr%3Atitle",
+      choices: { "@name": "choices", "application%2Fpdf": { "@name": "application%2Fpdf", label: "PDF" } },
+    } } } } } ]);
+
+    expect(found.map(({ name, label }) => `${name}: ${label}`)).toEqual([ "jcr:title: jcr:title" ]);
+    expect(found[0].choices).toEqual({ "application/pdf": "PDF" });
+  });
+
   it("reads only the active version of a workflow", () => {
     const found = fieldsOfDefinitions([ {
       v1: { tags: [ "retired" ], update: { fields: { text: { "@name": "text", label: "Question" } } } },

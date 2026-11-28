@@ -18,7 +18,7 @@
 
 import {
   childrenOf, childrenOfPrimaryType, childrenOfType, isNode, isTagged, lastSegmentOf, stringsOf, textOf,
-  textValuesOf,
+  textValuesOf, unescapedName,
 } from "@iap/frontend-commons/serializedNode";
 
 describe("isNode", () => {
@@ -112,5 +112,14 @@ describe("lastSegmentOf", () => {
   it("gives the name a path ends with", () => {
     expect(lastSegmentOf("/Submissions/ab/request")).toBe("request");
     expect(lastSegmentOf("request")).toBe("request");
+  });
+});
+
+describe("unescapedName", () => {
+  it("undoes the escapes JCR puts in a name, and leaves the rest as it is", () => {
+    expect(unescapedName("jcr%3Atitle")).toBe("jcr:title");
+    expect(unescapedName("application%2Fpdf")).toBe("application/pdf");
+    expect(unescapedName("100%25")).toBe("100%");
+    expect(unescapedName("plain")).toBe("plain");
   });
 });

@@ -58,6 +58,13 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
+// The canvas reporting itself ready, with what it would serialize and what is wrong with it
+const ready = (serialize = () => Promise.resolve("<drawn/>")) =>
+  (latestCanvas().onReady as (editor: unknown) => void)({ serialize });
+
+// What the editor says when the saved process has problems
+const PROBLEMS_TITLE = "The workflow was saved, but its process has problems to fix before it can be activated.";
+
 const VERSION_PATH = "/Workflows/review/2-0";
 
 const definition = {
@@ -83,6 +90,10 @@ const serving = (body: unknown): FetchRoute => request =>
   jsonResponse(isTagSearch(request.url) ? LIFECYCLE_TAGS : body);
 
 const stubServer = (body: unknown = definition) => stubFetch(serving(body));
+
+// The same, but the version's own node, as read back after a save, is `node`
+const stubServerReadingBack = (node: Record<string, unknown>) =>
+  stubFetch({ [`${VERSION_PATH}.0.json`]: jsonResponse(node) }, serving(definition));
 
 // Wherever the router stands, query and all: which page a version is opened on is asked for there,
 // so a URL without it would not say whether the editor or the viewer was arrived at.
@@ -260,7 +271,7 @@ describe("WorkflowEditor", () => {
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
     // The page is handed the means to serialize once the canvas is ready
-    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    ready();
 
     await user.click(screen.getByRole("button", { name: "pretend to draw" }));
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
@@ -272,11 +283,11 @@ describe("WorkflowEditor", () => {
     expect(save?.[0]).toBe(`${VERSION_PATH}.save.json`);
     // The diagram is a plain payload part of the save request, named after the file it becomes.
     expect((save?.[1]?.body as FormData).get("bpmn.xml")).toBeInstanceOf(File);
-    expect(await screen.findByText("The process was saved")).toBeInTheDocument();
+    expect(await screen.findByText("The workflow was saved")).toBeInTheDocument();
 
     // And the confirmation can be dismissed, being a report of something already done
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
-    await waitFor(() => expect(screen.queryByText("The process was saved")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("The workflow was saved")).not.toBeInTheDocument());
   });
 
   it("saves and then shows the version, on the same URL without the editor asked for", async () => {
@@ -284,7 +295,7 @@ describe("WorkflowEditor", () => {
     const fetchMock = stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
-    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    ready();
     await user.click(screen.getByRole("button", { name: "pretend to draw" }));
 
     await user.click(screen.getByRole("button", { name: "Save and view" }));
@@ -298,7 +309,7 @@ describe("WorkflowEditor", () => {
     const fetchMock = stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
-    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    ready();
     await user.click(screen.getByRole("button", { name: "pretend to draw" }));
 
     await user.click(screen.getByRole("button", { name: "Save and close" }));
@@ -314,13 +325,61 @@ describe("WorkflowEditor", () => {
     stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
-    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    ready();
 
     stubFailingFetch(403);
     await user.click(screen.getByRole("button", { name: "Save and close" }));
 
-    expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
+    expect(await screen.findByText("The workflow version 2.0 could not be saved")).toBeInTheDocument();
     expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
+  });
+
+  it("says what is wrong when the saved process has problems, and stays on the page", async () => {
+    const user = userEvent.setup();
+    const problems = [ "A task has no type (task1)", "An arc has no target (flow2)" ];
+    stubServerReadingBack({ ...definition["2-0"], "parseProblems": problems });
+    renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    ready();
+    await user.click(screen.getByRole("button", { name: "pretend to draw" }));
+
+    await user.click(screen.getByRole("button", { name: "Save and close" }));
+
+    expect(await screen.findByText(PROBLEMS_TITLE)).toBeInTheDocument();
+    expect(screen.getByText(/A task has no type \(task1\)\s*An arc has no target \(flow2\)/)).toBeInTheDocument();
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+    expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
+  });
+
+  it("reports a problem as an error, even a single one stored as a string", async () => {
+    const user = userEvent.setup();
+    stubServerReadingBack({ ...definition["2-0"], "parseProblems": "A task has no type (task1)" });
+    renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    ready();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const report = (await screen.findByText(PROBLEMS_TITLE))
+      .closest("[role=alert]");
+    expect(report).toHaveTextContent("A task has no type (task1)");
+    expect(report?.className).toMatch(/colorError/);
+  });
+
+  it("keeps the plain confirmation when the saved version cannot be read back", async () => {
+    const user = userEvent.setup();
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    stubFetch({ [`GET ${VERSION_PATH}.0.json`]: new Response(null, { status: 500, statusText: "Broken" }) },
+      serving(definition));
+    renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    ready();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("The workflow was saved")).toBeInTheDocument();
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("has the browser warn before a page with unsaved changes is left", async () => {
@@ -360,7 +419,7 @@ describe("WorkflowEditor", () => {
     await waitFor(() => expect(currentUrl()).toBe("/admin/workflows/Workflows/review"));
   });
 
-  it("still has unsaved changes when the process changed while the save was out", async () => {
+  it("still has unsaved changes when the workflow changed while the save was out", async () => {
     // What was sent was serialized before that change, so the change is not saved
     const user = userEvent.setup();
     let answerSave: (response: Response) => void = () => undefined;
@@ -369,7 +428,7 @@ describe("WorkflowEditor", () => {
       serving(definition));
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
-    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    ready();
     await user.click(screen.getByRole("button", { name: "pretend to draw" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
@@ -379,7 +438,7 @@ describe("WorkflowEditor", () => {
       answerSave(jsonResponse({ status: "completed" }));
     });
 
-    expect(await screen.findByText("The process was saved")).toBeInTheDocument();
+    expect(await screen.findByText("The workflow was saved")).toBeInTheDocument();
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 
@@ -389,10 +448,10 @@ describe("WorkflowEditor", () => {
     stubServer();
     const { router } = renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
-    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    ready();
     stubFailingFetch(403);
     await user.click(screen.getByRole("button", { name: "Save and close" }));
-    expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
+    expect(await screen.findByText("The workflow version 2.0 could not be saved")).toBeInTheDocument();
 
     await navigateTo(router, ELSEWHERE);
     const fetchMock = stubServer();
@@ -407,12 +466,12 @@ describe("WorkflowEditor", () => {
     stubServer();
     renderEditor({ edit: true });
     await screen.findByRole("heading", { name: /Standard review/ });
-    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    ready();
 
     stubFailingFetch(403);
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
+    expect(await screen.findByText("The workflow version 2.0 could not be saved")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 

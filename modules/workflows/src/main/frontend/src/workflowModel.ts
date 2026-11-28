@@ -17,9 +17,12 @@
  */
 
 import { isNode, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
+import { versionLabel } from "@iap/frontend-commons/versionNumbers";
 
 // What the workflow screens know about the repository: where workflows live, how a version's
 // lifecycle reads, and how one workflow's versions are listed. No React, no fetch.
+
+import { IAP_NS } from "./moddle";
 
 // The workflow definitions' canonical home; others may exist (the platform's own under
 // /SystemWorkflows, another location's mirrored locally) but are discovered rather than listed here —
@@ -60,6 +63,9 @@ export interface WorkflowVersionSummary {
   // What the current user may do to it, as the events the server offers on it
   "@events": string[];
 }
+
+// What a version is called: its label, or its node name when the label is blank
+export const labelOf = (version: WorkflowVersionSummary): string => versionLabel(version.version, version.name);
 
 // One workflow definition with the versions stored under it, as its own page displays it.
 export interface WorkflowSummary {
@@ -150,10 +156,10 @@ export const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
 
-// The diagram a brand-new workflow version starts from — a start event, one user task, an end event —
-// so the editor opens on something rather than an empty canvas.
+// The diagram a brand-new workflow version starts from: a start event, one user task and an end event.
+// It declares the IAP namespace, which the parameters an author adds are written in.
 export const STARTING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_07212ml" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.16.0">
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:iap="${IAP_NS}" id="Definitions_07212ml" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.16.0">
   <bpmn:process id="Process_1ajiizs" isExecutable="false">
     <bpmn:sequenceFlow id="Flow_1bghbvl" sourceRef="StartEvent_0gcwblc" targetRef="Activity_0waxs0q" />
     <bpmn:sequenceFlow id="Flow_1cyttg7" sourceRef="Activity_0waxs0q" targetRef="Event_1q4m3yf" />

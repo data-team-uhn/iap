@@ -37,7 +37,7 @@ public class ActivityType extends FlowNodeType
     /** The {@code sling:resourceType} of a {@code wf:ActivityType} node. */
     public static final String RESOURCE_TYPE = "wf/ActivityType";
 
-    /** The toolbar group used for Activities entries that do not declare one of their own. */
+    /** The category of an entry of this kind that declares neither a category nor an xmlElement. */
     private static final String DEFAULT_CATEGORY = "Activities";
 
     @Override

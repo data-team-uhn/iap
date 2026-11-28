@@ -1,11 +1,17 @@
 {
   "jcr:primaryType": "wf:CatchingEventType",
   "label": "Error Boundary Event",
-  "description": "Catches a failure of the task it is attached to, giving the workflow somewhere to go when the work cannot be completed.",
-  "category": ["Boundary Events"],
+  "description": "Catches a failure of the task it is attached to.",
+  "category": ["Boundary Event"],
   "priority": 10,
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:errorEventDefinition",
   "jcrNodeType": "wf:IntermediateCatchingEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "cancelActivity": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Cancel the task",
+    "description": "Whether the task stops when this fires (yes), or carries on while a separate path also starts (no). Default: yes.",
+    "dataType": "boolean",
+    "xmlLocation": "bpmnAttribute"
+  }
 }

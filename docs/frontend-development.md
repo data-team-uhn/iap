@@ -251,7 +251,9 @@ caller adds problems only for what the input cannot know. A `required`
 field with no value, or only blank ones, adds "A value is required.", but only once it
 has been left. A stored value that the list no longer offers stays selected and shown
 as it is, rather than being dropped when the form is saved. So does a `BooleanInput`
-value that is neither `true` nor `false`.
+value that is neither `true` nor `false`. A `MultiValueInput` also takes `minValues` and
+`maxValues`, and flags a list with fewer or more values than they allow. An empty list is
+flagged only when it is `required`.
 
 A `ChoiceSource` (`choiceSource.ts`) is where a `ChoiceSearch` gets its list, such as
 `referenceChoices` for the nodes a reference may point at. `useChoices` reads a source
